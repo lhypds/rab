@@ -1,0 +1,231 @@
+/* A column of people in the house sheet, flush with the modal's own inset so the
+   rows line up with the title and the close button above them. The row's hover
+   still bleeds 8px past the text (see .item), into that inset rather than into a
+   margin of its own.
+
+   The same height the comment column stands at whether or not there is anything
+   in it, so an empty inbox is not a shorter sheet than a full one and opening a
+   row does not resize the sheet under the pointer. That sheet is its list (36vh,
+   140–320px) with the post it hangs under over it — 52px to the rule — and the
+   box beneath it — textarea 64px, footer 30px, and the three gaps of 12, 12 and
+   8 — so this takes the list's height plus that 178px.
+
+   And level with the exchange as well, which is cut to this same figure from the
+   other direction (see .thread in message.module.css): the two sheets a row here
+   opens are one height, so which kind of row was pressed is told by what is in
+   the sheet rather than by the sheet changing size. */
+.sheet {
+  padding: 0;
+  height: calc(36vh + 178px);
+  min-height: 318px;
+  max-height: 498px;
+  display: flex;
+  flex-direction: column;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+/* Closed on both edges rather than only fenced off from the next one: every row
+   has a rule over it and a rule under it, so the first in the list is not left
+   with an open top and the last is not left standing on nothing. A row here is a
+   whole exchange with somebody, which reads as a thing in its own right — where
+   a list of names is a column that only needs dividing.
+
+   The line between two rows is one hairline and not two. The top border is what
+   does the dividing all the way down, and only the last row draws a bottom of
+   its own — the alternative, both borders on every row, would double every rule
+   in the middle of the list and leave the ends lighter than the middle. */
+.list li {
+  border-top: 1px solid var(--line);
+}
+
+.list li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+/* The row is the frame the delete hides behind: the slider over it carries the
+   whole visible row and slides left under a swipe, uncovering the delete pinned
+   to the right. Clipped, so what slides off the left edge and the slot before it
+   is uncovered both stay inside the row. */
+.row {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Everything the row shows, over the delete and opaque so it hides it until a
+   swipe carries it left. pan-y leaves vertical scrolling to the list and hands
+   the horizontal gesture to the swipe handlers. */
+.slider {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  background: var(--paper);
+  transition: transform 0.18s ease;
+  touch-action: pan-y;
+}
+
+.slider.revealed {
+  transform: translateX(-48px);
+}
+
+/* Something unread on the row: the warning wash, the same yellow the weather
+   warnings stand on, in place of a mark of its own — the whole row says it is
+   waiting rather than a dot in the corner. */
+.slider.unread {
+  background: rgb(255 255 173);
+}
+
+/* The picture, two lines of who and what, and when at the far end — the row a
+   list of people has in lo, with the second line being the one thing this list
+   adds. A button rather than a link on a letter or a column, because what is on
+   the other side of the press is a sheet over this one rather than an address:
+   an exchange between two accounts is nobody else's to open, so there is
+   nothing there to link to. A follower's row and a posted row are the links —
+   what they lead to is a page and a post on the map, which have addresses — and
+   they wear the same clothes, underline off, so the kinds read as one list.
+
+   Set on the top rather than the middle: the name starts where the picture
+   starts, so a row whose last line runs long reads against the same edge as one
+   that does not. */
+.item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Behind the row against its right edge, uncovered only when the slider is
+   carried left. As wide as the slide (see .slider.revealed), the trash centred
+   in it. Black, the way a slid-out delete reads: the one filled slab in the
+   list, so what it is stands out from the rows it sits among. */
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: var(--ink);
+  color: var(--paper);
+  line-height: 0;
+  cursor: pointer;
+}
+
+.delete svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Square and ruled like every other picture in lo, at the size a row can hold.
+   Nothing at all where somebody has not put one up — the row starts at the name
+   instead, which is the reading every other list of people takes. */
+.avatar {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+  object-fit: cover;
+}
+
+.lines {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Grey, over the black line beneath it. Who the exchange is with is the label on
+   the row; a name set as dark as the words it heads reads as somebody being
+   addressed rather than named, which turns an inbox into a page of mentions. */
+.who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* When it was said, then one line of what was said. The time keeps the grey it
+   shares with the name above it and the words themselves take the black: what is
+   read down this column is the last thing said in each exchange, told apart by
+   the name standing over it. */
+.preview {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.previewText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.when {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* Centred in the content area rather than sitting at its top: an empty inbox is
+   a whole sheet saying one thing, so the one thing stands in the middle of it. */
+.empty {
+  flex: 1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* The row lights up under the pointer. Flush with its own edges: the slider it
+   sits in clips anything past them, and the row is already flush with the sheet's
+   inset. */
+@media (hover: hover) {
+  .item:hover {
+    background: var(--soft);
+  }
+
+  /* An unread row keeps its warning wash under the pointer rather than taking the
+     grey hover over it — the yellow is the state, not something to paint out. */
+  .slider.unread .item:hover {
+    background: transparent;
+  }
+}

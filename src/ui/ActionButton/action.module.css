@@ -1,0 +1,133 @@
+/* Two sizes, and neither is set here: the box comes off the tokens in
+   styles.css, so where a button stands is what decides how big it is. The small
+   one is the default and is what a card's heading carries — a pair of them next
+   to a title, in a page of hairline type, where the old larger box was the
+   loudest thing on the tile. The top bar overrides the tokens and every button
+   in there comes out the larger size, this one and the two controls drawn to
+   match it.
+
+   Both are under the 44px a touch guideline would ask for, which was already
+   true of the one size there used to be: lo is a page of small type read at
+   arm's length, and a bar of thumb-sized boxes would be the page. Nothing here
+   costs anything on a mis-hit — every one of them opens a sheet or changes the
+   height of a tile, and the one that takes a tile off the page (the minus at the
+   bottom of its ladder, see CardSize) puts it back in the plus menu it came
+   from with everything the reader decided about it still on it. */
+.actionButton {
+  position: relative;
+  width: var(--action-w);
+  height: var(--action-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  /* For the ones that are anchors rather than buttons: everything else about
+     them is the same, and an underline under an icon is not */
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* The one fade this app has for a control that is not being asked for, but not
+   made with opacity the way the rest of them are (see button:disabled in
+   styles.css). The tooltip is drawn as this button's own ::after, and opacity
+   makes a group nothing inside can climb back out of: a faded button faded the
+   caption hung under it, so the box telling the reader what the button would do
+   was the one thing on the tile they could not read — and a button they cannot
+   press is exactly when they want to be told what it is. So the fade is mixed
+   into the ink instead, at the same 0.4 over the paper, and the button comes out
+   looking as it always did with the box below it at full strength. */
+.actionButton:disabled {
+  cursor: default;
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--ink) 40%, var(--paper));
+  color: color-mix(in srgb, var(--ink) 40%, var(--paper));
+}
+
+.icon {
+  width: var(--action-icon);
+  height: var(--action-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A letter in place of an icon. Sized to sit at the same optical density as the
+   hairline drawings beside it rather than at the same height — a capital as tall
+   as the drawing would shout next to it — and set at the regular weight for the
+   same reason: the icons it stands among are drawn in a single hairline, and a
+   semibold letter is the one thing in the bar with a heavy stroke. */
+.glyph {
+  display: block;
+  font-family: var(--display);
+  font-size: var(--action-glyph);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.actionButton[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 999;
+  padding: 3px 8px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+/* The rows on the marks and posts lists carry their buttons at the right edge
+   of a list that has to clip sideways — see .marks-list in styles.css, where
+   the clip is what stops these very boxes from giving the column a sideways
+   drag. A tooltip centred under a button there hangs past the edge and is cut
+   in half by that clip, and on a wide window what shows through the cut is the
+   map in the next column. No z-index reaches out of a scroller's clip, so the
+   box is anchored to the button's right edge instead and grows back across the
+   row, where there is always room for it. */
+.actionButton[data-tooltip].tooltipRight::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* And the mirror of it, for a button against the left edge of the window: a
+   box centred under that one runs off the side of the screen, so it starts at
+   the button's left edge and keeps the margin the button itself has. */
+.actionButton[data-tooltip].tooltipLeft::after {
+  left: 0;
+  transform: none;
+}
+
+/* The buttons stacked down the edge of a map. A box hung under one of those
+   lands on the button below it, so it stands beside its button instead, on the
+   side away from the edge, level with the button's middle. */
+.actionButton[data-tooltip].tooltipBeside::after {
+  top: 50%;
+  left: auto;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
+}
+
+@media (hover: hover) {
+  .actionButton:not(:disabled):hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .actionButton[data-tooltip]:hover::after {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,76 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Drawn to the action button's box, off the same tokens (see styles.css), so the
+   bar reads as one row of controls whichever size it is set in. */
+.trigger {
+  width: var(--action-w);
+  height: var(--action-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 2px;
+  font: inherit;
+  font-size: var(--action-glyph);
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 999;
+  flex-direction: column;
+}
+
+.wrapper[data-open="true"] .dropdown {
+  display: flex;
+}
+
+.option {
+  width: var(--action-w);
+  height: var(--action-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ink);
+  border-top: none;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 2px;
+  font: inherit;
+  font-size: var(--action-glyph);
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (hover: hover) {
+  .wrapper:hover .trigger {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .wrapper:hover .dropdown {
+    display: flex;
+  }
+
+  .option:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+}

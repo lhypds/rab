@@ -1,0 +1,222 @@
+/* The exchange above and the box below it, in that order and nothing between:
+   the sheet is one column with a floor. */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* A definite height rather than one that follows the exchange. Two people who
+   have said three things to each other and two people who have said three
+   hundred get the same sheet, which is what keeps opening one from resizing the
+   thing the pointer just pressed — and it is what puts the box on a floor
+   instead of somewhere down a growing page.
+
+   Capped against the window as well, because the modal itself stops at 90vh and
+   a thread taller than that would push the box off the bottom of it on a short
+   screen.
+
+   The figures are the comment column's, worn where this sheet has room for them.
+   Both sheets are opened from the same list of conversations and one should not
+   be taller than the other (see messages.module.css), and what the other has
+   that this has not is the post at the head of it: 52px of it and the 12px gap
+   under it. So its list (36vh, 140–320px) plus that 64px lands the two of them
+   on the same height at every size of window — this sheet spending on the
+   exchange what that one spends on saying what the exchange is about. */
+.thread {
+  min-height: 204px;
+  height: calc(36vh + 64px);
+  max-height: 384px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.lines {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+}
+
+/* Each row is its own column: the name over the words and the time under them,
+   rather than either set beside the bubble — a bubble is as wide as its sentence,
+   and a name or a time hung off a one-word line would sit further in than the one
+   above it. Which side the row hangs on says who said it too; the name over it
+   says the same thing in words, for a sheet being read rather than scanned. */
+.line {
+  max-width: 78%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  align-self: flex-start;
+}
+
+.mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+/* The name over the words, in the mono the app writes names in and at the size
+   the time under them is written at: a name and a time are the two small facts
+   about a line, and one drawn louder than the other would read as part of what
+   was said. Held off the bubble by the row's own gap, so the three sit as one
+   block rather than as a heading with a paragraph under it. */
+.who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  /* A name is the way through to a page — the other side's to theirs, your own
+     to yours — and a name in lo wears no line for it: grey mono over the words
+     on either side. */
+  text-decoration: none;
+}
+
+/* Ruled like everything else in lo, and turned over on your own lines: black on
+   white is what somebody said to you, white on black is what you said back. The
+   two are the same box — this is not two kinds of thing, it is one thing from
+   two directions. */
+.bubble {
+  padding: 7px 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  /* Somebody else's writing, so it can be a pasted address with no spaces in it:
+     without this one line would set the width of the sheet. */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.mine .bubble {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* The small line under the words: when they were said, and on your own last line
+   the far side has opened, that they have. One row, so the two are read as one
+   fact about the message rather than as a second line hanging off it. */
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.when,
+.read {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* The dot belongs to the mark and not to the row, so it arrives with it: the time
+   under an unread line has nothing to be separated from. */
+.read::before {
+  content: "·";
+  margin-right: 6px;
+}
+
+.empty {
+  margin: 0;
+  padding: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The house textarea sets no size of its own, so the size a sheet is worked at
+   is said here — the same 12px the post composer types in. */
+.text {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+/* The count at one end and the send at the other, which is the post composer's
+   own foot: how much room is left, and the one thing to do about it. The count
+   held to the top of the line rather than to the middle, as the mark sheet
+   holds it: it is a reading of the box above, so it sits against the box. */
+.footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.count {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* Only as wide as its word, and the sheet's own height rather than the 42px a
+   full-width button on a form page takes: this is a control in a row, not the
+   end of a form. */
+.footer button {
+  width: auto;
+  min-width: 72px;
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.footer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Said only where there is a pointer to say it to, and only on the half of the
+   exchange that goes anywhere: your own name is a span and has nothing to
+   underline. */
+@media (hover: hover) {
+  a.who:hover {
+    text-decoration: underline;
+  }
+}
+
+/* A line rab wrote itself: what became of a booking, set in the mono face the
+   app keeps for facts, and linked to the item it is about. */
+.event {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-decoration: none;
+}
+
+.eventLine {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.eventItem {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The way through to the other person's page, in the sheet's top bar. */
+.profile {
+  flex: none;
+  padding: 2px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .profile:hover {
+    color: var(--ink);
+  }
+}

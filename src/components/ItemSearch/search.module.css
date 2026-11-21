@@ -1,0 +1,158 @@
+/* On the left of the bar, straight after the wordmark, taking whatever the
+   buttons leave and no more than a search box needs. The auto margin is what
+   holds it there: the bar spreads what it holds to its two ends, and without
+   it the box would drift to the middle of the room left over. */
+.search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  margin: 0 auto 0 12px;
+}
+
+/* The gap the auto margin does not keep when the bar is full: the box never
+   runs up against the buttons after it. */
+.search + :global(.topbar-action-slot) {
+  margin-left: 12px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  height: var(--search-h);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.glass {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
+  }
+}
+
+.clear {
+  flex: none;
+  width: 26px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.clear svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The answers hang under the box, and on a narrow bar reach out past it to the
+   width a row of them needs. */
+.results {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  z-index: 20;
+  width: max(100%, min(360px, calc(100vw - 24px)));
+  max-height: min(420px, 70vh);
+  margin: -1px 0 0;
+  padding: 0;
+  transform: translateX(-50%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  list-style: none;
+}
+
+.results li + li {
+  border-top: 1px solid var(--line);
+}
+
+.result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.active {
+  background: var(--soft);
+}
+
+.thumb {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ink);
+  object-fit: cover;
+}
+
+.lines {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lines strong,
+.lines span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lines strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lines span,
+.note {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.note {
+  padding: 10px;
+}
+
+@media (hover: hover) {
+  .clear:hover {
+    color: var(--ink);
+  }
+}

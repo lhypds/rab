@@ -1,0 +1,66 @@
+.check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The real control, kept for the keyboard and for screen readers and drawn to
+   nothing: what is seen is the box beside it. */
+.input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.box {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink); /* the tick is black on white; the box is never filled */
+}
+
+/* The tick, shown when checked. */
+.box::before {
+  content: "";
+  width: 6px;
+  height: 4px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-20%) rotate(-45deg);
+  opacity: 0;
+}
+
+.input:checked + .box::before {
+  opacity: 1;
+}
+
+/* The keyboard's focus is on a control drawn to nothing, so the box wears it. */
+.input:focus-visible + .box {
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.check[data-disabled="true"] {
+  cursor: default;
+}
+
+.check[data-disabled="true"] .box {
+  opacity: 0.4;
+}
+
+@media (hover: hover) {
+  .check:not([data-disabled="true"]):hover .box {
+    background: var(--soft);
+  }
+}

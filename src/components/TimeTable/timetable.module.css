@@ -1,0 +1,197 @@
+/* The day as a timetable (see TimeTable.jsx): a line across for each hour with
+   its time at the left, a dashed one at each half hour, and what is put on the
+   day in the lane to the right of the times. */
+.day {
+  position: relative;
+}
+
+.hour {
+  position: absolute;
+  left: 44px;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--line);
+  pointer-events: none;
+}
+
+.half {
+  border-top-style: dashed;
+}
+
+.label {
+  position: absolute;
+  right: 100%;
+  top: -8px;
+  width: 44px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.none {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* --------------------------------------------------- one day, to pick from -- */
+
+/* Where the day's hours are: grey where it cannot be had, and a white half
+   hour over the grey for each one that can. */
+.lane {
+  position: absolute;
+  left: 44px;
+  right: 0;
+  background: var(--soft);
+}
+
+.cell {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Read rather than pressed, a half hour is not faded the way a button is. */
+.cell:disabled {
+  opacity: 1;
+}
+
+.price {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* The stretch picked, turned over. */
+.on {
+  background: var(--ink);
+}
+
+.on .price {
+  color: var(--paper);
+}
+
+/* What is already on the day, over its half hours: a stretch somebody has —
+   ruled across, as a taken day is on the calendar — and one asked for and not
+   yet answered, in a dashed box. Neither is in the way of a press. */
+.mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
+}
+
+.mark span {
+  padding: 0 2px;
+  background: var(--paper);
+}
+
+.taken {
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(135deg, var(--ink) 0 1px, transparent 1px 6px);
+}
+
+.pending {
+  outline: 1px dashed var(--ink);
+  outline-offset: -2px;
+}
+
+.pending span {
+  background: none;
+  color: var(--muted);
+}
+
+@media (hover: hover) {
+  .cell:not(:disabled):not(.on):hover {
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+}
+
+/* ------------------------------------------------ the week, to be painted -- */
+
+.week {
+  border: 1px solid var(--line);
+}
+
+/* The seven days, over their columns. */
+.names {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-left: 44px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+}
+
+.scroll {
+  height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.week .hour {
+  margin-left: 0;
+}
+
+.week .label {
+  padding-left: 6px;
+  box-sizing: border-box;
+}
+
+/* The columns take the press themselves — a drag over them paints, so it must
+   not also scroll; the times at their left are still there to scroll by. */
+.lanes {
+  position: absolute;
+  left: 44px;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.column {
+  position: relative;
+  border-left: 1px solid var(--line);
+}
+
+/* A stretch it can be had, in ink, with the time it starts and the time it
+   ends where there is room for them. */
+.open {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2px;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 12px;
+  text-align: center;
+  pointer-events: none;
+}

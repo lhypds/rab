@@ -1,0 +1,413 @@
+/* The booking page. One column on a phone; two where there is room, with the
+   card that takes the booking held in view on the right while the rest of the
+   page is read past it. */
+.page {
+  width: 100%;
+  container-type: inline-size;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "head"
+    "card"
+    "rest";
+  gap: 18px;
+}
+
+.head {
+  grid-area: head;
+  min-width: 0;
+}
+
+.card {
+  /* Brought into view below the bar rather than under it. */
+  scroll-margin-top: calc(var(--topbar) + 12px);
+  grid-area: card;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--ink);
+}
+
+.rest {
+  grid-area: rest;
+  min-width: 0;
+}
+
+/* Measured against the page's own box rather than the window, so the preview
+   inside the item form — a sheet narrower than the screen it is on — lays
+   itself out by the room it actually has. */
+@container (min-width: 860px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-areas:
+      "head card"
+      "rest card";
+    grid-template-rows: auto 1fr;
+    column-gap: 32px;
+  }
+
+  .card {
+    position: sticky;
+    /* The same 20px the page keeps over it before anything is scrolled (see
+       .wide-page), so the card is already where it sticks and does not move
+       when the page starts to. */
+    top: calc(var(--topbar) + 20px);
+    align-self: start;
+  }
+}
+
+/* --------------------------------------------------------------- gallery -- */
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  /* The frame sets the shape and the picture fills it — not the other way
+     round, which is what a picture taller than the frame would otherwise do. */
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--soft);
+  cursor: zoom-in;
+}
+
+/* On a narrow page the frame is the squarer of its two shapes. */
+@container (max-width: 600px) {
+  .photo {
+    aspect-ratio: 4 / 3;
+  }
+}
+
+.photo img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photoCount {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 6px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* A hundred photographs is a strip that scrolls, not a wall. */
+.thumbs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+
+.thumb {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--soft);
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbChosen {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/* Enlarged, the picture is as big as the sheet lets it be and never bigger
+   than it is: max-width and max-height only ever shrink an image, so one
+   smaller than the sheet stands at its own size in the middle of it. */
+.zoomed {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  margin: 0 auto;
+}
+
+/* ------------------------------------------------------------------ head -- */
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+
+.tags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* The heading the column opens with stands 32px under the photographs: the
+   grid's own 18px and this. */
+.first:global(.part-heading) {
+  margin-top: 14px;
+}
+
+.description {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.map {
+  height: 220px;
+  margin-top: 12px;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+}
+
+/* ------------------------------------------------------------------ card -- */
+
+/* What it costs, as the page's one big figure, and beside it the word for
+   where things stand today. */
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  margin: 0;
+}
+
+.price strong {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.price > span:not([class*="status"]) {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.price > span[class*="status"] {
+  margin-left: auto;
+  align-self: center;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actions :global(.small-button) {
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.calendarHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.calendarHead h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.calendarHead span {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* What is said and done about the days picked out, directly under the
+   calendar they were picked on. */
+/* The card's own 12px between everything in it, the panel's parts included. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+/* A message here is one more part of the column: the margin and the held line
+   it brings from the sign-in form would add to the gap on one side only. */
+.panel :global(.form-message) {
+  min-height: 0;
+  margin: 0;
+}
+
+/* As wide as the card, and the height of the buttons at the foot of a sheet
+   rather than the tall one a sign-in page has to itself. */
+.panel :global(.primary-button) {
+  width: 100%;
+  height: 30px;
+  font-size: 12px;
+}
+
+.chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.panel .chosen strong {
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+/* The field and its button are one line of the same height. */
+.priceRow :global(.text-input),
+.priceRow :global(.small-button) {
+  height: 28px;
+}
+
+/* What a request is made of — the hours, the note, the button — laid out like
+   the panel it stands in. A fieldset so that one word puts all of it out of
+   reach until a day is picked, and it is drawn in grey while it is. */
+.fields {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fields:disabled,
+.fields:disabled label {
+  color: var(--line);
+}
+
+.fields:disabled :is(input, textarea) {
+  border-color: var(--line);
+  color: var(--line);
+  -webkit-text-fill-color: var(--line);
+  opacity: 1;
+}
+
+.fields:disabled ::placeholder {
+  color: var(--line);
+}
+
+.fields:disabled .small {
+  color: var(--line);
+}
+
+.times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.times label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.times input {
+  width: 100%;
+  min-width: 0;
+}
+
+.small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (hover: hover) {
+  .slot:not(:disabled):not(.slotChosen):hover {
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+}

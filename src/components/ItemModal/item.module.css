@@ -1,0 +1,491 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+}
+
+/* The form's own gap is the only space between its parts: the message and the
+   buttons at its foot bring margins of their own from other sheets, which here
+   would stack on top of it — more air above the message than below the fields,
+   and twice as much again above the buttons. */
+.form > :global(.form-message) {
+  min-height: 0;
+  margin: 0;
+}
+
+.form > :global(.modal-actions) {
+  margin-top: 0;
+}
+
+/* One column on a phone; two where the sheet is wide enough to hold them —
+   what the thing is on the left, what it costs and when on the right. */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px 28px;
+}
+
+@media (min-width: 900px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.column :global(.tabs) {
+  margin-bottom: 0;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* A category in the menu: its mark, then its name. */
+.category {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A control that starts something rather than finishing it stands at the left,
+   where the next row would begin. */
+.start {
+  align-self: flex-start;
+}
+
+/* ---------------------------------------------------------------- photos -- */
+
+/* The photographs, as a wall of small squares that wraps: a hundred of them is
+   ten rows, and the first is the one everything else is listed under. */
+.photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.photo,
+.photoAdd {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--soft);
+}
+
+.photoMain {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.photoPick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.photoPick:disabled {
+  opacity: 1;
+}
+
+.photoPick img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photoBadge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 2px 4px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 10px;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.photoWaiting {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+/* The way a photograph comes off: a small box in its corner. */
+.photoRemove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.photoRemove svg,
+.photoAdd svg,
+.ruleRemove svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+
+.photoRemove svg,
+.ruleRemove svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2;
+}
+
+.photoAdd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-color: var(--ink);
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.photoAdd svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.4;
+}
+
+/* ----------------------------------------------------------------- rules -- */
+
+.modeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.currency {
+  flex: none;
+}
+
+/* The pricing rows are a table of small figures, not a form to be arrived at:
+   everything in one — the price, the currency beside them, the box that takes
+   a row off — stands 24px tall, a little over the weekday boxes it sits with,
+   rather than at the 32px the fields in the other column are. */
+.currency > button {
+  height: 24px;
+}
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+/* One rule: when it is for, what it costs, and the way to take it off. */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ruleWhen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.everyDay {
+  font-size: 12px;
+}
+
+.weekdays {
+  display: inline-flex;
+}
+
+.weekday {
+  width: 22px;
+  height: 22px;
+  margin-left: -1px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.weekday:first-child {
+  margin-left: 0;
+}
+
+.weekdayOn {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* The way to the dates a rule is for: a calendar in a box the height of the
+   weekday boxes beside it, and — once any are picked — turned over, with how
+   many written after the drawing. */
+.dates {
+  flex: none;
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.dates svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.datesOn {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* The hours a rule is for, where the item is booked by the time: when they
+   start and when they end, two small lists the height of the weekday boxes. */
+.ruleTimes {
+  display: inline-flex;
+}
+
+.ruleTime {
+  height: 22px;
+  padding: 0 2px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.ruleTime + .ruleTime {
+  margin-left: -1px;
+}
+
+/* Beside a field's label, the way to empty what the field holds. */
+.clear {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Two classes deep so it outranks the house input's own full width, whichever
+   stylesheet the bundler happens to put last. */
+.rule .rulePrice {
+  flex: none;
+  width: 96px;
+  height: 24px;
+  padding: 0 8px;
+}
+
+.ruleRemove {
+  flex: none;
+  width: 22px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ rest -- */
+
+/* The ground the pin is put down on. */
+.map {
+  position: relative;
+  height: 240px;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+}
+
+/* The spot's name, laid on the map's bottom edge: a field drawn as the small
+   ruled label the maps here carry, and still a field — it can be typed over. */
+.place {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 3;
+  width: min(280px, calc(100% - 20px));
+  height: 24px;
+  padding: 0 8px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  outline: 0;
+  background: var(--paper);
+  font-size: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+@media (pointer: coarse) {
+  .place {
+    height: 30px;
+    font-size: 16px;
+  }
+}
+
+.check {
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+.confirm {
+  align-self: center;
+  font-size: 12px;
+}
+
+@media (hover: hover) {
+  .photoRemove:hover,
+  .ruleRemove:not(:disabled):hover,
+  .dates:hover,
+  .weekday:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .photoAdd:hover {
+    color: var(--ink);
+  }
+}
+
+/* ------------------------------------------------------------------ area -- */
+
+/* The area picked: its name and where that is, with the way to pick another. */
+.area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.areaName {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-size: 12px;
+}
+
+.areaName span {
+  color: var(--muted);
+}
+
+.areaSearch {
+  position: relative;
+}
+
+/* The answers hang from the field, ruled into it. */
+.areaResults {
+  margin: -1px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.areaResult {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+}
+
+.areaResult span,
+.areaNote {
+  color: var(--muted);
+}
+
+.areaNote {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+@media (hover: hover) {
+  .areaResult:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .areaResult:hover span {
+    color: var(--paper);
+  }
+}

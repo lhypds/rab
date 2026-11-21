@@ -1,0 +1,854 @@
+:root {
+  --ink: #0b0b0b;
+  --paper: #ffffff;
+  --muted: #707070;
+  --line: #d8d8d8;
+  --soft: #f4f4f4;
+  /* The one colour on a page of one ink: something is wrong and has to be put
+     right before going on. */
+  --danger: #c62020;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --display: "Fira Code", var(--mono);
+  --topbar: 48px;
+  /* The action button's box and what is drawn inside it (see ui/ActionButton).
+     Two sizes: this is the smaller, for a button standing beside a heading; the
+     top bar sets the larger below. */
+  /* How tall a search box is, wherever one stands: the height of the bar's
+     buttons, so a box beside them is one more thing in the row rather than a
+     slab among them. */
+  --search-h: 22px;
+  --action-w: 22px;
+  --action-h: 18px;
+  --action-icon: 12px;
+  --action-glyph: 10px;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar:vertical {
+  width: 0;
+  display: none;
+}
+
+html {
+  overscroll-behavior: none;
+  background: var(--paper);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: calc(var(--vh, 1vh) * 100);
+  margin: 0;
+  background: var(--paper);
+}
+
+@media (min-width: 320px) {
+  html {
+    overflow-x: hidden;
+  }
+
+  body {
+    touch-action: pan-y pinch-zoom;
+  }
+}
+
+button,
+input {
+  color: inherit;
+  font: inherit;
+}
+
+input,
+textarea,
+select,
+[contenteditable] {
+  scroll-margin-block: 32px;
+}
+
+button:focus,
+button:focus-visible,
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+}
+
+/* A button's label is the name of what pressing it does, not a passage of
+   text: a double click or a held finger should not pick the word out. */
+button {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root,
+.page-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ auth -- */
+
+.center-page,
+.auth-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: calc(var(--vh, 1vh) * 100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.auth-lang {
+  position: fixed;
+  top: 16px;
+  right: 14px;
+  --action-w: 26px;
+  --action-h: 22px;
+  --action-glyph: 12px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 340px;
+  padding-bottom: 12vh;
+  text-align: center;
+}
+
+.auth-logo,
+.wordmark {
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.auth-logo {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1;
+}
+
+/* The gap under the wordmark on the sign-in card: the 28px lo keeps between
+   its wordmark and the line under it. */
+.auth-card .auth-logo {
+  margin-bottom: 28px;
+}
+
+.tagline {
+  margin: 28px 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.login-form {
+  margin: 0;
+}
+
+.auth-back,
+.auth-forgot {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.joined-field {
+  display: flex;
+  width: 100%;
+}
+
+.joined-field input {
+  min-width: 0;
+  flex: 1;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--ink);
+  border-right: 0;
+  border-radius: 0;
+  outline: 0;
+  background: var(--paper);
+  font-size: 15px;
+}
+
+.joined-field button {
+  width: 90px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-message {
+  min-height: 18px;
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form-message.error {
+  color: var(--danger);
+}
+
+/* ---------------------------------------------------------------- topbar -- */
+
+/* The bar's buttons are the larger of the two boxes: the only ones on a page of
+   their own, under a thumb at the top of a phone rather than a pointer. */
+.topbar {
+  --action-w: 26px;
+  --action-h: 22px;
+  --action-icon: 14px;
+  --action-glyph: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--topbar);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wordmark {
+  font-size: 18px;
+  text-decoration: none;
+}
+
+.topbar-action-slot {
+  height: var(--action-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The envelope wears a mark when something is waiting. A dot and not a figure:
+   how many there are is the list's own answer. */
+.topbar-badge {
+  position: relative;
+  display: inline-flex;
+}
+
+.topbar-badge svg path {
+  stroke-width: 0.75;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The plane is the one filled drawing in the bar, a silhouette rather than a
+   line, so it takes the ink as its fill and no stroke to thicken its edges. */
+.topbar-travel {
+  display: inline-flex;
+}
+
+.topbar-travel svg path {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* A bar this full does not fit a phone at its usual spacing: the gaps come in
+   before any of the buttons go. */
+@media (max-width: 480px) {
+  .topbar {
+    padding: 0 8px;
+  }
+
+  .topbar-action-slot {
+    gap: 4px;
+  }
+}
+
+.topbar-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--paper);
+  border-radius: 50%;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .topbar-badge:hover .topbar-dot {
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+}
+
+/* ------------------------------------------------------------------ home -- */
+
+/* The one page that is exactly as tall as the window: the map is the page, and
+   it is moved rather than scrolled. */
+.home-page {
+  height: 100vh;
+  height: 100dvh;
+  height: calc(var(--vh, 1vh) * 100);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.home-main {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+/* ------------------------------------------------------------------ page -- */
+
+/* Every page that is read rather than moved about: one 600px column under the
+   bar, the measure a row of type is comfortable at. */
+.list-page {
+  width: min(100%, 600px);
+  /* As tall as the window under the bar, and a column: a page with nothing in
+     its list hands the room that is left to the sentence saying so, which
+     stands in the middle of it rather than under the heading like a first row. */
+  min-height: calc(100vh - var(--topbar));
+  min-height: calc(100dvh - var(--topbar));
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 20px 12px calc(48px + env(safe-area-inset-bottom));
+}
+
+/* The booking page is the one page with two columns of its own to lay out, so
+   it takes more of a wide window than a list does. */
+.wide-page {
+  width: min(100%, 1080px);
+  margin: 0 auto;
+  padding: 20px 12px calc(48px + env(safe-area-inset-bottom));
+}
+
+/* Said at the head of a preview: that this is not yet anybody's to see. */
+.preview-note {
+  margin: 0 0 16px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ink);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.section-heading h1 {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.section-heading span {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* The heading over one part of a page: small, in the display face, with the
+   rule under it that the rows below hang from. */
+.part-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.part-heading h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.part-heading span {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.part-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 40px 24px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+.list-error {
+  margin: 12px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* The tabs over a list: which of its questions is being asked. Small boxes in
+   a row, the one in force turned over. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tab small {
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.tab.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ------------------------------------------------------------------ rows -- */
+
+.row-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A rule under every row, and one over the first: the list is closed at both
+   ends, so its top row is a row like the others rather than one that runs up
+   into whatever is above it. */
+.row-item {
+  border-bottom: 1px solid var(--line);
+}
+
+.row-item:first-child {
+  border-top: 1px solid var(--line);
+}
+
+/* Except directly under a part's heading, which is ruled already: a second
+   line against that one would read as a thicker rule, not as a closed list. */
+.part-heading + .row-list .row-item:first-child {
+  border-top: 0;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+}
+
+/* The whole block is the way in to what the row describes, thumbnail included;
+   its hit area is stretched over the row, under the controls on the right. */
+.row-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+/* A row is pressed, not picked up: a link and a picture are both things a
+   browser lets you drag off the page by default, and a row sliding out from
+   under the pointer as a ghost is nothing a list of your own things means. Nor
+   is its name a passage to select. */
+.row-copy,
+.row-thumb {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.row-copy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.row-plain::after {
+  content: none;
+}
+
+.row-thumb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+  object-fit: cover;
+}
+
+.row-lines {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.row-lines strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.row-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.row-side {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+
+@media (hover: hover) {
+  .row-item:has(a.row-copy):hover {
+    background: var(--soft);
+  }
+}
+
+/* Where a booking stands, as a word in a box: filled when it is settled in the
+   renter's favour, outlined while it waits, and greyed out once it is over. */
+.status {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.status-confirmed {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.status-pending {
+  border-style: dashed;
+}
+
+.status-declined,
+.status-cancelled,
+.status-off {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ form -- */
+
+.plain-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.field-count {
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.text-input {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  outline: 0;
+  background: var(--paper);
+  font-size: 12px;
+}
+
+.text-input.mono {
+  font-family: var(--mono);
+}
+
+.text-area {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+/* iOS zooms the page into any field whose type is under 16px. */
+@media (pointer: coarse) {
+  .text-input,
+  .text-area {
+    font-size: 16px;
+  }
+}
+
+.primary-button,
+.outline-button {
+  height: 42px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.primary-button {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.outline-button {
+  width: 100%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* The smaller control: white with a black rule, as wide as its word. */
+.small-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.small-button.filled {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.modal-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* The pair at the foot of a sheet, pushed to the right and only as wide as
+   their words. */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.plain-form .modal-actions {
+  margin-top: 0;
+}
+
+.modal-actions button,
+.modal-actions a {
+  width: auto;
+  min-width: 72px;
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.modal-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* Something at the far left of that row: the way to take the thing down, kept
+   away from the two answers on the right. */
+.modal-actions .modal-aside {
+  margin-right: auto;
+}
+
+@media (hover: hover) {
+  .outline-button:hover:not(:disabled),
+  .small-button:hover:not(:disabled),
+  .tab:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .primary-button:hover:not(:disabled),
+  .small-button.filled:hover:not(:disabled),
+  .joined-field button:hover:not(:disabled) {
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  .auth-back:hover:not(:disabled),
+  .auth-forgot:hover:not(:disabled) {
+    color: var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------- map -- */
+
+/* What Mapbox draws for itself, brought into the page's own hand: square
+   corners, a hairline rule, no shadow. Set here rather than in a module because
+   these are Mapbox's class names, on nodes it makes. */
+.map-frame .mapboxgl-popup {
+  z-index: 5;
+}
+
+.map-frame .mapboxgl-popup-content {
+  padding: 6px 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  box-shadow: none;
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.map-frame .mapboxgl-popup-tip {
+  display: none;
+}
+
+/* Mapbox's mark and its credits line are not drawn. */
+.map-frame .mapboxgl-ctrl-logo,
+.map-frame .mapboxgl-ctrl-attrib {
+  display: none;
+}

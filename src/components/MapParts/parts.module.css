@@ -1,0 +1,136 @@
+/* What stands in the corners of every map here, so the big one on the front
+   page and the small one in the item form are worked the same way. */
+.search {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  width: min(260px, calc(100% - 56px));
+}
+
+.field {
+  display: flex;
+  align-items: stretch;
+  height: var(--search-h);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
+  }
+}
+
+/* The glass at the head of the field: a drawing, in the grey of a thing that
+   is not pressed. */
+.glass {
+  flex: none;
+  align-self: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.clear {
+  flex: none;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.clear svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.results {
+  margin: -1px 0 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  list-style: none;
+}
+
+.results li + li {
+  border-top: 1px solid var(--line);
+}
+
+.result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.result strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result span,
+.note {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.note {
+  padding: 8px 10px;
+}
+
+.tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  --action-w: 26px;
+  --action-h: 22px;
+  --action-icon: 14px;
+}
+
+@media (hover: hover) {
+  .result:hover {
+    background: var(--soft);
+  }
+
+  .clear:hover {
+    color: var(--ink);
+  }
+}

@@ -1,0 +1,225 @@
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.month {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The two that turn the page, drawn to the action button's small box. */
+.turn {
+  width: 22px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.turn svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Seven columns ruled by the gaps between the squares: the grid's own ground
+   is the hairline grey and every square is paper laid over it, so the lines are
+   what is left showing. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--ink);
+  background: var(--line);
+}
+
+.weekday {
+  padding: 5px 0;
+  background: var(--paper);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+.blank {
+  background: var(--paper);
+}
+
+.day {
+  position: relative;
+  min-width: 0;
+  height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 4px 5px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+}
+
+/* A day that cannot be pressed is not faded the way a button is: half the
+   calendar is days like that, and what they say still has to be read. */
+.day:disabled {
+  opacity: 1;
+}
+
+.number {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.note,
+.ownPrice {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* A price the owner set for this day in particular, in ink rather than grey. */
+.ownPrice {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.today .number {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Gone by, or further ahead than the calendar reaches. */
+.outside {
+  color: var(--line);
+}
+
+/* Closed by the owner: the grey every empty thing here is drawn in. */
+.closed {
+  background: var(--soft);
+  color: var(--muted);
+}
+
+/* Taken by somebody: ruled across, the way a day is crossed off. The number and
+   the word stand on paper so the lines run behind them rather than through. */
+.taken {
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(135deg, var(--ink) 0 1px, transparent 1px 6px);
+  color: var(--ink);
+}
+
+.taken .number,
+.taken .note {
+  padding: 1px 2px;
+  margin: -1px -2px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Asked for and not yet answered. */
+.pending {
+  outline: 1px dashed var(--ink);
+  outline-offset: -3px;
+}
+
+/* The stretch being chosen, turned over. Last, so it wins over what the day
+   was before it was picked — which only the owner's calendar can ask of it. */
+.chosen,
+.chosen.closed,
+.chosen.taken {
+  background: var(--ink);
+  background-image: none;
+  color: var(--paper);
+  outline-color: var(--paper);
+}
+
+.chosen .number,
+.chosen .note,
+.chosen .ownPrice {
+  background: none;
+  color: var(--paper);
+}
+
+@media (hover: hover) {
+  .day:not(:disabled):not(.chosen):hover {
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+
+  .turn:not(:disabled):hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--ink);
+  background-color: var(--paper);
+}
+
+.swatch.closed {
+  border-color: var(--line);
+  background: var(--soft);
+}
+
+.swatch.pending {
+  border-style: dashed;
+  outline: none;
+}
+
+@media (min-width: 480px) {
+  .day {
+    height: 52px;
+    padding: 5px 6px;
+  }
+
+  .note,
+  .ownPrice {
+    font-size: 10px;
+  }
+}

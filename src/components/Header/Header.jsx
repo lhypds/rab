@@ -1,0 +1,134 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ActionButton, Link, useNavigate } from "../../ui/index.js";
+import { loginPath, useAuth } from "../AuthProvider/index.js";
+import AccountModal from "../AccountModal/index.js";
+import ItemModal from "../ItemModal/index.js";
+import LanguageSwitcher from "../LanguageSwitcher/index.js";
+import MessagesModal from "../MessagesModal/index.js";
+import TravelModal from "../TravelModal/index.js";
+
+// The bar on every page. `back` swaps the wordmark for the way back to the map,
+// on the pages that are somewhere you went to rather than where you start.
+export default function Header({ back = false }) {
+  const { t } = useTranslation();
+  const { user, unread } = useAuth();
+  const navigate = useNavigate();
+  // The sheets opened from here and nowhere else, so the bar holds them open
+  // itself.
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [listing, setListing] = useState(false);
+  const [travelOpen, setTravelOpen] = useState(false);
+
+  return (
+    <>
+      <header className="topbar">
+        <span className="topbar-brand">
+          {back ? (
+            <ActionButton tooltip={t("header.backHome")} tooltipLeft onClick={() => navigate("/")}>
+              <svg viewBox="0 0 24 24">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </ActionButton>
+          ) : (
+            <Link className="wordmark" to="/">
+              rab
+            </Link>
+          )}
+        </span>
+        <span className="topbar-action-slot">
+          {/* Putting something out for rent: the one thing in the bar that adds
+              to the map rather than reading it. Shown to everybody — to a
+              stranger it is the way in, by way of signing in. */}
+          <ActionButton
+            tooltip={t("header.list")}
+            onClick={() => (user ? setListing(true) : navigate(loginPath()))}
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </ActionButton>
+          {/* What you have out for rent, and who has asked for it. */}
+          {user && (
+            <ActionButton tooltip={t("header.mine")} onClick={() => navigate("/mine")}>
+              <svg viewBox="0 0 24 24">
+                <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
+                <path d="M3 8l9 5 9-5" />
+                <path d="M12 13v8" />
+              </svg>
+            </ActionButton>
+          )}
+          {/* What you have asked other people for. */}
+          {user && (
+            <ActionButton tooltip={t("header.rentals")} onClick={() => navigate("/rentals")}>
+              <svg viewBox="0 0 24 24">
+                <path d="M4 6h16v14H4z" />
+                <path d="M4 10h16" />
+                <path d="M8 3v5M16 3v5" />
+              </svg>
+            </ActionButton>
+          )}
+          {/* Somewhere else to stand: another country, another town, and the
+              map goes there (see TravelModal). A plane leaving the ground,
+              filled rather than outlined. */}
+          <span className="topbar-travel">
+            <ActionButton tooltip={t("travel.title")} onClick={() => setTravelOpen(true)}>
+              <svg viewBox="0 0 24 24">
+                <path d="M2.5 19h19v2h-19v-2Zm19.57-9.36a1.5 1.5 0 0 0-1.84-1.06l-5.59 1.5-7.25-6.76-1.93.52 4.35 7.53-5.23 1.4-2.07-1.62-1.45.39 2.55 4.41 16.89-4.52a1.5 1.5 0 0 0 1.06-1.86l-.49-1.93Z" />
+              </svg>
+            </ActionButton>
+          </span>
+          {/* What somebody said to you — and what became of a booking, which
+              arrives as a line in the same place. The dot says something is
+              waiting; how much, and from whom, is the answer inside. */}
+          {user && (
+            <span className="topbar-badge">
+              <ActionButton
+                tooltip={t("messages.title")}
+                aria-label={unread > 0 ? t("messages.waiting", { n: unread }) : t("messages.title")}
+                onClick={() => setMessagesOpen(true)}
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M3 6h18v12H3z" />
+                  <path d="m3 7 9 6 9-6" />
+                </svg>
+              </ActionButton>
+              {unread > 0 && <span className="topbar-dot" aria-hidden="true" />}
+            </span>
+          )}
+          <ActionButton
+            tooltip={user ? t("header.account") : t("header.signIn")}
+            onClick={() => (user ? setAccountOpen(true) : navigate(loginPath()))}
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
+            </svg>
+          </ActionButton>
+          <LanguageSwitcher />
+        </span>
+      </header>
+
+      {/* Mounted beside the bar rather than inside it: the bar is sticky and
+          carries a stacking context of its own, and a sheet opened in there
+          would be pinned under it. */}
+      <TravelModal isOpen={travelOpen} onClose={() => setTravelOpen(false)} />
+      {user && <MessagesModal isOpen={messagesOpen} onClose={() => setMessagesOpen(false)} />}
+      {user && <AccountModal isOpen={accountOpen} onClose={() => setAccountOpen(false)} />}
+      {user && (
+        <ItemModal
+          isOpen={listing}
+          onClose={() => setListing(false)}
+          onSaved={(item) => {
+            setListing(false);
+            // Straight to the page it now has, which is where its calendar is
+            // and what there is to send to somebody.
+            navigate(`/i/${item.id}`);
+          }}
+        />
+      )}
+    </>
+  );
+}

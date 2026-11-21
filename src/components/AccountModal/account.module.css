@@ -1,0 +1,29 @@
+/* What the account is, as a short list of facts: the name of each in small
+   grey type and the answer beside it, ruled the way every list here is. */
+.facts {
+  margin: 0 0 14px;
+}
+
+.facts div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.facts div:first-child {
+  border-top: 1px solid var(--line);
+}
+
+.facts dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.facts dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}

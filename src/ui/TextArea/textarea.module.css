@@ -1,0 +1,65 @@
+.wrapper {
+  position: relative;
+}
+
+/* Deliberately without a height of its own: `rows` sets the starting one and
+   the handle takes it from there, and a caller that wants a floor sets it on
+   the class it passes in. */
+.textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  outline: 0;
+  background: var(--paper);
+  color: inherit;
+  font-family: var(--sans);
+  line-height: 1.5;
+  /* The browser's own grip is a raised corner in a page that has no raised
+     anything; the handle below replaces it */
+  resize: none;
+}
+
+/* Three ruled lines in the corner the native grip would have taken, drawn in
+   the same hairline grey the page divides with.
+
+   24px square under a finger, and 14 by 10 of drawing inside it: the ink is the
+   size the corner of a textarea can carry, and the box is the size a thumb
+   lands on. The extra reaches up and to the left, into the field's own bottom
+   corner — a few characters' worth of a line nobody types on, and the only
+   direction there is room in without hanging the target off the edge of the
+   box. The drawing stays pinned to the corner by ::before below, so growing the
+   target does not move the grip.
+
+   `touch-action: none` is what makes the drag a drag on a phone. Without it the
+   browser claims a vertical swipe as a scroll before the first pointermove is
+   dispatched, and preventDefault on pointerdown cannot take it back — the
+   declaration is the only way to say this element's gestures are the page's. */
+.handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+/* The ink, held in the corner of the *field* rather than of the target above:
+   4px in from both edges, which is where it stood when the target was the same
+   size as the drawing. Growing the target reaches away from the corner, so this
+   pins the grip and the corner stays where the eye last saw it. */
+.handle::before {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 10px;
+  height: 1px;
+  background: var(--muted);
+  box-shadow:
+    0 -4px 0 var(--muted),
+    0 -8px 0 var(--muted);
+}

@@ -1,0 +1,131 @@
+const tokenKey = "rab:session-token";
+
+let sessionToken = "";
+try {
+  sessionToken = localStorage.getItem(tokenKey) || "";
+} catch {
+  // Storage is unavailable; the session lasts as long as the page does.
+}
+
+function keepSession(data) {
+  if (!data?.token) return data;
+  sessionToken = data.token;
+  try {
+    localStorage.setItem(tokenKey, sessionToken);
+  } catch {
+    // See above.
+  }
+  return data;
+}
+
+function dropSession() {
+  sessionToken = "";
+  try {
+    localStorage.removeItem(tokenKey);
+  } catch {
+    // See above.
+  }
+}
+
+export function authHeaders() {
+  return sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {};
+}
+
+export function hasSession() {
+  return Boolean(sessionToken);
+}
+
+const REQUEST_TIMEOUT_MS = 30 * 1000;
+
+async function request(path, options = {}) {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, signal: sourceSignal, ...fetchOptions } = options;
+  const headers = {
+    ...(typeof fetchOptions.body === "string" ? { "Content-Type": "application/json" } : null),
+    ...fetchOptions.headers,
+    ...authHeaders(),
+  };
+  const controller = new AbortController();
+  let timedOut = false;
+  const abort = () => controller.abort(sourceSignal?.reason);
+  if (sourceSignal?.aborted) abort();
+  else sourceSignal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(path, { credentials: "omit", ...fetchOptions, headers, signal: controller.signal });
+    if (response.status === 204) return null;
+    let data;
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (controller.signal.aborted) throw error;
+      data = {};
+    }
+    if (!response.ok) {
+      if (response.status === 401 && data.code === "LOGIN_REQUIRED") dropSession();
+      const error = new Error(data.error || "Request failed");
+      error.status = response.status;
+      error.code = data.code;
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (!timedOut) throw error;
+    const timeout = new Error("Request timed out");
+    timeout.code = "REQUEST_TIMEOUT";
+    throw timeout;
+  } finally {
+    clearTimeout(timer);
+    sourceSignal?.removeEventListener("abort", abort);
+  }
+}
+
+const send = (method, path, body, options) =>
+  request(path, { method, ...(body === undefined ? null : { body: JSON.stringify(body) }), ...options });
+const name = (username) => encodeURIComponent(username);
+
+/* ------------------------------------------------------------------ account */
+
+export const getSession = () => request("/api/session");
+export const checkUsername = (username) => send("POST", "/api/username", { username });
+export const login = (username, password) => send("POST", "/api/login", { username, password }).then(keepSession);
+export const createUser = (username, password) =>
+  send("POST", "/api/users", { username, password }).then(keepSession);
+export const logout = () => send("POST", "/api/logout").finally(dropSession);
+export const getUser = (username) => request(`/api/users/${name(username)}`);
+export const getMine = () => request("/api/mine");
+
+/* -------------------------------------------------------------------- items */
+
+export const getItems = ({ south, north, west, east }, options) =>
+  request(`/api/items?south=${south}&north=${north}&west=${west}&east=${east}`, options);
+// `bbox` is the area the spot is in, as [west, south, east, north], where known.
+export const getItemsAt = ({ latitude, longitude }, bbox, options) =>
+  request(
+    `/api/items/at?latitude=${latitude}&longitude=${longitude}${
+      bbox ? `&west=${bbox[0]}&south=${bbox[1]}&east=${bbox[2]}&north=${bbox[3]}` : ""
+    }`,
+    options,
+  );
+export const searchItems = (query, options) => request(`/api/search?q=${encodeURIComponent(query)}`, options);
+export const getItem = (id, options) => request(`/api/items/${name(id)}`, options);
+export const createItem = (item) => send("POST", "/api/items", item);
+export const updateItem = (id, item) => send("PATCH", `/api/items/${name(id)}`, item);
+export const deleteItem = (id) => send("DELETE", `/api/items/${name(id)}`);
+export const setDays = (id, change) => send("PUT", `/api/items/${name(id)}/days`, change);
+
+/* ----------------------------------------------------------------- bookings */
+
+export const requestBooking = (id, booking) => send("POST", `/api/items/${name(id)}/bookings`, booking);
+export const setBookingStatus = (bookingId, status) => send("PATCH", `/api/bookings/${bookingId}`, { status });
+
+/* ----------------------------------------------------------------- messages */
+
+export const getUnread = () => request("/api/unread");
+export const getMessages = () => request("/api/messages");
+export const getConversation = (username, options) => request(`/api/messages/${name(username)}`, options);
+export const sendMessage = (username, body) => send("POST", `/api/messages/${name(username)}`, { body });
+export const deleteConversation = (username) => send("DELETE", `/api/messages/${name(username)}`);

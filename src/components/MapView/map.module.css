@@ -1,0 +1,471 @@
+/* The page: the panel that says where the map is looking and what is offered
+   there, and the map. Side by side where there is room; on a phone the map
+   comes first and the panel takes the foot of the screen under it. */
+.layout {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 12px;
+}
+
+.side {
+  flex: none;
+  height: 38%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 760px) {
+  .layout {
+    flex-direction: row;
+  }
+
+  .side {
+    width: 300px;
+    height: auto;
+  }
+}
+
+.sideHead {
+  flex: none;
+  padding-bottom: 10px;
+}
+
+/* The name of the place, as lo sets it at the head of its page. */
+.areaName {
+  min-height: 26px;
+  margin: 0;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.areaWithin {
+  min-height: 18px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.areaWithin span:last-child {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* A bar where the name will be, while it is on its way. */
+.pending {
+  display: block;
+  width: 120px;
+  height: 20px;
+  background: var(--soft);
+}
+
+/* The box over the list that narrows it, the width of the panel. Its own
+   height rather than the bar's (--search-h): it stands over a list, not in a
+   row of buttons, and has room to be a field. */
+.filter {
+  flex: none;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.filterGlass {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.filterInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .filterInput {
+    font-size: 16px;
+  }
+}
+
+.filterClear {
+  flex: none;
+  width: 26px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.filterClear svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The list is what scrolls; the name over it stays. */
+.sideList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sideEmpty {
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The map: one frame filling the rest, ruled like every other box here. */
+.frame {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+  /* The tools in the corners are the bar's size: they are reached by the same
+     thumb. */
+  --action-w: 26px;
+  --action-h: 22px;
+  --action-icon: 14px;
+}
+
+.container {
+  position: absolute;
+  inset: 0;
+}
+
+.noToken {
+  margin: 0;
+  padding: 40px 16px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ pins -- */
+
+/* The box is the drawing and nothing else, so the marker's bottom edge is the
+   pin's point. */
+.pin {
+  /* lo's pin, to the pixel: 28 wide, cropped to the drawing's own point. */
+  width: 28px;
+  aspect-ratio: 24 / 21.6;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.pin svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 0.857;
+  stroke-linejoin: round;
+}
+
+/* The category's mark in the pin's head: hairlines with no fill, in the pin's
+   own outline colour — so it turns over with the pin when the pointer arrives.
+   The stroke is counted in screen pixels, since the drawing is shrunk to half
+   size and a line shrunk with it would nearly vanish. */
+.glyph {
+  fill: none;
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.glyph :is(path, circle) {
+  vector-effect: non-scaling-stroke;
+}
+
+.pin:hover svg,
+.pinChosen svg {
+  fill: #000;
+  stroke: #fff;
+}
+
+.pinChosen {
+  z-index: 2;
+}
+
+/* The item's main photograph, standing over its pin: a small square in the
+   pin's own rule, which is what tells one pin from the next at a glance. */
+.pinPhoto {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  transform: translateX(-50%);
+  border: 1px solid #000;
+  background: #fff;
+  /* Part of the pin to the pointer as well as to the eye: resting on the
+     picture opens the bubble, which then stands where the picture was. */
+}
+
+.pinPhoto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ----------------------------------------------------------------- tools -- */
+
+/* Which kind of thing is on the map: a row of small boxes in the top left
+   corner, the one in force turned over. */
+.kinds {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  /* Short of the column of tools in the corner opposite. */
+  max-width: calc(100% - 56px);
+}
+
+.kind {
+  padding: 4px 8px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.kindChosen {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* How much there is to see here, in the middle of the map's bottom edge. */
+.count {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 3;
+  max-width: calc(100% - 20px);
+  margin: 0;
+  padding: 2px 8px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ gate -- */
+
+/* The question about location, laid over the map it is about: the ground is
+   still there behind it, greyed, so the answer can be seen to matter. */
+.gate {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(255 255 255 / 0.86);
+}
+
+.gateCard {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.gateCard :global(.tagline) {
+  margin: 16px 0 24px;
+  line-height: 1.6;
+}
+
+.gateStatus {
+  margin: 0 0 20px;
+  padding: 12px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.gateStatus span {
+  color: var(--muted);
+}
+
+.gateSkip {
+  align-self: center;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ------------------------------------------------------------------ card -- */
+
+/* The bubble over a pin: what the item is, and under it the two things to do
+   about it. */
+.card {
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* The foot of the bubble, in lo's own hand: the words for what can be done,
+   in the small grey mono the rest of the bubble's small print is set in,
+   underlined to say they are pressed, one at each end of the line. */
+.cardActions {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cardLink {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-decoration: underline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cardPhoto {
+  width: calc(100% + 20px);
+  height: 96px;
+  margin: -6px -10px 6px;
+  display: block;
+  border-bottom: 1px solid var(--ink);
+  background: var(--soft);
+  object-fit: cover;
+}
+
+.cardTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* The lead of the item's description, set as lo sets the lead paragraph in a
+   Wikipedia pin's bubble: the reading type rather than the small print, and
+   clamped to three lines — enough to say what the thing is, short of turning
+   the bubble into its page. */
+.cardLead {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.4;
+  /* The words are the owner's own, wrapped at the bubble's width: a pasted
+     link with no spaces in it would otherwise run out past the frame. */
+  overflow-wrap: anywhere;
+}
+
+.cardPrice {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.cardMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+@media (hover: hover) {
+  .filterClear:hover {
+    color: var(--ink);
+  }
+
+  .kind:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .gateSkip:hover {
+    color: var(--ink);
+  }
+
+  .cardLink:hover {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .cardBody:hover .cardTitle {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
