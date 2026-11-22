@@ -1,0 +1,396 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ — %@" : {
+      "shouldTranslate" : false
+    },
+    "Add to my items on rab" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab のマイアイテムに登録" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登记到 rab 的我的物品" } }
+      }
+    },
+    "Area" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "エリア" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "地区" } }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Choose a password" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスワードを決める" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置密码" } }
+      }
+    },
+    "Choose a photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を選ぶ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择照片" } }
+      }
+    },
+    "Continue" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次へ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } }
+      }
+    },
+    "Create account" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アカウントを作成" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建账号" } }
+      }
+    },
+    "Delete" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
+    "Delete this item?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このアイテムを削除しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这个物品？" } }
+      }
+    },
+    "Deletes it from this phone. On rab it stays until you take it down there." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone から削除します。rab 上のものは、rab で取り下げるまで残ります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只从这台手机上删除。rab 上的那一份要在 rab 里下架才会消失。" } }
+      }
+    },
+    "Give it a name" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前を入れてください" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请填写名称" } }
+      }
+    },
+    "It is not in your items on rab yet: %@. You can add it from the item's page." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab のマイアイテムにはまだ登録されていません：%@。アイテムのページから登録できます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有登记到 rab 的我的物品：%@。可以在物品页面里再登记。" } }
+      }
+    },
+    "Description" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "説明" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "描述" } }
+      }
+    },
+    "Kind" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "種類" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "种类" } }
+      }
+    },
+    "My items" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイアイテム" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我的物品" } }
+      }
+    },
+    "Name" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "名称" } }
+      }
+    },
+    "New item" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいアイテム" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新物品" } }
+      }
+    },
+    "No account is called %@. Choose a password of 6 characters or more to create it." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ というアカウントはありません。6文字以上のパスワードを決めて作成します。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有叫 %@ 的账号。设置一个 6 位以上的密码即可创建。" } }
+      }
+    },
+    "No subject was found in the photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真の中に被写体が見つかりません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "照片里没有找到主体" } }
+      }
+    },
+    "Nothing yet" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだ何もありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有物品" } }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
+    "On this phone only, in your folder under data." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone だけにあります。data の下の自分のフォルダに。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只在这台手机上，放在 data 下你的文件夹里。" } }
+      }
+    },
+    "Open on rab" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab で開く" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 rab 上打开" } }
+      }
+    },
+    "Password" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスワード" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密码" } }
+      }
+    },
+    "Please sign in" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインインしてください" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先登录" } }
+      }
+    },
+    "Price" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "料金" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "价格" } }
+      }
+    },
+    "Published" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "公開中" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公开中" } }
+      }
+    },
+    "rab" : {
+      "shouldTranslate" : false
+    },
+    "Removing the background…" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を消しています…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在去除背景…" } }
+      }
+    },
+    "Request failed (%lld)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リクエストに失敗しました（%lld）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请求失败（%lld）" } }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } }
+      }
+    },
+    "Saved on this phone" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone に保存しました" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存到这台手机" } }
+      }
+    },
+    "Advanced" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "詳細設定" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高级" } }
+      }
+    },
+    "Server" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サーバー" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务器" } }
+      }
+    },
+    "Share the link" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リンクを共有" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享链接" } }
+      }
+    },
+    "Share the photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を共有" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享照片" } }
+      }
+    },
+    "Sign in" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインイン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录" } }
+      }
+    },
+    "Sign out" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインアウト" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出登录" } }
+      }
+    },
+    "Sign out?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインアウトしますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出登录？" } }
+      }
+    },
+    "Take a photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を撮る" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
+      }
+    },
+    "Take a photo of something you have to rent out. Its background becomes white, and it goes into your items." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "貸し出すものを撮ってください。背景が白くなり、マイアイテムに入ります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "给你要出租的东西拍张照。背景会变成白色，然后登记到你的物品里。" } }
+      }
+    },
+    "Services" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サービス" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务" } }
+      }
+    },
+    "Spaces" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スペース" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空间" } }
+      }
+    },
+    "Taken" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍摄于" } }
+      }
+    },
+    "That is not a web address" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ウェブアドレスではありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这不是一个网址" } }
+      }
+    },
+    "The background could not be removed: %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を消せませんでした：%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法去除背景：%@" } }
+      }
+    },
+    "The photo could not be read" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を読み込めません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取照片" } }
+      }
+    },
+    "Things" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "モノ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "物品" } }
+      }
+    },
+    "Username" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ユーザー名" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户名" } }
+      }
+    },
+    "Welcome back, %@." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "おかえりなさい、%@。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "欢迎回来，%@。" } }
+      }
+    },
+    "White background" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "白い背景" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "白色背景" } }
+      }
+    },
+    "Your items stay in your folder on this phone." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アイテムはこの iPhone の自分のフォルダに残ります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的物品会留在这台手机上你的文件夹里。" } }
+      }
+    },
+    "rab could not tell which area you are in. Allow location and try again." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のエリアがわかりませんでした。位置情報を許可して、もう一度お試しください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 无法确定你所在的地区。请允许使用位置后再试。" } }
+      }
+    },
+    "What are you renting out? rab lists things, spaces and services separately, so choose the one people will look for it under." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "何を貸し出しますか？rab ではモノ・スペース・サービスを分けて掲載します。探す人が見つけやすい種類を選んでください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你要出租的是什么？rab 把物品、空间和服务分开列出，请选择别人会在哪一类里找到它。" } }
+      }
+    },
+    "Location" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "位置" } }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "なし" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无" } }
+      }
+    },
+    "Add a new location" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しい場所を追加" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加新位置" } }
+      }
+    },
+    "New location" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しい場所" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新位置" } }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "追加" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加" } }
+      }
+    },
+    "A location needs a name" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所には名前が必要です" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "位置需要一个名称" } }
+      }
+    },
+    "Move the map until the pin is on the place. What is attached to it is shown there on rab's map." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ピンがその場所に重なるまで地図を動かしてください。この場所に紐づけたものは rab の地図上でそこに表示されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移动地图，让图钉落在这个地点上。附加到它的东西会显示在 rab 地图上的这个位置。" } }
+      }
+    },
+    "Unlisted" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "非公開" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未上架" } }
+      }
+    },
+    "Your items could not be loaded from rab: %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab からアイテムを読み込めませんでした：%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法从 rab 加载你的物品：%@" } }
+      }
+    },
+    "It is deleted from rab for good, and any open bookings of it are cancelled." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab から完全に削除され、進行中の予約はすべてキャンセルされます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它会从 rab 上永久删除，尚未结束的预订也会被取消。" } }
+      }
+    },
+    "on this phone" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone のみ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在手机" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -8,12 +8,15 @@ import LanguageSwitcher from "../LanguageSwitcher/index.js";
 import MessagesModal from "../MessagesModal/index.js";
 import TravelModal from "../TravelModal/index.js";
 
-// The bar on every page. `back` swaps the wordmark for the way back to the map,
-// on the pages that are somewhere you went to rather than where you start.
+// The bar on every page. `back` swaps the wordmark for the way back, on the
+// pages that are somewhere you went to rather than where you start: back to the
+// list the page was opened from, where it was opened from one (the row says so
+// in the entry's state), and to the map otherwise.
 export default function Header({ back = false }) {
   const { t } = useTranslation();
   const { user, unread } = useAuth();
   const navigate = useNavigate();
+  const fromList = back && window.history.state?.back === true;
   // The sheets opened from here and nowhere else, so the bar holds them open
   // itself.
   const [accountOpen, setAccountOpen] = useState(false);
@@ -26,7 +29,11 @@ export default function Header({ back = false }) {
       <header className="topbar">
         <span className="topbar-brand">
           {back ? (
-            <ActionButton tooltip={t("header.backHome")} tooltipLeft onClick={() => navigate("/")}>
+            <ActionButton
+              tooltip={t(fromList ? "header.back" : "header.backHome")}
+              tooltipLeft
+              onClick={() => (fromList ? window.history.back() : navigate("/"))}
+            >
               <svg viewBox="0 0 24 24">
                 <path d="m15 18-6-6 6-6" />
               </svg>

@@ -8,6 +8,7 @@
     "justNow": "刚刚"
   },
   "header": {
+    "back": "返回",
     "backHome": "返回首页",
     "list": "发布出租",
     "mine": "我的物品",
@@ -17,9 +18,8 @@
   },
   "auth": {
     "username": "用户名",
-    "usernameNoLetter": "用户名需包含至少一个字母",
     "usernameTaken": "该用户名已被使用",
-    "usernameRule": "1–32 个字符：字母、数字、- 和 _",
+    "usernameRule": "1–32 个字符：以字母或 _ 开头，之后可用字母、数字、- 和 _",
     "next": "下一步",
     "password": "密码",
     "login": "登录",
@@ -116,6 +116,7 @@
     "locationHint": "拖动图钉，或点击地图，把图钉放到取物的位置。图钉是公开的，标在附近的地标即可。",
     "active": "在地图上显示",
     "inactive": "未上架",
+    "published": "公开中",
     "inactiveNote": "这件物品目前不出租。",
     "delete": "删除",
     "deleteConfirm": "删除这件物品？",
@@ -243,7 +244,6 @@
   "mine": {
     "title": "我的物品",
     "requests": "收到的申请",
-    "items": "物品",
     "requestsEmpty": "还没有人申请你的物品。",
     "itemsEmpty": "你还没有发布物品。点 + 添加。"
   },

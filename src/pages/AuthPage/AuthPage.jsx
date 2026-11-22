@@ -47,7 +47,6 @@ export default function AuthPage() {
   if (user) return <Navigate to={next} replace />;
 
   function nameError(requestError) {
-    if (requestError.code === "USERNAME_NO_LETTER") return t("auth.usernameNoLetter");
     if (requestError.code === "USER_EXISTS") return t("auth.usernameTaken");
     if (requestError.status === 400) return t("auth.usernameRule");
     return requestError.message;

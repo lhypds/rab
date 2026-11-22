@@ -57,19 +57,35 @@ Layout
 ------
 
     server/index.js    Express: accounts, items, calendar, bookings, messages, images
-    server/db.js       SQLite schema and every query
+    server/db.js       accounts and sessions in SQLite; everything else read from and
+                       written to the users' folders
+    server/files.js    the users' folders: data/users/<id>/
+    server/migrate.js  moves a database from before the folders into them, once
     server/rates.js    pricing rules and hours: by the date, by the date and time
     server/region.js   country of a request, from its address (ipwho.is)
-    server/images.js   photo storage under data/images/
+    server/images.js   photo storage under data/users/<id>/images/
     src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
     src/ui/            Modal, ActionButton, Select, TextArea, Toast, Router — lo's own
     src/i18n/          English, Chinese, Japanese
+    ios/               the iPhone app: photograph a thing, background to white, into My items
+                       (its own README is in there)
 
-What is kept where: `db.sqlite` holds accounts, items, the calendar's exceptions,
-bookings and messages; `data/images/` holds the photographs, each named after its own
-bytes. Both are ignored by git.
+What is kept where: `db.sqlite` holds the accounts — a name, a password's hash, when
+it was made — and who is signed in, and nothing else. Everything an account has is in
+a folder of its own, named after the account's id:
+
+    data/users/<id>/items.json      what they have out for rent, each with its calendar's exceptions
+    data/users/<id>/bookings.json   every rental they are one side of (the other side holds the same)
+    data/users/<id>/messages.json   their side of every conversation
+    data/users/<id>/images/         the photographs they uploaded, each named after its own bytes
+
+The server reads the folders when it starts and writes a file back whenever something
+in it changes, so one server process owns them; a file edited by hand is picked up at
+the next start. A `db.sqlite` from before the folders is moved into them the first
+time the server starts, and a copy of it as it was is left at
+`db.sqlite.before-folders`. All of it is ignored by git.
 
 
 How a booking moves

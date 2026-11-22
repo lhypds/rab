@@ -8,6 +8,7 @@
     "justNow": "たった今"
   },
   "header": {
+    "back": "戻る",
     "backHome": "ホームに戻る",
     "list": "貸し出す",
     "mine": "マイアイテム",
@@ -17,9 +18,8 @@
   },
   "auth": {
     "username": "ユーザー名",
-    "usernameNoLetter": "ユーザー名には文字を1つ以上含めてください",
     "usernameTaken": "そのユーザー名は使われています",
-    "usernameRule": "1〜32文字：文字、数字、- と _",
+    "usernameRule": "1〜32文字：英字または _ で始め、以降は英字、数字、- と _",
     "next": "次へ",
     "password": "パスワード",
     "login": "ログイン",
@@ -116,6 +116,7 @@
     "locationHint": "ピンをドラッグするか地図を押して、受け渡し場所に合わせてください。ピンは公開されます。近くの目印で構いません。",
     "active": "地図に表示する",
     "inactive": "非公開",
+    "published": "公開中",
     "inactiveNote": "このアイテムは現在貸し出していません。",
     "delete": "削除",
     "deleteConfirm": "このアイテムを削除しますか？",
@@ -243,7 +244,6 @@
   "mine": {
     "title": "マイアイテム",
     "requests": "届いたリクエスト",
-    "items": "アイテム",
     "requestsEmpty": "まだリクエストは届いていません。",
     "itemsEmpty": "貸し出しているものはありません。+ から追加できます。"
   },

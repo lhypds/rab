@@ -8,6 +8,7 @@
     "justNow": "just now"
   },
   "header": {
+    "back": "Back",
     "backHome": "Back to home",
     "list": "Rent something out",
     "mine": "My items",
@@ -17,9 +18,8 @@
   },
   "auth": {
     "username": "Username",
-    "usernameNoLetter": "A username needs at least one letter",
     "usernameTaken": "That username is taken",
-    "usernameRule": "1–32 characters: letters, digits, - and _",
+    "usernameRule": "1–32 characters: starts with a letter or _, then letters, digits, - and _",
     "next": "Next",
     "password": "Password",
     "login": "Sign in",
@@ -118,6 +118,7 @@
     "locationHint": "Drag the pin, or press the map, to where the item is picked up. The pin is public — a nearby landmark is fine.",
     "active": "Shown on the map",
     "inactive": "Unlisted",
+    "published": "Published",
     "inactiveNote": "This item is not being rented out right now.",
     "delete": "Delete",
     "deleteConfirm": "Delete this item?",
@@ -250,7 +251,6 @@
   "mine": {
     "title": "My items",
     "requests": "Requests",
-    "items": "Items",
     "requestsEmpty": "Nobody has asked for your items yet.",
     "itemsEmpty": "You have nothing out for rent. Press + to add something."
   },

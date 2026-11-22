@@ -6,8 +6,9 @@ import { bookingWhen } from "../../utils/bookings.js";
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
 
 // One item in a list: its picture, its name, what a day of it costs and where
-// it is. The whole row is the way to its page.
-export function ItemRow({ item, showOwner = false }) {
+// it is. The whole row is the way to its page. In the owner's own list the row
+// also says, at the right, that the item is published.
+export function ItemRow({ item, showOwner = false, showPublished = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
     priceLine(item, i18n.language, t),
@@ -18,7 +19,9 @@ export function ItemRow({ item, showOwner = false }) {
   return (
     <li className="row-item">
       <div className="row">
-        <Link className="row-copy" to={`/i/${item.id}`} draggable={false}>
+        {/* `back`: the item's page was come to from a list, and its way back
+            is to that list (see Header). */}
+        <Link className="row-copy" to={`/i/${item.id}`} state={{ back: true }} draggable={false}>
           {item.thumb && <img className="row-thumb" src={item.thumb} alt="" width="40" height="40" loading="lazy" draggable={false} />}
           <span className="row-lines">
             <strong>{item.title}</strong>
@@ -26,6 +29,7 @@ export function ItemRow({ item, showOwner = false }) {
           </span>
         </Link>
         <span className="row-side">
+          {showPublished && item.active && <span className="status">{t("item.published")}</span>}
           {!item.active && <span className="status status-off">{t("item.inactive")}</span>}
           {item.pending > 0 && (
             <span className="status status-pending">{t("booking.waiting", { count: item.pending })}</span>
@@ -77,7 +81,7 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
       <div className="row">
         {/* A way to the item's page from a list across items; on that page
             itself the row has nowhere to lead and is only read. */}
-        <Copy {...(about === "item" ? { className: "row-copy", to: `/i/${booking.itemId}`, draggable: false } : { className: "row-copy row-plain" })}>
+        <Copy {...(about === "item" ? { className: "row-copy", to: `/i/${booking.itemId}`, state: { back: true }, draggable: false } : { className: "row-copy row-plain" })}>
           {about === "item" && booking.itemThumb && (
             <img className="row-thumb" src={booking.itemThumb} alt="" width="40" height="40" loading="lazy" draggable={false} />
           )}

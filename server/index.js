@@ -55,7 +55,7 @@ const {
   transaction,
   updateItem,
 } = await import("./db.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, storeImage } = await import("./images.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImage, storeImage } = await import("./images.js");
 const { MODES, dayPrice, listPrice, parseHours, parseRates, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 
@@ -64,11 +64,15 @@ const isProduction = process.env.NODE_ENV === "production";
 
 /* -------------------------------------------------------------------- rules */
 
-const USERNAME_RE =
+// A username is one a Unix system would take: it starts with a letter or an
+// underscore and goes on in letters, digits, - and _, 32 characters at most.
+// (Capitals are folded to lower case before this is asked.)
+const USERNAME_RE = /^[a-z_][a-z0-9_-]{0,31}$/;
+const USERNAME_HINT = "A username is 1–32 characters: it starts with a letter or _, then letters, digits, - and _";
+// What a name could be before that rule: a digit first, CJK characters. Nobody
+// can take such a name any more; whoever already has one still signs in by it.
+const EARLIER_USERNAME_RE =
   /^[a-z0-9_\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}-]{1,32}$/u;
-const USERNAME_LETTER_RE =
-  /[a-z\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}]/u;
-const USERNAME_HINT = "A username is 1–32 characters: letters, digits, CJK characters, - and _";
 const PASSWORD_MIN = 6;
 const PASSWORD_MAX = 64;
 const PASSWORD_HINT = `A password is ${PASSWORD_MIN}–${PASSWORD_MAX} characters`;
@@ -100,11 +104,12 @@ function normalizeUsername(value) {
 }
 
 function usernameFault(username) {
-  if (!USERNAME_RE.test(username)) return { error: USERNAME_HINT };
-  if (!USERNAME_LETTER_RE.test(username)) {
-    return { error: "A username needs at least one letter", code: "USERNAME_NO_LETTER" };
-  }
-  return null;
+  return USERNAME_RE.test(username) ? null : { error: USERNAME_HINT, code: "USERNAME_INVALID" };
+}
+
+// The account of a name as it was typed, under today's rule or the earlier one.
+function knownUser(username) {
+  return USERNAME_RE.test(username) || EARLIER_USERNAME_RE.test(username) ? getUser(username) : null;
 }
 
 function usablePassword(value) {
@@ -222,16 +227,18 @@ app.get("/api/session", requireSession, (req, res) => {
 // account on a typo.
 app.post("/api/username", (req, res) => {
   const username = normalizeUsername(req.body?.username);
+  const user = knownUser(username);
+  if (user) return res.json({ username: user.username });
+  // Not an account — and, where the name breaks the rule, not one that could
+  // be made either, which is said now rather than after a password is chosen.
   const fault = usernameFault(username);
   if (fault) return res.status(400).json(fault);
-  const user = getUser(username);
-  if (!user) return res.status(404).json({ error: "No such user", code: "USER_NOT_FOUND" });
-  res.json({ username: user.username });
+  res.status(404).json({ error: "No such user", code: "USER_NOT_FOUND" });
 });
 
 app.post("/api/login", (req, res) => {
   const username = normalizeUsername(req.body?.username);
-  const user = USERNAME_RE.test(username) ? getUser(username) : null;
+  const user = knownUser(username);
   if (!user) return res.status(404).json({ error: "No such user", code: "USER_NOT_FOUND" });
   if (!checkPassword(username, String(req.body?.password ?? ""))) {
     return res.status(401).json({ error: "Wrong password", code: "PASSWORD_WRONG" });
@@ -274,7 +281,7 @@ app.get("/api/users/:username", (req, res) => {
 /* -------------------------------------------------------------------- items */
 
 // What goes out about an item to anybody: everything on its page except the
-// owner's row id, which is nobody's business.
+// owner's account id, which is nobody's business.
 function publicItem(item) {
   const { ownerId, ...rest } = item;
   return rest;
@@ -310,6 +317,14 @@ function parseImages(value) {
     });
   }
   return images;
+}
+
+// An item's photographs belong in its owner's folder, whoever uploaded them.
+function keepImages(userId, images) {
+  for (const image of images) {
+    keepImage(userId, image.name);
+    keepImage(userId, image.thumb);
+  }
 }
 
 // An area, as the form sends it: what it is called, the line saying where that
@@ -478,6 +493,7 @@ app.get("/api/items/:id", (req, res) => {
 app.post("/api/items", requireSession, (req, res) => {
   const parsed = parseItem(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
+  keepImages(req.user.id, parsed.item.images);
   const item = createItem(req.user.id, parsed.item);
   applyClosed(item, req.body?.closed);
   res.status(201).json({ item: { ...publicItem(item), mine: true } });
@@ -509,6 +525,7 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
   // find one just to be switched off: it is asked for when the form sends one.
   const parsed = parseItem({ ...stored, ...req.body }, { regionOptional: !current.region && !("region" in (req.body ?? {})) });
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
+  keepImages(req.user.id, parsed.item.images);
   const item = updateItem(req.user.id, current.id, parsed.item);
   applyClosed(item, req.body?.closed);
   res.json({ item: { ...publicItem(item), mine: true } });
@@ -772,7 +789,7 @@ app.post(
       return res.status(400).json({ error: "The image is empty" });
     }
     try {
-      const stored = await storeImage(req.body);
+      const stored = await storeImage(req.user.id, req.body);
       if (!stored) return res.status(415).json({ error: "Unsupported image format" });
       res.json(stored);
     } catch (error) {

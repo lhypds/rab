@@ -2,18 +2,27 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { readList, userFolders, writeList } from "./files.js";
+import { moveIntoFolders } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sqlite");
 
+// The database holds who has an account and who is signed in, and that is all.
+// What an account has — its items, its bookings, its messages, its photographs
+// — is in its own folder, data/users/<id>/ (see files.js). All of it is read
+// into memory when the server starts and written back, a file at a time, as it
+// changes; so one server process owns the folders, and a file edited by hand is
+// picked up at the next start.
 export const db = new DatabaseSync(databasePath);
 
 db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
 
-  -- An account is a name and a password. The name is the address everything
-  -- else hangs off: an item's owner, a booking's renter, both ends of a message.
+  -- An account is a name and a password. The id is what its folder is called
+  -- and what everything in the folders points at: an item's owner, a booking's
+  -- renter, the other end of a message.
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -33,156 +42,12 @@ db.exec(`
   ) WITHOUT ROWID;
 
   CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
-
-  -- Something somebody is renting out, pinned to the spot it is picked up at.
-  -- The id is a short random slug rather than a counter because it is the whole
-  -- of the item's public address (/i/<id>) and is meant to be passed around.
-  CREATE TABLE IF NOT EXISTS items (
-    id TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    -- The price of one day, in the item's own currency. A day on the calendar
-    -- may carry a price of its own (see item_days); this is every other day.
-    price REAL NOT NULL,
-    currency TEXT NOT NULL,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    place TEXT,
-    -- A JSON array of {name, thumb, width, height}: file names under
-    -- data/images, never bytes.
-    images TEXT NOT NULL DEFAULT '[]',
-    -- Off is an item taken down from the map without being deleted: its page
-    -- still opens for whoever holds the link, and nothing new can be booked.
-    active INTEGER NOT NULL DEFAULT 1,
-    -- Soft, so the bookings and messages that point at an item keep their
-    -- sentence after the item has gone.
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS items_latitude_idx ON items(latitude);
-  CREATE INDEX IF NOT EXISTS items_user_idx ON items(user_id, created_at DESC);
-
-  -- What the owner has said about one day of one item: that it cannot be had,
-  -- or that it costs something other than the usual. A day with no row here is
-  -- an ordinary day — available, at the item's price — so the table holds only
-  -- the exceptions and an item nobody has touched the calendar of has none.
-  CREATE TABLE IF NOT EXISTS item_days (
-    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    day TEXT NOT NULL,
-    available INTEGER NOT NULL DEFAULT 1,
-    price REAL,
-    PRIMARY KEY (item_id, day)
-  ) WITHOUT ROWID;
-
-  -- A request to have an item from start_day to end_day, both included, and
-  -- what became of it: pending until the owner answers, then confirmed or
-  -- declined, and cancelled if either side backs out. Only a confirmed booking
-  -- takes days off the calendar.
-  CREATE TABLE IF NOT EXISTS bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    renter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    start_day TEXT NOT NULL,
-    end_day TEXT NOT NULL,
-    -- Worked out when the request was made and kept: a price changed on the
-    -- calendar afterwards does not change what was agreed to.
-    total REAL NOT NULL,
-    currency TEXT NOT NULL,
-    note TEXT,
-    status TEXT NOT NULL DEFAULT 'pending'
-      CHECK (status IN ('pending', 'confirmed', 'declined', 'cancelled')),
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS bookings_item_idx ON bookings(item_id, start_day);
-  CREATE INDEX IF NOT EXISTS bookings_renter_idx ON bookings(renter_id, id DESC);
-
-  -- One row per line said. Two accounts have exactly one conversation between
-  -- them, so the pair of names is the thread and there is no table of threads.
-  --
-  -- kind is 'text' for something typed. The others — request, confirmed,
-  -- declined, cancelled — are lines rab writes itself when a booking changes
-  -- hands, so that everything about a rental is in the conversation it is being
-  -- arranged in; booking_id says which one, and the client words the line.
-  CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    to_user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    body TEXT NOT NULL DEFAULT '',
-    kind TEXT NOT NULL DEFAULT 'text',
-    booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
-    read_at TEXT,
-    -- A conversation deleted from an inbox is hidden on that side only.
-    hidden_from INTEGER NOT NULL DEFAULT 0,
-    hidden_to INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS messages_from_idx ON messages(from_user, id DESC);
-  CREATE INDEX IF NOT EXISTS messages_to_idx ON messages(to_user, id DESC);
 `);
 
-// Columns that arrived after the first schema. CREATE TABLE IF NOT EXISTS does
-// nothing for a table that already exists, so each is added by hand where it is
-// missing — which is every database made before the line was written, once.
-function addColumn(table, column, definition) {
-  const known = db.prepare(`PRAGMA table_info(${table})`).all();
-  if (!known.some((row) => row.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-}
-
-// What is being rented: a thing, a space, or somebody's time — and, inside
-// that, the sort of thing it is, as a slug the browser has the words for.
-addColumn("items", "kind", "TEXT NOT NULL DEFAULT 'item'");
-addColumn("items", "category", "TEXT NOT NULL DEFAULT ''");
-// How it is booked: by the date, or by the date and the time. And the rules
-// that price it — a JSON array, read whole and written whole (see rates.js) —
-// with, for one booked by the time, the hours of the week it can be had.
-addColumn("items", "mode", "TEXT NOT NULL DEFAULT 'day'");
-addColumn("items", "rates", "TEXT NOT NULL DEFAULT '[]'");
-addColumn("items", "hours", "TEXT NOT NULL DEFAULT '[]'");
-// Whether the item says where it is at all. A place is optional; latitude and
-// longitude were written NOT NULL before it was, so an item without one keeps
-// zeroes there and says so here.
-addColumn("items", "has_location", "INTEGER NOT NULL DEFAULT 1");
-// The area an item is offered in — a town, a ward, a prefecture — which every
-// item says even where it has no pin: its name, the line saying where that is,
-// and the box of ground it covers. An item is listed for anybody looking at a
-// spot inside the box. Empty on an item from before areas were asked for.
-addColumn("items", "region_name", "TEXT NOT NULL DEFAULT ''");
-addColumn("items", "region_detail", "TEXT NOT NULL DEFAULT ''");
-addColumn("items", "region_south", "REAL");
-addColumn("items", "region_north", "REAL");
-addColumn("items", "region_west", "REAL");
-addColumn("items", "region_east", "REAL");
-// The hours a booking took, where the item is booked by the time: a JSON array
-// of {start, end, price} on the one day the booking is for. Null for a booking
-// counted in days.
-addColumn("bookings", "slots", "TEXT");
-// The hours of a booking counted in days: when on its first day it is picked
-// up and when on its last it comes back, "HH:MM" at the place the item is.
-// Null for a booking by the slot, whose slots are its hours, and for one made
-// before the hours were asked for.
-addColumn("bookings", "start_time", "TEXT");
-addColumn("bookings", "end_time", "TEXT");
+// A database from when it held everything is moved into the folders, once.
+moveIntoFolders(db, databasePath);
 
 const now = () => new Date().toISOString();
-
-// Everything that touches more than one row and must not half-happen.
-export function transaction(work) {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const result = work();
-    db.exec("COMMIT");
-    return result;
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
 
 /* ------------------------------------------------------------------- users */
 
@@ -241,165 +106,223 @@ export const deleteSession = (hash) => deleteSessionRow.run(hash);
 export const touchSession = (hash, expiresAt) => touchSessionRow.run(expiresAt, hash);
 export const deleteExpiredSessions = (time) => deleteExpired.run(time);
 
+/* ----------------------------------------------------------------- folders */
+
+// Everything in the users' folders, as it is held while the server runs.
+//
+// An item is in its owner's items.json and nowhere else. A booking is between
+// two accounts and is in both their bookings.json, the same on each side. A
+// line of a conversation is in the messages.json of each end separately, as
+// that end sees it — `with` the other account, `mine` or not — so deleting a
+// conversation takes it out of one folder and leaves the other's alone.
+const itemsById = new Map();
+const bookingsById = new Map();
+const messagesByUser = new Map();
+let lastBookingId = 0;
+let lastMessageId = 0;
+
+function linesOf(userId) {
+  if (!messagesByUser.has(userId)) messagesByUser.set(userId, []);
+  return messagesByUser.get(userId);
+}
+
+function load() {
+  itemsById.clear();
+  bookingsById.clear();
+  messagesByUser.clear();
+  for (const userId of userFolders()) {
+    for (const item of readList(userId, "items.json")) itemsById.set(item.id, { ...item, ownerId: userId });
+    // Both sides hold the booking; should the two ever differ, the one changed
+    // last is the one that is right.
+    for (const booking of readList(userId, "bookings.json")) {
+      const known = bookingsById.get(booking.id);
+      if (!known || booking.updatedAt > known.updatedAt) bookingsById.set(booking.id, booking);
+    }
+    messagesByUser.set(userId, readList(userId, "messages.json"));
+  }
+  lastBookingId = Math.max(0, ...bookingsById.keys());
+  lastMessageId = 0;
+  for (const lines of messagesByUser.values()) {
+    for (const line of lines) lastMessageId = Math.max(lastMessageId, line.id);
+  }
+}
+
+// What has changed and is not on disk yet, as "<user id>/<file>".
+const unsaved = new Set();
+let depth = 0;
+
+function changed(userId, file) {
+  unsaved.add(`${userId}/${file}`);
+}
+
+function save() {
+  for (const entry of unsaved) {
+    const [id, file] = entry.split("/");
+    const userId = Number(id);
+    if (file === "items.json") {
+      const items = [...itemsById.values()]
+        .filter((item) => item.ownerId === userId)
+        .map(({ ownerId, ...item }) => item);
+      writeList(userId, file, items);
+    } else if (file === "bookings.json") {
+      const bookings = [...bookingsById.values()].filter(
+        (booking) => booking.ownerId === userId || booking.renterId === userId,
+      );
+      writeList(userId, file, bookings);
+    } else {
+      writeList(userId, file, linesOf(userId));
+    }
+    unsaved.delete(entry);
+  }
+}
+
+// Everything that touches more than one thing and must not half-happen: the
+// files are written when the work is done, and if it throws nothing is written
+// and what is in memory is put back to what the files say.
+export function transaction(work) {
+  depth += 1;
+  try {
+    const result = work();
+    depth -= 1;
+    if (depth === 0) save();
+    return result;
+  } catch (error) {
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) {
+      unsaved.clear();
+      load();
+    }
+    throw error;
+  }
+}
+
+load();
+
+const nameOf = (userId) => selectUserById.get(userId)?.username ?? null;
+const newestFirst = (a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
+const highestFirst = (a, b) => b.id - a.id;
+
 /* ------------------------------------------------------------------- items */
-
-const ITEM_COLUMNS = `
-  i.id, i.title, i.description, i.price, i.currency, i.latitude, i.longitude, i.place,
-  i.images, i.active, i.created_at AS createdAt, i.updated_at AS updatedAt,
-  i.kind, i.category, i.mode, i.rates, i.hours, i.has_location AS located,
-  i.region_name AS regionName, i.region_detail AS regionDetail,
-  i.region_south AS regionSouth, i.region_north AS regionNorth,
-  i.region_west AS regionWest, i.region_east AS regionEast,
-  i.user_id AS ownerId, u.username AS owner
-`;
-
-function readList(text) {
-  try {
-    const parsed = JSON.parse(text ?? "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function readImages(text) {
-  try {
-    const parsed = JSON.parse(text ?? "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 const imageUrl = (name) => (name ? `/api/images/${name}` : null);
 
-// A row as it goes out: the photographs as addresses a browser can ask for, and
-// the first of them named once more as the one a list or a pin draws.
-function servedItem(row) {
-  if (!row) return null;
-  const images = readImages(row.images).map((image) => ({
+// An item as it goes out: the photographs as addresses a browser can ask for,
+// and the first of them named once more as the one a list or a pin draws.
+function servedItem(item) {
+  if (!item) return null;
+  const images = (item.images ?? []).map((image) => ({
     src: imageUrl(image.name),
     thumb: imageUrl(image.thumb || image.name),
     width: image.width ?? null,
     height: image.height ?? null,
   }));
-  const located = row.located === 1;
-  const { regionName, regionDetail, regionSouth, regionNorth, regionWest, regionEast, ...rest } = row;
+  const located = item.located === true;
   return {
-    ...rest,
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    price: item.price,
+    currency: item.currency,
+    latitude: located ? item.latitude : null,
+    longitude: located ? item.longitude : null,
+    place: item.place ?? null,
     // The area it is offered in, with its box as [west, south, east, north].
-    region:
-      regionName && regionSouth !== null
-        ? { name: regionName, detail: regionDetail, bbox: [regionWest, regionSouth, regionEast, regionNorth] }
-        : null,
+    region: item.region ?? null,
     images,
     // The first photograph is the main one: what a list row and a pin draw.
     thumb: images[0]?.thumb ?? null,
-    active: row.active === 1,
+    active: item.active === true,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    kind: item.kind,
+    category: item.category,
+    mode: item.mode,
     // An item from before there were rules has one: its price, every day.
-    rates: readList(row.rates).length > 0 ? readList(row.rates) : [{ price: row.price, days: null }],
-    hours: readList(row.hours),
+    rates: item.rates?.length > 0 ? item.rates : [{ price: item.price, days: null }],
+    hours: item.hours ?? [],
     located,
-    latitude: located ? row.latitude : null,
-    longitude: located ? row.longitude : null,
+    ownerId: item.ownerId,
+    owner: nameOf(item.ownerId),
   };
 }
 
-const selectItem = db.prepare(`
-  SELECT ${ITEM_COLUMNS} FROM items i JOIN users u ON u.id = i.user_id
-  WHERE i.id = ? AND i.deleted_at IS NULL
-`);
-const selectItemsInBox = db.prepare(`
-  SELECT ${ITEM_COLUMNS} FROM items i JOIN users u ON u.id = i.user_id
-  WHERE i.deleted_at IS NULL AND i.active = 1 AND i.has_location = 1
-    AND i.latitude BETWEEN ? AND ?
-    AND i.longitude BETWEEN ? AND ?
-  ORDER BY i.created_at DESC
-  LIMIT ?
-`);
-// A box that crosses the antimeridian has its west edge east of its east edge.
-const selectItemsAcrossDateline = db.prepare(`
-  SELECT ${ITEM_COLUMNS} FROM items i JOIN users u ON u.id = i.user_id
-  WHERE i.deleted_at IS NULL AND i.active = 1 AND i.has_location = 1
-    AND i.latitude BETWEEN ? AND ?
-    AND (i.longitude >= ? OR i.longitude <= ?)
-  ORDER BY i.created_at DESC
-  LIMIT ?
-`);
-// The items offered where somebody is looking: the ones whose area has that
-// spot inside it, pin or no pin — and the ones whose pin stands inside the area
-// being looked at, whatever area they say, which is what lists an item from
-// before areas were asked for. An area across the antimeridian has its west
-// edge east of its east edge.
-const selectItemsAt = db.prepare(`
-  SELECT ${ITEM_COLUMNS} FROM items i JOIN users u ON u.id = i.user_id
-  WHERE i.deleted_at IS NULL AND i.active = 1
-    AND ((:latitude BETWEEN i.region_south AND i.region_north
-        AND ((i.region_west <= i.region_east AND :longitude BETWEEN i.region_west AND i.region_east)
-          OR (i.region_west > i.region_east AND (:longitude >= i.region_west OR :longitude <= i.region_east))))
-      OR (i.has_location = 1
-        AND i.latitude BETWEEN :south AND :north
-        AND ((:west <= :east AND i.longitude BETWEEN :west AND :east)
-          OR (:west > :east AND (i.longitude >= :west OR i.longitude <= :east)))))
-  ORDER BY i.created_at DESC
-  LIMIT :limit
-`);
-const selectItemsByUser = db.prepare(`
-  SELECT ${ITEM_COLUMNS},
-    (SELECT COUNT(*) FROM bookings b WHERE b.item_id = i.id AND b.status = 'pending') AS pending
-  FROM items i JOIN users u ON u.id = i.user_id
-  WHERE i.user_id = ? AND i.deleted_at IS NULL
-  ORDER BY i.created_at DESC
-`);
-const insertItem = db.prepare(`
-  INSERT INTO items (id, user_id, title, description, price, currency, latitude, longitude, place, images,
-                     kind, category, mode, rates, hours, has_location,
-                     region_name, region_detail, region_south, region_north, region_west, region_east)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const updateItemRow = db.prepare(`
-  UPDATE items
-  SET title = ?, description = ?, price = ?, currency = ?, latitude = ?, longitude = ?, place = ?,
-      images = ?, active = ?, kind = ?, category = ?, mode = ?, rates = ?, hours = ?, has_location = ?,
-      region_name = ?, region_detail = ?, region_south = ?, region_north = ?, region_west = ?, region_east = ?,
-      updated_at = ?
-  WHERE id = ? AND user_id = ? AND deleted_at IS NULL
-`);
-// Words typed into the bar at the top: matched anywhere in what an item says
-// about itself. LIKE is enough for a table this size, and it is the one search
-// that needs no index kept in step with every edit.
-const searchItemRows = db.prepare(`
-  SELECT ${ITEM_COLUMNS} FROM items i JOIN users u ON u.id = i.user_id
-  WHERE i.deleted_at IS NULL AND i.active = 1
-    AND (i.title LIKE ? ESCAPE '\\' OR i.description LIKE ? ESCAPE '\\'
-      OR i.place LIKE ? ESCAPE '\\' OR i.category LIKE ? ESCAPE '\\')
-  ORDER BY (i.title LIKE ? ESCAPE '\\') DESC, i.created_at DESC
-  LIMIT ?
-`);
-
-export function searchItems(query, limit = 20) {
-  const pattern = `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-  return searchItemRows.all(pattern, pattern, pattern, pattern, pattern, limit).map(servedItem);
+// The items anybody may be shown, newest first.
+function listedItems() {
+  return [...itemsById.values()].filter((item) => !item.deletedAt && item.active).sort(newestFirst);
 }
-const deleteItemRow = db.prepare(`
-  UPDATE items SET deleted_at = ?, active = 0 WHERE id = ? AND user_id = ? AND deleted_at IS NULL
-`);
+
+// Whether a longitude is between two edges, where a box that crosses the
+// antimeridian has its west edge east of its east edge.
+function between(longitude, west, east) {
+  return west <= east ? longitude >= west && longitude <= east : longitude >= west || longitude <= east;
+}
+
+function liveItem(id) {
+  const item = itemsById.get(id);
+  return item && !item.deletedAt ? item : null;
+}
 
 export function getItem(id) {
-  return servedItem(selectItem.get(id) ?? null);
+  return servedItem(liveItem(id));
+}
+
+// Words typed into the bar at the top: matched anywhere in what an item says
+// about itself, the ones that have them in their name first.
+export function searchItems(query, limit = 20) {
+  const wanted = query.toLowerCase();
+  const has = (value) => String(value ?? "").toLowerCase().includes(wanted);
+  const found = listedItems().filter(
+    (item) => has(item.title) || has(item.description) || has(item.place) || has(item.category),
+  );
+  return [...found.filter((item) => has(item.title)), ...found.filter((item) => !has(item.title))]
+    .slice(0, limit)
+    .map(servedItem);
 }
 
 export function getItemsInBox({ south, north, west, east }, limit = 300) {
-  const rows =
-    west <= east
-      ? selectItemsInBox.all(south, north, west, east, limit)
-      : selectItemsAcrossDateline.all(south, north, west, east, limit);
-  return rows.map(servedItem);
+  return listedItems()
+    .filter(
+      (item) =>
+        item.located && item.latitude >= south && item.latitude <= north && between(item.longitude, west, east),
+    )
+    .slice(0, limit)
+    .map(servedItem);
+}
+
+// The items offered where somebody is looking: the ones whose area has that
+// spot inside it, pin or no pin — and the ones whose pin stands inside the area
+// being looked at, whatever area they say, which is what lists an item from
+// before areas were asked for. `box` is the area being looked at, as { south,
+// north, west, east }, where it is known; without one only the items' own
+// areas decide.
+export function getItemsAt(latitude, longitude, box = null, limit = 200) {
+  return listedItems()
+    .filter((item) => {
+      if (item.region) {
+        const [west, south, east, north] = item.region.bbox;
+        if (latitude >= south && latitude <= north && between(longitude, west, east)) return true;
+      }
+      return Boolean(
+        box &&
+          item.located &&
+          item.latitude >= box.south &&
+          item.latitude <= box.north &&
+          between(item.longitude, box.west, box.east),
+      );
+    })
+    .slice(0, limit)
+    .map(servedItem);
 }
 
 export function getItemsByUser(userId, { publicOnly = false } = {}) {
-  const rows = selectItemsByUser.all(userId).map(servedItem);
-  return publicOnly ? rows.filter((item) => item.active).map(({ pending, ...item }) => item) : rows;
+  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt).sort(newestFirst);
+  if (publicOnly) return items.filter((item) => item.active).map(servedItem);
+  const bookings = [...bookingsById.values()];
+  return items.map((item) => ({
+    ...servedItem(item),
+    // How many people are waiting on an answer about it.
+    pending: bookings.filter((booking) => booking.itemId === item.id && booking.status === "pending").length,
+  }));
 }
 
 function newItemId() {
@@ -407,203 +330,204 @@ function newItemId() {
   const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
   for (;;) {
     const id = Array.from(crypto.randomBytes(8), (byte) => alphabet[byte % alphabet.length]).join("");
-    if (!selectItem.get(id)) return id;
+    if (!itemsById.has(id)) return id;
   }
 }
 
-// An area as its six columns, in the order they are written.
-function regionValues(region) {
-  if (!region) return ["", "", null, null, null, null];
-  const [west, south, east, north] = region.bbox;
-  return [region.name, region.detail, south, north, west, east];
-}
-
-// `box` is the area being looked at, as { south, north, west, east }, where it
-// is known; without one only the items' own areas decide.
-export function getItemsAt(latitude, longitude, box = null, limit = 200) {
-  const { south = null, north = null, west = null, east = null } = box ?? {};
-  return selectItemsAt.all({ latitude, longitude, south, north, west, east, limit }).map(servedItem);
+// What the form decides about an item, as it is kept.
+function itemFields(item) {
+  return {
+    title: item.title,
+    description: item.description,
+    kind: item.kind,
+    category: item.category,
+    mode: item.mode,
+    rates: item.rates,
+    hours: item.hours ?? [],
+    price: item.price,
+    currency: item.currency,
+    located: Boolean(item.located),
+    latitude: item.latitude,
+    longitude: item.longitude,
+    place: item.place ?? null,
+    region: item.region ?? null,
+    // {name, thumb, width, height}: file names in the owner's images folder.
+    images: item.images,
+  };
 }
 
 export function createItem(userId, item) {
   const id = newItemId();
-  insertItem.run(
-    id,
-    userId,
-    item.title,
-    item.description,
-    item.price,
-    item.currency,
-    item.latitude,
-    item.longitude,
-    item.place,
-    JSON.stringify(item.images),
-    item.kind,
-    item.category,
-    item.mode,
-    JSON.stringify(item.rates),
-    JSON.stringify(item.hours ?? []),
-    item.located ? 1 : 0,
-    ...regionValues(item.region),
-  );
+  const time = now();
+  transaction(() => {
+    itemsById.set(id, {
+      id,
+      ...itemFields(item),
+      // Off is an item taken down from the map without being deleted: its page
+      // still opens for whoever holds the link, and nothing new can be booked.
+      active: true,
+      // What the owner has said about single days: that one cannot be had, or
+      // costs something other than the usual. Only the exceptions are here.
+      days: [],
+      createdAt: time,
+      updatedAt: time,
+      // Soft, so the bookings and messages that point at an item keep their
+      // sentence after the item has gone.
+      deletedAt: null,
+      ownerId: userId,
+    });
+    changed(userId, "items.json");
+  });
   return getItem(id);
 }
 
 export function updateItem(userId, id, item) {
-  const { changes } = updateItemRow.run(
-    item.title,
-    item.description,
-    item.price,
-    item.currency,
-    item.latitude,
-    item.longitude,
-    item.place,
-    JSON.stringify(item.images),
-    item.active ? 1 : 0,
-    item.kind,
-    item.category,
-    item.mode,
-    JSON.stringify(item.rates),
-    JSON.stringify(item.hours ?? []),
-    item.located ? 1 : 0,
-    ...regionValues(item.region),
-    now(),
-    id,
-    userId,
-  );
-  return changes > 0 ? getItem(id) : null;
+  const current = liveItem(id);
+  if (!current || current.ownerId !== userId) return null;
+  transaction(() => {
+    Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
+    changed(userId, "items.json");
+  });
+  return getItem(id);
 }
 
 // The stored photo list, as file names — what an edit starts from, since the
 // served item only carries addresses.
 export function getItemImages(id) {
-  const row = db.prepare("SELECT images FROM items WHERE id = ?").get(id);
-  return readImages(row?.images);
+  return itemsById.get(id)?.images ?? [];
 }
 
 export function deleteItem(userId, id) {
-  return deleteItemRow.run(now(), id, userId).changes > 0;
+  const current = liveItem(id);
+  if (!current || current.ownerId !== userId) return false;
+  transaction(() => {
+    current.deletedAt = now();
+    current.active = false;
+    changed(userId, "items.json");
+  });
+  return true;
 }
 
 /* -------------------------------------------------------------------- days */
 
-const selectDays = db.prepare(`
-  SELECT day, available, price FROM item_days WHERE item_id = ? AND day >= ? ORDER BY day
-`);
-const selectDaysBetween = db.prepare(`
-  SELECT day, available, price FROM item_days WHERE item_id = ? AND day BETWEEN ? AND ?
-`);
-const upsertDay = db.prepare(`
-  INSERT INTO item_days (item_id, day, available, price) VALUES (?, ?, ?, ?)
-  ON CONFLICT (item_id, day) DO UPDATE SET available = excluded.available, price = excluded.price
-`);
-const deleteDay = db.prepare("DELETE FROM item_days WHERE item_id = ? AND day = ?");
-
-const servedDay = (row) => ({ day: row.day, available: row.available === 1, price: row.price });
+const daysOf = (itemId) => itemsById.get(itemId)?.days ?? [];
 
 export function getDays(itemId, from) {
-  return selectDays.all(itemId, from).map(servedDay);
+  return daysOf(itemId).filter((day) => day.day >= from);
 }
 
 export function getDaysBetween(itemId, start, end) {
-  return selectDaysBetween.all(itemId, start, end).map(servedDay);
+  return daysOf(itemId).filter((day) => day.day >= start && day.day <= end);
 }
 
 // One answer for a handful of days. A day put back to available at the usual
-// price is an ordinary day again, and its row goes rather than staying behind
+// price is an ordinary day again, and its entry goes rather than staying behind
 // to say nothing.
 export function setDays(itemId, days, { available, price }) {
+  const item = itemsById.get(itemId);
+  if (!item) return;
   transaction(() => {
+    const kept = new Map((item.days ?? []).map((day) => [day.day, day]));
     for (const day of days) {
-      if (available && price == null) deleteDay.run(itemId, day);
-      else upsertDay.run(itemId, day, available ? 1 : 0, price ?? null);
+      if (available && price == null) kept.delete(day);
+      else kept.set(day, { day, available: Boolean(available), price: price ?? null });
     }
+    item.days = [...kept.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
+    changed(item.ownerId, "items.json");
   });
 }
 
 /* ---------------------------------------------------------------- bookings */
 
-const BOOKING_COLUMNS = `
-  b.id, b.item_id AS itemId, b.start_day AS start, b.end_day AS end, b.start_time AS startTime, b.end_time AS endTime, b.total, b.currency,
-  b.note, b.status, b.slots, b.created_at AS createdAt, b.updated_at AS updatedAt,
-  r.username AS renter, b.renter_id AS renterId,
-  i.title AS itemTitle, i.images AS itemImages, i.user_id AS ownerId, o.username AS owner
-`;
-const BOOKING_FROM = `
-  FROM bookings b
-  JOIN users r ON r.id = b.renter_id
-  JOIN items i ON i.id = b.item_id
-  JOIN users o ON o.id = i.user_id
-`;
-
-function servedBooking(row) {
-  if (!row) return null;
-  const { itemImages, ...booking } = row;
-  const first = readImages(itemImages)[0];
+// A request to have an item from `start` to `end`, both days included, and what
+// became of it: pending until the owner answers, then confirmed or declined,
+// and cancelled if either side backs out. Only a confirmed booking takes days
+// off the calendar. `total` is worked out when the request is made and kept: a
+// price changed afterwards does not change what was agreed to. `slots` is the
+// hours it took, [{start, end, price}], where the item is booked by the time;
+// `startTime` and `endTime` are the pickup and return of one counted in days.
+function servedBooking(booking) {
+  if (!booking) return null;
+  const item = itemsById.get(booking.itemId);
+  const first = item?.images?.[0];
   return {
-    ...booking,
-    slots: booking.slots ? readList(booking.slots) : null,
+    id: booking.id,
+    itemId: booking.itemId,
+    start: booking.start,
+    end: booking.end,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    total: booking.total,
+    currency: booking.currency,
+    note: booking.note,
+    status: booking.status,
+    slots: booking.slots ?? null,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+    renter: nameOf(booking.renterId),
+    renterId: booking.renterId,
+    itemTitle: item?.title ?? null,
+    ownerId: booking.ownerId,
+    owner: nameOf(booking.ownerId),
     itemThumb: imageUrl(first?.thumb || first?.name),
   };
 }
 
-const selectBooking = db.prepare(`SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`);
-const selectBookingsForItem = db.prepare(`
-  SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.item_id = ? ORDER BY b.id DESC LIMIT 200
-`);
-const selectBookingsForItemByRenter = db.prepare(`
-  SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.item_id = ? AND b.renter_id = ? ORDER BY b.id DESC LIMIT 50
-`);
-const selectBookingsByRenter = db.prepare(`
-  SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.renter_id = ? ORDER BY b.id DESC LIMIT 200
-`);
-const selectBookingsForOwner = db.prepare(`
-  SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE i.user_id = ? ORDER BY b.id DESC LIMIT 200
-`);
-// The days that are taken, which is all a stranger is told: no names, no notes.
-const selectTaken = db.prepare(`
-  SELECT start_day AS start, end_day AS end, slots FROM bookings
-  WHERE item_id = ? AND status = 'confirmed' AND end_day >= ?
-  ORDER BY start_day
-`);
-const selectOverlapping = db.prepare(`
-  SELECT id, renter_id AS renterId, status, slots FROM bookings
-  WHERE item_id = ? AND status = ? AND start_day <= ? AND end_day >= ? AND id <> ?
-`);
-const selectOwnOverlap = db.prepare(`
-  SELECT id, slots FROM bookings
-  WHERE item_id = ? AND renter_id = ? AND status IN ('pending', 'confirmed') AND start_day <= ? AND end_day >= ?
-`);
-const insertBooking = db.prepare(`
-  INSERT INTO bookings (item_id, renter_id, start_day, end_day, total, currency, note, slots, start_time, end_time)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const updateBookingStatus = db.prepare("UPDATE bookings SET status = ?, updated_at = ? WHERE id = ?");
+function bookingsWhere(test, limit = 200) {
+  return [...bookingsById.values()].filter(test).sort(highestFirst).slice(0, limit).map(servedBooking);
+}
 
-export const getBooking = (id) => servedBooking(selectBooking.get(id) ?? null);
-export const getBookingsForItem = (itemId) => selectBookingsForItem.all(itemId).map(servedBooking);
+export const getBooking = (id) => servedBooking(bookingsById.get(id) ?? null);
+export const getBookingsForItem = (itemId) => bookingsWhere((booking) => booking.itemId === itemId);
 export const getBookingsForItemByRenter = (itemId, renterId) =>
-  selectBookingsForItemByRenter.all(itemId, renterId).map(servedBooking);
-export const getBookingsByRenter = (renterId) => selectBookingsByRenter.all(renterId).map(servedBooking);
-export const getBookingsForOwner = (ownerId) => selectBookingsForOwner.all(ownerId).map(servedBooking);
-export const getTaken = (itemId, from) =>
-  selectTaken.all(itemId, from).map((row) => ({ ...row, slots: row.slots ? readList(row.slots) : null }));
+  bookingsWhere((booking) => booking.itemId === itemId && booking.renterId === renterId, 50);
+export const getBookingsByRenter = (renterId) => bookingsWhere((booking) => booking.renterId === renterId);
+export const getBookingsForOwner = (ownerId) => bookingsWhere((booking) => booking.ownerId === ownerId);
+
+// The days that are taken, which is all a stranger is told: no names, no notes.
+export function getTaken(itemId, from) {
+  return [...bookingsById.values()]
+    .filter((booking) => booking.itemId === itemId && booking.status === "confirmed" && booking.end >= from)
+    .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
+    .map((booking) => ({ start: booking.start, end: booking.end, slots: booking.slots ?? null }));
+}
 
 // Two bookings on the same days are in each other's way — unless both are for
 // slots, where they clash only if the hours do. Times are "HH:MM", which
 // compare as text.
-function clashes(row, slots) {
-  if (!slots || !row.slots) return true;
-  const theirs = readList(row.slots);
-  return slots.some((mine) => theirs.some((other) => mine.start < other.end && other.start < mine.end));
+function clashes(booking, slots) {
+  if (!slots || !booking.slots) return true;
+  return slots.some((mine) => booking.slots.some((other) => mine.start < other.end && other.start < mine.end));
 }
 
+const onDays = (booking, itemId, start, end) =>
+  booking.itemId === itemId && booking.start <= end && booking.end >= start;
+
 export function overlapping(itemId, status, start, end, { exceptId = 0, slots = null } = {}) {
-  return selectOverlapping.all(itemId, status, end, start, exceptId).filter((row) => clashes(row, slots));
+  return [...bookingsById.values()]
+    .filter(
+      (booking) =>
+        onDays(booking, itemId, start, end) &&
+        booking.status === status &&
+        booking.id !== exceptId &&
+        clashes(booking, slots),
+    )
+    .map((booking) => ({ id: booking.id, renterId: booking.renterId, status: booking.status, slots: booking.slots }));
 }
 
 export function hasOwnOverlap(itemId, renterId, start, end, slots = null) {
-  return selectOwnOverlap.all(itemId, renterId, end, start).some((row) => clashes(row, slots));
+  return [...bookingsById.values()].some(
+    (booking) =>
+      onDays(booking, itemId, start, end) &&
+      booking.renterId === renterId &&
+      (booking.status === "pending" || booking.status === "confirmed") &&
+      clashes(booking, slots),
+  );
+}
+
+function bookingChanged(booking) {
+  changed(booking.ownerId, "bookings.json");
+  changed(booking.renterId, "bookings.json");
 }
 
 export function createBooking({
@@ -618,141 +542,175 @@ export function createBooking({
   startTime = null,
   endTime = null,
 }) {
-  const result = insertBooking.run(
+  const item = itemsById.get(itemId);
+  if (!item) throw new Error(`no such item: ${itemId}`);
+  const time = now();
+  const booking = {
+    id: lastBookingId + 1,
     itemId,
+    ownerId: item.ownerId,
     renterId,
     start,
     end,
-    total,
-    currency,
-    note || null,
-    slots ? JSON.stringify(slots) : null,
     startTime,
     endTime,
-  );
-  return getBooking(Number(result.lastInsertRowid));
+    total,
+    currency,
+    note: note || null,
+    status: "pending",
+    slots,
+    createdAt: time,
+    updatedAt: time,
+  };
+  transaction(() => {
+    lastBookingId = booking.id;
+    bookingsById.set(booking.id, booking);
+    bookingChanged(booking);
+  });
+  return getBooking(booking.id);
 }
 
 export function setBookingStatus(id, status) {
-  updateBookingStatus.run(status, now(), id);
+  const booking = bookingsById.get(id);
+  if (!booking) return null;
+  transaction(() => {
+    booking.status = status;
+    booking.updatedAt = now();
+    bookingChanged(booking);
+  });
   return getBooking(id);
 }
 
 /* ---------------------------------------------------------------- messages */
 
-const MESSAGE_COLUMNS = `
-  m.id, m.body, m.kind, m.created_at AS time, (m.from_user = ?) AS mine, (m.read_at IS NOT NULL) AS read,
-  b.id AS bookingId, b.start_day AS bookingStart, b.end_day AS bookingEnd, b.status AS bookingStatus,
-  b.slots AS bookingSlots, b.start_time AS bookingStartTime, b.end_time AS bookingEndTime, b.item_id AS itemId, i.title AS itemTitle
-`;
-const MESSAGE_JOINS = `
-  LEFT JOIN bookings b ON b.id = m.booking_id
-  LEFT JOIN items i ON i.id = b.item_id
-`;
-
-function servedMessage(row) {
-  if (!row) return null;
-  const {
-    bookingId,
-    bookingStart,
-    bookingEnd,
-    bookingStatus,
-    bookingSlots,
-    bookingStartTime,
-    bookingEndTime,
-    itemId,
-    itemTitle,
-    ...line
-  } = row;
+// One entry per line said, in the folder of each end. Two accounts have exactly
+// one conversation between them, so `with` is the thread and there is no list
+// of threads.
+//
+// kind is 'text' for something typed. The others — request, confirmed,
+// declined, cancelled — are lines rab writes itself when a booking changes
+// hands, so that everything about a rental is in the conversation it is being
+// arranged in; bookingId says which one, and the client words the line.
+//
+// `read` is whether the one it was sent to has read it, on both copies: it is
+// what the receiver's unread count goes by and what the sender is shown.
+function servedMessage(line) {
+  if (!line) return null;
+  const booking = line.bookingId ? bookingsById.get(line.bookingId) : null;
   return {
-    ...line,
-    mine: row.mine === 1,
-    read: row.read === 1,
-    booking: bookingId
+    id: line.id,
+    body: line.body,
+    kind: line.kind,
+    time: line.time,
+    mine: line.mine === true,
+    read: line.read === true,
+    booking: booking
       ? {
-          id: bookingId,
-          start: bookingStart,
-          end: bookingEnd,
-          startTime: bookingStartTime,
-          endTime: bookingEndTime,
-          status: bookingStatus,
-          slots: bookingSlots ? readList(bookingSlots) : null,
-          itemId,
-          itemTitle,
+          id: booking.id,
+          start: booking.start,
+          end: booking.end,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          status: booking.status,
+          slots: booking.slots ?? null,
+          itemId: booking.itemId,
+          itemTitle: itemsById.get(booking.itemId)?.title ?? null,
         }
       : null,
   };
 }
 
+const unreadLine = (line) => !line.mine && !line.read;
+
 // The inbox: the last line of every conversation this account is part of, with
 // how much of it is still unread.
-const selectThreads = db.prepare(`
-  SELECT u.username, ${MESSAGE_COLUMNS},
-    (SELECT COUNT(*) FROM messages x
-      WHERE x.to_user = ? AND x.from_user = u.id AND x.read_at IS NULL AND x.hidden_to = 0) AS unread
-  FROM messages m
-  JOIN users u ON u.id = CASE WHEN m.from_user = ? THEN m.to_user ELSE m.from_user END
-  ${MESSAGE_JOINS}
-  WHERE m.id IN (
-    SELECT MAX(id) FROM messages
-    WHERE (from_user = ? AND hidden_from = 0) OR (to_user = ? AND hidden_to = 0)
-    GROUP BY CASE WHEN from_user = ? THEN to_user ELSE from_user END
-  )
-  ORDER BY m.id DESC
-  LIMIT ?
-`);
-// Capped at its end rather than its beginning: a long exchange opens on the
-// part of it that is still being had.
-const selectConversation = db.prepare(`
-  SELECT ${MESSAGE_COLUMNS}
-  FROM messages m
-  ${MESSAGE_JOINS}
-  WHERE (m.from_user = ? AND m.to_user = ? AND m.hidden_from = 0)
-     OR (m.from_user = ? AND m.to_user = ? AND m.hidden_to = 0)
-  ORDER BY m.id DESC
-  LIMIT ?
-`);
-const selectMessage = db.prepare(`SELECT ${MESSAGE_COLUMNS} FROM messages m ${MESSAGE_JOINS} WHERE m.id = ?`);
-const countUnreadRows = db.prepare(`
-  SELECT COUNT(*) AS count FROM messages WHERE to_user = ? AND read_at IS NULL AND hidden_to = 0
-`);
-const markRead = db.prepare(`
-  UPDATE messages SET read_at = ? WHERE to_user = ? AND from_user = ? AND read_at IS NULL
-`);
-const insertMessage = db.prepare(`
-  INSERT INTO messages (from_user, to_user, body, kind, booking_id) VALUES (?, ?, ?, ?, ?)
-`);
-const hideSent = db.prepare("UPDATE messages SET hidden_from = 1 WHERE from_user = ? AND to_user = ?");
-const hideReceived = db.prepare(`
-  UPDATE messages SET hidden_to = 1, read_at = COALESCE(read_at, ?) WHERE to_user = ? AND from_user = ?
-`);
-
 export function getThreads(userId, limit = 50) {
-  return selectThreads
-    .all(userId, userId, userId, userId, userId, userId, limit)
-    .map((row) => ({ ...servedMessage(row), username: row.username, unread: row.unread }));
+  const threads = new Map();
+  for (const line of linesOf(userId)) {
+    const thread = threads.get(line.with) ?? { last: line, unread: 0 };
+    if (line.id >= thread.last.id) thread.last = line;
+    if (unreadLine(line)) thread.unread += 1;
+    threads.set(line.with, thread);
+  }
+  return [...threads.values()]
+    .sort((a, b) => b.last.id - a.last.id)
+    .slice(0, limit)
+    .map(({ last, unread }) => ({ ...servedMessage(last), username: nameOf(last.with), unread }));
 }
 
+// Capped at its end rather than its beginning: a long exchange opens on the
+// part of it that is still being had.
 export function getConversation(userId, otherId, limit = 200) {
-  return selectConversation.all(userId, userId, otherId, otherId, userId, limit).reverse().map(servedMessage);
+  return linesOf(userId)
+    .filter((line) => line.with === otherId)
+    .sort((a, b) => a.id - b.id)
+    .slice(-limit)
+    .map(servedMessage);
 }
 
 export function countUnread(userId) {
-  return countUnreadRows.get(userId)?.count ?? 0;
+  return linesOf(userId).filter(unreadLine).length;
 }
 
+// Marks what `userId` was sent by `otherId` as read, in both folders. Writes
+// nothing where nothing was unread — an open conversation asks every few
+// seconds.
 export function readConversation(userId, otherId) {
-  markRead.run(now(), userId, otherId);
+  const fresh = new Set(
+    linesOf(userId)
+      .filter((line) => line.with === otherId && unreadLine(line))
+      .map((line) => line.id),
+  );
+  if (fresh.size === 0) return;
+  transaction(() => {
+    for (const line of linesOf(userId)) if (fresh.has(line.id)) line.read = true;
+    changed(userId, "messages.json");
+    let told = false;
+    for (const line of linesOf(otherId)) {
+      if (line.mine && line.with === userId && fresh.has(line.id)) {
+        line.read = true;
+        told = true;
+      }
+    }
+    if (told) changed(otherId, "messages.json");
+  });
 }
 
 export function createMessage(fromId, toId, body, { kind = "text", bookingId = null } = {}) {
-  const result = insertMessage.run(fromId, toId, body, kind, bookingId);
-  return servedMessage(selectMessage.get(fromId, Number(result.lastInsertRowid)));
+  // The clock, so a number is never handed out twice even after both ends have
+  // deleted the lines that carried the highest ones.
+  lastMessageId = Math.max(Date.now(), lastMessageId + 1);
+  const line = { id: lastMessageId, body, kind, bookingId, time: now(), read: false };
+  const sent = { ...line, with: toId, mine: true };
+  transaction(() => {
+    linesOf(fromId).push(sent);
+    linesOf(toId).push({ ...line, with: fromId, mine: false });
+    changed(fromId, "messages.json");
+    changed(toId, "messages.json");
+  });
+  return servedMessage(sent);
 }
 
+// A conversation deleted from an inbox goes from that side's folder only. What
+// had not been read yet counts as read on the way out, so the other end is not
+// left waiting on it.
 export function deleteConversation(userId, otherId) {
   transaction(() => {
-    hideSent.run(userId, otherId);
-    hideReceived.run(now(), userId, otherId);
+    const dropped = new Set(
+      linesOf(userId)
+        .filter((line) => line.with === otherId && unreadLine(line))
+        .map((line) => line.id),
+    );
+    for (const line of linesOf(otherId)) {
+      if (line.mine && line.with === userId && dropped.has(line.id)) {
+        line.read = true;
+        changed(otherId, "messages.json");
+      }
+    }
+    messagesByUser.set(
+      userId,
+      linesOf(userId).filter((line) => line.with !== otherId),
+    );
+    changed(userId, "messages.json");
   });
 }

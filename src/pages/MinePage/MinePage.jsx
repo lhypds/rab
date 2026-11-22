@@ -2,16 +2,25 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { BookingRow, Header, ItemRow, MessageModal } from "../../components/index.js";
-import { Skeleton } from "../../ui/index.js";
+import { Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
 
-const TABS = ["items", "requests"];
+// What is out for rent, a tab for each kind of it — things, spaces, services —
+// and then the requests for any of it.
+const KINDS = ["item", "space", "service"];
+const TABS = [...KINDS, "requests"];
 
 // What you have out for rent, and who has asked for any of it.
 export default function MinePage() {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState(null);
+  // The tab is in the address, so coming back from an item's page lands on
+  // the list that was left.
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const asked = searchParams.get("tab");
+  const tab = TABS.includes(asked) ? asked : null;
+  const setTab = (name) => navigate(`/mine?tab=${name}`, { replace: true, scroll: false });
   const [writingTo, setWritingTo] = useState(null);
 
   const load = useCallback(() => {
@@ -29,9 +38,12 @@ export default function MinePage() {
   // The page opens on the requests where one is waiting on an answer, since
   // that is the one thing here somebody else is waiting for.
   const waiting = data?.requests.filter((booking) => booking.status === "pending").length ?? 0;
-  const shown = tab ?? (waiting > 0 ? "requests" : "items");
-  const counts = { items: data?.items.length ?? 0, requests: waiting };
-  const rows = data?.[shown] ?? [];
+  const ofKind = (kind) => data?.items.filter((item) => (item.kind || "item") === kind) ?? [];
+  const counts = { requests: waiting };
+  for (const kind of KINDS) counts[kind] = ofKind(kind).length;
+  // Otherwise on the first kind there is anything of.
+  const shown = tab ?? (waiting > 0 ? "requests" : (KINDS.find((kind) => counts[kind] > 0) ?? "item"));
+  const rows = shown === "requests" ? (data?.requests ?? []) : ofKind(shown);
 
   return (
     <div className="page-shell">
@@ -51,7 +63,7 @@ export default function MinePage() {
               className={shown === name ? "tab active" : "tab"}
               onClick={() => setTab(name)}
             >
-              {t(`mine.${name}`)}
+              {name === "requests" ? t("mine.requests") : t(`kind.${name}`)}
               {counts[name] > 0 && <small>{counts[name]}</small>}
             </button>
           ))}
@@ -62,14 +74,14 @@ export default function MinePage() {
         {!data ? (
           !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />
         ) : rows.length === 0 ? (
-          <p className="empty-state">{t(`mine.${shown}Empty`)}</p>
+          <p className="empty-state">{t(shown === "requests" ? "mine.requestsEmpty" : "mine.itemsEmpty")}</p>
         ) : (
           <ul className="row-list">
-            {shown === "items"
-              ? rows.map((item) => <ItemRow key={item.id} item={item} />)
-              : rows.map((booking) => (
+            {shown === "requests"
+              ? rows.map((booking) => (
                   <BookingRow key={booking.id} booking={booking} onChange={load} onMessage={setWritingTo} />
-                ))}
+                ))
+              : rows.map((item) => <ItemRow key={item.id} item={item} showPublished />)}
           </ul>
         )}
       </main>

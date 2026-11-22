@@ -6,6 +6,10 @@ data/
 db.sqlite
 db.sqlite-shm
 db.sqlite-wal
+db.sqlite.before-folders
 npm-debug.log*
 .vscode/
 .claude/
+xcuserdata/
+*.xcuserstate
+ios/build/
