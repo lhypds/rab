@@ -394,6 +394,8 @@ struct LocationPicker: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
+        // The list is the account's, on rab: brought up to date when opened.
+        .task { await model.loadLocations() }
     }
 
     /// Where a location is, as a line: the address its pin came to. One added

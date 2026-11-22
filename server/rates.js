@@ -3,8 +3,9 @@
 // An item is booked one of two ways. By the date: the first rule is what a day
 // costs, and every rule after it is what some days cost instead — "weekends
 // are 2000". Or by the date and the time: the owner says which hours of which
-// days it can be had (see parseHours), the first rule is what an hour costs,
-// and every rule after it is what some hours cost instead — "after 18:00 is
+// days it can be had (see parseHours), the first rule is what one stretch of
+// the item's pricing unit costs (see readPriceUnit) — ten minutes, an hour —
+// and every rule after it is what that costs at some hours instead — "after 18:00 is
 // 1500", "Saturdays are 2000". The clock is cut in half hours, which is the
 // smallest piece that can be asked for and the piece a price is worked out by.
 //
@@ -12,12 +13,15 @@
 
 export const MODES = new Set(["day", "time"]);
 export const STEP = 30; // minutes in one piece of the clock
-const RULES_MAX = 24;
+// Enough for a price on single stretches of single dates, which the form
+// writes as one rule for each stretch and price (see the item form).
+const RULES_MAX = 200;
 const DATES_MAX = 366;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-// A time on the half hour, midnight at the end of the day included.
-const TIME_RE = /^([01]\d|2[0-3]):[03]0$|^24:00$/;
-const HOURS_MAX = 48;
+// A time on a five-minute mark — which every unit an item can be booked in
+// falls on — midnight at the end of the day included.
+const TIME_RE = /^([01]\d|2[0-3]):[0-5][05]$|^24:00$/;
+const HOURS_MAX = 400;
 
 function readPrice(value, max) {
   if (value === null || value === undefined || value === "") return null;
@@ -73,8 +77,44 @@ export function parseRates(mode, value, priceMax) {
   return { rates };
 }
 
+// When somebody who has a confirmed booking may still call it off, as the
+// owner says: any time ("any"), not at all ("none"), or up to some time before
+// it starts — so many days ("days", with how many) or so many hours ("hours").
+// Any time, where nothing is said.
+const CANCEL_DAYS_MAX = 365;
+const CANCEL_HOURS_MAX = 999;
+export function readCancel(value) {
+  if (value?.mode === "none") return { mode: "none" };
+  if (value?.mode === "days") {
+    const days = Math.round(Number(value.days));
+    if (Number.isFinite(days) && days >= 1) return { mode: "days", days: Math.min(days, CANCEL_DAYS_MAX) };
+  }
+  if (value?.mode === "hours") {
+    const hours = Math.round(Number(value.hours));
+    if (Number.isFinite(hours) && hours >= 1) return { mode: "hours", hours: Math.min(hours, CANCEL_HOURS_MAX) };
+  }
+  return { mode: "any" };
+}
+
+// The days of the week an item can be had at all — its rule for days, "Monday
+// to Friday" — or null where it is every day.
+export const readOpenDays = readWeekdays;
+
+// A plain list of dates, in order; empty where none are named.
+export const readDayList = (value) => readDates(value) ?? [];
+
+// Whether the item's rule for days has a date: its day of the week is one of
+// the days it can be had. What the owner has said about that one date — closed
+// it, or opened it though the rule leaves it out — is asked of the calendar's
+// own entries, not here.
+export function openByRule(item, day) {
+  return !item.openDays || item.openDays.includes(weekday(day));
+}
+
 // The hours an item booked by the time can be had, as sent: a list of
-// stretches of the clock, each for every day or for some days of the week.
+// stretches of the clock. One that names no dates is a rule — those hours,
+// every day or on some days of the week. One that names dates is what the
+// owner painted for those dates in particular, in place of the rules.
 export function parseHours(value) {
   if (!Array.isArray(value) || value.length === 0) return { error: "Say which hours it can be booked", code: "HOURS_REQUIRED" };
   if (value.length > HOURS_MAX) return { error: `At most ${HOURS_MAX} stretches of hours` };
@@ -85,10 +125,31 @@ export function parseHours(value) {
     if (!TIME_RE.test(start) || !TIME_RE.test(end) || start >= end) {
       return { error: "Hours need a start before their end" };
     }
-    hours.push({ start, end, days: readWeekdays(entry?.days) });
+    const dates = readDates(entry?.dates);
+    hours.push(dates ? { start, end, days: null, dates } : { start, end, days: readWeekdays(entry?.days) });
   }
   hours.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
   return { hours };
+}
+
+// The piece of the clock an item booked by the time is asked for in — ten
+// minutes, a quarter of an hour, half an hour or an hour — as its owner chose.
+// Half an hour where they have not, which is what it was before there was a
+// choice. The hours it can be had and the hours a price is for are still said
+// on the half hour; this is only how finely they are cut for booking.
+export const UNITS = [10, 15, 30, 60];
+export function readUnit(value) {
+  const unit = Number(value);
+  return UNITS.includes(unit) ? unit : STEP;
+}
+
+// The stretch of the clock a price is for — "1000 an hour", "300 for ten
+// minutes" — which is the owner's to say apart from the unit it is booked in:
+// a thing priced by the hour can still be booked by the quarter. An item
+// that says none is priced by its booking unit.
+export function readPriceUnit(item) {
+  const per = Number(item?.priceUnit);
+  return UNITS.includes(per) ? per : readUnit(item?.unit);
 }
 
 // The one figure an item is listed under: an ordinary day, or an ordinary hour.
@@ -121,11 +182,18 @@ export function dayPrice(item, day) {
 const minutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
 const clock = (total) => `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 
-// The hours one day has, where the item is booked by the time: the stretches
-// that are for that day of the week, joined where they touch, earliest first.
+// The hours one day has, where the item is booked by the time, joined where
+// they touch, earliest first. A date the owner painted has what was painted,
+// and one they wiped (`hoursOff`) has none; any other date has what the rules
+// give its day of the week, where the rule for days has it at all.
 export function hoursOn(item, day) {
-  const on = (item.hours ?? [])
-    .filter((range) => !range.days || range.days.includes(weekday(day)))
+  if (item.hoursOff?.includes(day)) return [];
+  const all = item.hours ?? [];
+  const painted = all.filter((range) => range.dates?.includes(day));
+  const ruled = openByRule(item, day)
+    ? all.filter((range) => !range.dates && (!range.days || range.days.includes(weekday(day))))
+    : [];
+  const on = (painted.length > 0 ? painted : ruled)
     .map(({ start, end }) => ({ start, end }))
     .sort((a, b) => a.start.localeCompare(b.start));
   const joined = [];
@@ -137,8 +205,8 @@ export function hoursOn(item, day) {
   return joined;
 }
 
-// What an hour costs at one time of one day: the last rule that is for that
-// day and, where it names hours, for that time.
+// What one stretch of the item's pricing unit costs at one time of one day:
+// the last rule that is for that day and, where it names hours, for that time.
 export function hourPrice(item, day, time) {
   let price = item.price;
   for (const rate of item.rates) {
@@ -147,14 +215,25 @@ export function hourPrice(item, day, time) {
   return price;
 }
 
-// What a stretch of one day comes to, half an hour at a time — or null where
-// it is not on the half hours or not wholly inside the hours the day has.
+// Any minute of the day, midnight at its end included.
+const MINUTE_RE = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
+
+// What a stretch of one day comes to, one piece of the item's unit at a time —
+// or null where it is not wholly inside the hours the day has, or not cut
+// where the unit cuts them: a whole number of pieces, counted from where that
+// stretch of hours starts.
 export function timeQuote(item, day, start, end) {
-  if (!TIME_RE.test(String(start)) || !TIME_RE.test(String(end)) || start >= end) return null;
-  if (!hoursOn(item, day).some((range) => start >= range.start && end <= range.end)) return null;
+  if (!MINUTE_RE.test(String(start)) || !MINUTE_RE.test(String(end)) || start >= end) return null;
+  const range = hoursOn(item, day).find((each) => start >= each.start && end <= each.end);
+  if (!range) return null;
+  const unit = readUnit(item.unit);
+  if ((minutes(start) - minutes(range.start)) % unit !== 0 || (minutes(end) - minutes(start)) % unit !== 0) return null;
+  // A price is for one stretch of the pricing unit, and each piece asked for
+  // costs its share of that.
+  const per = readPriceUnit(item);
   let total = 0;
-  for (let at = minutes(start); at < minutes(end); at += STEP) {
-    total += (hourPrice(item, day, clock(at)) * STEP) / 60;
+  for (let at = minutes(start); at < minutes(end); at += unit) {
+    total += (hourPrice(item, day, clock(at)) * unit) / per;
   }
   return Math.round(total * 100) / 100;
 }

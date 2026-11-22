@@ -42,6 +42,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Taller than the button's line of 1: this box cuts off what overflows it,
+     and a line exactly as tall as the type has no room for the tail of a g. */
+  line-height: 16px;
 }
 
 /* Every name in the list, stacked and drawn to nothing. It is here to be

@@ -87,6 +87,25 @@ struct Suggestion: Decodable {
     var description: String
 }
 
+/// One of the account's places as the server keeps it (GET /api/locations):
+/// the same list the website's form chooses from.
+struct RemoteLocation: Codable {
+    var id: String?
+    var name: String
+    var address: String?
+    var latitude: Double
+    var longitude: Double
+    var region: Region?
+}
+
+private struct LocationsReply: Decodable {
+    let locations: [RemoteLocation]
+}
+
+private struct LocationReply: Decodable {
+    let location: RemoteLocation
+}
+
 private struct MineReply: Decodable {
     let items: [Listing]
 }
@@ -203,6 +222,26 @@ final class RabAPI {
         guard let path, !path.isEmpty else { return nil }
         return URL(string: path, relativeTo: baseURL)?.absoluteURL
     }
+
+    // MARK: - locations
+
+    /// The account's places, in the order they were added.
+    func locations() async throws -> [RemoteLocation] {
+        let data = try await send("GET", "api/locations")
+        return try JSONDecoder().decode(LocationsReply.self, from: data).locations
+    }
+
+    /// Keeps a place in the account's list, under the id it is sent with.
+    func saveLocation(_ location: RemoteLocation) async throws -> RemoteLocation {
+        let reply: LocationReply = try await post("api/locations", location)
+        return reply.location
+    }
+
+    func deleteLocation(_ id: String) async throws {
+        _ = try await send("DELETE", "api/locations/\(id)")
+    }
+
+    // MARK: - describing
 
     /// Asks the server what a photograph is of, in the language given ("en",
     /// "zh", "ja"). The bytes are a JPEG reduced on the phone; nothing is kept.

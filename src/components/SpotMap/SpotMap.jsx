@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { formatCoords } from "../../utils/format.js";
 import { MAPBOX_TOKEN, MAP_STYLE, PIN_PATH, locate, mapLanguage } from "../../utils/mapbox.js";
 import { MapSearch, MapTools } from "../MapParts/index.js";
 import styles from "./spot.module.css";
@@ -64,11 +65,23 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
       const element = document.createElement("span");
       element.className = styles.marker;
       element.innerHTML = `<svg viewBox="0 0 24 21.6" aria-hidden="true"><path d="${PIN_PATH}"/><circle cx="12" cy="10" r="2.5"/></svg>`;
+      // Where the pin stands, in numbers, hung under its point: it goes where
+      // the pin goes, and says the new place while the pin is still in the hand.
+      const coords = document.createElement("span");
+      coords.className = styles.coords;
+      element.appendChild(coords);
       const marker = new mapboxgl.Marker({ element, draggable: true, anchor: "bottom" })
         .setLngLat([longitude, latitude])
         .addTo(map);
+      const label = () => {
+        const spot = marker.getLngLat().wrap();
+        coords.textContent = formatCoords(spot.lat, spot.lng);
+      };
+      label();
+      marker.on("drag", label);
       const tell = () => {
         const spot = marker.getLngLat().wrap();
+        label();
         moved.current?.({ latitude: spot.lat, longitude: spot.lng });
       };
       marker.on("dragend", tell);
@@ -76,7 +89,7 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
         marker.setLngLat(event.lngLat);
         tell();
       });
-      markerRef.current = { marker, tell };
+      markerRef.current = { marker, tell, label };
     }
     mapRef.current = map;
     return () => {
@@ -93,8 +106,10 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
   // Shown rather than chosen, the spot is wherever the page says it is; chosen,
   // the pin stands wherever the form last said, which is where it was put.
   useEffect(() => {
-    if (picking) markerRef.current?.marker.setLngLat([longitude, latitude]);
-    else mapRef.current?.jumpTo({ center: [longitude, latitude] });
+    if (picking) {
+      markerRef.current?.marker.setLngLat([longitude, latitude]);
+      markerRef.current?.label();
+    } else mapRef.current?.jumpTo({ center: [longitude, latitude] });
   }, [picking, latitude, longitude]);
 
   useEffect(() => {

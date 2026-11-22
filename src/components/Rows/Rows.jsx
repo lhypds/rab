@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { ActionButton, Link, showToast } from "../../ui/index.js";
-import { bookingWhen } from "../../utils/bookings.js";
+import { ActionButton, Link, Modal, TextArea, showToast } from "../../ui/index.js";
+import { bookingWhen, canCancel, cancelLine } from "../../utils/bookings.js";
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
 
 // One item in a list: its picture, its name, what a day of it costs and where
 // it is. The whole row is the way to its page. In the owner's own list the row
-// also says, at the right, that the item is published.
+// also says, at the right, that the item is published; one that is not says
+// nothing.
 export function ItemRow({ item, showOwner = false, showPublished = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
@@ -30,7 +31,6 @@ export function ItemRow({ item, showOwner = false, showPublished = false }) {
         </Link>
         <span className="row-side">
           {showPublished && item.active && <span className="status">{t("item.published")}</span>}
-          {!item.active && <span className="status status-off">{t("item.inactive")}</span>}
           {item.pending > 0 && (
             <span className="status status-pending">{t("booking.waiting", { count: item.pending })}</span>
           )}
@@ -50,6 +50,10 @@ export function ItemRow({ item, showOwner = false, showPublished = false }) {
 export function BookingRow({ booking, about = "item", onChange, onMessage }) {
   const { t, i18n } = useTranslation();
   const [busy, setBusy] = useState(false);
+  // The sheet for asking the owner to call the booking off, where its rule no
+  // longer lets whoever made it do that themselves — and the word about why.
+  const [asking, setAsking] = useState(false);
+  const [why, setWhy] = useState("");
   const dates = bookingWhen(booking, i18n.language);
   const total = formatPrice(booking.total, booking.currency, i18n.language);
   // Who is at the other end of it, from where the reader stands.
@@ -63,7 +67,29 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
       const data = await api.setBookingStatus(booking.id, status);
       onChange?.(data.booking);
     } catch (error) {
-      showToast(error.code === "DAYS_UNAVAILABLE" ? t("booking.clash") : error.message, 2400);
+      const said = { DAYS_UNAVAILABLE: t("booking.clash"), CANCEL_NOT_ALLOWED: t("cancel.none"), CANCEL_TOO_LATE: t("cancel.late") };
+      showToast(said[error.code] ?? error.message, 2400);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Whether the reader can call it off themselves: the owner always, and
+  // whoever made it by the rule it was made under.
+  const free = booking.owned || canCancel(booking);
+
+  // What is done about a booking other than changing where it stands: asking
+  // to be let out of it, and the owner's no to that.
+  async function send(work) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const data = await work();
+      onChange?.(data.booking);
+      setAsking(false);
+      setWhy("");
+    } catch (error) {
+      showToast(error.message, 2400);
     } finally {
       setBusy(false);
     }
@@ -93,6 +119,9 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
         </Copy>
         <span className="row-side">
           <span className={`status status-${booking.status}`}>{t(`booking.status.${booking.status}`)}</span>
+          {/* Whoever made it has asked to be let out of it, and the owner has
+              not answered yet: said on both sides' rows. */}
+          {booking.cancelRequested && <span className="status status-pending">{t("cancel.asked")}</span>}
           <span className="row-actions">
             {booking.owned && booking.status === "pending" && (
               <>
@@ -108,8 +137,25 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
                 </ActionButton>
               </>
             )}
+            {/* The owner's no to being asked to call it off. Their yes is the
+                cancel button beside it, which is theirs to press anyway. */}
+            {booking.owned && booking.cancelRequested && (
+              <ActionButton tooltip={t("cancel.refuse")} tooltipRight onClick={() => send(() => api.refuseCancel(booking.id))} disabled={busy}>
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 12h16" />
+                </svg>
+              </ActionButton>
+            )}
             {open && !(booking.owned && booking.status === "pending") && (
-              <ActionButton tooltip={t("booking.cancel")} tooltipRight onClick={() => set("cancelled")} disabled={busy}>
+              // Whoever made the booking calls it off by its rule. Past what
+              // the rule allows, the same button opens a sheet for asking the
+              // owner instead — once: while an asking stands, it is off.
+              <ActionButton
+                tooltip={free ? (booking.owned && booking.cancelRequested ? t("cancel.agree") : t("booking.cancel")) : booking.cancelRequested ? t("cancel.asked") : t("cancel.ask")}
+                tooltipRight
+                onClick={() => (free ? set("cancelled") : setAsking(true))}
+                disabled={busy || (!free && booking.cancelRequested)}
+              >
                 <svg viewBox="0 0 24 24">
                   <path d="M6 6l12 12M18 6 6 18" />
                 </svg>
@@ -130,6 +176,39 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
           </span>
         </span>
       </div>
+      {/* Past what its rule allows, a booking is not called off by whoever
+          made it: they ask the owner to, here, with a word about why. The
+          owner is told in their messages and answers on their own row. */}
+      <Modal isOpen={asking} title={t("cancel.askTitle")} onClose={busy ? undefined : () => setAsking(false)} closeOnOverlay>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            send(() => api.askToCancel(booking.id, why.trim()));
+          }}
+        >
+          <div className="field">
+            <p className="part-note">{cancelLine(booking.cancel, t)}</p>
+            <p className="part-note">{t("cancel.askExplain", { name: formatUsername(booking.owner) })}</p>
+            <TextArea
+              className="text-area"
+              value={why}
+              onChange={(event) => setWhy(event.target.value)}
+              placeholder={t("cancel.askPlaceholder")}
+              maxLength={500}
+              rows={3}
+              minHeight={72}
+            />
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="outline-button" onClick={() => setAsking(false)} disabled={busy}>
+              {t("common.cancel")}
+            </button>
+            <button type="submit" className="primary-button" disabled={busy}>
+              {t("cancel.askSend")}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </li>
   );
 }

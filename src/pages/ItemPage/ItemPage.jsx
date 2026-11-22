@@ -18,7 +18,8 @@ export default function ItemPage({ id }) {
   const [searchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
+  // The part of the item's form that is open: "item", "availability", or null.
+  const [editing, setEditing] = useState(null);
   const [writingTo, setWritingTo] = useState(null);
 
   const load = useCallback(() => {
@@ -97,8 +98,14 @@ export default function ItemPage({ id }) {
             viewer={user}
             focusBooking={searchParams.get("book") === "1"}
             onBook={book}
-            onChangeDays={async (change) => keep(await api.setDays(item.id, change))}
-            onEdit={() => setEditing(true)}
+            // Switched off or on, the page is asked for again: its calendar
+            // and what it says of itself both turn on it.
+            onSetActive={async (active) => {
+              await api.updateItem(item.id, { active });
+              await load();
+            }}
+            onEdit={() => setEditing("item")}
+            onEditAvailability={() => setEditing("availability")}
             onMessage={setWritingTo}
             onBookingChange={load}
             onSignIn={() => navigate(loginPath())}
@@ -109,16 +116,18 @@ export default function ItemPage({ id }) {
 
       {item?.mine && (
         <ItemModal
-          isOpen={editing}
+          isOpen={Boolean(editing)}
+          // Which of the form's two sheets: the item, or when it can be had.
+          part={editing || "item"}
           item={item}
           calendar={data.calendar}
-          onClose={() => setEditing(false)}
+          onClose={() => setEditing(null)}
           onSaved={() => {
-            setEditing(false);
+            setEditing(null);
             load();
           }}
           onDeleted={() => {
-            setEditing(false);
+            setEditing(null);
             showToast(t("item.deleted"), 1800);
             navigate("/mine", { replace: true });
           }}

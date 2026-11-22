@@ -29,7 +29,10 @@ const EDGE = 8;
 // With `searchPlaceholder` the list opens with a field over it, and what is
 // typed there narrows the rows to the ones whose name has it in — for a list
 // too long to be read down. `emptyLabel` is what it says when nothing is left.
-export default function Select({ options: all, value, onChange, label, className, searchPlaceholder, emptyLabel }) {
+// With `fit` the closed box is as wide as the name it is showing, rather than
+// as wide as the longest name it could show: for a box that stands on its own
+// and has nothing beside it to keep in line.
+export default function Select({ options: all, value, onChange, label, className, searchPlaceholder, emptyLabel, fit = false }) {
   const searchable = Boolean(searchPlaceholder);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -241,11 +244,13 @@ export default function Select({ options: all, value, onChange, label, className
       >
         <span className={styles.value}>
           {/* Not read, only measured — see .sizer in the stylesheet */}
-          <span className={styles.sizer} aria-hidden="true">
-            {all.map((option) => (
-              <span key={option.value}>{option.label}</span>
-            ))}
-          </span>
+          {!fit && (
+            <span className={styles.sizer} aria-hidden="true">
+              {all.map((option) => (
+                <span key={option.value}>{option.label}</span>
+              ))}
+            </span>
+          )}
           <span className={styles.shown}>{shown}</span>
         </span>
         <svg className={styles.chevron} viewBox="0 0 12 8" aria-hidden="true">

@@ -226,7 +226,7 @@ final class AppModel {
     func addLocation(name: String, address: String, latitude: Double, longitude: Double) async throws -> SavedLocation {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
         let found = await Area.describe(latitude: latitude, longitude: longitude)
-        let location = SavedLocation(
+        var location = SavedLocation(
             id: UUID().uuidString.lowercased(),
             name: name,
             latitude: latitude,
@@ -235,15 +235,68 @@ final class AppModel {
             address: address.isEmpty ? found.address : address,
             createdAt: Date()
         )
+        // Into the account's list on rab too, where the website's form finds
+        // it. Should that fail, it goes up the next time the list is loaded.
+        if (try? await api?.saveLocation(Self.remote(location))) != nil { location.onRab = true }
         locations.append(location)
         try store.saveLocations(locations)
         return location
+    }
+
+    private static func remote(_ location: SavedLocation) -> RemoteLocation {
+        RemoteLocation(
+            id: location.id,
+            name: location.name,
+            address: location.address,
+            latitude: location.latitude ?? 0,
+            longitude: location.longitude ?? 0,
+            region: location.region
+        )
+    }
+
+    /// The account's places are kept on rab — one list, the phone's and the
+    /// website's. This brings the phone's copy up to it: what the phone made
+    /// and has not yet sent is sent up, and then rab's list is the list. Where
+    /// rab cannot be asked, the phone's copy stays as it is.
+    func loadLocations() async {
+        guard let api, let store else { return }
+        guard var remote = try? await api.locations() else { return }
+        let known = Set(remote.compactMap(\.id))
+        // Only what has never been on rab is sent: a place that was there and
+        // is gone was deleted there, and is not put back.
+        for local in locations where local.onRab != true && !known.contains(local.id) && local.latitude != nil && local.longitude != nil {
+            if let saved = try? await api.saveLocation(Self.remote(local)) { remote.append(saved) }
+        }
+        // Signed out, or somebody else signed in, while it was away.
+        guard self.store === store else { return }
+        let before = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0) })
+        var fresh = remote.compactMap { place -> SavedLocation? in
+            guard let id = place.id else { return nil }
+            return SavedLocation(
+                id: id,
+                name: place.name,
+                latitude: place.latitude,
+                longitude: place.longitude,
+                region: place.region,
+                address: place.address,
+                createdAt: before[id]?.createdAt ?? Date(),
+                onRab: true
+            )
+        }
+        // A place the phone made without a spot cannot be on rab; it stays here.
+        let listed = Set(fresh.map(\.id))
+        fresh += locations.filter { !listed.contains($0.id) && ($0.latitude == nil || $0.longitude == nil) }
+        locations = fresh
+        try? store.saveLocations(fresh)
     }
 
     /// Forgets a place. What was attached to it is attached to nothing.
     func delete(_ location: SavedLocation) {
         locations.removeAll { $0.id == location.id }
         try? store?.saveLocations(locations)
+        // And from the account's list on rab.
+        let api = api
+        Task { try? await api?.deleteLocation(location.id) }
     }
 
     /// Puts an item in the user's items on rab: the photograph and its small

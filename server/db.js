@@ -26,7 +26,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    -- scrypt$<salt>$<hash>, never the password itself (see hashPassword).
+    -- The password itself, as it was typed (see passwordMatches).
     password TEXT NOT NULL,
     bio TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -64,16 +64,20 @@ const now = () => new Date().toISOString();
 
 /* ------------------------------------------------------------------- users */
 
-function hashPassword(password, salt = crypto.randomBytes(16).toString("base64url")) {
-  const hash = crypto.scryptSync(password, salt, 32).toString("base64url");
-  return `scrypt$${salt}$${hash}`;
-}
-
+// A password is kept as it was typed, so whoever looks after the server can
+// read one and write one straight into the table. Anybody who can read the
+// database file can therefore read every password in it.
+//
+// One kept from when they were hashed — scrypt$<salt>$<hash> — is still
+// answered to, so an account made then can still sign in; it is written plain
+// the next time it is set.
 function passwordMatches(password, stored) {
-  const [scheme, salt, hash] = String(stored ?? "").split("$");
-  if (scheme !== "scrypt" || !salt || !hash) return false;
-  const expected = Buffer.from(hash);
-  const given = Buffer.from(hashPassword(password, salt).split("$")[2]);
+  const kept = String(stored ?? "");
+  const [scheme, salt, hash] = kept.split("$");
+  const expected = Buffer.from(scheme === "scrypt" && salt && hash ? hash : kept);
+  const given = Buffer.from(
+    scheme === "scrypt" && salt && hash ? crypto.scryptSync(password, salt, 32).toString("base64url") : String(password),
+  );
   return expected.length === given.length && crypto.timingSafeEqual(expected, given);
 }
 
@@ -92,7 +96,7 @@ export function getUserById(id) {
 }
 
 export function createUser(username, password) {
-  insertUser.run(username, hashPassword(password));
+  insertUser.run(username, String(password));
   return getUser(username);
 }
 
@@ -108,7 +112,7 @@ export function listUsers() {
 const updatePassword = db.prepare("UPDATE users SET password = ? WHERE id = ?");
 const deleteSessionsOf = db.prepare("DELETE FROM sessions WHERE user_id = ?");
 export function setPassword(userId, password) {
-  updatePassword.run(hashPassword(password), userId);
+  updatePassword.run(String(password), userId);
   deleteSessionsOf.run(userId);
 }
 
@@ -155,12 +159,19 @@ function linesOf(userId) {
   return messagesByUser.get(userId);
 }
 
+// An item booked by the time, from when its prices were for an hour and it was
+// booked by the half hour: it has neither written down, and is read as both.
+function perUnit(item) {
+  if (item.mode !== "time" || item.unit != null) return item;
+  return { ...item, unit: 30, priceUnit: 60 };
+}
+
 function load() {
   itemsById.clear();
   bookingsById.clear();
   messagesByUser.clear();
   for (const userId of userFolders()) {
-    for (const item of readList(userId, "items.json")) itemsById.set(item.id, { ...item, ownerId: userId });
+    for (const item of readList(userId, "items.json")) itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
     // Both sides hold the booking; should the two ever differ, the one changed
     // last is the one that is right.
     for (const booking of readList(userId, "bookings.json")) {
@@ -269,6 +280,27 @@ function servedItem(item) {
     // An item from before there were rules has one: its price, every day.
     rates: item.rates?.length > 0 ? item.rates : [{ price: item.price, days: null }],
     hours: item.hours ?? [],
+    // The piece of the clock it is booked in, in minutes, where it is booked
+    // by the time: half an hour for an item from before there was a choice.
+    unit: item.unit ?? 30,
+    // The stretch of the clock a price is for, in minutes: the booking unit
+    // where the item says none.
+    priceUnit: item.priceUnit ?? item.unit ?? 30,
+    // When a confirmed booking may still be called off by whoever made it:
+    // { mode: "any" | "none" | "days", days }. Any time, where nothing is said.
+    cancel: item.cancel ?? { mode: "any" },
+    // The rule for days — which days of the week it can be had, null for all —
+    // and the dates whose hours the owner wiped.
+    openDays: item.openDays ?? null,
+    hoursOff: item.hoursOff ?? [],
+    // The dates the owner gave a price of their own, from yesterday on (a
+    // reader west of the server's UTC is still in it): what a list needs to
+    // say what the item costs today without asking for its whole calendar.
+    dayPrices: Object.fromEntries(
+      (item.days ?? [])
+        .filter((day) => day.available && day.price != null && day.day >= new Date(Date.now() - 86_400_000).toISOString().slice(0, 10))
+        .map((day) => [day.day, day.price]),
+    ),
     located,
     ownerId: item.ownerId,
     owner: nameOf(item.ownerId),
@@ -373,6 +405,11 @@ function itemFields(item) {
     mode: item.mode,
     rates: item.rates,
     hours: item.hours ?? [],
+    unit: item.unit ?? 30,
+    priceUnit: item.priceUnit ?? item.unit ?? 30,
+    cancel: item.cancel ?? { mode: "any" },
+    openDays: item.openDays ?? null,
+    hoursOff: item.hoursOff ?? [],
     price: item.price,
     currency: item.currency,
     located: Boolean(item.located),
@@ -453,14 +490,15 @@ export function getDaysBetween(itemId, start, end) {
 
 // One answer for a handful of days. A day put back to available at the usual
 // price is an ordinary day again, and its entry goes rather than staying behind
-// to say nothing.
-export function setDays(itemId, days, { available, price }) {
+// to say nothing — unless it is `explicit`: a day the item's rule for days
+// leaves out, opened all the same, which only its entry can say.
+export function setDays(itemId, days, { available, price, explicit = false }) {
   const item = itemsById.get(itemId);
   if (!item) return;
   transaction(() => {
     const kept = new Map((item.days ?? []).map((day) => [day.day, day]));
     for (const day of days) {
-      if (available && price == null) kept.delete(day);
+      if (available && price == null && !explicit) kept.delete(day);
       else kept.set(day, { day, available: Boolean(available), price: price ?? null });
     }
     item.days = [...kept.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
@@ -493,6 +531,9 @@ function servedBooking(booking) {
     note: booking.note,
     status: booking.status,
     slots: booking.slots ?? null,
+    cancel: booking.cancel ?? { mode: "any" },
+    // Whether whoever made it has asked the owner to call it off.
+    cancelRequested: Boolean(booking.cancelRequest),
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
     renter: nameOf(booking.renterId),
@@ -590,6 +631,10 @@ export function createBooking({
     note: note || null,
     status: "pending",
     slots,
+    // The item's rule for calling a booking off, as it stood when this one
+    // was asked for: changing the rule afterwards does not change what was
+    // agreed to.
+    cancel: item.cancel ?? { mode: "any" },
     createdAt: time,
     updatedAt: time,
   };
@@ -601,11 +646,27 @@ export function createBooking({
   return getBooking(booking.id);
 }
 
+// Whoever made a booking asks its owner to let them out of it, where its rule
+// no longer lets them call it off themselves — or the owner says no, and the
+// asking is taken down. `asked` is when it was asked, or null.
+export function setCancelRequest(id, asked) {
+  const booking = bookingsById.get(id);
+  if (!booking) return null;
+  transaction(() => {
+    booking.cancelRequest = asked ? now() : null;
+    booking.updatedAt = now();
+    bookingChanged(booking);
+  });
+  return getBooking(id);
+}
+
 export function setBookingStatus(id, status) {
   const booking = bookingsById.get(id);
   if (!booking) return null;
   transaction(() => {
     booking.status = status;
+    // Whatever was being asked about it is answered by its changing.
+    booking.cancelRequest = null;
     booking.updatedAt = now();
     bookingChanged(booking);
   });
@@ -744,6 +805,44 @@ export function deleteConversation(userId, otherId) {
     );
     changed(userId, "messages.json");
   });
+}
+
+/* --------------------------------------------------------------- locations */
+
+// The places an account keeps to put its items at — "Home", "The studio": a
+// name, an address and a spot on the map, and the area the spot is in. They are
+// the account's own list, in its folder's locations.json, the same from the
+// website and from the phone. Read and written as they are asked for: the list
+// is short, and nothing else in the server points into it — an item put at a
+// location carries the spot and the address itself.
+const LOCATIONS_FILE = "locations.json";
+export const LOCATIONS_MAX = 100;
+
+export function getLocations(userId) {
+  return readList(userId, LOCATIONS_FILE);
+}
+
+// Kept under the id it came with, where it came with one (the phone names its
+// own, and its items remember them); a location sent again under an id that is
+// there replaces what was there.
+export function saveLocation(userId, location) {
+  const list = getLocations(userId);
+  const id = location.id || crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x");
+  const at = list.findIndex((each) => each.id === id);
+  if (at === -1 && list.length >= LOCATIONS_MAX) return null;
+  const saved = { ...location, id, createdAt: at === -1 ? now() : list[at].createdAt };
+  if (at === -1) list.push(saved);
+  else list[at] = saved;
+  writeList(userId, LOCATIONS_FILE, list);
+  return saved;
+}
+
+export function deleteLocation(userId, id) {
+  const list = getLocations(userId);
+  const kept = list.filter((each) => each.id !== id);
+  if (kept.length === list.length) return false;
+  writeList(userId, LOCATIONS_FILE, kept);
+  return true;
 }
 
 /* ----------------------------------------------------------------- removal */

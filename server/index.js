@@ -26,6 +26,7 @@ const {
   deleteConversation,
   deleteExpiredSessions,
   deleteItem,
+  deleteLocation,
   deleteSession,
   getBooking,
   getBookingsByRenter,
@@ -36,6 +37,7 @@ const {
   getDays,
   getDaysBetween,
   getItem,
+  getLocations,
   getItemImages,
   getItemsAt,
   getItemsByUser,
@@ -47,16 +49,18 @@ const {
   hasOwnOverlap,
   overlapping,
   readConversation,
+  saveLocation,
   saveSession,
   searchItems,
   setBookingStatus,
+  setCancelRequest,
   setDays,
   touchSession,
   transaction,
   updateItem,
 } = await import("./db.js");
 const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImage, storeImage } = await import("./images.js");
-const { MODES, dayPrice, listPrice, parseHours, parseRates, timeQuote } = await import("./rates.js");
+const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
 
@@ -388,6 +392,15 @@ function parseItem(body, { regionOptional = false } = {}) {
       mode,
       rates: parsed.rates,
       hours: hours.hours,
+      // The piece of the clock it is booked in, where it is booked by the time.
+      unit: readUnit(body?.unit),
+      // And the stretch of the clock its prices are for.
+      priceUnit: readPriceUnit(body),
+      // The rule for days, and the dates whose hours were wiped (see rates.js).
+      openDays: readOpenDays(body?.openDays),
+      hoursOff: mode === "time" ? readDayList(body?.hoursOff) : [],
+      // When a confirmed booking may still be called off by whoever made it.
+      cancel: readCancel(body?.cancel),
       price: listPrice(mode, parsed.rates),
       currency,
       located,
@@ -417,6 +430,23 @@ function applyClosed(item, closed) {
   );
   if (reopen.length > 0) setDays(item.id, reopen, { available: true, price: null });
   if (close.length > 0) setDays(item.id, close, { available: false, price: null });
+}
+
+// The days the owner has opened though the item's rule for days leaves them
+// out, as the form's calendar sends them: the whole list, from today on. What
+// is in it is open; a day that was opened so and is not in it any more goes
+// back to what the rule says.
+function applyOpened(item, opened) {
+  if (!Array.isArray(opened)) return;
+  const from = earliestDay();
+  const until = addDays(from, CALENDAR_DAYS);
+  const wanted = new Set(opened.filter((day) => isDay(day) && day >= from && day <= until && !openByRule(item, day)));
+  const current = getDays(item.id, from);
+  const drop = current.filter((day) => day.available && day.price == null && !wanted.has(day.day)).map((day) => day.day);
+  const have = new Set(current.map((day) => day.day));
+  const add = [...wanted].filter((day) => !have.has(day));
+  if (drop.length > 0) setDays(item.id, drop, { available: true, price: null });
+  if (add.length > 0) setDays(item.id, add, { available: true, price: null, explicit: true });
 }
 
 // The items inside the window of the map somebody is looking at.
@@ -497,6 +527,7 @@ app.post("/api/items", requireSession, (req, res) => {
   keepImages(req.user.id, parsed.item.images);
   const item = createItem(req.user.id, parsed.item);
   applyClosed(item, req.body?.closed);
+  applyOpened(item, req.body?.opened);
   res.status(201).json({ item: { ...publicItem(item), mine: true } });
 });
 
@@ -529,6 +560,7 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
   keepImages(req.user.id, parsed.item.images);
   const item = updateItem(req.user.id, current.id, parsed.item);
   applyClosed(item, req.body?.closed);
+  applyOpened(item, req.body?.opened);
   res.json({ item: { ...publicItem(item), mine: true } });
 });
 
@@ -572,7 +604,11 @@ app.put("/api/items/:id/days", requireSession, (req, res) => {
       return res.status(409).json({ error: `${clash} is already booked`, code: "DAY_BOOKED", day: clash });
     }
   }
-  setDays(item.id, days, { available, price: available ? price : null });
+  // A day the rule for days leaves out, opened here, is open by its entry.
+  const outside = available ? days.filter((day) => !openByRule(item, day)) : [];
+  const inside = days.filter((day) => !outside.includes(day));
+  if (inside.length > 0) setDays(item.id, inside, { available, price: available ? price : null });
+  if (outside.length > 0) setDays(item.id, outside, { available: true, price, explicit: true });
   res.json(itemAnswer(item, req.user));
 });
 
@@ -613,14 +649,14 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
   const endTime = bySlot ? null : req.body?.endTime;
   if (!bySlot) {
     if (!isTime(startTime) || !isTime(endTime)) {
-      return res.status(400).json({ error: "Pick a pickup and a return time", code: "TIME_REQUIRED" });
+      return res.status(400).json({ error: "Pick a start and an end time", code: "TIME_REQUIRED" });
     }
     if (start === end && startTime >= endTime) {
-      return res.status(400).json({ error: "The return time must be after the pickup time", code: "TIME_ORDER" });
+      return res.status(400).json({ error: "The end time must be after the start time", code: "TIME_ORDER" });
     }
   }
 
-  // The hours asked for, on the half hour and inside the hours the item has
+  // The hours asked for, in whole pieces of the item's unit and inside the hours the item has
   // that day — priced by the item's own rules rather than the request's.
   let slots = null;
   if (bySlot) {
@@ -636,7 +672,14 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
   try {
     const booking = transaction(() => {
       const overrides = new Map(getDaysBetween(item.id, start, end).map((day) => [day.day, day]));
-      if (days.some((day) => overrides.get(day)?.available === false)) return { code: "DAYS_UNAVAILABLE" };
+      // A day can be had where the owner's entry for it says so, and where
+      // there is none, where the rule for days has it. (By the time, the rule
+      // is already in the hours the day was found to have.)
+      const shut = (day) => {
+        const entry = overrides.get(day);
+        return entry ? entry.available === false : !bySlot && !openByRule(item, day);
+      };
+      if (days.some(shut)) return { code: "DAYS_UNAVAILABLE" };
       if (overlapping(item.id, "confirmed", start, end, { slots }).length > 0) return { code: "DAYS_UNAVAILABLE" };
       if (hasOwnOverlap(item.id, req.user.id, start, end, slots)) return { code: "ALREADY_REQUESTED" };
       const total = bySlot
@@ -682,12 +725,56 @@ app.patch("/api/bookings/:id", requireSession, (req, res) => {
   const isRenter = booking.renterId === req.user.id;
   if (!isOwner && !isRenter) return res.status(404).json({ error: "No such booking" });
 
+  // Asking to be let out of a booking, and the owner's no to that. Whoever
+  // made a confirmed booking may ask, with a word about why; the owner, who is
+  // asked, may turn it down — or agree, which is simply cancelling it (below).
+  if ("cancelRequest" in (req.body ?? {})) {
+    const asking = req.body.cancelRequest === true;
+    const fits = asking
+      ? isRenter && booking.status === "confirmed" && !booking.cancelRequested
+      : isOwner && booking.status === "confirmed" && booking.cancelRequested;
+    if (!fits) return res.status(409).json({ error: "That booking cannot be changed that way", code: "BAD_STATUS" });
+    const updated = transaction(() => {
+      const changed = setCancelRequest(booking.id, asking);
+      createMessage(req.user.id, isOwner ? booking.renterId : booking.ownerId, asking ? text(req.body?.note, NOTE_MAX) : "", {
+        kind: asking ? "cancelRequest" : "cancelRefused",
+        bookingId: booking.id,
+      });
+      return changed;
+    });
+    return res.json({ booking: bookingFor(req.user, updated) });
+  }
+
   const status = String(req.body?.status ?? "");
   const allowed =
     (status === "confirmed" && isOwner && booking.status === "pending") ||
     (status === "declined" && isOwner && booking.status === "pending") ||
     (status === "cancelled" && (booking.status === "pending" || booking.status === "confirmed"));
   if (!allowed) return res.status(409).json({ error: "That booking cannot be changed that way", code: "BAD_STATUS" });
+
+  // Whoever made a booking calls it off by the rule it was made under, once
+  // the owner has said yes to it: not at all, or only so many days before it
+  // starts. A request still waiting can always be withdrawn, and the owner is
+  // not held to the rule — it is theirs. "Today" is the earliest day anybody
+  // could still be calling today, so nobody is told too late a day early.
+  if (status === "cancelled" && isRenter && booking.status === "confirmed") {
+    if (booking.cancel?.mode === "none") {
+      return res.status(409).json({ error: "This booking cannot be cancelled", code: "CANCEL_NOT_ALLOWED" });
+    }
+    if (booking.cancel?.mode === "days" && earliestDay() > addDays(booking.start, -booking.cancel.days)) {
+      return res.status(409).json({ error: "It is too late to cancel this booking", code: "CANCEL_TOO_LATE" });
+    }
+    // By the hour, the booking starts at the time it says on the day it says,
+    // on a clock the server does not know: the clock furthest behind is taken,
+    // twelve hours back, for the same reason the day above is the earliest.
+    if (booking.cancel?.mode === "hours") {
+      const time = booking.slots?.[0]?.start ?? booking.startTime ?? "00:00";
+      const starts = Date.parse(`${booking.start}T${time === "24:00" ? "23:59" : time}:00Z`);
+      if (Date.now() - 12 * 3_600_000 > starts - booking.cancel.hours * 3_600_000) {
+        return res.status(409).json({ error: "It is too late to cancel this booking", code: "CANCEL_TOO_LATE" });
+      }
+    }
+  }
 
   const other = isOwner ? booking.renterId : booking.ownerId;
   const result = transaction(() => {
@@ -720,6 +807,44 @@ app.get("/api/mine", requireSession, (req, res) => {
     requests: getBookingsForOwner(req.user.id).map((booking) => bookingFor(req.user, booking)),
     bookings: getBookingsByRenter(req.user.id).map((booking) => bookingFor(req.user, booking)),
   });
+});
+
+/* ---------------------------------------------------------------- locations */
+
+// The signed-in account's own places (see db.js), for putting an item at one
+// without finding the spot again.
+const LOCATION_NAME_MAX = 60;
+const LOCATION_ID_RE = /^[a-z0-9-]{1,40}$/;
+
+app.get("/api/locations", requireSession, (req, res) => {
+  res.json({ locations: getLocations(req.user.id) });
+});
+
+app.post("/api/locations", requireSession, (req, res) => {
+  const name = text(req.body?.name, LOCATION_NAME_MAX);
+  if (!name) return res.status(400).json({ error: "A location needs a name" });
+  const latitude = parseNumber(req.body?.latitude, -90, 90);
+  const longitude = parseNumber(req.body?.longitude, -180, 180);
+  if (latitude === null || longitude === null) return res.status(400).json({ error: "A location needs a spot on the map" });
+  const id = req.body?.id == null ? null : String(req.body.id).toLowerCase();
+  if (id !== null && !LOCATION_ID_RE.test(id)) return res.status(400).json({ error: "Invalid location id" });
+  const location = saveLocation(req.user.id, {
+    id,
+    name,
+    address: text(req.body?.address, PLACE_MAX),
+    latitude: Math.round(latitude * 1e6) / 1e6,
+    longitude: Math.round(longitude * 1e6) / 1e6,
+    region: parseRegion(req.body?.region),
+  });
+  if (!location) return res.status(409).json({ error: "That is as many locations as an account keeps", code: "LOCATIONS_FULL" });
+  res.status(201).json({ location });
+});
+
+app.delete("/api/locations/:id", requireSession, (req, res) => {
+  if (!deleteLocation(req.user.id, String(req.params.id).toLowerCase())) {
+    return res.status(404).json({ error: "No such location" });
+  }
+  res.status(204).end();
 });
 
 /* ----------------------------------------------------------------- messages */

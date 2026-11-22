@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Modal, TextArea } from "../../ui/index.js";
+import { Link, Modal, Select, TextArea } from "../../ui/index.js";
+import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
-import { formatCoords, formatPrice, formatUsername, relativeTime } from "../../utils/format.js";
+import { formatCoords, formatPrice, formatUsername, relativeTime, unitName } from "../../utils/format.js";
 import { directionsUrl } from "../../utils/mapbox.js";
-import { STEP, minutesOf } from "../../utils/rates.js";
+import { cellsOn, clockOf, dayPrice as ruledDayPrice, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
 import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { BookingRow } from "../Rows/index.js";
@@ -20,6 +21,14 @@ const NOTE_MAX = 500;
 // defaults.
 const DEFAULT_START_TIME = "10:00";
 const DEFAULT_END_TIME = "18:00";
+// The times of day that can be picked for a start or an end: every quarter of
+// an hour, in the house dropdown rather than the system's own time field —
+// which is drawn differently by every browser and by none of them in this
+// app's hand.
+const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, index) => {
+  const time = clockOf(index * 15);
+  return { value: time, label: time };
+});
 
 // The first day from today on which something can still be had, or null where
 // the calendar has none left: the one-line answer to "is it free?".
@@ -54,8 +63,9 @@ export default function ItemView({
   preview = false,
   focusBooking = false,
   onBook,
-  onChangeDays,
+  onSetActive,
   onEdit,
+  onEditAvailability,
   onMessage,
   onBookingChange,
   onSignIn,
@@ -63,14 +73,21 @@ export default function ItemView({
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
-  const [selection, setSelection] = useState(null);
+  // The page opens with today picked, since today is what is asked about
+  // first: always for the owner, who can pick any day to change it, and for
+  // anybody else where today can still be had — a day that cannot be asked for
+  // is not one to start them on.
+  const [selection, setSelection] = useState(() => {
+    const day = today();
+    const pickable = item.mine || (item.active && calendar && nextFreeDay(item, calendar) === day);
+    return pickable ? { start: day, end: day } : null;
+  });
   // The stretch of the day picked, { start, end }, where the item is booked by
   // the time.
   const [picked, setPicked] = useState(null);
   const [note, setNote] = useState("");
   const [startTime, setStartTime] = useState(DEFAULT_START_TIME);
   const [endTime, setEndTime] = useState(DEFAULT_END_TIME);
-  const [dayPrice, setDayPrice] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [photo, setPhoto] = useState(0);
@@ -95,15 +112,37 @@ export default function ItemView({
   const bySlot = item.mode === "time";
   const states = useMemo(() => dayStates(calendar, bookings), [calendar, bookings]);
   const free = useMemo(() => nextFreeDay(item, calendar), [item, calendar]);
+  // The figure at the head of the card: what it costs today, at this hour.
+  // The calendar is asked first for a price the owner gave today's date, since
+  // it is kept fresh as they change it and the item's own copy is not.
+  const todayRow = calendar?.days?.find((row) => row.day === today());
+  const priceToday = bySlot
+    ? priceNow(item)
+    : todayRow?.available && todayRow.price != null
+      ? todayRow.price
+      : ruledDayPrice(item, today());
+  // By the time, today's hours need not all cost the same: the figure is then
+  // from the least of them to the most, the currency's mark written once.
+  // A day with no hours has only the price in force now.
+  const todayPrices = bySlot ? cellsOn(item, today()).map((cell) => cell.price) : [];
+  const lowToday = todayPrices.length > 0 ? Math.min(...todayPrices) : priceToday;
+  const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
+  const priceHead =
+    highToday === lowToday
+      ? formatPrice(lowToday, item.currency, lang)
+      : `${formatPrice(lowToday, item.currency, lang)}–${formatPrice(highToday, item.currency, lang).replace(/^[^\d]+/, "")}`;
   const price = useMemo(
     () => (bySlot ? null : quote(item, calendar, bookings, selection)),
     [bySlot, item, calendar, bookings, selection],
   );
   const slots = bySlot && selection ? slotStates(item, states, selection.start) : [];
-  // The half hours of the stretch picked, each costing half of what an hour
-  // costs then.
+  // The one day whose hours the timetable shows, where there is one: a day has
+  // been picked, and the item has not been switched off.
+  const day = bySlot && item.active && selection && selection.start === selection.end ? selection.start : null;
+  // The pieces of the stretch picked, each costing its share of the price in
+  // force then, which is for one stretch of the pricing unit.
   const chosenSlots = picked ? slots.filter((slot) => slot.start >= picked.start && slot.start < picked.end && !slot.taken) : [];
-  const slotTotal = Math.round(chosenSlots.reduce((sum, slot) => sum + (slot.price * STEP) / 60, 0) * 100) / 100;
+  const slotTotal = Math.round(chosenSlots.reduce((sum, slot) => sum + (slot.price * unitOf(item)) / priceUnitOf(item), 0) * 100) / 100;
   // Picked up and brought back on the same day, it has to come back later than
   // it went out.
   const timesWrong =
@@ -152,22 +191,16 @@ export default function ItemView({
 
   // The owner's answer about the days picked out: closed, open again, at a
   // price of their own, or back to the usual one.
-  async function changeDays(change) {
-    if (!selection || busy || preview) return;
-    const days = [];
-    for (let day = selection.start; day <= selection.end; day = addDays(day, 1)) days.push(day);
+  // The whole item, switched off or on at once: off, nobody can ask for any
+  // of it and it is not listed; on, it is as its calendar says again.
+  async function setActive(active) {
+    if (busy || preview) return;
     setBusy(true);
     setFormError("");
     try {
-      await onChangeDays({ days, ...change });
-      select(null);
-      setDayPrice("");
+      await onSetActive(active);
     } catch (error) {
-      setFormError(
-        error.code === "DAY_BOOKED"
-          ? t("calendar.dayBooked", { date: formatDay(error.day ?? selection.start, lang) })
-          : error.message,
-      );
+      setFormError(error.message);
     } finally {
       setBusy(false);
     }
@@ -178,7 +211,12 @@ export default function ItemView({
       ? [
           formatDay(selection.start, lang, { weekday: "short", month: "short", day: "numeric" }),
           picked && `${picked.start}–${picked.end}`,
-          picked && t("calendar.hours", { count: (minutesOf(picked.end) - minutesOf(picked.start)) / 60 }),
+          // In hours where it comes to whole or half ones, and in minutes
+          // where the item's unit cuts finer than that.
+          picked &&
+            ((minutesOf(picked.end) - minutesOf(picked.start)) % 30 === 0
+              ? t("calendar.hours", { count: (minutesOf(picked.end) - minutesOf(picked.start)) / 60 })
+              : t("calendar.minutes", { count: minutesOf(picked.end) - minutesOf(picked.start) })),
         ]
           .filter(Boolean)
           .join(" · ")
@@ -279,8 +317,8 @@ export default function ItemView({
         {/* ------------------------------------------------- the booking card */}
         <aside className={styles.card} ref={cardRef}>
           <p className={styles.price}>
-            <strong>{formatPrice(item.price, item.currency, lang)}</strong>
-            <span>{bySlot ? t("item.anHour") : t("item.aDay")}</span>
+            <strong>{priceHead}</strong>
+            <span>{bySlot ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) }) : t("item.aDay")}</span>
             <span className={`status ${item.active && free === today() ? "status-confirmed" : "status-pending"}`}>
               {status}
             </span>
@@ -299,9 +337,16 @@ export default function ItemView({
               {t("item.share")}
             </button>
             {mine ? (
-              <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
-                {t("item.edit")}
-              </button>
+              <>
+                <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
+                  {t("item.editTitle")}
+                </button>
+                {/* When it can be had and what it costs, which is a sheet of
+                    its own apart from the one the item is edited on. */}
+                <button type="button" className="small-button" onClick={onEditAvailability} disabled={preview}>
+                  {t("item.availabilityTitle")}
+                </button>
+              </>
             ) : (
               <button
                 type="button"
@@ -316,70 +361,58 @@ export default function ItemView({
 
           <div className={styles.calendarHead}>
             <h2>{t("calendar.title")}</h2>
-            <span>{mine ? t("calendar.yours") : bySlot ? t("calendar.perHour") : t("calendar.perDay")}</span>
+            <span>{mine ? t("calendar.yours") : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
           </div>
           <Calendar
             item={item}
             calendar={calendar}
             bookings={bookings}
             selection={selection}
-            // A stranger to an item that has been taken down can read its
-            // calendar and cannot pick from it.
-            onSelect={mine || item.active ? select : undefined}
+            // An item that has been switched off can be read and not picked
+            // from, by its owner as by anybody else: every day of it is drawn
+            // closed until it is switched on again.
+            onSelect={item.active ? select : undefined}
+            off={!item.active}
             editing={mine}
           />
+          {/* By the time, what the prices on the squares above are for: one stretch of the item's pricing unit. */}
+          {bySlot && <p className={`${styles.small} ${styles.tip}`}>{t("calendar.unit", { unit: unitName(priceUnitOf(item), t) })}</p>}
 
           {/* The hours of the day picked, where the item goes by the time: a
               timetable of that day. The owner reads it; anybody else presses
               the time they want it from and the time they want it until. */}
-          {bySlot && selection && selection.start === selection.end && (
-            <DayTimes
-              cells={slots}
-              value={picked}
-              onChange={mine ? undefined : setPicked}
-              currency={item.currency}
-            />
+          {/* Only once a day is picked: until then there is no day whose
+              hours it could show. */}
+          {day && (
+            <>
+              <DayTimes
+                // Drawn afresh for each day picked, so each opens scrolled to
+                // its own hours.
+                key={day}
+                cells={slots}
+                value={picked}
+                onChange={mine ? undefined : setPicked}
+                currency={item.currency}
+                unit={unitOf(item)}
+                today={day === today()}
+              />
+              {/* And the piece of the clock it is asked for in. */}
+              <p className={`${styles.small} ${styles.tip}`}>{t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}</p>
+            </>
           )}
 
           {mine ? (
             <div className={styles.panel}>
-              <p className={styles.chosen}>{selection ? chosen : t("calendar.pickToEdit")}</p>
-              {selection && (
-                <>
-                  <div className={styles.buttons}>
-                    <button type="button" className="small-button" disabled={busy || preview} onClick={() => changeDays({ available: false })}>
-                      {t("calendar.close")}
-                    </button>
-                    <button type="button" className="small-button" disabled={busy || preview} onClick={() => changeDays({ available: true, price: null })}>
-                      {t("calendar.open")}
-                    </button>
-                  </div>
-                  {/* A price for these days in particular, which only means
-                      something where the item is priced by the day. */}
-                  {!bySlot && (
-                    <form
-                      className={styles.priceRow}
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        if (dayPrice.trim() !== "") changeDays({ available: true, price: Number(dayPrice) });
-                      }}
-                    >
-                      <input
-                        className="text-input mono"
-                        value={dayPrice}
-                        onChange={(event) => setDayPrice(event.target.value.replace(/[^\d.]/g, ""))}
-                        inputMode="decimal"
-                        placeholder={t("calendar.pricePlaceholder", { currency: item.currency })}
-                        aria-label={t("calendar.setPrice")}
-                        maxLength={12}
-                      />
-                      <button type="submit" className="small-button" disabled={busy || preview || dayPrice.trim() === ""}>
-                        {t("calendar.setPrice")}
-                      </button>
-                    </form>
-                  )}
-                </>
-              )}
+              {/* The days picked, said back. Nothing is changed about them
+                  here: what a day costs and whether it can be had are the
+                  item form's to set. */}
+              {item.active ? selection && <p className={styles.chosen}>{chosen}</p> : <p className={styles.small}>{t("item.inactiveNote")}</p>}
+              {/* One button for the whole item: it can be had, or it cannot. */}
+              <div className={styles.buttons}>
+                <button type="button" className="small-button" disabled={busy || preview} onClick={() => setActive(!item.active)}>
+                  {item.active ? t("calendar.close") : t("calendar.open")}
+                </button>
+              </div>
               {formError && <p className="form-message error">{formError}</p>}
             </div>
           ) : item.active ? (
@@ -406,34 +439,34 @@ export default function ItemView({
                     picked up on the first day and brought back on the last. */}
                 {!bySlot && (
                   <div className={styles.times}>
-                    <label>
+                    <div>
                       <span>
                         {t("booking.pickupTime")}
                         {selection && ` · ${formatDay(selection.start, lang)}`}
                       </span>
-                      <input
-                        type="time"
-                        className="text-input mono"
+                      <Select
+                        label={t("booking.pickupTime")}
                         value={startTime}
-                        onChange={(event) => setStartTime(event.target.value)}
-                        step={300}
-                        required
+                        onChange={setStartTime}
+                        options={TIME_OPTIONS}
+                        searchPlaceholder={t("booking.timeSearch")}
+                        emptyLabel={t("booking.timeNoMatch")}
                       />
-                    </label>
-                    <label>
+                    </div>
+                    <div>
                       <span>
                         {t("booking.returnTime")}
                         {selection && ` · ${formatDay(selection.end, lang)}`}
                       </span>
-                      <input
-                        type="time"
-                        className="text-input mono"
+                      <Select
+                        label={t("booking.returnTime")}
                         value={endTime}
-                        onChange={(event) => setEndTime(event.target.value)}
-                        step={300}
-                        required
+                        onChange={setEndTime}
+                        options={TIME_OPTIONS}
+                        searchPlaceholder={t("booking.timeSearch")}
+                        emptyLabel={t("booking.timeNoMatch")}
                       />
-                    </label>
+                    </div>
                   </div>
                 )}
                 {timesWrong && <p className="form-message error">{t("booking.timeOrder")}</p>}
@@ -450,6 +483,8 @@ export default function ItemView({
                   {viewer || preview ? t("booking.request") : t("booking.signIn")}
                 </button>
                 <p className={styles.small}>{t("booking.explain")}</p>
+                {/* And what is being agreed to about calling it off. */}
+                <p className={`${styles.small} ${styles.tip}`}>{cancelLine(item.cancel, t)}</p>
               </fieldset>
               {formError && <p className="form-message error">{formError}</p>}
             </form>

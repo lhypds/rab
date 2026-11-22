@@ -37,6 +37,20 @@
 
 /* --------------------------------------------------- one day, to pick from -- */
 
+/* The box the day is read through: all twenty-four hours are drawn, and this
+   shows eight or so of them and scrolls to the others. */
+.dayScroll {
+  height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+}
+
+.dayScroll .label {
+  padding-left: 6px;
+  box-sizing: border-box;
+}
+
 /* Where the day's hours are: grey where it cannot be had, and a white half
    hour over the grey for each one that can. */
 .lane {
@@ -44,6 +58,14 @@
   left: 44px;
   right: 0;
   background: var(--soft);
+}
+
+/* Where a stretch can be drawn: a drag down the lane picks, so it must not
+   also scroll the day or select the prices — the times at the left are still
+   there to scroll by, as in the week's timetable below. */
+.pick {
+  touch-action: none;
+  user-select: none;
 }
 
 .cell {
@@ -117,9 +139,68 @@
   color: var(--muted);
 }
 
+/* What is under the pointer, said in full: the stretch of hours it is in and
+   what that costs, on a small sheet of its own just under the cell. */
+.told {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.told > span:last-child {
+  color: var(--muted);
+}
+
+/* In a day's half hour it is the half hour's own, shown while the pointer is
+   on it: hung under the half hour, from its left edge. */
+.cell .told {
+  top: calc(100% + 2px);
+  left: 0;
+  display: none;
+}
+
+/* The time it is now, on a day that is today: a line across the lane in the
+   one colour this page otherwise keeps for what is wrong, so it is not taken
+   for one of the hours' own lines. Not in the way of a press. */
+.now {
+  position: absolute;
+  left: 44px;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--danger);
+  /* Still over a half hour the pointer has lifted. */
+  z-index: 2;
+  pointer-events: none;
+}
+
 @media (hover: hover) {
+  .cell:hover .told {
+    display: flex;
+  }
+
+  .revert:hover {
+    color: var(--ink);
+  }
+
+  .pencil:hover {
+    opacity: 1;
+  }
+
   .cell:not(:disabled):not(.on):hover {
     box-shadow: inset 0 0 0 1px var(--ink);
+    /* Over the hours' lines, which are drawn after the lane and would
+       otherwise run across the box's top and bottom edges. */
+    z-index: 1;
   }
 }
 
@@ -141,6 +222,38 @@
   font-size: 10px;
   line-height: 1;
   text-align: center;
+}
+
+/* After a date's name, where the date has hours of its own: the way back to
+   the usual ones. A small arrow turning back, in the grey of the name, in
+   ink under the pointer. */
+.names span {
+  display: inline-flex;
+  /* The arrow stands on the line the name is written on: a box with no type
+     in it has its foot for a baseline. */
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  white-space: pre;
+}
+
+.revert {
+  flex: none;
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.revert svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .scroll {
@@ -194,4 +307,62 @@
   line-height: 12px;
   text-align: center;
   pointer-events: none;
+}
+
+/* A stretch with the price written on every cell of it: no room kept round
+   the edge, and each line exactly a cell tall (set where it is drawn). */
+.priced {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.priced > span {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  overflow: hidden;
+}
+
+/* The way to one cell's own price: a small pencil after the figure, taking
+   presses of its own though the stretch it stands on lets them through. */
+.pencil {
+  flex: none;
+  display: flex;
+  opacity: 0.6;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pencil svg {
+  width: 8px;
+  height: 8px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The box a drag reaches over, while the pointer is down: an outline and
+   nothing else, in the one colour that shows on a painted stretch and on an
+   empty one alike. What is under it changes when the pointer comes up. */
+.reach {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 1px solid var(--danger);
+  pointer-events: none;
+}
+
+/* The same box where the drag began on a pencil and is picking what to price
+   rather than what can be had: in yellow, so the two are not mistaken. */
+.reachPrice {
+  border-color: #f5c400;
+}
+
+/* A date of the week that is already over: named, and not to be painted. */
+.over {
+  color: var(--line);
 }

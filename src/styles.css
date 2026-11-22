@@ -607,6 +607,15 @@ a {
   gap: 8px;
 }
 
+/* The row whose buttons are being pointed at stands over the rows after it:
+   a button's caption hangs under it, down over the next row, and that row's
+   own side is a layer of the same height — and later, so it would win and
+   draw its marks and buttons across the caption. */
+.row-side:hover,
+.row-side:focus-within {
+  z-index: 5;
+}
+
 .row-actions {
   display: flex;
   gap: 6px;

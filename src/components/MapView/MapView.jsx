@@ -25,6 +25,7 @@ import { currentRegion, loadRegion, onTravel, takeJourney } from "../../utils/re
 import { MapTools } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
+import CategoryIcon from "../CategoryIcon/index.js";
 import styles from "./map.module.css";
 
 // How long the map has to have stopped moving before the items in its window
@@ -144,9 +145,22 @@ export default function MapView() {
   // kind is chosen ("other" is in all three, and is listed once).
   const [category, setCategory] = useState("");
   const categoryChoices = [...new Set((kind ? [kind] : KINDS).flatMap((each) => CATEGORIES[each]))];
+  // Each one leads with its own mark, the one its pins wear on the map — and
+  // the kind's mark where the category has none of its own. `text` is what
+  // the search reads, since the label is no longer a plain string.
+  const withIcon = (slug, name) => (
+    <span className={styles.categoryName}>
+      <CategoryIcon kind={kind} category={slug} />
+      {name}
+    </span>
+  );
   const categoryOptions = [
-    { value: "", label: t("map.allCategories") },
-    ...categoryChoices.map((slug) => ({ value: slug, label: t(`category.${slug}`), text: `${t(`category.${slug}`)} ${slug}` })),
+    { value: "", label: withIcon("", t("map.allCategories")), text: t("map.allCategories") },
+    ...categoryChoices.map((slug) => ({
+      value: slug,
+      label: withIcon(slug, t(`category.${slug}`)),
+      text: `${t(`category.${slug}`)} ${slug}`,
+    })),
   ];
   // A category belongs to a kind: one the newly chosen kind does not have is
   // let go of rather than left filtering everything out.
@@ -623,12 +637,15 @@ export default function MapView() {
               aria-pressed={kind === each}
               onClick={() => chooseKind(each)}
             >
+              {/* Each kind leads with its own mark; "all" is no kind and has none. */}
+              {each && <CategoryIcon kind={each} />}
               {each ? t(`kind.${each}`) : t("kind.all")}
             </button>
           ))}
           {/* And which category within it: all of them unless one is picked. */}
           <Select
             className={styles.category}
+            fit
             label={t("item.category")}
             value={category}
             onChange={setCategory}

@@ -269,6 +269,9 @@
 }
 
 .kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 8px;
   border: 1px solid var(--ink);
   border-radius: 0;
@@ -276,6 +279,13 @@
   color: var(--ink);
   font-size: 12px;
   line-height: 1;
+}
+
+/* The kind's mark, cut to the type's own height so the box stays the height
+   it was without one. */
+.kind svg {
+  width: 12px;
+  height: 12px;
 }
 
 .kindChosen {
@@ -288,6 +298,14 @@
 .category > button {
   height: 22px;
   padding: 0 6px;
+}
+
+/* A category in that dropdown: its mark, then its name. */
+.categoryName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: top;
 }
 
 /* How much there is to see here, in the middle of the map's bottom edge. */

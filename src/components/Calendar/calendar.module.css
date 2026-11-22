@@ -51,6 +51,8 @@
   gap: 1px;
   border: 1px solid var(--ink);
   background: var(--line);
+  /* A drag across the days picks them; it is not a drag to select their text. */
+  user-select: none;
 }
 
 .weekday {
@@ -82,6 +84,12 @@
   text-align: left;
 }
 
+/* A day left on only for the pencil in it: nothing happens under a press, and
+   the pointer over it says so. */
+.still {
+  cursor: default;
+}
+
 /* A day that cannot be pressed is not faded the way a button is: half the
    calendar is days like that, and what they say still has to be read. */
 .day:disabled {
@@ -94,26 +102,95 @@
   line-height: 1;
 }
 
-.note,
-.ownPrice {
+/* The foot of a day: what it costs or why it cannot be had, and beside that
+   the pencil where there is one. */
+.foot {
   max-width: 100%;
-  overflow: hidden;
+  display: flex;
+  /* The pencil stays on the last line of a figure that has wrapped. */
+  align-items: flex-end;
+  gap: 3px;
+}
+
+/* A figure too long for the square — a range of prices, mostly — goes on to
+   a second line rather than being cut off: after the dash by choice, and
+   anywhere if even that is too long. */
+.note {
+  min-width: 0;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 9px;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
-/* A price the owner set for this day in particular, in ink rather than grey. */
-.ownPrice {
+/* The way to this date's own price: a small pencil in the grey of the figure
+   it stands beside, in ink under the pointer. */
+.pencil {
+  flex: none;
+  display: flex;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pencil svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The day in full, shown while the pointer is on its square: a small sheet of
+   its own under the square, one line a stretch of hours — when, and what it
+   costs — in the page's ink whatever the square itself is drawn in. */
+.detail {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: -1px;
+  z-index: 5;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
   color: var(--ink);
-  font-weight: 700;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
+.detailRight {
+  left: auto;
+  right: -1px;
+}
+
+.detailUp {
+  top: auto;
+  bottom: calc(100% + 2px);
+}
+
+.detail > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail > span > span:last-child {
+  color: var(--muted);
+}
+
+/* Today: its number in a box, drawn in whatever ink the number is in — so it
+   turns over with a chosen day. An outline, which takes no room, so the
+   number stands where every other day's does. */
 .today .number {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
 }
 
 /* Gone by, or further ahead than the calendar reaches. */
@@ -162,14 +239,32 @@
 
 .chosen .number,
 .chosen .note,
-.chosen .ownPrice {
+.chosen .pencil {
   background: none;
   color: var(--paper);
 }
 
 @media (hover: hover) {
-  .day:not(:disabled):not(.chosen):hover {
-    box-shadow: inset 0 0 0 1px var(--ink);
+  /* Under the pointer a day is filled in grey — the rule's grey, a shade
+     darker than a closed day's, so the two are not taken for one another.
+     Not a day a press has just let go of (`quiet`), until the pointer has
+     left it and come back. */
+  .day:not(:disabled):not(.chosen):not(.quiet):not(.still):hover {
+    background-color: var(--line);
+  }
+
+  /* On the day's square and nowhere else: a finger has no "over". */
+  .day:hover .detail {
+    display: flex;
+  }
+
+  /* In ink under the pointer, and already in ink while its day is — the
+     grey of the pencil on the grey of a day under the pointer is hard to
+     find. Never on a chosen day, which is ink itself: there the pencil stays
+     the paper colour it was turned to. */
+  .day:not(.chosen):not(.still):hover .pencil,
+  .day:not(.chosen) .pencil:hover {
+    color: var(--ink);
   }
 
   .turn:not(:disabled):hover {
@@ -218,8 +313,7 @@
     padding: 5px 6px;
   }
 
-  .note,
-  .ownPrice {
+  .note {
     font-size: 10px;
   }
 }

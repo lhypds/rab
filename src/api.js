@@ -115,12 +115,20 @@ export const getItem = (id, options) => request(`/api/items/${name(id)}`, option
 export const createItem = (item) => send("POST", "/api/items", item);
 export const updateItem = (id, item) => send("PATCH", `/api/items/${name(id)}`, item);
 export const deleteItem = (id) => send("DELETE", `/api/items/${name(id)}`);
+// The signed-in account's own places, to put an item at.
+export const getLocations = () => request("/api/locations");
+export const saveLocation = (location) => send("POST", "/api/locations", location);
+export const deleteLocation = (id) => send("DELETE", `/api/locations/${name(id)}`);
 export const setDays = (id, change) => send("PUT", `/api/items/${name(id)}/days`, change);
 
 /* ----------------------------------------------------------------- bookings */
 
 export const requestBooking = (id, booking) => send("POST", `/api/items/${name(id)}/bookings`, booking);
 export const setBookingStatus = (bookingId, status) => send("PATCH", `/api/bookings/${bookingId}`, { status });
+// Asking the owner to call a booking off, with a word about why — and, from
+// the owner, the no to that.
+export const askToCancel = (bookingId, note) => send("PATCH", `/api/bookings/${bookingId}`, { cancelRequest: true, note });
+export const refuseCancel = (bookingId) => send("PATCH", `/api/bookings/${bookingId}`, { cancelRequest: false });
 
 /* ----------------------------------------------------------------- messages */
 

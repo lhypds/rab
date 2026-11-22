@@ -39,6 +39,10 @@ struct SavedLocation: Codable, Identifiable, Hashable {
     /// The address the spot came to, as a line.
     var address: String?
     var createdAt: Date
+    /// It is in the account's list on rab, or has been. One that is and is no
+    /// longer there was deleted from it — on the website, say — and goes from
+    /// the phone too; one that never was is still to be sent up.
+    var onRab: Bool?
 }
 
 /// One thing photographed on this phone.

@@ -62,6 +62,39 @@
   align-self: flex-start;
 }
 
+/* The two things to do with a spot, at the two ends of one line. */
+.locationActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Naming a spot to keep it: the name, and the two buttons after it. It takes
+   the line up to the button at the far end. */
+.naming {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* As tall as the buttons beside it, which is shorter than a field of the form. */
+.naming :global(.text-input) {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+}
+
+/* Save and Cancel, one width. */
+.naming :global(.small-button) {
+  width: 64px;
+  height: 24px;
+  padding: 0;
+}
+
 /* ---------------------------------------------------------------- photos -- */
 
 /* The photographs, as a wall of small squares that wraps: a hundred of them is
@@ -195,6 +228,27 @@
   flex: none;
 }
 
+/* A count of days: a short field at the right of its line, the height of the
+   other small things on these lines. */
+/* Before so long: what is counted, then the count, side by side at the left
+   under the choice they belong to, each the height of the small things on
+   these lines. */
+.before {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.before .days {
+  flex: none;
+  width: 56px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  text-align: right;
+}
+
 /* The pricing rows are a table of small figures, not a form to be arrived at:
    everything in one — the price, the currency beside them, the box that takes
    a row off — stands 24px tall, a little over the weekday boxes it sits with,
@@ -221,6 +275,20 @@
   border-bottom: 1px solid var(--line);
 }
 
+/* The base price's one line, which stands with the currency and the pricing
+   unit over it as three plain lines: no hairline over it or under it. */
+.plain {
+  margin: 0;
+  border-top: 0;
+}
+
+/* Nor the room a ruled line keeps over and under it: the three lines stand
+   as far from one another as the field's own gap puts them. */
+.plain .rule {
+  padding: 0;
+  border-bottom: 0;
+}
+
 .ruleWhen {
   flex: 1;
   min-width: 0;
@@ -232,6 +300,13 @@
 
 .everyDay {
   font-size: 12px;
+}
+
+/* The rule for days: its name, and the seven days to tick. */
+.dayRule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .weekdays {
@@ -259,6 +334,25 @@
 .weekdayOn {
   background: var(--ink);
   color: var(--paper);
+}
+
+/* A day the item cannot be had on: greyed, ticked or not, and not to be
+   pressed. Under its neighbours, so their ink is not broken by its grey. */
+.weekday:disabled {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--line);
+  opacity: 1;
+}
+
+.weekday:not(:disabled) {
+  position: relative;
+}
+
+/* A heading inside a field, over a part of it: further from what is above it
+   than the field's own lines are from one another. */
+.sub {
+  margin-top: 8px;
 }
 
 /* The way to the dates a rule is for: a calendar in a box the height of the
@@ -303,19 +397,77 @@
   display: inline-flex;
 }
 
-.ruleTime {
+/* The house dropdown, drawn to the size of the row it stands in rather than
+   to a form field's. */
+.ruleTime > button {
   height: 22px;
-  padding: 0 2px;
-  border: 1px solid var(--ink);
-  border-radius: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--mono);
+  padding: 0 4px;
+  gap: 4px;
   font-size: 10px;
 }
 
 .ruleTime + .ruleTime {
   margin-left: -1px;
+}
+
+/* Over the week's timetable: the dates of the week on show, between the way
+   to the week before and the way to the week after — the calendar's own head,
+   a size down. */
+.weekNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.weekNav strong {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.weekNav button {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.weekNav button:disabled {
+  border-color: var(--line);
+  color: var(--line);
+}
+
+.weekNav svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* From when and until when, side by side over the price they are for. */
+.slotTimes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.slotTimes > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* Beside a field's label, the way to empty what the field holds. */
@@ -332,11 +484,40 @@
 
 /* Two classes deep so it outranks the house input's own full width, whichever
    stylesheet the bundler happens to put last. */
+/* A field for a price: the currency's mark stands inside the box, before the
+   figure, and the figure starts clear of it. */
+.priced {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.priced > span {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.priced > input {
+  width: 100%;
+  min-width: 0;
+  padding-left: 22px;
+}
+
 .rule .rulePrice {
   flex: none;
   width: 96px;
+}
+
+.rule .rulePrice > input {
   height: 24px;
-  padding: 0 8px;
+  padding-right: 8px;
 }
 
 .ruleRemove {
@@ -383,16 +564,27 @@
   text-overflow: ellipsis;
 }
 
+/* One of the account's places in the dropdown: its name and address, and its
+   coordinates in grey under them. */
+.location {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Grey by being faint rather than by a colour of its own, so that it is still
+   read on the row the pointer is on, which is drawn in reverse. */
+.locationSpot {
+  opacity: 0.55;
+  font-size: 11px;
+}
+
 @media (pointer: coarse) {
   .place {
     height: 30px;
     font-size: 16px;
   }
-}
-
-.check {
-  align-self: flex-start;
-  font-size: 12px;
 }
 
 .confirm {
@@ -404,7 +596,14 @@
   .photoRemove:hover,
   .ruleRemove:not(:disabled):hover,
   .dates:hover,
-  .weekday:hover {
+  /* Not a day a press has just unticked (`quiet`), until the pointer has left
+     it and come back. */
+  .weekday:not(.quiet):not(:disabled):hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .weekNav button:not(:disabled):hover {
     background: var(--ink);
     color: var(--paper);
   }

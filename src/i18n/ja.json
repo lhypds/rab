@@ -63,7 +63,9 @@
       "confirmed": "予約確定：{{item}} · {{dates}}",
       "declined": "予約不成立：{{item}} · {{dates}}",
       "cancelled": "予約キャンセル：{{item}} · {{dates}}",
-      "gone": "削除されたアイテム"
+      "gone": "削除されたアイテム",
+      "cancelRequest": "キャンセル依頼：{{item}} · {{dates}}",
+      "cancelRefused": "キャンセル依頼が拒否されました：{{item}} · {{dates}}"
     }
   },
   "map": {
@@ -107,7 +109,7 @@
     "titlePlaceholder": "何を貸しますか？",
     "titleRequired": "アイテムの名前を入力してください",
     "price": "料金",
-    "priceRequired": "すべてのルールに料金が必要です",
+    "priceRequired": "基本料金を設定してください",
     "currency": "通貨",
     "description": "説明",
     "descriptionPlaceholder": "状態、付属品、受け渡し方法",
@@ -115,8 +117,7 @@
     "place": "場所の名前",
     "placePlaceholder": "地区や目印",
     "locationHint": "ピンをドラッグするか地図を押して、受け渡し場所に合わせてください。ピンは公開されます。近くの目印で構いません。",
-    "active": "地図に表示する",
-    "inactive": "非公開",
+    "inactive": "貸出不可",
     "published": "公開中",
     "inactiveNote": "このアイテムは現在貸し出していません。",
     "delete": "削除",
@@ -126,8 +127,7 @@
     "publish": "公開",
     "missing": "このアイテムは存在しないか、削除されました。",
     "share": "共有",
-    "edit": "編集",
-    "freeToday": "今日借りられます",
+    "freeToday": "現在利用可能",
     "freeFrom": "{{date}} から空き",
     "noDays": "空きなし",
     "openMaps": "マップで開く",
@@ -141,54 +141,84 @@
     "photosHint": "最大100枚、アップロード前に圧縮されます。1枚目がメイン写真で、地図に表示されます。写真を押すとメインにできます。",
     "locationAdd": "場所を追加",
     "locationRemove": "削除",
+    "locationChoose": "自分の場所から選ぶ",
+    "locationSave": "自分の場所に保存",
+    "locationName": "名前を付ける（自宅、スタジオなど）",
+    "locationSaved": "自分の場所に保存しました",
     "locationOptional": "任意です。追加しない場合は地図に表示されず、検索とリンクからのみ見つかります。",
     "pricing": "料金",
     "everyDay": "毎日",
     "ruleDays": "曜日",
     "ruleRemove": "ルールを削除",
-    "ruleAdd": {
-      "day": "特定の日の料金",
-      "time": "特定の日・時間帯の料金"
-    },
-    "ruleHint": {
-      "day": "1つ目は通常の1日の料金です。ルールを追加すると一部の日だけ別料金にできます。曜日を選ぶか、カレンダーのアイコンから日付を選んでください。",
-      "time": "1つ目は通常の1時間の料金です。ルールを追加すると一部の日や時間帯だけ別料金にできます。曜日、カレンダーのアイコンからの日付、時間帯のいずれかを指定してください。料金は30分単位で計算されます。"
-    },
-    "availability": "貸出可能日",
+    "availability": "利用可能日",
     "closedCount_other": "{{count}}日を不可に設定",
-    "availabilityHint": "日付を押すと貸出不可に、もう一度押すと元に戻ります。それ以外の日は予約できます。",
+    "availabilityHint": "貸し出せる曜日にチェックを入れてください。カレンダーの日付を押すと、その日を閉じたり、上の曜日に含まれない日を開けたりできます。日付の料金の横の鉛筆を押すと、その日だけの基本料金を設定できます。",
+    "availabilityHintTime": "貸し出せる曜日にチェックを入れてください。日付の料金の横の鉛筆を押すと、その日だけの基本料金を設定できます。",
     "preview": "プレビュー",
     "previewTitle": "プレビュー",
     "previewNote": "これが相手に表示される予約ページです。プレビューのため、フォームで「公開」を押すまで公開されません。",
-    "daysRequired": "特別料金ごとに曜日または日付を選んでください",
     "previewClose": "プレビューを閉じる",
     "previewEmpty": "プレビューする内容がありません。フォームを開いて「プレビュー」を押してください。",
     "previewBlocked": "ブラウザがプレビューのタブをブロックしました。このサイトのポップアップを許可してもう一度お試しください。",
-    "ruleDates": "日付を選ぶ",
-    "ruleDatesClear": "クリア",
-    "ruleDatesDone_other": "完了 · {{count}}日",
     "mode": {
       "day": "日付で予約",
       "time": "日付と時間で予約"
     },
-    "everyHour": "1時間あたり",
-    "perHour": "{{price}}/時間",
-    "anHour": "1時間あたり",
+    "everyHour": "{{unit}}あたり",
+    "perHour": "{{price}}/{{unit}}",
+    "anHour": "{{unit}}あたり",
     "ruleTime": {
       "start": "開始時刻",
       "end": "終了時刻"
     },
     "ruleTimesWrong": "料金ルールの時間帯は、開始を終了より前にしてください",
-    "whenRequired": "特別料金ごとに曜日、日付、または時間帯を選んでください",
-    "hours": "貸出可能時間帯",
-    "hoursClear": "クリア",
-    "hoursRequired": "貸出可能時間帯を指定してください",
-    "hoursHint": "ドラッグして貸出可能な時間帯を塗ってください。塗った場所からドラッグすると消せます。左の時刻の列でスクロールできます。",
+    "hours": "利用可能時間帯",
+    "openDays": "貸し出せる曜日",
+    "hourRuleAdd": "時間を追加",
+    "hourRulesHint": "通常の時間：対象の曜日と、何時から何時までかを設定します。設定しない場合、下で塗った時間だけが予約できます。",
+    "hoursClear": "通常の時間に戻す",
+    "hoursRequired": "利用可能時間帯を指定してください",
+    "hoursHint": "上の時間のルールを、表示中の週に当てはめた結果です。左右の矢印で別の週に切り替えます。ドラッグすると、その日だけの時間を塗れます。塗った場所からドラッグすると消せます。左の時刻の列でスクロールします。",
+    "unit": "予約単位",
+    "unitMinutes": "{{count}}分",
+    "unitHour": "1時間",
+    "unitHint": "予約できる最短の長さで、それより長い予約はこの単位ずつ延びます。利用可能時間帯と料金の時間帯は30分単位のままです。",
     "bookingType": "予約タイプ",
     "modeHint": {
       "day": "日単位で貸し出します。料金は1日ごとです。",
-      "time": "日付と時間帯を選んで予約します。料金は1時間ごと、30分単位です。"
-    }
+      "time": "日付と時間帯を選んで予約します。"
+    },
+    "priceUnit": "料金の単位",
+    "basePricing": "基本料金",
+    "pricingHint": {
+      "day": "通常の1日の料金です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。",
+      "time": "基本料金で、「料金の単位」で選んだ時間の分です。予約単位と別にできます：1時間あたりの料金で15分単位の予約なら、15分の予約は料金の4分の1です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。"
+    },
+    "datePrice": "基本料金 · {{date}}",
+    "datePriceHint": "空欄の場合、この日は全体の基本料金になります。",
+    "datePriceClear": "クリア",
+    "datePriceDone": "完了",
+    "extraRates_other": "以前の料金ルールが{{count}}件、まだ有効です。",
+    "extraRatesClear": "削除",
+    "availabilityTitle": "利用可能日時と料金を編集",
+    "next": "次へ",
+    "back": "戻る",
+    "usualHours": "通常の時間",
+    "slotPrice": "料金 · {{date}}",
+    "slotPriceHint": "空欄の場合、この時間はその日の料金になります。",
+    "slotPriceEdit": "この時間の料金を設定",
+    "cancelRule": "キャンセル規定",
+    "cancelMode": {
+      "any": "いつでも可",
+      "none": "キャンセル不可",
+      "before": "事前"
+    },
+    "cancelUnit": "単位",
+    "cancelUnits": {
+      "days": "日",
+      "hours": "時間"
+    },
+    "cancelCount": "数"
   },
   "calendar": {
     "title": "空き状況",
@@ -201,26 +231,27 @@
     "closed": "不可",
     "pending": "申請中",
     "pick": "開始日と終了日を選んでください。",
-    "pickToEdit": "日付を選んで、貸出不可にしたり料金を変更できます。",
     "chosen_other": "{{dates}} · {{count}}日間",
     "close": "貸出不可にする",
-    "open": "通常料金で貸出可に戻す",
-    "setPrice": "料金を設定",
-    "pricePlaceholder": "1日の料金（{{currency}}）",
+    "open": "貸出可にする",
     "dayBooked": "{{date}} は予約済みです。先にその予約をキャンセルしてください。",
     "pickDay": "日付を選ぶとタイムテーブルが表示されます。",
     "pickSlots": "開始と終了の時刻を選択",
-    "perHour": "1時間の料金",
+    "perHour": "{{unit}}あたりの料金",
     "noHours": "この日は予約できる時間帯がありません。",
-    "hours_other": "{{count}}時間"
+    "minutes_other": "{{count}}分",
+    "hours_other": "{{count}}時間",
+    "unit": "{{unit}}あたりの料金",
+    "bookingUnit": "予約単位：{{unit}}",
+    "editPrice": "この日の料金を設定"
   },
   "booking": {
-    "pickupTime": "受け取り時刻",
-    "returnTime": "返却時刻",
-    "timeOrder": "返却時刻は受け取り時刻より後にしてください。",
+    "pickupTime": "開始時刻",
+    "returnTime": "終了時刻",
+    "timeOrder": "終了時刻は開始時刻より後にしてください。",
     "request": "予約をリクエスト",
     "signIn": "ログインして予約",
-    "explain": "ここでは支払いは発生しません。貸主が承認または辞退し、支払いと受け渡しはメッセージで相談します。",
+    "explain": "ここでは支払いは発生しません。貸主が承認または辞退し、支払いと詳細はメッセージで相談します。",
     "notePlaceholder": "{{name}} へのメモ（任意）",
     "requested": "リクエストを送信しました",
     "unavailable": "選んだ日の一部はもう借りられません。",
@@ -240,7 +271,9 @@
       "confirmed": "確定",
       "declined": "不成立",
       "cancelled": "キャンセル"
-    }
+    },
+    "timeSearch": "時刻を入力",
+    "timeNoMatch": "該当する時刻がありません"
   },
   "mine": {
     "title": "マイアイテム",
@@ -350,5 +383,20 @@
   "rentals": {
     "title": "マイレンタル",
     "empty": "まだ何も予約していません。"
+  },
+  "cancel": {
+    "any": "確定した予約はいつでもキャンセルできます。",
+    "none": "確定した予約はキャンセルできません。",
+    "days_other": "確定した予約は開始の{{count}}日前までキャンセルできます。",
+    "late": "キャンセルできる期限を過ぎています。",
+    "ask": "キャンセルを依頼",
+    "asked": "キャンセル依頼中",
+    "askTitle": "キャンセルを依頼",
+    "askExplain": "{{name}} さんにキャンセルを依頼できます。依頼はメッセージで届き、相手が承諾または拒否します。",
+    "askPlaceholder": "キャンセルの理由（任意）",
+    "askSend": "依頼を送る",
+    "agree": "キャンセルを承諾",
+    "refuse": "キャンセルを拒否",
+    "hours_other": "確定した予約は開始の{{count}}時間前までキャンセルできます。"
   }
 }

@@ -38,6 +38,8 @@ struct ItemsView: View {
                 if listings.isEmpty && onPhone.isEmpty && model.listingsError == nil {
                     ContentUnavailableView {
                         Text("Nothing yet")
+                            .fontWeight(.bold)
+                            .padding(.bottom, 6)
                     } description: {
                         Text("Take a photo of something you have to rent out. You can give it a plain background, and it goes into your items.")
                     } actions: {
@@ -82,6 +84,7 @@ struct ItemsView: View {
             }
             // Asked each time the list comes on screen.
             .task { await model.loadListings() }
+            .task { await model.loadLocations() }
             .safeAreaInset(edge: .top, spacing: 0) {
                 RabHeader {
                     PhotosPicker(selection: $picked, matching: .images) {

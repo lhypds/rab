@@ -63,7 +63,9 @@
       "confirmed": "Booking confirmed: {{item}} · {{dates}}",
       "declined": "Booking declined: {{item}} · {{dates}}",
       "cancelled": "Booking cancelled: {{item}} · {{dates}}",
-      "gone": "an item that has been removed"
+      "gone": "an item that has been removed",
+      "cancelRequest": "Cancellation requested: {{item}} · {{dates}}",
+      "cancelRefused": "Cancellation refused: {{item}} · {{dates}}"
     }
   },
   "map": {
@@ -109,7 +111,7 @@
     "titlePlaceholder": "What is it?",
     "titleRequired": "Give the item a name",
     "price": "Price",
-    "priceRequired": "Every rule needs a price",
+    "priceRequired": "Set a base price",
     "currency": "Currency",
     "description": "Description",
     "descriptionPlaceholder": "Condition, what's included, how to pick it up",
@@ -117,8 +119,7 @@
     "place": "Place name",
     "placePlaceholder": "Neighbourhood or landmark",
     "locationHint": "Drag the pin, or press the map, to where the item is picked up. The pin is public — a nearby landmark is fine.",
-    "active": "Shown on the map",
-    "inactive": "Unlisted",
+    "inactive": "Unavailable",
     "published": "Published",
     "inactiveNote": "This item is not being rented out right now.",
     "delete": "Delete",
@@ -128,8 +129,7 @@
     "publish": "Publish",
     "missing": "This item does not exist or has been removed.",
     "share": "Share",
-    "edit": "Edit",
-    "freeToday": "Available today",
+    "freeToday": "Available now",
     "freeFrom": "Free from {{date}}",
     "noDays": "No free days",
     "openMaps": "Open in Maps",
@@ -143,56 +143,86 @@
     "photosHint": "Up to 100 photos, compressed before upload. The first is the main photo and is shown on the map — press a photo to make it the main one.",
     "locationAdd": "Add a location",
     "locationRemove": "Remove",
+    "locationChoose": "Choose from my locations",
+    "locationSave": "Save to my locations",
+    "locationName": "A name for it — Home, the studio",
+    "locationSaved": "Saved to your locations",
     "locationOptional": "Optional. Without one the item is not on the map, and is found by search and by its link.",
     "pricing": "Pricing",
     "everyDay": "Every day",
     "ruleDays": "Days of the week",
     "ruleRemove": "Remove rule",
-    "ruleAdd": {
-      "day": "Price for some days",
-      "time": "Price for certain days or hours"
-    },
-    "ruleHint": {
-      "day": "The first price is an ordinary day. Add a rule to price some days differently: tick days of the week, or press the calendar to pick particular dates.",
-      "time": "The first is what an ordinary hour costs. Add rules to price some days or hours differently: tick days of the week, pick dates with the calendar icon, or set a time range. Prices are worked out by the half hour."
-    },
     "availability": "Available dates",
     "closedCount_one": "{{count}} day closed",
     "closedCount_other": "{{count}} days closed",
-    "availabilityHint": "Press a day to close it, and again to open it. Every other day can be booked.",
+    "availabilityHint": "Tick the days of the week it can be had. On the calendar, press a date to close it, or to open one the days above leave out. Press the pencil beside a date's price to give it a base price of its own.",
+    "availabilityHintTime": "Tick the days of the week it can be had. Press the pencil beside a date's price to give it a base price of its own.",
     "preview": "Preview",
     "previewTitle": "Preview",
     "previewNote": "This is the booking page people will see. It is a preview: nothing is published until you press Publish in the form.",
-    "daysRequired": "Pick days of the week or dates for each special price",
     "previewClose": "Close preview",
     "previewEmpty": "There is nothing to preview. Open the item form and press Preview.",
     "previewBlocked": "The browser blocked the preview tab. Allow pop-ups for this site and try again.",
-    "ruleDates": "Pick dates",
-    "ruleDatesClear": "Clear",
-    "ruleDatesDone_one": "Done · {{count}} date",
-    "ruleDatesDone_other": "Done · {{count}} dates",
     "mode": {
       "day": "By date",
       "time": "By date and time"
     },
-    "everyHour": "Per hour",
-    "perHour": "{{price}} / hour",
-    "anHour": "per hour",
+    "everyHour": "Per {{unit}}",
+    "perHour": "{{price}} / {{unit}}",
+    "anHour": "per {{unit}}",
     "ruleTime": {
       "start": "From",
       "end": "Until"
     },
     "ruleTimesWrong": "A price rule's hours need a start before their end",
-    "whenRequired": "Pick the days, dates or hours each special price is for",
     "hours": "Available hours",
-    "hoursClear": "Clear",
+    "openDays": "Days it can be had",
+    "hourRuleAdd": "Add hours",
+    "hourRulesHint": "The usual hours: the days they are for, and from when to when. Without any, only what is painted below can be booked.",
+    "hoursClear": "Back to the usual hours",
     "hoursRequired": "Say which hours it can be booked",
-    "hoursHint": "Drag to paint the hours it can be booked; drag from a painted spot to erase. Scroll with the column of times on the left.",
+    "hoursHint": "What the hours above come to in the week shown; the arrows turn to another week. Drag to paint hours for one date only; drag from a painted spot to erase. Scroll with the column of times on the left.",
+    "unit": "Booking unit",
+    "unitMinutes": "{{count}} min",
+    "unitHour": "1 hour",
+    "unitHint": "The shortest stretch that can be booked, and the step a longer one grows by. Available hours and price time ranges are still set on the half hour.",
     "bookingType": "Booking type",
     "modeHint": {
       "day": "Booked by the day, priced per day.",
-      "time": "Booked for a day and a stretch of hours, priced per hour in half-hour steps."
-    }
+      "time": "Booked for a day and a stretch of hours."
+    },
+    "priceUnit": "Price unit",
+    "basePricing": "Base pricing",
+    "pricingHint": {
+      "day": "What an ordinary day costs. To price one date differently, press the pencil beside it on the calendar below.",
+      "time": "The base price, for the stretch of time picked under “Price unit” — which can differ from the booking unit: priced per hour and booked by 15 minutes, a 15-minute booking costs a quarter of it. To price one date differently, press the pencil beside it on the calendar below."
+    },
+    "datePrice": "Base pricing · {{date}}",
+    "datePriceHint": "Left empty, this date costs the overall base price.",
+    "datePriceClear": "Clear",
+    "datePriceDone": "Done",
+    "extraRates_one": "{{count}} earlier price rule is still in force.",
+    "extraRates_other": "{{count}} earlier price rules are still in force.",
+    "extraRatesClear": "Remove",
+    "availabilityTitle": "Edit availability and pricing",
+    "next": "Next",
+    "back": "Back",
+    "usualHours": "Usual hours",
+    "slotPrice": "Price · {{date}}",
+    "slotPriceHint": "Left empty, this time costs what the date does.",
+    "slotPriceEdit": "Set this time's price",
+    "cancelRule": "Cancellation",
+    "cancelMode": {
+      "any": "Any time",
+      "none": "No cancellation",
+      "before": "Before"
+    },
+    "cancelUnit": "Counted in",
+    "cancelUnits": {
+      "days": "Days",
+      "hours": "Hours"
+    },
+    "cancelCount": "How many"
   },
   "calendar": {
     "title": "Availability",
@@ -205,28 +235,30 @@
     "closed": "Closed",
     "pending": "Requested",
     "pick": "Pick the first and the last day.",
-    "pickToEdit": "Pick days to close them or change their price.",
     "chosen_one": "{{dates}} · {{count}} day",
     "chosen_other": "{{dates}} · {{count}} days",
-    "close": "Close these days",
-    "open": "Open at the usual price",
-    "setPrice": "Set price",
-    "pricePlaceholder": "Price per day ({{currency}})",
+    "close": "Make unavailable",
+    "open": "Make available",
     "dayBooked": "{{date}} is already booked. Cancel that booking first.",
     "pickDay": "Pick a day to see its timetable.",
     "pickSlots": "pick a start and an end time",
-    "perHour": "price per hour",
+    "perHour": "price per {{unit}}",
     "noHours": "No bookable hours on this day.",
+    "minutes_one": "{{count}} minute",
+    "minutes_other": "{{count}} minutes",
     "hours_one": "{{count}} hour",
-    "hours_other": "{{count}} hours"
+    "hours_other": "{{count}} hours",
+    "unit": "Prices are per {{unit}}",
+    "bookingUnit": "Booking unit: {{unit}}",
+    "editPrice": "Set this date's price"
   },
   "booking": {
-    "pickupTime": "Pickup time",
-    "returnTime": "Return time",
-    "timeOrder": "The return time must be after the pickup time.",
+    "pickupTime": "Start time",
+    "returnTime": "End time",
+    "timeOrder": "The end time must be after the start time.",
     "request": "Request to book",
     "signIn": "Sign in to book",
-    "explain": "Nothing is charged here. The owner confirms or declines, and you arrange payment and pickup by message.",
+    "explain": "Nothing is charged here. The owner confirms or declines, and you arrange payment and the details by message.",
     "notePlaceholder": "A note for {{name}} (optional)",
     "requested": "Request sent",
     "unavailable": "Some of those days are no longer available.",
@@ -247,7 +279,9 @@
       "confirmed": "Confirmed",
       "declined": "Declined",
       "cancelled": "Cancelled"
-    }
+    },
+    "timeSearch": "Type a time",
+    "timeNoMatch": "No such time"
   },
   "mine": {
     "title": "My items",
@@ -357,5 +391,22 @@
   "rentals": {
     "title": "My rentals",
     "empty": "You have not booked anything yet."
+  },
+  "cancel": {
+    "any": "A confirmed booking can be cancelled at any time.",
+    "none": "A confirmed booking cannot be cancelled.",
+    "days_one": "A confirmed booking can be cancelled up to {{count}} day before it starts.",
+    "days_other": "A confirmed booking can be cancelled up to {{count}} days before it starts.",
+    "late": "It is too late to cancel this booking.",
+    "ask": "Ask to cancel",
+    "asked": "Cancellation requested",
+    "askTitle": "Ask to cancel",
+    "askExplain": "You can ask {{name}} to cancel it for you. They will see your request in their messages and can agree or refuse.",
+    "askPlaceholder": "Why you need to cancel (optional)",
+    "askSend": "Send request",
+    "agree": "Agree to cancel",
+    "refuse": "Refuse the cancellation",
+    "hours_one": "A confirmed booking can be cancelled up to {{count}} hour before it starts.",
+    "hours_other": "A confirmed booking can be cancelled up to {{count}} hours before it starts."
   }
 }

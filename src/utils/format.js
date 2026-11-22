@@ -1,3 +1,5 @@
+import { priceNow, priceUnitOf } from "./rates.js";
+
 export function formatCoords(latitude, longitude) {
   const lat = `${Math.abs(latitude).toFixed(5)}°${latitude >= 0 ? "N" : "S"}`;
   const lon = `${Math.abs(longitude).toFixed(5)}°${longitude >= 0 ? "E" : "W"}`;
@@ -10,10 +12,23 @@ export function formatUsername(username) {
 
 export const CURRENCIES = ["JPY", "CNY", "USD", "EUR"];
 
-// The currency a new item starts in: yen, whatever language the form is being
-// read in, and one select away from being any of the others.
-export function defaultCurrency() {
-  return "JPY";
+// The currency a new item starts in: the one the language the form is being
+// read in is most likely to be paid in — yen in Japanese, yuan in Chinese,
+// dollars in English — and one select away from being any of the others.
+const CURRENCY_BY_LANGUAGE = { ja: "JPY", zh: "CNY", en: "USD" };
+export function defaultCurrency(language) {
+  return CURRENCY_BY_LANGUAGE[String(language ?? "").toLowerCase().split("-")[0]] ?? "USD";
+}
+
+// The mark a currency is written with, on its own: ¥ for yen and for yuan, $,
+// €. The code itself where the browser knows no mark for it.
+export function currencySymbol(currency, locale) {
+  try {
+    const parts = new Intl.NumberFormat(locale, { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0);
+    return parts.find((part) => part.type === "currency")?.value ?? currency;
+  } catch {
+    return currency;
+  }
 }
 
 // A price as its own currency writes it. Whole amounts lose the decimals — a
@@ -34,10 +49,35 @@ export function formatPrice(amount, currency, locale) {
   }
 }
 
-// What an item costs, as one line: a day of it, or an hour.
+// The piece of the clock an item is booked and priced in, as words: "30 min",
+// "1 hour".
+export function unitName(unit, t) {
+  return unit === 60 ? t("item.unitHour") : t("item.unitMinutes", { count: unit });
+}
+
+// What an item costs, as one line: a day of it, or one stretch of its pricing unit —
+// today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
-  const price = formatPrice(item.price, item.currency, locale);
-  return item.mode === "time" ? t("item.perHour", { price }) : t("item.perDay", { price });
+  const price = formatPrice(priceNow(item), item.currency, locale);
+  return item.mode === "time" ? t("item.perHour", { price, unit: unitName(priceUnitOf(item), t) }) : t("item.perDay", { price });
+}
+
+// A price written out in full and to the whole unit — ¥12,500, never ¥1.3万
+// and never ¥12,500.50: what is said of a price when it is asked about.
+export function wholePrice(amount, currency, locale) {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "";
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return String(Math.round(value));
+  }
 }
 
 // The same price small enough for a pin or a calendar square: ¥1.5K.

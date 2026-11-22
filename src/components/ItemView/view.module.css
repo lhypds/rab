@@ -43,7 +43,7 @@
    itself out by the room it actually has. */
 @container (min-width: 860px) {
   .columns {
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) 440px;
     grid-template-areas:
       "head card"
       "rest card";
@@ -336,19 +336,6 @@
   gap: 6px;
 }
 
-.priceRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-}
-
-/* The field and its button are one line of the same height. */
-.priceRow :global(.text-input),
-.priceRow :global(.small-button) {
-  height: 28px;
-}
-
 /* What a request is made of — the hours, the note, the button — laid out like
    the panel it stands in. A fieldset so that one word puts all of it out of
    reach until a day is picked, and it is drawn in grey while it is. */
@@ -360,6 +347,12 @@
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* The note under the request button belongs to the button: it stands a little
+   closer to it than the parts of the form stand to one another. */
+.fields .small {
+  margin-top: -4px;
 }
 
 .fields:disabled,
@@ -388,7 +381,7 @@
   gap: 6px;
 }
 
-.times label {
+.times > div {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -397,16 +390,18 @@
   font-size: 12px;
 }
 
-.times input {
-  width: 100%;
-  min-width: 0;
-}
 
 .small {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* A note on what stands just over it — the calendar, the day's timetable —
+   kept closer to it than the card's parts are to one another. */
+.tip {
+  margin-top: -6px;
 }
 
 @media (hover: hover) {
