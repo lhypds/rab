@@ -283,6 +283,13 @@
   color: var(--paper);
 }
 
+/* The category dropdown, after the kinds and drawn to their size rather than
+   to a form field's. */
+.category > button {
+  height: 22px;
+  padding: 0 6px;
+}
+
 /* How much there is to see here, in the middle of the map's bottom edge. */
 .count {
   position: absolute;

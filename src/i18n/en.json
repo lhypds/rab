@@ -67,6 +67,7 @@
     }
   },
   "map": {
+    "allCategories": "All categories",
     "area": "Current area",
     "areaUnknown": "Around here",
     "areaEmpty": "Nothing is out for rent in this area yet.",

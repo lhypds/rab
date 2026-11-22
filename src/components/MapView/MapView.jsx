@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as api from "../../api.js";
-import { Link } from "../../ui/index.js";
+import { Link, Select } from "../../ui/index.js";
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { formatUsername, priceLine } from "../../utils/format.js";
-import { KINDS } from "../../utils/kinds.js";
+import { CATEGORIES, KINDS } from "../../utils/kinds.js";
 import {
   DEFAULT_VIEW,
   MAPBOX_TOKEN,
@@ -139,10 +139,26 @@ export default function MapView() {
   // here — the list and the pins alike — rather than a search somewhere else.
   const [query, setQuery] = useState("");
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  // An item passes when it is of the kind in force and every word typed is
-  // somewhere in what it says about itself.
+  // Which category the pins are for, within the kind in force: "" is all of
+  // them. The choices are that kind's categories, or every kind's where no
+  // kind is chosen ("other" is in all three, and is listed once).
+  const [category, setCategory] = useState("");
+  const categoryChoices = [...new Set((kind ? [kind] : KINDS).flatMap((each) => CATEGORIES[each]))];
+  const categoryOptions = [
+    { value: "", label: t("map.allCategories") },
+    ...categoryChoices.map((slug) => ({ value: slug, label: t(`category.${slug}`), text: `${t(`category.${slug}`)} ${slug}` })),
+  ];
+  // A category belongs to a kind: one the newly chosen kind does not have is
+  // let go of rather than left filtering everything out.
+  const chooseKind = (next) => {
+    setKind(next);
+    if (next && category && !CATEGORIES[next].includes(category)) setCategory("");
+  };
+  // An item passes when it is of the kind and the category in force and every
+  // word typed is somewhere in what it says about itself.
   const passes = (item) => {
     if (kind && item.kind !== kind) return false;
+    if (category && item.category !== category) return false;
     if (words.length === 0) return true;
     const text = [item.title, item.description, item.place, item.owner, t(`kind.${item.kind}`)]
       .filter(Boolean)
@@ -150,8 +166,9 @@ export default function MapView() {
       .toLowerCase();
     return words.every((word) => text.includes(word));
   };
-  const shown = kind || words.length ? items.filter(passes) : items;
-  const listed = offered && (kind || words.length ? offered.filter(passes) : offered);
+  const filtering = Boolean(kind || category || words.length);
+  const shown = filtering ? items.filter(passes) : items;
+  const listed = offered && (filtering ? offered.filter(passes) : offered);
   // The one whose bubble is up: what the pointer is on, and failing that what
   // was chosen.
   const open =
@@ -437,13 +454,13 @@ export default function MapView() {
     // `shown` is derived afresh each render; what it is derived from is what
     // is watched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, kind, query]);
+  }, [items, kind, category, query]);
 
   useEffect(() => {
     for (const [id, entry] of markersRef.current) {
       entry.element.classList.toggle(styles.pinChosen, id === selectedId);
     }
-  }, [selectedId, items, kind, query]);
+  }, [selectedId, items, kind, category, query]);
 
   // The bubble itself holds a borrowed bubble open while the pointer is in it.
   useEffect(() => {
@@ -604,11 +621,21 @@ export default function MapView() {
               type="button"
               className={kind === each ? `${styles.kind} ${styles.kindChosen}` : styles.kind}
               aria-pressed={kind === each}
-              onClick={() => setKind(each)}
+              onClick={() => chooseKind(each)}
             >
               {each ? t(`kind.${each}`) : t("kind.all")}
             </button>
           ))}
+          {/* And which category within it: all of them unless one is picked. */}
+          <Select
+            className={styles.category}
+            label={t("item.category")}
+            value={category}
+            onChange={setCategory}
+            options={categoryOptions}
+            searchPlaceholder={t("item.categorySearch")}
+            emptyLabel={t("item.categoryNoMatch")}
+          />
         </div>
 
         {/* How much there is to see in this window, said once it is known. */}

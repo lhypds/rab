@@ -48,7 +48,10 @@ struct ItemBody: Encodable {
     var longitude: Double?
     var place: String?
     var images: [ImageRef]
-    var active = true
+    /// Not on the map yet: what the phone sends is a start, and its owner
+    /// finishes it — a price, the rest — in their items on the website and
+    /// publishes it from there.
+    var active = false
 }
 
 /// One of the user's items as the server lists it (GET /api/mine): what the

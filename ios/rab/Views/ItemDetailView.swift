@@ -106,7 +106,9 @@ struct ItemDetailView: View {
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .confirmationDialog("Delete this item?", isPresented: $deleting, titleVisibility: .visible) {
+        // Asked in a dialog in the middle of the screen, not a sheet at its foot.
+        .alert("Delete this item?", isPresented: $deleting) {
+            Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 model.delete(item)
                 dismiss()

@@ -290,7 +290,9 @@ struct ListingDetailView: View {
         .navigationTitle(listing.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .confirmationDialog("Delete this item?", isPresented: $confirming, titleVisibility: .visible) {
+        // Asked in a dialog in the middle of the screen, not a sheet at its foot.
+        .alert("Delete this item?", isPresented: $confirming) {
+            Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { delete(listing) }
         } message: {
             Text("It is deleted from rab for good, and any open bookings of it are cancelled.")

@@ -67,6 +67,7 @@
     }
   },
   "map": {
+    "allCategories": "すべてのカテゴリ",
     "area": "現在のエリア",
     "areaUnknown": "このあたり",
     "areaEmpty": "このエリアにはまだ借りられるものがありません。",

@@ -67,6 +67,7 @@
     }
   },
   "map": {
+    "allCategories": "全部分类",
     "area": "当前地区",
     "areaUnknown": "这一带",
     "areaEmpty": "这个地区还没有可租的东西。",
