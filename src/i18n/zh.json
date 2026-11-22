@@ -19,7 +19,7 @@
   "auth": {
     "username": "用户名",
     "usernameTaken": "该用户名已被使用",
-    "usernameRule": "1–32 个字符：以字母或 _ 开头，之后可用字母、数字、- 和 _",
+    "usernameRule": "1–32 个字符：字母、数字、- 和 _；不能以 - 开头，也不能全是数字",
     "next": "下一步",
     "password": "密码",
     "login": "登录",

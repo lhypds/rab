@@ -64,12 +64,12 @@ const isProduction = process.env.NODE_ENV === "production";
 
 /* -------------------------------------------------------------------- rules */
 
-// A username is one a Unix system would take: it starts with a letter or an
-// underscore and goes on in letters, digits, - and _, 32 characters at most.
-// (Capitals are folded to lower case before this is asked.)
-const USERNAME_RE = /^[a-z_][a-z0-9_-]{0,31}$/;
-const USERNAME_HINT = "A username is 1–32 characters: it starts with a letter or _, then letters, digits, - and _";
-// What a name could be before that rule: a digit first, CJK characters. Nobody
+// A username is nearly one a Unix system would take: letters, digits, - and _,
+// 32 characters at most, not starting with - and not a number — "318yang" is a
+// name, "318" is not. (Capitals are folded to lower case before this is asked.)
+const USERNAME_RE = /^(?!\d+$)[a-z0-9_][a-z0-9_-]{0,31}$/;
+const USERNAME_HINT = "A username is 1–32 characters: letters, digits, - and _, not starting with - and not a number";
+// What a name could be before that rule: all digits, CJK characters. Nobody
 // can take such a name any more; whoever already has one still signs in by it.
 const EARLIER_USERNAME_RE =
   /^[a-z0-9_\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}-]{1,32}$/u;
