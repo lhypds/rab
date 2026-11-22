@@ -46,6 +46,9 @@ struct SavedItem: Codable, Identifiable, Hashable {
     var id: String
     /// Missing from the items saved before there was a choice: those are things.
     var kind: Kind?
+    /// The sort of thing it is within its kind (see Categories); none where
+    /// nothing was suggested or chosen.
+    var category: String?
     var title: String
     /// Missing from the items saved before the form asked for one.
     var description: String?

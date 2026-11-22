@@ -39,14 +39,16 @@ struct ItemDetailView: View {
 
             Section {
                 LabeledContent("Kind") { Text((item.kind ?? .item).name) }
-                if item.price > 0 {
-                    LabeledContent("Price", value: priceText(item.price, item.currency))
+                // Always there, under the kind it belongs to; "None" where it has none.
+                LabeledContent("Category") {
+                    if let category = item.category, !category.isEmpty {
+                        Text(Categories.name(category))
+                    } else {
+                        Text("None")
+                    }
                 }
                 if let location = model.location(item.locationId) {
                     LabeledContent("Location", value: location.name)
-                }
-                if let region = item.region {
-                    LabeledContent("Area", value: region.name)
                 }
                 LabeledContent("Taken", value: item.createdAt.formatted(date: .abbreviated, time: .shortened))
             }

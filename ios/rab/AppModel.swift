@@ -151,6 +151,19 @@ final class AppModel {
         api?.pageURL(ofItem: id)
     }
 
+    // MARK: - describing
+
+    /// What rab's server makes of a photograph — its kind, category, name and
+    /// description, in the phone's language. It throws where the server cannot
+    /// say: no key on it, no connection, a picture it would not describe.
+    func describe(_ image: UIImage) async throws -> Suggestion {
+        guard let api, let small = image.jpeg(maxSide: 1024, quality: 0.7) else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+        }
+        let code = Locale.current.language.languageCode?.identifier ?? "en"
+        return try await api.describe(small.data, language: ["zh", "ja"].contains(code) ? code : "en")
+    }
+
     // MARK: - items
 
     func item(_ id: String) -> SavedItem? {
@@ -158,7 +171,7 @@ final class AppModel {
     }
 
     /// Keeps a photographed thing in the user's folder, newest first.
-    func save(image: UIImage, kind: Kind, title: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
+    func save(image: UIImage, kind: Kind, category: String, title: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
         guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
             throw BackgroundRemover.Failure.noImage
@@ -168,6 +181,7 @@ final class AppModel {
         let item = SavedItem(
             id: id,
             kind: kind,
+            category: category.isEmpty ? nil : category,
             title: title,
             description: description,
             // The phone asks for no price: it is published at none, and set
@@ -206,9 +220,10 @@ final class AppModel {
         return locations.first { $0.id == id }
     }
 
-    /// A new place, called `name`, at the spot picked on the map. Its area and
-    /// its address are looked up from the spot.
-    func addLocation(name: String, latitude: Double, longitude: Double) async throws -> SavedLocation {
+    /// A new place, called `name`, at the spot picked on the map, with the
+    /// address as the form had it — the one looked up from the spot, or what
+    /// the user wrote over it. Its area is looked up from the spot.
+    func addLocation(name: String, address: String, latitude: Double, longitude: Double) async throws -> SavedLocation {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
         let found = await Area.describe(latitude: latitude, longitude: longitude)
         let location = SavedLocation(
@@ -217,7 +232,7 @@ final class AppModel {
             latitude: latitude,
             longitude: longitude,
             region: found.region,
-            address: found.address,
+            address: address.isEmpty ? found.address : address,
             createdAt: Date()
         )
         locations.append(location)
@@ -261,6 +276,7 @@ final class AppModel {
             title: item.title,
             description: item.description ?? "",
             kind: (item.kind ?? .item).rawValue,
+            category: item.category ?? "",
             currency: item.currency,
             price: item.price,
             region: region,

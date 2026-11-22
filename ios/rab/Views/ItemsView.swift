@@ -39,7 +39,7 @@ struct ItemsView: View {
                     ContentUnavailableView {
                         Label("Nothing yet", systemImage: "camera")
                     } description: {
-                        Text("Take a photo of something you have to rent out. Its background becomes white, and it goes into your items.")
+                        Text("Take a photo of something you have to rent out. You can give it a plain background, and it goes into your items.")
                     } actions: {
                         if CameraPicker.isAvailable {
                             Button("Take a photo") { capture = Capture(image: nil) }
@@ -242,14 +242,16 @@ struct ListingDetailView: View {
 
             Section {
                 LabeledContent("Kind") { Text((listing.kind ?? .item).name) }
-                if let price = listing.price, price > 0 {
-                    LabeledContent("Price", value: priceText(price, listing.currency ?? ""))
+                // Always there, under the kind it belongs to; "None" where it has none.
+                LabeledContent("Category") {
+                    if let category = listing.category, !category.isEmpty {
+                        Text(Categories.name(category))
+                    } else {
+                        Text("None")
+                    }
                 }
                 if let place = listing.place, !place.isEmpty {
                     LabeledContent("Location", value: place)
-                }
-                if let region = listing.region {
-                    LabeledContent("Area", value: region.name)
                 }
             }
 

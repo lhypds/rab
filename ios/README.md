@@ -1,7 +1,7 @@
 rab for iPhone
 ==============
 
-A small companion to rab: photograph a thing, have its background turned white,
+A small companion to rab: photograph a thing, stand it on a plain background if you like,
 and put it in your items on rab. Sign in with your rab account; everything you
 make is kept in a folder of your own on the phone.
 
@@ -10,7 +10,7 @@ make is kept in a folder of your own on the phone.
     ios/rab/AppModel.swift     who is signed in, their items, saving and publishing
     ios/rab/UserStore.swift    the user's folder: session, items, photographs
     ios/rab/RabAPI.swift       rab's HTTP API, the same one the website uses
-    ios/rab/BackgroundRemover.swift   Vision finds the subject; Core Image paints the rest white
+    ios/rab/BackgroundRemover.swift   Vision finds the subject; Core Image clears what is behind it
     ios/rab/Area.swift         the area an item is offered in, from the phone's position or a name
     ios/rab/Pickers.swift      the camera
     ios/rab/Views/             SignInView, ItemsView, NewItemView, ItemDetailView
@@ -29,9 +29,10 @@ field at the bottom says otherwise (a dev server on the same network, say
 `http://192.168.0.79:3016`, works too).
 
 **Take a photo.** The camera button in the top bar (or the photo button, for a
-picture already taken). While the form is open, the background is removed and
-replaced with white; the switch under the picture shows the original for
-comparison. Where no subject is found the photo is kept as it is, and the form
+picture already taken). While the form is open, the subject is cut out of its
+background; the swatches under the picture stand it on a colour — white, grey,
+black or any other — or leave the photo as it was taken, which is how it
+starts. Where no subject is found the photo is kept as it is, and the form
 says so.
 
 **Put it in your items.** A name, a day's price and its currency, and the area it
@@ -51,7 +52,7 @@ documents:
 
     Documents/data/<username>/session.json    the signed-in session and its server
     Documents/data/<username>/items.json      the items, newest first
-    Documents/data/<username>/photos/<id>.jpg the photographs, background already white
+    Documents/data/<username>/photos/<id>.jpg the photographs, on the background chosen
 
 The documents folder is shared with the Files app (On My iPhone › rab), so the
 folder can be looked at, copied off, or deleted by hand. Signing out keeps the

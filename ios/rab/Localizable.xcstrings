@@ -10,6 +10,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登记到 rab 的我的物品" } }
       }
     },
+    "Address" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "住所" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "地址" } }
+      }
+    },
     "Area" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "エリア" } },
@@ -241,12 +247,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
       }
     },
-    "Take a photo of something you have to rent out. Its background becomes white, and it goes into your items." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "貸し出すものを撮ってください。背景が白くなり、マイアイテムに入ります。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "给你要出租的东西拍张照。背景会变成白色，然后登记到你的物品里。" } }
-      }
-    },
     "Services" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "サービス" } },
@@ -301,12 +301,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "欢迎回来，%@。" } }
       }
     },
-    "White background" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "白い背景" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "白色背景" } }
-      }
-    },
     "Your items stay in your folder on this phone." : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "アイテムはこの iPhone の自分のフォルダに残ります。" } },
@@ -317,12 +311,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のエリアがわかりませんでした。位置情報を許可して、もう一度お試しください。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 无法确定你所在的地区。请允许使用位置后再试。" } }
-      }
-    },
-    "What are you renting out? rab lists things, spaces and services separately, so choose the one people will look for it under." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "何を貸し出しますか？rab ではモノ・スペース・サービスを分けて掲載します。探す人が見つけやすい種類を選んでください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你要出租的是什么？rab 把物品、空间和服务分开列出，请选择别人会在哪一类里找到它。" } }
       }
     },
     "Location" : {
@@ -383,6 +371,330 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab から完全に削除され、進行中の予約はすべてキャンセルされます。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它会从 rab 上永久删除，尚未结束的预订也会被取消。" } }
+      }
+    },
+    "Background" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "背景" } }
+      }
+    },
+    "Original" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "元の写真" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原图" } }
+      }
+    },
+    "Other colour" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "その他の色" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他颜色" } }
+      }
+    },
+    "Take a photo of something you have to rent out. You can give it a plain background, and it goes into your items." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "貸し出すものを撮ってください。背景を単色に変えることもでき、マイアイテムに入ります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "给你要出租的东西拍张照。可以给它换一个纯色背景，然后登记到你的物品里。" } }
+      }
+    },
+    "Car" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "車" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汽车" } }
+      }
+    },
+    "Bike" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自転車" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自行车" } }
+      }
+    },
+    "Camera" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カメラ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "相机" } }
+      }
+    },
+    "Video camera" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ビデオカメラ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "摄像机" } }
+      }
+    },
+    "Projector" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロジェクター" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "投影机" } }
+      }
+    },
+    "3D printer" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "3Dプリンター" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "3D 打印机" } }
+      }
+    },
+    "Audio gear" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音響機材" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音响设备" } }
+      }
+    },
+    "Electronics" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "電子機器" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电子产品" } }
+      }
+    },
+    "Tools" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "工具" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工具" } }
+      }
+    },
+    "Camping gear" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンプ用品" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "露营装备" } }
+      }
+    },
+    "Sports gear" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スポーツ用品" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运动器材" } }
+      }
+    },
+    "Clothing" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "衣類" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服装" } }
+      }
+    },
+    "Other" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "その他" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他" } }
+      }
+    },
+    "Home" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "住まい" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "房屋" } }
+      }
+    },
+    "Meeting room" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "会議室" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会议室" } }
+      }
+    },
+    "Studio" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スタジオ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作室 / 录音室" } }
+      }
+    },
+    "Storage" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "収納スペース" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "储存空间" } }
+      }
+    },
+    "Event space" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イベントスペース" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动场地" } }
+      }
+    },
+    "Workspace" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ワークスペース" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "办公空间" } }
+      }
+    },
+    "Parking" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "駐車場" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停车位" } }
+      }
+    },
+    "Photography" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "摄影" } }
+      }
+    },
+    "Teaching" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "レッスン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "教学" } }
+      }
+    },
+    "Repair" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "修理" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "维修" } }
+      }
+    },
+    "Moving help" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "引っ越し手伝い" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搬家帮手" } }
+      }
+    },
+    "Cleaning" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "清掃" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清洁" } }
+      }
+    },
+    "Design" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "デザイン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设计" } }
+      }
+    },
+    "Guide" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ガイド" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向导" } }
+      }
+    },
+    "Translation" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "翻訳・通訳" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "翻译" } }
+      }
+    },
+    "Music" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音楽・演奏" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音乐演出" } }
+      }
+    },
+    "Fitness" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "フィットネス" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "健身教练" } }
+      }
+    },
+    "Beauty" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "美容・ヘアメイク" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "美容美发" } }
+      }
+    },
+    "Massage" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マッサージ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按摩" } }
+      }
+    },
+    "Pet care" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ペットの世話" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宠物照看" } }
+      }
+    },
+    "Childcare" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ベビーシッター" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "育儿看护" } }
+      }
+    },
+    "Care" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "介護・付き添い" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "陪护照料" } }
+      }
+    },
+    "Cooking" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "料理" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "烹饪" } }
+      }
+    },
+    "Driver" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "運転代行・ドライバー" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "代驾 / 司机" } }
+      }
+    },
+    "Delivery" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "配達・おつかい" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跑腿配送" } }
+      }
+    },
+    "Gardening" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ガーデニング" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "园艺" } }
+      }
+    },
+    "IT support" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パソコン・ITサポート" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电脑 / IT 支持" } }
+      }
+    },
+    "Programming" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プログラミング" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编程开发" } }
+      }
+    },
+    "Videography" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "動画撮影・編集" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "视频拍摄剪辑" } }
+      }
+    },
+    "Writing" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ライティング" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "写作文案" } }
+      }
+    },
+    "Consulting" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンサルティング" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "咨询" } }
+      }
+    },
+    "Event help" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イベントスタッフ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动帮手" } }
+      }
+    },
+    "Handyman" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "便利屋" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安装杂活" } }
+      }
+    },
+    "Category" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カテゴリ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分类" } }
+      }
+    },
+    "Recognizing the photo…" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を認識しています…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在识别照片…" } }
+      }
+    },
+    "This could not be filled in from the photo. Fill it in yourself." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真から自動入力できませんでした。手動で入力してください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法根据照片自动填写，请手动填写。" } }
+      }
+    },
+    "This server is not set up to fill this in from the photo." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このサーバーでは写真からの自動入力が設定されていません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这台服务器还没有设置根据照片自动填写。" } }
       }
     },
     "on this phone" : {

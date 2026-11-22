@@ -58,6 +58,7 @@ const {
 const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImage, storeImage } = await import("./images.js");
 const { MODES, dayPrice, listPrice, parseHours, parseRates, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
+const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -780,6 +781,47 @@ app.delete("/api/messages/:username", requireSession, (req, res) => {
 
 // The bytes arrive already compressed to WebP by the browser, which keeps rab
 // free of an image library and the wire free of an 8 MB phone photo.
+// What a photograph is of, for a form that wants filling in: its kind, its
+// category, a name and a description (see describe.js). Asked by the phone as
+// soon as a photo is taken. Nothing is kept: the picture is looked at and gone.
+app.post(
+  "/api/describe",
+  requireSession,
+  express.raw({ type: () => true, limit: MAX_IMAGE_BYTES }),
+  async (req, res) => {
+    if (!canDescribe()) {
+      return res.status(503).json({ error: "This server has no key to describe photos with", code: "DESCRIBE_UNAVAILABLE" });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: "The image is empty" });
+    }
+    try {
+      const listing = await describeImage(req.body, String(req.query.lang ?? "en").slice(0, 2));
+      if (!listing) return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
+      res.json(listing);
+    } catch (error) {
+      // Most specific first: what the caller can do about it differs.
+      if (error instanceof OpenAI.AuthenticationError || error instanceof OpenAI.PermissionDeniedError) {
+        console.error("rab: the OpenAI key was refused:", error.message);
+        return res.status(503).json({ error: "This server's key to describe photos with was refused", code: "DESCRIBE_UNAVAILABLE" });
+      }
+      if (error instanceof OpenAI.RateLimitError) {
+        return res.status(429).json({ error: "Too many photos at once. Try again in a moment", code: "DESCRIBE_BUSY" });
+      }
+      if (error instanceof OpenAI.NotFoundError) {
+        // The model named in RAB_DESCRIBE_MODEL is not one this key can use.
+        console.error("rab: the model to describe photos with was not found:", error.message);
+        return res.status(503).json({ error: "This server's model to describe photos with was not found", code: "DESCRIBE_UNAVAILABLE" });
+      }
+      if (error instanceof OpenAI.BadRequestError) {
+        return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
+      }
+      console.error("rab: describing a photo failed:", error instanceof OpenAI.APIError ? `${error.status} ${error.message}` : error);
+      res.status(502).json({ error: "The photo could not be described just now", code: "DESCRIBE_FAILED" });
+    }
+  },
+);
+
 app.post(
   "/api/images",
   requireSession,

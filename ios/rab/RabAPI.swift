@@ -65,6 +65,7 @@ struct Listing: Codable, Identifiable, Hashable {
     var title: String
     var description: String?
     var kind: Kind?
+    var category: String?
     var price: Double?
     var currency: String?
     var place: String?
@@ -72,6 +73,15 @@ struct Listing: Codable, Identifiable, Hashable {
     var images: [Picture]?
     var thumb: String?
     var active: Bool?
+}
+
+/// What the server made of a photograph (POST /api/describe): the listing's
+/// kind and category, and a name and a description for it.
+struct Suggestion: Decodable {
+    var kind: Kind
+    var category: String
+    var title: String
+    var description: String
 }
 
 private struct MineReply: Decodable {
@@ -122,8 +132,10 @@ final class RabAPI {
 
     // MARK: - plumbing
 
-    private func send(_ method: String, _ path: String, body: Data? = nil, type: String? = nil) async throws -> Data {
-        var request = URLRequest(url: baseURL.appending(path: path), timeoutInterval: 60)
+    private func send(_ method: String, _ path: String, query: [URLQueryItem] = [], body: Data? = nil, type: String? = nil) async throws -> Data {
+        var url = baseURL.appending(path: path)
+        if !query.isEmpty { url.append(queryItems: query) }
+        var request = URLRequest(url: url, timeoutInterval: 60)
         request.httpMethod = method
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let type { request.setValue(type, forHTTPHeaderField: "Content-Type") }
@@ -187,6 +199,13 @@ final class RabAPI {
     func imageURL(_ path: String?) -> URL? {
         guard let path, !path.isEmpty else { return nil }
         return URL(string: path, relativeTo: baseURL)?.absoluteURL
+    }
+
+    /// Asks the server what a photograph is of, in the language given ("en",
+    /// "zh", "ja"). The bytes are a JPEG reduced on the phone; nothing is kept.
+    func describe(_ data: Data, language: String) async throws -> Suggestion {
+        let reply = try await send("POST", "api/describe", query: [URLQueryItem(name: "lang", value: language)], body: data, type: "image/jpeg")
+        return try JSONDecoder().decode(Suggestion.self, from: reply)
     }
 
     /// Takes an item off rab for good, with whatever was still open on it.
