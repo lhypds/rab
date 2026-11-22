@@ -194,8 +194,25 @@ final class RabAPI {
         try await post("api/login", ["username": username, "password": password])
     }
 
-    func createUser(_ username: String, _ password: String) async throws -> AuthReply {
-        try await post("api/users", ["username": username, "password": password])
+    /// Whether opening an account on this server asks for an email address
+    /// and the code mailed to it. A server from before there was the question
+    /// has no answer, which is no.
+    func signupNeedsEmail() async -> Bool {
+        struct Rules: Decodable { let email: Bool }
+        guard let data = try? await send("GET", "api/signup") else { return false }
+        return (try? JSONDecoder().decode(Rules.self, from: data))?.email ?? false
+    }
+
+    /// The first go at opening an account: a code is mailed to the address,
+    /// in the language the phone is set to.
+    func sendSignupCode(_ username: String, _ password: String, _ email: String, language: String) async throws {
+        let body = ["username": username, "password": password, "email": email, "lang": language]
+        _ = try await send("POST", "api/users/code", body: try JSONEncoder().encode(body), type: "application/json")
+    }
+
+    /// The second: the code that came back, with the rest, makes the account.
+    func createUser(_ username: String, _ password: String, _ email: String, _ code: String) async throws -> AuthReply {
+        try await post("api/users", ["username": username, "password": password, "email": email, "code": code])
     }
 
     func logout() async {

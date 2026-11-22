@@ -44,6 +44,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
 `);
 
+// An account has an address too, from when one was first asked for at sign-up:
+// proved by a code sent to it, and one account to an address. Accounts older
+// than that have none. Added to a table that already exists, once.
+if (!db.prepare("PRAGMA table_info(users)").all().some((column) => column.name === "email")) {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
+}
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email COLLATE NOCASE) WHERE email IS NOT NULL");
+
 // The folders are named after usernames, and only the database knows which
 // username is which id.
 {
@@ -85,7 +93,8 @@ const USER_COLUMNS = "id, username, created_at AS createdAt";
 const selectUser = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE username = ?`);
 const selectUserById = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`);
 const selectPassword = db.prepare("SELECT password FROM users WHERE username = ?");
-const insertUser = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
+const insertUser = db.prepare("INSERT INTO users (username, password, email) VALUES (?, ?, ?)");
+const selectByEmail = db.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE");
 
 export function getUser(username) {
   return selectUser.get(username) ?? null;
@@ -95,9 +104,16 @@ export function getUserById(id) {
   return selectUserById.get(id) ?? null;
 }
 
-export function createUser(username, password) {
-  insertUser.run(username, String(password));
+// `email` is the address the account was opened with, or null for one made
+// by whoever looks after the server (see cli.js), which asks for none.
+export function createUser(username, password, email = null) {
+  insertUser.run(username, String(password), email);
   return getUser(username);
+}
+
+// Whether an address already has an account.
+export function emailTaken(email) {
+  return Boolean(selectByEmail.get(email));
 }
 
 // Every account, oldest first: for whoever looks after the server (see cli.js).

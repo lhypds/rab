@@ -72,10 +72,27 @@ final class AppModel {
         try await RabAPI(baseURL: try serverURL()).userExists(Self.normalize(username))
     }
 
-    func signIn(username raw: String, password: String, creating: Bool) async throws {
+    /// Whether the server asks a new account for an email address and a code.
+    func signupNeedsEmail() async -> Bool {
+        guard let url = try? serverURL() else { return false }
+        return await RabAPI(baseURL: url).signupNeedsEmail()
+    }
+
+    /// Has the code that opens a new account mailed to the address.
+    func sendCode(username: String, password: String, email: String) async throws {
+        let language = Locale.current.language.languageCode?.identifier ?? "en"
+        try await RabAPI(baseURL: try serverURL()).sendSignupCode(
+            Self.normalize(username), password, email.trimmingCharacters(in: .whitespacesAndNewlines), language: language)
+    }
+
+    /// Signs in — or, with `creating`, opens the account: with the address it
+    /// is for and the code that was mailed there.
+    func signIn(username raw: String, password: String, creating: Bool, email: String = "", code: String = "") async throws {
         let api = RabAPI(baseURL: try serverURL())
         let name = Self.normalize(raw)
-        let reply = creating ? try await api.createUser(name, password) : try await api.login(name, password)
+        let reply = creating
+            ? try await api.createUser(name, password, email.trimmingCharacters(in: .whitespacesAndNewlines), code)
+            : try await api.login(name, password)
         api.token = reply.token
         let store = UserStore(username: reply.user.username)
         try store.saveSession(SavedSession(server: server, token: reply.token))

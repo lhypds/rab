@@ -37,7 +37,21 @@
     "forgotNoAdmin": "No administrator address is set. Add VITE_ADMIN_EMAIL to .env.",
     "forgotSend": "Write to them",
     "forgotSubject": "rab — forgotten password for {{name}}",
-    "forgotMail": "My rab account is {{name}}. I have forgotten my password — please set a new one for me."
+    "forgotMail": "My rab account is {{name}}. I have forgotten my password — please set a new one for me.",
+    "email": "Email",
+    "emailHint": "An email address, to send a verification code to.",
+    "emailRequired": "Enter your email address",
+    "emailInvalid": "That does not look like an email address.",
+    "emailTaken": "That email address already has an account.",
+    "mailFailed": "The email could not be sent. Try again in a moment.",
+    "sendCode": "Send code",
+    "code": "Code",
+    "codeHint": "Enter the 6-digit code sent to {{email}}.",
+    "codeRequired": "Enter the code",
+    "codeWrong": "That is not the code.",
+    "codeExpired": "That code has expired. Ask for a new one.",
+    "codeTooSoon": "A code was just sent. Wait a minute before asking again.",
+    "resend": "Send again"
   },
   "account": {
     "title": "Account",

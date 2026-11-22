@@ -86,7 +86,7 @@ export function AuthProvider({ children }) {
   }
 
   const login = (name, password) => api.login(name, password).then(signedIn);
-  const register = (name, password) => api.createUser(name, password).then(signedIn);
+  const register = (name, password, email, code) => api.createUser(name, password, email, code).then(signedIn);
 
   async function logout() {
     await api.logout().catch(() => {});

@@ -23,6 +23,7 @@ const {
   createItem,
   createMessage,
   createUser,
+  emailTaken,
   deleteConversation,
   deleteExpiredSessions,
   deleteItem,
@@ -60,6 +61,7 @@ const {
   updateItem,
 } = await import("./db.js");
 const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImage, storeImage } = await import("./images.js");
+const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
@@ -261,15 +263,134 @@ app.post("/api/logout", (req, res) => {
 // one of rab's own pages; these are refused only so nobody can pass for the site.
 const RESERVED_NAMES = new Set(["rab", "admin", "support", "login", "mine"]);
 
-app.post("/api/users", (req, res) => {
-  const username = normalizeUsername(req.body?.username);
+// Whether rab uses email at all. A setting, ENABLE_EMAIL in .env, and off
+// unless it says so. What it turns on so far is one thing: opening an account
+// asks for an email address and the code mailed to it. Without it an account
+// is a name and a password, as it always was.
+const ENABLE_EMAIL = /^(1|true|yes|on)$/i.test(String(process.env.ENABLE_EMAIL ?? "").trim());
+
+// What opening an account takes here, for the form to ask for the right
+// things before it asks for any.
+app.get("/api/signup", (req, res) => {
+  res.json({ email: ENABLE_EMAIL });
+});
+
+// With the setting on, an account is opened in two goes. The first says who
+// and at what address, and a code is mailed there; the second brings the code
+// back, which is what shows the address is theirs, and only then is there an
+// account.
+//
+// The codes waiting to come back, by address. Kept in memory and nowhere
+// else: a server that restarts forgets them, and the reader asks for another.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MAX = 254;
+const CODE_MINUTES = 10;
+const CODE_TRIES = 5;
+const CODE_RESEND_MS = 60 * 1000;
+const codes = new Map();
+
+const readEmail = (value) => {
+  const email = String(value ?? "").trim().toLowerCase();
+  return email.length <= EMAIL_MAX && EMAIL_RE.test(email) ? email : null;
+};
+
+// What a new account is asked for, checked — or what is wrong with it, as the
+// answer to send back.
+function newAccount(body) {
+  const username = normalizeUsername(body?.username);
   const fault = usernameFault(username);
-  if (fault) return res.status(400).json(fault);
-  const password = usablePassword(req.body?.password);
-  if (!password) return res.status(400).json({ error: PASSWORD_HINT, code: "PASSWORD_INVALID" });
-  if (RESERVED_NAMES.has(username)) return res.status(409).json({ error: "That username is not available" });
-  if (getUser(username)) return res.status(409).json({ error: "That username is taken", code: "USER_EXISTS" });
-  const user = createUser(username, password);
+  if (fault) return { status: 400, fault };
+  const password = usablePassword(body?.password);
+  if (!password) return { status: 400, fault: { error: PASSWORD_HINT, code: "PASSWORD_INVALID" } };
+  if (RESERVED_NAMES.has(username)) return { status: 409, fault: { error: "That username is not available" } };
+  if (getUser(username)) return { status: 409, fault: { error: "That username is taken", code: "USER_EXISTS" } };
+  // No address is asked for, or kept, where the setting is off.
+  if (!ENABLE_EMAIL) return { username, password, email: null };
+  const email = readEmail(body?.email);
+  if (!email) return { status: 400, fault: { error: "Enter an email address", code: "EMAIL_INVALID" } };
+  if (emailTaken(email)) return { status: 409, fault: { error: "That email address already has an account", code: "EMAIL_TAKEN" } };
+  return { username, password, email };
+}
+
+// The mail the code goes out in, in the language the form was being read in.
+const CODE_MAIL = {
+  en: (code) => ({
+    subject: `${code} is your rab code`,
+    text: `Your rab verification code is ${code}.\n\nIt is good for ${CODE_MINUTES} minutes. If you did not ask for it, ignore this mail.`,
+  }),
+  zh: (code) => ({
+    subject: `rab 验证码：${code}`,
+    text: `你的 rab 验证码是 ${code}。\n\n${CODE_MINUTES} 分钟内有效。如果不是你本人申请的，请忽略这封邮件。`,
+  }),
+  ja: (code) => ({
+    subject: `rab 認証コード：${code}`,
+    text: `rab の認証コードは ${code} です。\n\n${CODE_MINUTES}分間有効です。心当たりがない場合は、このメールを無視してください。`,
+  }),
+};
+
+app.post("/api/users/code", async (req, res) => {
+  if (!ENABLE_EMAIL) return res.status(404).json({ error: "Email verification is not in use", code: "VERIFY_OFF" });
+  const account = newAccount(req.body);
+  if (account.fault) return res.status(account.status).json(account.fault);
+  const { username, email } = account;
+  // One mail a minute to an address, so the button cannot be leaned on.
+  const waiting = codes.get(email);
+  if (waiting && Date.now() - waiting.sentAt < CODE_RESEND_MS) {
+    return res.status(429).json({ error: "A code was just sent. Wait a minute before asking for another.", code: "CODE_TOO_SOON" });
+  }
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+  const mail = (CODE_MAIL[String(req.body?.lang ?? "").slice(0, 2)] ?? CODE_MAIL.en)(code);
+  if (mailConfigured()) {
+    try {
+      await sendMail({ to: email, ...mail });
+    } catch (error) {
+      console.error(`[mail] ${error.message}`);
+      return res.status(502).json({ error: "The email could not be sent", code: "MAIL_FAILED" });
+    }
+  } else if (isProduction) {
+    console.error("[mail] not configured: set AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and RAB_MAIL_FROM");
+    return res.status(503).json({ error: "The email could not be sent", code: "MAIL_FAILED" });
+  } else {
+    // Worked on with no mail set up: the code is said here instead of sent.
+    console.log(`[mail] not configured — the code for ${email} is ${code}`);
+  }
+  codes.set(email, {
+    username,
+    hash: sessionHash(code),
+    expires: Date.now() + CODE_MINUTES * 60 * 1000,
+    tries: 0,
+    sentAt: Date.now(),
+  });
+  res.status(204).end();
+});
+
+app.post("/api/users", (req, res) => {
+  const account = newAccount(req.body);
+  if (account.fault) return res.status(account.status).json(account.fault);
+  const { username, password, email } = account;
+  // Without the setting there is no code to bring back.
+  if (!ENABLE_EMAIL) {
+    const user = createUser(username, password);
+    return res.status(201).json({ user, token: startSession(user), unread: 0 });
+  }
+  // The code that went to that address for that name, still good and not
+  // guessed at too often. A wrong one counts; the right one is used once.
+  const waiting = codes.get(email);
+  if (!waiting || waiting.username !== username || waiting.expires < Date.now()) {
+    codes.delete(email);
+    return res.status(400).json({ error: "That code has expired. Ask for a new one.", code: "CODE_EXPIRED" });
+  }
+  if (waiting.tries >= CODE_TRIES) {
+    codes.delete(email);
+    return res.status(429).json({ error: "Too many wrong codes. Ask for a new one.", code: "CODE_EXPIRED" });
+  }
+  const given = sessionHash(String(req.body?.code ?? "").replace(/\D/g, ""));
+  if (given.length !== waiting.hash.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(waiting.hash))) {
+    waiting.tries += 1;
+    return res.status(400).json({ error: "That is not the code", code: "CODE_WRONG" });
+  }
+  codes.delete(email);
+  const user = createUser(username, password, email);
   res.status(201).json({ user, token: startSession(user), unread: 0 });
 });
 

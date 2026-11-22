@@ -92,8 +92,15 @@ const name = (username) => encodeURIComponent(username);
 export const getSession = () => request("/api/session");
 export const checkUsername = (username) => send("POST", "/api/username", { username });
 export const login = (username, password) => send("POST", "/api/login", { username, password }).then(keepSession);
-export const createUser = (username, password) =>
-  send("POST", "/api/users", { username, password }).then(keepSession);
+// What opening an account takes on this server: { email } — whether it asks
+// for an address and a code mailed there.
+export const signupRules = () => request("/api/signup");
+// Opening an account, in two goes where it does: a code is mailed to the address, and the
+// account is made when the code comes back with the rest.
+export const sendSignupCode = (username, password, email, lang) =>
+  send("POST", "/api/users/code", { username, password, email, lang });
+export const createUser = (username, password, email, code) =>
+  send("POST", "/api/users", { username, password, email, code }).then(keepSession);
 export const logout = () => send("POST", "/api/logout").finally(dropSession);
 export const getUser = (username) => request(`/api/users/${name(username)}`);
 export const getMine = () => request("/api/mine");

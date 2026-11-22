@@ -37,7 +37,21 @@
     "forgotNoAdmin": "管理者のメールアドレスが未設定です。.env に VITE_ADMIN_EMAIL を設定してください。",
     "forgotSend": "メールを書く",
     "forgotSubject": "rab — {{name}} のパスワード再設定",
-    "forgotMail": "rab のアカウントは {{name}} です。パスワードを忘れたので、新しく設定してください。"
+    "forgotMail": "rab のアカウントは {{name}} です。パスワードを忘れたので、新しく設定してください。",
+    "email": "メールアドレス",
+    "emailHint": "認証コードを受け取るメールアドレスを入力してください。",
+    "emailRequired": "メールアドレスを入力してください",
+    "emailInvalid": "メールアドレスの形式ではありません。",
+    "emailTaken": "このメールアドレスは既に登録されています。",
+    "mailFailed": "メールを送信できませんでした。しばらくしてからお試しください。",
+    "sendCode": "コードを送信",
+    "code": "認証コード",
+    "codeHint": "{{email}} に送った6桁のコードを入力してください。",
+    "codeRequired": "コードを入力してください",
+    "codeWrong": "コードが違います。",
+    "codeExpired": "コードの有効期限が切れました。再送してください。",
+    "codeTooSoon": "コードを送ったばかりです。1分後にもう一度お試しください。",
+    "resend": "再送する"
   },
   "account": {
     "title": "アカウント",

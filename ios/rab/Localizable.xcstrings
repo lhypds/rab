@@ -70,6 +70,18 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只从这台手机上删除。rab 上的那一份要在 rab 里下架才会消失。" } }
       }
     },
+    "Email" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メールアドレス" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "邮箱" } }
+      }
+    },
+    "Enter the 6-digit code sent to %@." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ に送った6桁のコードを入力してください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入发送到 %@ 的 6 位验证码。" } }
+      }
+    },
     "Give it a name" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前を入れてください" } },
@@ -116,6 +128,12 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ というアカウントはありません。6文字以上のパスワードを決めて作成します。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有叫 %@ 的账号。设置一个 6 位以上的密码即可创建。" } }
+      }
+    },
+    "No account is called %@. Choose a password of 6 characters or more, and give an email address: a verification code is sent to it." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ というアカウントはありません。6文字以上のパスワードとメールアドレスを入力してください。認証コードをメールで送ります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有叫 %@ 的账号。请设置 6 位以上的密码并填写邮箱，验证码会发到这个邮箱。" } }
       }
     },
     "No subject was found in the photo" : {
@@ -203,6 +221,18 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "詳細設定" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高级" } }
+      }
+    },
+    "Send again" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再送する" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新发送" } }
+      }
+    },
+    "Send code" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コードを送信" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送验证码" } }
       }
     },
     "Server" : {
@@ -293,6 +323,12 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "ユーザー名" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户名" } }
+      }
+    },
+    "Verification code" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証コード" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "验证码" } }
       }
     },
     "Welcome back, %@." : {
