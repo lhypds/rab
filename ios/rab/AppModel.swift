@@ -282,7 +282,9 @@ final class AppModel {
             region: region,
             latitude: location?.longitude == nil ? nil : location?.latitude,
             longitude: location?.latitude == nil ? nil : location?.longitude,
-            place: location?.latitude == nil || location?.longitude == nil ? nil : location?.name,
+            // What the website shows by the pin and after the item's name: the
+            // address of the place, and its name only where it has no address.
+            place: location?.latitude == nil || location?.longitude == nil ? nil : location?.address ?? location?.name,
             images: [ImageRef(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)]
         )
         let created = try await api.createItem(body)

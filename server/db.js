@@ -363,9 +363,11 @@ export function createItem(userId, item) {
     itemsById.set(id, {
       id,
       ...itemFields(item),
-      // Off is an item taken down from the map without being deleted: its page
-      // still opens for whoever holds the link, and nothing new can be booked.
-      active: true,
+      // Off is an item not on the map: one taken down without being deleted,
+      // or one made that way to be finished and published later (the phone's
+      // are). Its page still opens for whoever holds the link, and nothing can
+      // be booked.
+      active: item.active !== false,
       // What the owner has said about single days: that one cannot be had, or
       // costs something other than the usual. Only the exceptions are here.
       days: [],

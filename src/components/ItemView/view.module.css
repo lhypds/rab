@@ -185,6 +185,9 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
+  /* On one baseline: a name in Latin type and an address in Chinese or Japanese
+     are different heights, and would otherwise sit at different levels. */
+  align-items: baseline;
   gap: 4px 12px;
   margin: 10px 0 0;
   color: var(--muted);
