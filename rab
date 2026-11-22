@@ -1,0 +1,4 @@
+#!/bin/sh
+# rab's commands for whoever looks after the server: ./rab user list, and the
+# rest (see server/cli.js).
+exec node --disable-warning=ExperimentalWarning "$(dirname "$0")/server/cli.js" "$@"

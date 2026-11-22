@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { nameFolders, readList, renameNumberedFolders, userFolders, writeList } from "./files.js";
+import { nameFolders, readList, removeUserDir, renameNumberedFolders, userFolders, writeList } from "./files.js";
 import { moveIntoFolders } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -94,6 +94,22 @@ export function getUserById(id) {
 export function createUser(username, password) {
   insertUser.run(username, hashPassword(password));
   return getUser(username);
+}
+
+// Every account, oldest first: for whoever looks after the server (see cli.js).
+const selectUsers = db.prepare(`SELECT ${USER_COLUMNS} FROM users ORDER BY id`);
+export function listUsers() {
+  return selectUsers.all();
+}
+
+// A new password for an account, set by whoever looks after the server. The
+// account is signed out everywhere: whoever was in on the old one is not in on
+// the new one.
+const updatePassword = db.prepare("UPDATE users SET password = ? WHERE id = ?");
+const deleteSessionsOf = db.prepare("DELETE FROM sessions WHERE user_id = ?");
+export function setPassword(userId, password) {
+  updatePassword.run(hashPassword(password), userId);
+  deleteSessionsOf.run(userId);
 }
 
 export function checkPassword(username, password) {
@@ -728,4 +744,47 @@ export function deleteConversation(userId, otherId) {
     );
     changed(userId, "messages.json");
   });
+}
+
+/* ----------------------------------------------------------------- removal */
+
+// An account deleted outright, by whoever looks after the server: its folder —
+// items, photographs, its side of every conversation — and the account itself,
+// and with them what other accounts held that pointed at it: the bookings it
+// was one side of, and their conversations with it. Nothing is left that names
+// an account there no longer is.
+//
+// Not for a running server to have done to it from outside: the server holds
+// the folders in memory and would write some of this back (see cli.js).
+const deleteUserRow = db.prepare("DELETE FROM users WHERE id = ?");
+export function deleteUser(userId) {
+  const counts = { items: 0, bookings: 0, conversations: 0 };
+  transaction(() => {
+    for (const [id, item] of itemsById) {
+      if (item.ownerId !== userId) continue;
+      itemsById.delete(id);
+      if (!item.deletedAt) counts.items += 1;
+    }
+    for (const [id, booking] of bookingsById) {
+      if (booking.ownerId !== userId && booking.renterId !== userId) continue;
+      bookingsById.delete(id);
+      counts.bookings += 1;
+      changed(booking.ownerId === userId ? booking.renterId : booking.ownerId, "bookings.json");
+    }
+    for (const [otherId, lines] of messagesByUser) {
+      if (otherId === userId) continue;
+      const kept = lines.filter((line) => line.with !== userId);
+      if (kept.length === lines.length) continue;
+      messagesByUser.set(otherId, kept);
+      counts.conversations += 1;
+      changed(otherId, "messages.json");
+    }
+    messagesByUser.delete(userId);
+    // Its own files are not written back: the folder goes whole.
+    for (const entry of [...unsaved]) if (entry.startsWith(`${userId}/`)) unsaved.delete(entry);
+  });
+  removeUserDir(userId);
+  // The sessions go with the row (ON DELETE CASCADE).
+  deleteUserRow.run(userId);
+  return counts;
 }

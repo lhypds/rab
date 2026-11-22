@@ -72,6 +72,13 @@ Layout
     ios/               the iPhone app: photograph a thing, background to white, into My items
                        (its own README is in there)
 
+Looking after the accounts, from the project's root (see `server/cli.js`):
+
+    ./rab user list                      every account
+    ./rab user <username> items          what an account has out for rent
+    ./rab user <username> pass <new>     give an account a new password, and sign it out everywhere
+    ./rab user delete <username>         delete an account and everything it has (stop the server first)
+
 What is kept where: `db.sqlite` holds the accounts — a name, a password's hash, when
 it was made — and who is signed in, and nothing else. Everything an account has is in
 a folder of its own, named after the account's username:

@@ -66,6 +66,12 @@ export function userFolders() {
     .filter((id) => id !== null);
 }
 
+// An account's whole folder, gone: what is done when the account is deleted.
+// Asked for by id while the database still knows the name that goes with it.
+export function removeUserDir(userId) {
+  fs.rmSync(userDir(userId), { recursive: true, force: true });
+}
+
 // The folders used to be named after the account's id. One that still is — a
 // number, the id of an account, and not itself anybody's username — is given
 // its account's name, once.
