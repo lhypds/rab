@@ -318,6 +318,8 @@ function servedItem(item) {
         .map((day) => [day.day, day.price]),
     ),
     located,
+    // What the people who rented it gave it once they had (see reviews).
+    rating: ratingOf(getItemReviews(item.id)),
     ownerId: item.ownerId,
     owner: nameOf(item.ownerId),
   };
@@ -550,6 +552,8 @@ function servedBooking(booking) {
     cancel: booking.cancel ?? { mode: "any" },
     // Whether whoever made it has asked the owner to call it off.
     cancelRequested: Boolean(booking.cancelRequest),
+    // Which side has said how the other was, once it was over (see reviews).
+    reviewedBy: { owner: Boolean(booking.reviews?.owner), renter: Boolean(booking.reviews?.renter) },
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
     renter: nameOf(booking.renterId),
@@ -688,6 +692,92 @@ export function setBookingStatus(id, status) {
   });
   return getBooking(id);
 }
+
+/* ----------------------------------------------------------------- reviews */
+
+// Once a confirmed booking is over, each side says how the other was: one to
+// five stars and a word about it. Whoever rented also says how the item was,
+// in stars of its own (`itemRating`). It is kept on the booking — `reviews`, under
+// the side that wrote it, "owner" or "renter" — so it is in both folders like
+// the rest of the booking, and goes when the booking does. Said once: there is
+// no taking it back and no saying it again.
+const sideOf = (booking, userId) =>
+  booking.ownerId === userId ? "owner" : booking.renterId === userId ? "renter" : null;
+
+export function setReview(id, userId, { rating, itemRating = null, comment }) {
+  const booking = bookingsById.get(id);
+  const side = booking ? sideOf(booking, userId) : null;
+  if (!side) return null;
+  transaction(() => {
+    booking.reviews = {
+      ...booking.reviews,
+      [side]: { rating, ...(side === "renter" ? { itemRating } : null), comment: comment || null, time: now() },
+    };
+    booking.updatedAt = now();
+    bookingChanged(booking);
+  });
+  return getBooking(id);
+}
+
+// The confirmed bookings an account is one side of and has not said anything
+// about yet. Whether one is over is the caller's to say: it goes by a clock.
+export function getBookingsToReview(userId) {
+  return bookingsWhere((booking) => {
+    const side = sideOf(booking, userId);
+    return Boolean(side) && booking.status === "confirmed" && !booking.reviews?.[side];
+  });
+}
+
+// What has been said about an account by the other side of its bookings,
+// newest first: as an owner by whoever rented from it, as a renter by whoever
+// it rented from.
+export function getReviewsOf(userId) {
+  const reviews = [];
+  for (const booking of bookingsById.values()) {
+    const side = sideOf(booking, userId);
+    const review = side ? booking.reviews?.[side === "owner" ? "renter" : "owner"] : null;
+    if (!review) continue;
+    reviews.push({
+      id: booking.id,
+      rating: review.rating,
+      comment: review.comment ?? null,
+      time: review.time,
+      from: nameOf(side === "owner" ? booking.renterId : booking.ownerId),
+      // What the account was in that booking: the "owner" or the "renter".
+      as: side,
+      itemTitle: itemsById.get(booking.itemId)?.title ?? null,
+    });
+  }
+  return reviews.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
+}
+
+// What has been said about an item, newest first: the stars whoever rented it
+// gave the item itself once their booking of it was complete, and the word
+// they wrote with them.
+export function getItemReviews(itemId) {
+  const reviews = [];
+  for (const booking of bookingsById.values()) {
+    const review = booking.itemId === itemId ? booking.reviews?.renter : null;
+    if (!review) continue;
+    reviews.push({
+      id: booking.id,
+      rating: review.itemRating ?? review.rating,
+      comment: review.comment ?? null,
+      time: review.time,
+      from: nameOf(booking.renterId),
+    });
+  }
+  return reviews.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
+}
+
+// A rating: the mean of the stars, to one decimal, and how many times they
+// were given. No mean where nobody has said anything.
+function ratingOf(reviews) {
+  const sum = reviews.reduce((total, review) => total + review.rating, 0);
+  return { average: reviews.length > 0 ? Math.round((sum / reviews.length) * 10) / 10 : null, count: reviews.length };
+}
+
+export const getRating = (userId) => ratingOf(getReviewsOf(userId));
 
 /* ---------------------------------------------------------------- messages */
 

@@ -8,6 +8,7 @@ import { directionsUrl } from "../../utils/mapbox.js";
 import { cellsOn, clockOf, dayPrice as ruledDayPrice, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
 import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
+import { Rating } from "../ReviewModal/index.js";
 import { BookingRow } from "../Rows/index.js";
 import ShareModal from "../ShareModal/index.js";
 import SpotMap from "../SpotMap/index.js";
@@ -59,6 +60,7 @@ export default function ItemView({
   item,
   calendar,
   bookings = [],
+  reviews = [],
   viewer = null,
   preview = false,
   focusBooking = false,
@@ -268,6 +270,12 @@ export default function ItemView({
             {item.region && item.region.name !== item.place && <span>{item.region.name}</span>}
             {item.createdAt && <span>{relativeTime(item.createdAt, lang, t)}</span>}
           </p>
+          {/* What the people who rented it gave it: nothing to say of a draft. */}
+          {!preview && (
+            <p className={styles.rating}>
+              <Rating rating={item.rating} reviews={reviews} />
+            </p>
+          )}
           {/* The photographs come after the name, not before it: the page says
               what the thing is and then shows it. */}
           {shownPhoto && (

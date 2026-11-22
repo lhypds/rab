@@ -65,7 +65,6 @@
     "empty": "No messages yet",
     "said": "You: {{body}}",
     "delete": "Delete conversation",
-    "profile": "Profile",
     "emptyThread": "Nothing said yet. Write to {{name}}.",
     "read": "Read",
     "placeholder": "Write a message",
@@ -307,7 +306,12 @@
     "missing": "There is nobody by that name.",
     "joined": "joined {{date}}",
     "items": "For rent",
-    "itemsEmpty": "Nothing out for rent."
+    "itemsEmpty": "Nothing out for rent.",
+    "reviews": "Reviews",
+    "reviewsEmpty": "No reviews yet.",
+    "asOwner": "as owner",
+    "asRenter": "as renter",
+    "ratingLabel": "Rating"
   },
   "travel": {
     "title": "Go to",
@@ -422,5 +426,20 @@
     "refuse": "Refuse the cancellation",
     "hours_one": "A confirmed booking can be cancelled up to {{count}} hour before it starts.",
     "hours_other": "A confirmed booking can be cancelled up to {{count}} hours before it starts."
+  },
+  "review": {
+    "title": "Rate {{name}}",
+    "lead": "{{item}} · {{dates}}",
+    "explain": "This booking is complete. How was it with {{name}}? Your rating and comment are shown on their profile.",
+    "stars_one": "{{count}} star",
+    "stars_other": "{{count}} stars",
+    "placeholder": "A comment (optional)",
+    "later": "Later",
+    "send": "Send",
+    "sent": "Rating sent",
+    "rate": "Rate {{name}}",
+    "pickStars": "Choose a rating first",
+    "titleRental": "Rate this rental",
+    "explainRental": "This booking is complete. How was it with {{name}}, and how was the item? Your ratings and comment are shown on their profile and on the item's page."
   }
 }

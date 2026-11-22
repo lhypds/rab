@@ -65,7 +65,6 @@
     "empty": "还没有消息",
     "said": "我：{{body}}",
     "delete": "删除对话",
-    "profile": "主页",
     "emptyThread": "还没有对话。给 {{name}} 写点什么。",
     "read": "已读",
     "placeholder": "写消息",
@@ -299,7 +298,12 @@
     "missing": "没有这个用户。",
     "joined": "{{date}} 加入",
     "items": "出租中",
-    "itemsEmpty": "暂无出租项目。"
+    "itemsEmpty": "暂无出租项目。",
+    "reviews": "评价",
+    "reviewsEmpty": "还没有评价。",
+    "asOwner": "作为物主",
+    "asRenter": "作为租客",
+    "ratingLabel": "评分"
   },
   "travel": {
     "title": "前往",
@@ -412,5 +416,19 @@
     "agree": "同意取消",
     "refuse": "拒绝取消",
     "hours_other": "已确认的预约可以在开始前 {{count}} 小时之前取消。"
+  },
+  "review": {
+    "title": "评价 {{name}}",
+    "lead": "{{item}} · {{dates}}",
+    "explain": "这次预订已完成。和 {{name}} 的这次交易怎么样？你的评分和评论会显示在对方的个人页面上。",
+    "stars_other": "{{count}} 星",
+    "placeholder": "评论（可不填）",
+    "later": "以后再说",
+    "send": "提交",
+    "sent": "评价已提交",
+    "rate": "评价 {{name}}",
+    "pickStars": "请先选择评分",
+    "titleRental": "评价这次租赁",
+    "explainRental": "这次预订已完成。{{name}} 怎么样？租到的东西怎么样？你的评分和评论会显示在对方的个人页面和项目页面上。"
   }
 }

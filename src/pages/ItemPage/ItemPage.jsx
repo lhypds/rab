@@ -95,6 +95,7 @@ export default function ItemPage({ id }) {
             item={item}
             calendar={data.calendar}
             bookings={data.bookings}
+            reviews={data.reviews}
             viewer={user}
             focusBooking={searchParams.get("book") === "1"}
             onBook={book}

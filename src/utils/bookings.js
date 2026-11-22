@@ -63,6 +63,18 @@ export function canCancel(booking, now = new Date()) {
   return true;
 }
 
+// Whether a booking is complete: the owner said yes to it and its time has
+// passed, by the clock where the reader is sitting — the end of its last slot,
+// its return time, or the end of its last day where it has neither. A complete
+// booking is what each side is asked to rate the other for.
+export function bookingEnded(booking, now = new Date()) {
+  if (booking.status !== "confirmed") return false;
+  const time = booking.slots?.length ? booking.slots.map((slot) => slot.end).sort().at(-1) : booking.endTime || "24:00";
+  const [hours, minutes] = time.split(":").map(Number);
+  const ends = new Date(`${booking.end}T00:00:00`).getTime() + (hours * 60 + minutes) * 60_000;
+  return now.getTime() >= ends;
+}
+
 // A rule for calling off, as a sentence.
 export function cancelLine(cancel, t) {
   if (cancel?.mode === "none") return t("cancel.none");

@@ -34,15 +34,19 @@ const {
   getBookingsForItem,
   getBookingsForItemByRenter,
   getBookingsForOwner,
+  getBookingsToReview,
   getConversation,
   getDays,
   getDaysBetween,
   getItem,
   getLocations,
   getItemImages,
+  getItemReviews,
   getItemsAt,
   getItemsByUser,
   getItemsInBox,
+  getRating,
+  getReviewsOf,
   getSession,
   getTaken,
   getThreads,
@@ -55,6 +59,7 @@ const {
   searchItems,
   setBookingStatus,
   setCancelRequest,
+  setReview,
   setDays,
   touchSession,
   transaction,
@@ -99,6 +104,9 @@ const CATEGORY_RE = /^[a-z0-9-]{0,32}$/;
 const PRICE_MAX = 100_000_000;
 const CURRENCIES = new Set(["JPY", "CNY", "USD", "EUR"]);
 const NOTE_MAX = 500;
+const REVIEW_MAX = 500;
+// How many of the things said about somebody their page is sent.
+const REVIEWS_SHOWN = 50;
 const MESSAGE_MAX = 1000;
 // The longest single rental, and how far ahead the calendar reaches.
 const BOOKING_MAX_DAYS = 90;
@@ -394,12 +402,15 @@ app.post("/api/users", (req, res) => {
   res.status(201).json({ user, token: startSession(user), unread: 0 });
 });
 
-// Who somebody is: when they joined and what they have out for rent.
+// Who somebody is: when they joined, how the people they have dealt with rate
+// them and what those people said, and what they have out for rent.
 app.get("/api/users/:username", (req, res) => {
   const user = getUser(normalizeUsername(req.params.username));
   if (!user) return res.status(404).json({ error: "No such user" });
   res.json({
     user: { username: user.username, createdAt: user.createdAt },
+    rating: getRating(user.id),
+    reviews: getReviewsOf(user.id).slice(0, REVIEWS_SHOWN),
     items: getItemsByUser(user.id, { publicOnly: true }).map(publicItem),
   });
 });
@@ -621,6 +632,8 @@ function itemAnswer(item, viewer) {
   const mine = Boolean(viewer && viewer.id === item.ownerId);
   return {
     item: { ...publicItem(item), mine },
+    // What the people who rented it said of it.
+    reviews: getItemReviews(item.id).slice(0, REVIEWS_SHOWN),
     calendar: {
       from,
       until: addDays(from, CALENDAR_DAYS),
@@ -736,8 +749,24 @@ app.put("/api/items/:id/days", requireSession, (req, res) => {
 /* ----------------------------------------------------------------- bookings */
 
 function bookingFor(viewer, booking) {
-  const { renterId, ownerId, ...rest } = booking;
-  return { ...rest, mine: renterId === viewer.id, owned: ownerId === viewer.id };
+  const { renterId, ownerId, reviewedBy, ...rest } = booking;
+  const owned = ownerId === viewer.id;
+  // `reviewed`: whether the reader has already said how the other side was.
+  return { ...rest, mine: renterId === viewer.id, owned, reviewed: reviewedBy[owned ? "owner" : "renter"] };
+}
+
+// Whether a booking is complete: the owner said yes to it and its time has
+// passed. It ends at the time it says on the day it says — the end of its last
+// slot, its return time, or midnight where it has neither — on a clock the
+// server does not know: the clock furthest ahead is taken, fourteen hours on,
+// so nobody whose rental is over is told that it is not yet. The reader's own
+// clock is what decides when they are asked (see the client's bookingEnded).
+function bookingEnded(booking) {
+  if (booking.status !== "confirmed") return false;
+  const time = booking.slots?.length ? booking.slots.map((slot) => slot.end).sort().at(-1) : booking.endTime || "24:00";
+  const [hours, minutes] = time.split(":").map(Number);
+  const ends = Date.parse(`${booking.end}T00:00:00Z`) + (hours * 60 + minutes) * 60_000;
+  return Number.isFinite(ends) && Date.now() + 14 * 3_600_000 >= ends;
 }
 
 // Asking for an item: from one day to another where it is booked by the date,
@@ -918,6 +947,44 @@ app.patch("/api/bookings/:id", requireSession, (req, res) => {
     return res.status(409).json({ error: "Those days have already been booked", code: result.code });
   }
   res.json({ booking: bookingFor(req.user, result.updated) });
+});
+
+// The bookings that are complete and that the reader has not rated the other
+// side of yet: what the sheet that asks for a rating is opened for.
+app.get("/api/reviews/pending", requireSession, (req, res) => {
+  res.json({
+    bookings: getBookingsToReview(req.user.id)
+      .filter(bookingEnded)
+      .map((booking) => bookingFor(req.user, booking)),
+  });
+});
+
+// How the other side of a complete booking was: one to five stars, and a word
+// about it where there is one. Whoever rented rates the owner and, in stars of
+// its own, the item; the owner rates whoever rented. Each side says it once.
+app.post("/api/bookings/:id/review", requireSession, (req, res) => {
+  const id = Number(req.params.id);
+  const booking = Number.isSafeInteger(id) ? getBooking(id) : null;
+  if (!booking || (booking.ownerId !== req.user.id && booking.renterId !== req.user.id)) {
+    return res.status(404).json({ error: "No such booking" });
+  }
+  if (!bookingEnded(booking)) {
+    return res.status(409).json({ error: "This booking is not complete yet", code: "NOT_COMPLETE" });
+  }
+  if (booking.reviewedBy[booking.ownerId === req.user.id ? "owner" : "renter"]) {
+    return res.status(409).json({ error: "You have already rated this booking", code: "ALREADY_REVIEWED" });
+  }
+  const rating = Number(req.body?.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "A rating is one to five stars" });
+  }
+  const isRenter = booking.renterId === req.user.id;
+  const itemRating = isRenter ? Number(req.body?.itemRating) : null;
+  if (isRenter && (!Number.isInteger(itemRating) || itemRating < 1 || itemRating > 5)) {
+    return res.status(400).json({ error: "A rating is one to five stars" });
+  }
+  const updated = setReview(booking.id, req.user.id, { rating, itemRating, comment: text(req.body?.comment, REVIEW_MAX) });
+  res.status(201).json({ booking: bookingFor(req.user, updated) });
 });
 
 // Everything that is this account's: what it has out for rent, who has asked

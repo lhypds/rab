@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { useNavigate } from "../../ui/index.js";
-import { formatUsername, priceLine } from "../../utils/format.js";
+import { priceLine } from "../../utils/format.js";
+import UserName, { dotted } from "../UserName/index.js";
 import styles from "./search.module.css";
 
 const SEARCH_DELAY_MS = 250;
@@ -130,9 +131,12 @@ export default function ItemSearch() {
                 <span className={styles.lines}>
                   <strong>{item.title}</strong>
                   <span>
-                    {[priceLine(item, i18n.language, t), t(`kind.${item.kind}`), item.place, formatUsername(item.owner)]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {dotted([
+                      priceLine(item, i18n.language, t),
+                      t(`kind.${item.kind}`),
+                      item.place,
+                      item.owner && <UserName name={item.owner} inside />,
+                    ])}
                   </span>
                 </span>
               </button>

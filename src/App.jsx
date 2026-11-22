@@ -1,4 +1,4 @@
-import { Loading, useAuth } from "./components/index.js";
+import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
 import { AuthPage, HomePage, ItemPage, MinePage, PreviewPage, RentalsPage, UserPage } from "./pages/index.js";
 import { Navigate, useLocation } from "./ui/index.js";
 
@@ -15,7 +15,18 @@ function segment(pathname, prefix) {
   }
 }
 
+// Whatever page is open, a booking that is complete asks both its sides to
+// rate each other: the sheet for that stands over all of them.
 export default function App() {
+  return (
+    <>
+      <Page />
+      <ReviewPrompt />
+    </>
+  );
+}
+
+function Page() {
   const { ready, user } = useAuth();
   const { pathname } = useLocation();
   if (!ready) return <Loading />;

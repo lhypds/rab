@@ -562,6 +562,13 @@ a {
   content: none;
 }
 
+/* A name in the row is its own way, to that person's page: it stands over the
+   row's stretched hit area, so a press on it is the name's and not the row's. */
+.row-copy .user-link {
+  position: relative;
+  z-index: 1;
+}
+
 .row-thumb {
   flex: 0 0 auto;
   width: 40px;
@@ -614,6 +621,81 @@ a {
 .row-side:hover,
 .row-side:focus-within {
   z-index: 5;
+}
+
+/* Somebody's name, wherever it is written: the way to their page, in the
+   colour of the line it is in and underlined when pointed at. */
+.user-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.user-link:focus-visible {
+  text-decoration: underline;
+}
+
+@media (hover: hover) {
+  .user-link:hover {
+    text-decoration: underline;
+  }
+}
+
+/* Somebody's rating under their name — the stars, the mean and how many — and
+   at the right of the same line the way to write to them. */
+.user-rating {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* The rating is the way to what was said: pressed like a name is, underlined
+   when pointed at. */
+.rating-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rating-button:focus-visible {
+  text-decoration: underline;
+}
+
+@media (hover: hover) {
+  .rating-button:hover {
+    text-decoration: underline;
+  }
+}
+
+/* One thing said about somebody: the stars, the words, and under them who
+   said it, about what and when. */
+.review {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 0;
+  font-size: 12px;
+}
+
+.review-comment {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* What a booking is, and beside it anything asked of it: one line. */
+.row-statuses {
+  display: flex;
+  gap: 6px;
 }
 
 .row-actions {

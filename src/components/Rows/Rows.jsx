@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { ActionButton, Link, Modal, TextArea, showToast } from "../../ui/index.js";
-import { bookingWhen, canCancel, cancelLine } from "../../utils/bookings.js";
+import { bookingEnded, bookingWhen, canCancel, cancelLine } from "../../utils/bookings.js";
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
+import ReviewModal from "../ReviewModal/index.js";
+import UserName, { dotted } from "../UserName/index.js";
 
 // One item in a list: its picture, its name, what a day of it costs and where
 // it is. The whole row is the way to its page. In the owner's own list the row
@@ -14,8 +16,10 @@ export function ItemRow({ item, showOwner = false, showPublished = false }) {
   const meta = [
     priceLine(item, i18n.language, t),
     t(`kind.${item.kind}`),
+    // Its rating, once somebody has rated it.
+    item.rating?.count > 0 && `★ ${item.rating.average.toFixed(1)} (${item.rating.count})`,
     item.place || item.region?.name,
-    showOwner ? formatUsername(item.owner) : null,
+    showOwner && item.owner ? <UserName name={item.owner} inside /> : null,
   ];
   return (
     <li className="row-item">
@@ -26,7 +30,7 @@ export function ItemRow({ item, showOwner = false, showPublished = false }) {
           {item.thumb && <img className="row-thumb" src={item.thumb} alt="" width="40" height="40" loading="lazy" draggable={false} />}
           <span className="row-lines">
             <strong>{item.title}</strong>
-            <span className="row-meta">{meta.filter(Boolean).join(" · ")}</span>
+            <span className="row-meta">{dotted(meta)}</span>
           </span>
         </Link>
         <span className="row-side">
@@ -54,6 +58,11 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
   // longer lets whoever made it do that themselves — and the word about why.
   const [asking, setAsking] = useState(false);
   const [why, setWhy] = useState("");
+  // The sheet for rating the other side, once the booking is complete and
+  // until the reader has: the same one that opens by itself (see ReviewPrompt),
+  // here for whoever put it off.
+  const [rating, setRating] = useState(false);
+  const rateable = bookingEnded(booking) && !booking.reviewed;
   const dates = bookingWhen(booking, i18n.language);
   const total = formatPrice(booking.total, booking.currency, i18n.language);
   // Who is at the other end of it, from where the reader stands.
@@ -99,8 +108,8 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
   const Copy = about === "item" ? Link : "div";
   const meta =
     about === "item"
-      ? [dates, total, formatUsername(other)]
-      : [total, booking.owned ? formatUsername(other) : null, booking.note];
+      ? [dates, total, other && <UserName name={other} inside />]
+      : [total, booking.owned && other ? <UserName name={other} /> : null, booking.note];
 
   return (
     <li className="row-item">
@@ -113,15 +122,18 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
           )}
           <span className="row-lines">
             <strong>{title}</strong>
-            <span className="row-meta">{meta.filter(Boolean).join(" · ")}</span>
+            <span className="row-meta">{dotted(meta)}</span>
             {about === "item" && booking.note && <span className="row-meta">{booking.note}</span>}
           </span>
         </Copy>
         <span className="row-side">
-          <span className={`status status-${booking.status}`}>{t(`booking.status.${booking.status}`)}</span>
           {/* Whoever made it has asked to be let out of it, and the owner has
-              not answered yet: said on both sides' rows. */}
-          {booking.cancelRequested && <span className="status status-pending">{t("cancel.asked")}</span>}
+              not answered yet: said on both sides' rows, on the one line with
+              what the booking still is, and after it. */}
+          <span className="row-statuses">
+            <span className={`status status-${booking.status}`}>{t(`booking.status.${booking.status}`)}</span>
+            {booking.cancelRequested && <span className="status status-pending">{t("cancel.asked")}</span>}
+          </span>
           <span className="row-actions">
             {booking.owned && booking.status === "pending" && (
               <>
@@ -158,6 +170,13 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
               >
                 <svg viewBox="0 0 24 24">
                   <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </ActionButton>
+            )}
+            {rateable && other && (
+              <ActionButton tooltip={t("review.rate", { name: formatUsername(other) })} tooltipRight onClick={() => setRating(true)}>
+                <svg viewBox="0 0 24 24">
+                  <path d="m12 4 2.5 5.2 5.5.8-4 4 1 5.6-5-2.7-5 2.7 1-5.6-4-4 5.5-.8z" />
                 </svg>
               </ActionButton>
             )}
@@ -209,6 +228,14 @@ export function BookingRow({ booking, about = "item", onChange, onMessage }) {
           </div>
         </form>
       </Modal>
+      <ReviewModal
+        booking={rating ? booking : null}
+        onClose={() => setRating(false)}
+        onDone={(rated) => {
+          setRating(false);
+          onChange?.(rated);
+        }}
+      />
     </li>
   );
 }

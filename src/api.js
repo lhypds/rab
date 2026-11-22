@@ -136,6 +136,12 @@ export const setBookingStatus = (bookingId, status) => send("PATCH", `/api/booki
 // the owner, the no to that.
 export const askToCancel = (bookingId, note) => send("PATCH", `/api/bookings/${bookingId}`, { cancelRequest: true, note });
 export const refuseCancel = (bookingId) => send("PATCH", `/api/bookings/${bookingId}`, { cancelRequest: false });
+// The complete bookings the reader has not rated the other side of yet, and
+// the rating itself: one to five stars and a word about it.
+export const getPendingReviews = () => request("/api/reviews/pending");
+// `itemRating` is the item's own stars, from whoever rented it.
+export const reviewBooking = (bookingId, rating, comment, itemRating) =>
+  send("POST", `/api/bookings/${bookingId}/review`, { rating, comment, itemRating });
 
 /* ----------------------------------------------------------------- messages */
 

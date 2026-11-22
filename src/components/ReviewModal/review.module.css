@@ -1,0 +1,68 @@
+/* A rating as it is read: five stars in the colour of the line they are in. */
+.stars {
+  font-family: var(--sans);
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+/* What is being rated: the item and when it was had. */
+.lead {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* What is rated, one under another: who it was with, and — for whoever
+   rented — the item. Each is its name over five stars to press. */
+.rates {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 14px 0 12px;
+}
+
+.rate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.what {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* The five stars, big enough for a thumb. */
+.picker {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.star {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.star:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.star:focus-visible {
+  outline: 1px solid var(--ink);
+}

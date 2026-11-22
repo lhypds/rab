@@ -5,6 +5,7 @@ import { Link, Modal, Skeleton, TextArea } from "../../ui/index.js";
 import { bookingLine, isBookingLine } from "../../utils/bookings.js";
 import { formatUsername, relativeTime } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
+import UserName from "../UserName/index.js";
 import styles from "./message.module.css";
 
 const BODY_MAX = 1000;
@@ -170,18 +171,17 @@ export default function MessageModal({ username, onClose, onNavigate }) {
   return (
     <Modal
       isOpen={Boolean(username)}
-      title={username ? formatUsername(username) : ""}
-      onClose={onClose}
-      closeOnOverlay
-      wide
-      header={
+      // The name is the way through to the other person's page.
+      title={
         username && (
           <Link className={styles.profile} to={`/u/${encodeURIComponent(username)}`} onClick={leave}>
-            {t("messages.profile")}
-            <span aria-hidden="true"> →</span>
+            {formatUsername(username)}
           </Link>
         )
       }
+      onClose={onClose}
+      closeOnOverlay
+      wide
     >
       <div className={styles.sheet}>
         <div
@@ -207,7 +207,7 @@ export default function MessageModal({ username, onClose, onNavigate }) {
                 const event = isBookingLine(message);
                 return (
                   <li key={message.id} className={message.mine ? `${styles.line} ${styles.mine}` : styles.line}>
-                    {who && <span className={styles.who}>{formatUsername(who)}</span>}
+                    {who && <UserName name={who} className={styles.who} onClick={leave} />}
                     {event ? (
                       // What became of a booking, and the way to the item it
                       // is about — where the calendar and the answer are.

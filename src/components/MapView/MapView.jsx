@@ -6,7 +6,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import * as api from "../../api.js";
 import { Link, Select } from "../../ui/index.js";
 import { iconMarkup } from "../../utils/categoryIcons.js";
-import { formatUsername, priceLine } from "../../utils/format.js";
+import { priceLine } from "../../utils/format.js";
 import { CATEGORIES, KINDS } from "../../utils/kinds.js";
 import {
   DEFAULT_VIEW,
@@ -26,6 +26,7 @@ import { MapTools } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
+import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
 
 // How long the map has to have stopped moving before the items in its window
@@ -703,7 +704,7 @@ export default function MapView() {
                 {open.description && <span className={styles.cardLead}>{open.description}</span>}
                 <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>
                 <span className={styles.cardMeta}>
-                  {[t(`kind.${open.kind}`), open.place, formatUsername(open.owner)].filter(Boolean).join(" · ")}
+                  {dotted([t(`kind.${open.kind}`), open.place, open.owner && <UserName name={open.owner} inside />])}
                 </span>
               </Link>
               {/* The two things to do about it, as lo's bubbles say theirs: small

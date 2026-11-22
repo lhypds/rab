@@ -177,9 +177,9 @@
   cursor: default;
 }
 
-/* Said only where there is a pointer to say it to, and only on the half of the
-   exchange that goes anywhere: your own name is a span and has nothing to
-   underline. */
+/* Said only where there is a pointer to say it to: either name is underlined
+   when pointed at, the other side's leading to their page and your own to
+   yours. */
 @media (hover: hover) {
   a.who:hover {
     text-decoration: underline;
@@ -205,18 +205,19 @@
   text-underline-offset: 2px;
 }
 
-/* The way through to the other person's page, in the sheet's top bar. */
+/* The other person's name in the sheet's top bar, which is the way through
+   to their page: underlined when pointed at, like any name that leads there. */
 .profile {
-  flex: none;
-  padding: 2px 4px;
-  color: var(--muted);
-  font-size: 12px;
+  color: inherit;
   text-decoration: none;
-  white-space: nowrap;
+}
+
+.profile:focus-visible {
+  text-decoration: underline;
 }
 
 @media (hover: hover) {
   .profile:hover {
-    color: var(--ink);
+    text-decoration: underline;
   }
 }
