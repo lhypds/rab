@@ -101,7 +101,8 @@ struct PhotoView: View {
                     Image(uiImage: image).resizable().scaledToFit()
                 }
             } else {
-                Color(white: 0.96)
+                // Read off the phone in a moment; a placeholder until then.
+                PhotoPlaceholder()
             }
         }
         .task(id: item.photo) {

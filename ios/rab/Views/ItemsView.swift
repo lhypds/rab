@@ -37,7 +37,7 @@ struct ItemsView: View {
             Group {
                 if listings.isEmpty && onPhone.isEmpty && model.listingsError == nil {
                     ContentUnavailableView {
-                        Label("Nothing yet", systemImage: "camera")
+                        Text("Nothing yet")
                     } description: {
                         Text("Take a photo of something you have to rent out. You can give it a plain background, and it goes into your items.")
                     } actions: {
@@ -149,24 +149,49 @@ private struct CaptureFlow: View {
 }
 
 /// A photograph the server keeps, filling the frame it is given or fitting
-/// inside it.
+/// inside it. Until it is there the frame holds a placeholder: grey, turning
+/// while the picture loads, and a crossed-out picture if it never comes.
 struct RemotePhoto: View {
     @Environment(AppModel.self) private var model
     let path: String?
     var fills = false
 
     var body: some View {
-        AsyncImage(url: model.imageURL(path)) { image in
-            if fills {
-                Color.clear
-                    .overlay { image.resizable().scaledToFill() }
-                    .clipped()
-            } else {
-                image.resizable().scaledToFit()
+        AsyncImage(url: model.imageURL(path)) { phase in
+            switch phase {
+            case .success(let image):
+                if fills {
+                    Color.clear
+                        .overlay { image.resizable().scaledToFill() }
+                        .clipped()
+                } else {
+                    image.resizable().scaledToFit()
+                }
+            case .failure:
+                PhotoPlaceholder(loading: false)
+            default:
+                PhotoPlaceholder(loading: path != nil)
             }
-        } placeholder: {
-            Color(white: 0.96)
         }
+    }
+}
+
+/// What stands where a photograph will be: a grey field the size of it, with a
+/// spinner while the picture is on its way and a picture's outline when there
+/// is none to show.
+struct PhotoPlaceholder: View {
+    var loading = true
+
+    var body: some View {
+        Color(white: 0.92)
+            .overlay {
+                if loading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "photo")
+                        .foregroundStyle(Color(white: 0.6))
+                }
+            }
     }
 }
 
