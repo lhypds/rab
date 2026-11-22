@@ -4,7 +4,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { userDir, userFolders } from "./files.js";
 
-// Where photographs are kept: data/users/<id>/images/, in the folder of whoever
+// Where photographs are kept: data/users/<username>/images/, in the folder of whoever
 // uploaded them, one file per picture, named after its own bytes. Public by
 // definition — they are pictures of things put out for rent — so a picture is
 // asked for by its name alone and there is nothing to decide about who may see

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { readList, userFolders, writeList } from "./files.js";
+import { nameFolders, readList, renameNumberedFolders, userFolders, writeList } from "./files.js";
 import { moveIntoFolders } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10,7 +10,7 @@ const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sql
 
 // The database holds who has an account and who is signed in, and that is all.
 // What an account has — its items, its bookings, its messages, its photographs
-// — is in its own folder, data/users/<id>/ (see files.js). All of it is read
+// — is in its own folder, data/users/<username>/ (see files.js). All of it is read
 // into memory when the server starts and written back, a file at a time, as it
 // changes; so one server process owns the folders, and a file edited by hand is
 // picked up at the next start.
@@ -20,8 +20,8 @@ db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
 
-  -- An account is a name and a password. The id is what its folder is called
-  -- and what everything in the folders points at: an item's owner, a booking's
+  -- An account is a name and a password. The name is what its folder is
+  -- called; the id is what everything in the folders points at: an item's owner, a booking's
   -- renter, the other end of a message.
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,8 +44,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
 `);
 
-// A database from when it held everything is moved into the folders, once.
+// The folders are named after usernames, and only the database knows which
+// username is which id.
+{
+  const nameById = db.prepare("SELECT username FROM users WHERE id = ?");
+  const idByName = db.prepare("SELECT id FROM users WHERE username = ?");
+  nameFolders({
+    nameOf: (id) => nameById.get(id)?.username ?? null,
+    idOf: (username) => idByName.get(username)?.id ?? null,
+  });
+}
+
+// A database from when it held everything is moved into the folders, once; and
+// folders from when they were named after ids are given their usernames, once.
 moveIntoFolders(db, databasePath);
+renameNumberedFolders();
 
 const now = () => new Date().toISOString();
 

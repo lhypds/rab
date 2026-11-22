@@ -355,12 +355,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移动地图，让图钉落在这个地点上。附加到它的东西会显示在 rab 地图上的这个位置。" } }
       }
     },
-    "Unlisted" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "非公開" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未上架" } }
-      }
-    },
     "Your items could not be loaded from rab: %@" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab からアイテムを読み込めませんでした：%@" } },

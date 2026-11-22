@@ -216,10 +216,10 @@ struct ListingRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            // As the website's own list says it.
-            Text(listing.active == false ? "Unlisted" : "Published")
-                .font(.caption2)
-                .foregroundStyle(listing.active == false ? .secondary : .primary)
+            // Said of the ones that are on the map; one that is not says nothing.
+            if listing.active != false {
+                Text("Published").font(.caption2)
+            }
         }
         .padding(.vertical, 4)
     }

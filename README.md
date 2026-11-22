@@ -59,11 +59,11 @@ Layout
     server/index.js    Express: accounts, items, calendar, bookings, messages, images
     server/db.js       accounts and sessions in SQLite; everything else read from and
                        written to the users' folders
-    server/files.js    the users' folders: data/users/<id>/
+    server/files.js    the users' folders: data/users/<username>/
     server/migrate.js  moves a database from before the folders into them, once
     server/rates.js    pricing rules and hours: by the date, by the date and time
     server/region.js   country of a request, from its address (ipwho.is)
-    server/images.js   photo storage under data/users/<id>/images/
+    server/images.js   photo storage under data/users/<username>/images/
     src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
@@ -74,12 +74,12 @@ Layout
 
 What is kept where: `db.sqlite` holds the accounts — a name, a password's hash, when
 it was made — and who is signed in, and nothing else. Everything an account has is in
-a folder of its own, named after the account's id:
+a folder of its own, named after the account's username:
 
-    data/users/<id>/items.json      what they have out for rent, each with its calendar's exceptions
-    data/users/<id>/bookings.json   every rental they are one side of (the other side holds the same)
-    data/users/<id>/messages.json   their side of every conversation
-    data/users/<id>/images/         the photographs they uploaded, each named after its own bytes
+    data/users/<username>/items.json      what they have out for rent, each with its calendar's exceptions
+    data/users/<username>/bookings.json   every rental they are one side of (the other side holds the same)
+    data/users/<username>/messages.json   their side of every conversation
+    data/users/<username>/images/         the photographs they uploaded, each named after its own bytes
 
 The server reads the folders when it starts and writes a file back whenever something
 in it changes, so one server process owns them; a file edited by hand is picked up at
