@@ -14,7 +14,10 @@
     "mine": "Mine",
     "account": "Account",
     "signIn": "Sign in",
-    "others": "Others"
+    "others": "Others",
+    "viewMap": "Map",
+    "viewList": "List",
+    "pinned": "On the map"
   },
   "auth": {
     "username": "Username",
@@ -159,6 +162,7 @@
     "freeToday": "Available now",
     "freeFrom": "Free from {{date}}",
     "noDays": "No free days",
+    "access": "Access",
     "openMaps": "Open in Maps",
     "kind": "Kind",
     "category": "Category",
@@ -405,7 +409,7 @@
     "insecureHint": "Browsers only give a position to pages on https or localhost. Open rab at an https address."
   },
   "search": {
-    "placeholder": "Search posts",
+    "placeholder": "Search...",
     "empty": "Nothing by that name"
   },
   "kind": {

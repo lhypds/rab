@@ -4,6 +4,7 @@ import * as api from "../../api.js";
 import { ActionButton, Link, Modal, TextArea, showToast } from "../../ui/index.js";
 import { bookingEnded, bookingWhen, canCancel, cancelLine } from "../../utils/bookings.js";
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
+import { PIN_PATH } from "../../utils/mapbox.js";
 import ReviewModal from "../ReviewModal/index.js";
 import UserName, { dotted } from "../UserName/index.js";
 
@@ -16,7 +17,8 @@ import UserName, { dotted } from "../UserName/index.js";
 // is asked before the row goes to the page, and keeps it from going by calling
 // preventDefault; `onPoint` is told when the pointer comes onto the row (true)
 // and leaves it (false); `chosen` marks the row whose pin is the one picked.
-export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, chosen = false }) {
+// Away from a map, `pin` has the row say that the item stands on one.
+export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, chosen = false, pin = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
     priceLine(item, i18n.language, t),
@@ -43,6 +45,11 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
           </span>
         </Link>
         <span className="row-side">
+          {pin && item.located && (
+            <svg className="row-pin" viewBox="0 0 24 21.6" role="img" aria-label={t("header.pinned")}>
+              <path d={PIN_PATH} />
+            </svg>
+          )}
           {showPublished && item.active && <span className="status">{t("item.published")}</span>}
           {item.pending > 0 && (
             <span className="status status-pending">{t("booking.waiting", { count: item.pending })}</span>

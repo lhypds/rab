@@ -216,14 +216,38 @@
   white-space: pre-wrap;
 }
 
-.map {
-  height: 220px;
-  margin-top: 12px;
+/* ------------------------------------------------------------------ card -- */
+
+/* Where it is, in the card: the map, and under it the address and the way
+   there. One part of the card, with what is said about the map kept closer
+   to it than the card's parts are to one another. */
+.accessPart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.accessMap {
+  height: 180px;
   border: 1px solid var(--ink);
   background: var(--soft);
 }
 
-/* ------------------------------------------------------------------ card -- */
+.access {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.access a {
+  flex: none;
+  color: var(--muted);
+}
 
 /* What it costs, as the page's one big figure, and beside it the word for
    where things stand today. */
@@ -450,11 +474,13 @@
 
 /* How the owner of an item booked by asking is reached: each way on a line,
    what kind it is at the left and what is written for it at the right. */
+/* Kept closer to their heading than the card's parts are to one another, and
+   to each other: a few lines read as one. */
 .contacts {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
+  gap: 4px;
+  margin: -6px 0 0;
   font-size: 12px;
 }
 
@@ -466,11 +492,11 @@
   letter-spacing: 0;
 }
 
+/* The way, a colon, and what it is: read along one line from the left. */
 .contacts > div {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
 }
 
 .contacts dt {
@@ -479,10 +505,13 @@
   font-size: 12px;
 }
 
+.contacts dt::after {
+  content: ":";
+}
+
 .contacts dd {
   min-width: 0;
   margin: 0;
-  text-align: right;
   overflow-wrap: anywhere;
 }
 

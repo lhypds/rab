@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ActionButton, Link, useNavigate } from "../../ui/index.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
 import AccountModal from "../AccountModal/index.js";
+import FilterBox from "../FilterBox/index.js";
 import ItemModal from "../ItemModal/index.js";
 import LanguageSwitcher from "../LanguageSwitcher/index.js";
 import MessagesModal from "../MessagesModal/index.js";
@@ -18,7 +19,7 @@ export const LIST_EVENT = "rab:list";
 // And by anything that wants the account's messages opened.
 export const MESSAGES_EVENT = "rab:messages";
 
-export default function Header({ back = false }) {
+export default function Header({ back = false, view, onView, query = "", onQuery }) {
   const { t } = useTranslation();
   const { user, unread } = useAuth();
   const navigate = useNavigate();
@@ -64,7 +65,38 @@ export default function Header({ back = false }) {
             </Link>
           )}
         </span>
+        {/* In the middle of the bar, on the page that has a list to narrow: the
+            box that looks among what is offered here. Not on a phone, where
+            the bar is full — there it stands over the list (see MapView). */}
+        {onQuery && (
+          <span className="topbar-filter">
+            <FilterBox slash value={query} onChange={onQuery} placeholder={t("search.placeholder")} />
+          </span>
+        )}
         <span className="topbar-action-slot">
+          {/* How the home page is read: on the map, or as lists. A pair, the
+              one in force turned over. Only on the page that has both. */}
+          {onView && (
+            <span className="topbar-view" role="group">
+              <ActionButton tooltip={t("header.viewMap")} aria-pressed={view === "map"} onClick={() => onView("map")}>
+                <svg viewBox="0 0 24 24">
+                  <path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2z" />
+                  <path d="M9 4v14" />
+                  <path d="M15 6v14" />
+                </svg>
+              </ActionButton>
+              <ActionButton tooltip={t("header.viewList")} aria-pressed={view === "list"} onClick={() => onView("list")}>
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 6h11" />
+                  <path d="M9 12h11" />
+                  <path d="M9 18h11" />
+                  <path d="M4 6h.01" />
+                  <path d="M4 12h.01" />
+                  <path d="M4 18h.01" />
+                </svg>
+              </ActionButton>
+            </span>
+          )}
           {/* Putting something out for rent: the one thing in the bar that adds
               to the map rather than reading it. Shown to everybody — to a
               stranger it is the way in, by way of signing in. */}

@@ -14,7 +14,10 @@
     "mine": "我的",
     "account": "账号",
     "signIn": "登录",
-    "others": "别人的"
+    "others": "别人的",
+    "viewMap": "地图",
+    "viewList": "列表",
+    "pinned": "地图上有位置"
   },
   "auth": {
     "username": "用户名",
@@ -88,7 +91,7 @@
       "cancelRequest": "申请取消：{{item}} · {{dates}}",
       "cancelRefused": "取消申请被拒绝：{{item}} · {{dates}}",
       "deleteRequest": "申请删除：{{item}}",
-      "report": "举报（{{reason}}）：{{item}}"
+      "report": "报告（{{reason}}）：{{item}}"
     }
   },
   "map": {
@@ -157,6 +160,7 @@
     "freeToday": "现在可利用",
     "freeFrom": "{{date}} 起可利用",
     "noDays": "暂无可利用日期",
+    "access": "交通位置",
     "openMaps": "在地图中打开",
     "kind": "种类",
     "category": "分类",
@@ -296,7 +300,7 @@
     "sharedNote": "这是代别人登记的，任何登录的用户都可以编辑。",
     "inquiryExplainShared": "这是咨询预约，请通过上面的联系方式直接商定。",
     "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。",
-    "report": "举报",
+    "report": "报告",
     "requestDelete": "申请删除"
   },
   "calendar": {
@@ -397,7 +401,7 @@
     "insecureHint": "浏览器只对 https 或 localhost 的页面提供位置。请用 https 地址打开 rab。"
   },
   "search": {
-    "placeholder": "搜索发布",
+    "placeholder": "搜索...",
     "empty": "没有找到"
   },
   "kind": {
@@ -506,8 +510,8 @@
     "noneShown": "这里没有租赁。"
   },
   "report": {
-    "title": "举报",
-    "lead": "“{{item}}”有什么问题？举报会以站内信的形式发送给管理员。",
+    "title": "报告",
+    "lead": "“{{item}}”有什么问题？报告会以站内信的形式发送给管理员。",
     "reasons": {
       "unavailable": "已不可用（通知管理员删除）",
       "spam": "垃圾信息或广告",
@@ -520,7 +524,7 @@
     "placeholder": "详细说明（可不填）",
     "placeholderOther": "请说明问题",
     "send": "提交",
-    "sent": "举报已发送",
+    "sent": "报告已发送",
     "deleteTitle": "申请删除",
     "deleteLead": "“{{item}}”是代别人登记的，只有管理员可以删除。你的申请会以站内信的形式发送给管理员。",
     "deletePlaceholder": "为什么要删除？（可不填）",

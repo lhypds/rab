@@ -14,7 +14,10 @@
     "mine": "私の",
     "account": "アカウント",
     "signIn": "ログイン",
-    "others": "他人の"
+    "others": "他人の",
+    "viewMap": "地図",
+    "viewList": "リスト",
+    "pinned": "地図に位置あり"
   },
   "auth": {
     "username": "ユーザー名",
@@ -157,6 +160,7 @@
     "freeToday": "現在利用可能",
     "freeFrom": "{{date}} から空き",
     "noDays": "空きなし",
+    "access": "アクセス",
     "openMaps": "マップで開く",
     "kind": "種類",
     "category": "カテゴリ",
@@ -397,7 +401,7 @@
     "insecureHint": "ブラウザは https または localhost のページにだけ位置情報を渡します。https のアドレスで rab を開いてください。"
   },
   "search": {
-    "placeholder": "ポストを検索",
+    "placeholder": "検索...",
     "empty": "見つかりません"
   },
   "kind": {

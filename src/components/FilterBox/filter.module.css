@@ -1,0 +1,66 @@
+/* A box that narrows a list. Its own height rather than the bar's
+   (--search-h): it has room to be a field. */
+.filter {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.glass {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
+  }
+}
+
+.clear {
+  flex: none;
+  width: 26px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.clear svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+@media (hover: hover) {
+  .clear:hover {
+    color: var(--ink);
+  }
+}

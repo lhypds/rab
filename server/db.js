@@ -538,11 +538,15 @@ export function getItem(id) {
 // Words typed into the bar at the top: matched anywhere in what an item says
 // about itself, the ones that have them in their name first.
 export function searchItems(query, limit = 20) {
-  const wanted = query.toLowerCase();
-  const has = (value) => String(value ?? "").toLowerCase().includes(wanted);
-  const found = listedItems().filter(
-    (item) => has(item.title) || has(item.description) || has(item.place) || has(item.category),
-  );
+  // Word by word: every word asked for is somewhere in what the item says
+  // about itself, in any order — as the box over the lists reads what is
+  // already on the page. The ones with all of it in the title come first.
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const all = (text) => words.every((word) => text.includes(word));
+  const said = (item) =>
+    [item.title, item.description, item.place, item.category, item.owner].filter(Boolean).join(" ").toLowerCase();
+  const has = (value) => all(String(value ?? "").toLowerCase());
+  const found = listedItems().filter((item) => all(said(item)));
   return [...found.filter((item) => has(item.title)), ...found.filter((item) => !has(item.title))]
     .slice(0, limit)
     .map(servedItem);

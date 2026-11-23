@@ -76,15 +76,14 @@ select,
   scroll-margin-block: 32px;
 }
 
-button:focus,
-button:focus-visible,
-input:focus,
-input:focus-visible,
-textarea:focus,
-textarea:focus-visible,
-select:focus,
-select:focus-visible {
-  outline: none;
+/* Nothing here wears the browser's ring for having the keyboard — not a
+   button or a field, and not a link, a row, a list that scrolls or the map
+   either. What has the keyboard is said in the page's own hand where it is
+   said at all: a row goes grey, a field has its caret. Said with force, since
+   the map brings rings of its own. */
+:focus,
+:focus-visible {
+  outline: none !important;
 }
 
 /* A button's label is the name of what pressing it does, not a passage of
@@ -278,6 +277,38 @@ a {
 
 /* The envelope wears a mark when something is waiting. A dot and not a figure:
    how many there are is the list's own answer. */
+/* The box in the middle of the bar: in the middle of the page, whatever
+   stands to either side of it, and narrowed before it reaches the buttons. */
+.topbar-filter {
+  display: none;
+}
+
+@media (min-width: 760px) {
+  .topbar-filter {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: clamp(140px, calc(100vw - 640px), 480px);
+    display: block;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* The pair that says how the home page is read: joined, the one in force
+   turned over. */
+.topbar-view {
+  display: inline-flex;
+}
+
+.topbar-view > * + * {
+  margin-left: -1px;
+}
+
+.topbar-view [aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .topbar-badge {
   position: relative;
   display: inline-flex;
@@ -708,6 +739,16 @@ a {
 }
 
 /* What a booking is, and beside it anything asked of it: one line. */
+/* Said of an item that stands on the map: the pin it stands there with. */
+.row-pin {
+  width: 14px;
+  height: 12.6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
 .row-statuses {
   display: flex;
   gap: 6px;

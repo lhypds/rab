@@ -29,6 +29,8 @@ import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
 import { LIST_EVENT } from "../Header/Header.jsx";
 import CategoryIcon from "../CategoryIcon/index.js";
+import FilterBox from "../FilterBox/index.js";
+import ItemPreview from "../ItemPreview/index.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
 
@@ -123,7 +125,11 @@ function ContactIcon({ type }) {
   );
 }
 
-export default function MapView() {
+export default function MapView({ view = "map", query = "", onQuery }) {
+  // Read as lists rather than on the map: the same area and the same items,
+  // with the map put away (not taken down — it is where it was on the way
+  // back).
+  const listing = view === "list";
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const containerRef = useRef(null);
@@ -181,9 +187,9 @@ export default function MapView() {
   // whether or not they have a pin. Null until the first answer.
   const [offered, setOffered] = useState(null);
 
-  // What is being looked for, typed over the list: a filter on what is already
-  // here — the list and the pins alike — rather than a search somewhere else.
-  const [query, setQuery] = useState("");
+  // `query` is what is being looked for, typed in the box in the top bar (the
+  // page holds it): a filter on what is already here — the list and the pins
+  // alike — rather than a search somewhere else.
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // Which category the pins are for, within the kind in force: "" is all of
   // them. The choices are that kind's categories, or every kind's where no
@@ -205,13 +211,42 @@ export default function MapView() {
     kind && (slug === "" || slug === "other") ? t("item.categoryWithin", { name, kind: t(`kind.${kind}`) }) : name;
   const allName = named("", t("map.allCategories"));
   const categoryOptions = [
-    { value: "", label: withIcon("", allName), text: allName },
+    { value: "", name: allName, label: withIcon("", allName), text: allName },
     ...categoryChoices.map((slug) => ({
       value: slug,
+      name: named(slug, t(`category.${slug}`)),
       label: withIcon(slug, named(slug, t(`category.${slug}`))),
       text: `${named(slug, t(`category.${slug}`))} ${slug}`,
     })),
   ];
+  // What is typed over the categories, as lists: the ones whose name has
+  // every word of it are the ones left to pick from.
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const categoryWords = categoryQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // And they are set out by how much each has here: the categories with the
+  // most offered in this area first — within the kind in force — and the ones
+  // with nothing after them, in the order they are always in. "All
+  // categories" stays at the head, being none of them.
+  const held = new Map();
+  let heldAll = 0;
+  for (const item of offered ?? []) {
+    if (kind && item.kind !== kind) continue;
+    held.set(item.category, (held.get(item.category) ?? 0) + 1);
+    heldAll += 1;
+  }
+  const categoriesFound = (
+    categoryWords.length
+      ? categoryOptions.filter((option) => categoryWords.every((word) => option.text.toLowerCase().includes(word)))
+      : categoryOptions
+  )
+    .map((option, index) => ({ option, index }))
+    .sort(
+      (a, b) =>
+        (a.option.value === "" ? -1 : 0) - (b.option.value === "" ? -1 : 0) ||
+        (held.get(b.option.value) ?? 0) - (held.get(a.option.value) ?? 0) ||
+        a.index - b.index,
+    )
+    .map(({ option }) => option);
   // A category belongs to a kind: one the newly chosen kind does not have is
   // let go of rather than left filtering everything out.
   const chooseKind = (next) => {
@@ -232,7 +267,37 @@ export default function MapView() {
   };
   const filtering = Boolean(kind || category || words.length);
   const shown = filtering ? items.filter(passes) : items;
-  const listed = offered && (filtering ? offered.filter(passes) : offered);
+  // Something looked for by name is looked for everywhere, not only in the
+  // area the reader stands in: the box is in the bar, over the whole page, and
+  // a title typed into it is expected to be found wherever the item is. So
+  // while there is something typed, what the server finds for it anywhere is
+  // listed after what is offered here — and then narrowed like the rest.
+  const [found, setFound] = useState(null);
+  const sought = query.trim();
+  useEffect(() => {
+    if (!sought) {
+      setFound(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      api
+        .searchItems(sought, { signal: controller.signal })
+        .then((data) => setFound(data.items ?? []))
+        .catch((error) => {
+          // What is here is still searched; elsewhere is left out this once.
+          if (error?.name !== "AbortError") setFound(null);
+        });
+    }, SETTLE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [sought]);
+  const here = offered ?? (sought && found ? [] : null);
+  const pool =
+    here && sought && found ? [...here, ...found.filter((item) => !here.some((each) => each.id === item.id))] : here;
+  const listed = pool && (filtering ? pool.filter(passes) : pool);
   // The one whose bubble is up: what the pointer is on, and failing that what
   // was chosen.
   const open =
@@ -292,7 +357,10 @@ export default function MapView() {
     // looks when the window changes — not when the box does, which the list
     // beside it and the turn from a row to a column both bring about. Left
     // alone, the part of the box it has not drawn to shows the grey behind it.
-    const sized = new ResizeObserver(() => map.resize());
+    // Not while it is put away for the lists, when its box is no size at all.
+    const sized = new ResizeObserver(() => {
+      if (containerRef.current?.clientWidth) map.resize();
+    });
     sized.observe(containerRef.current);
 
     // Where the reader is, as a dot among the pins.
@@ -521,15 +589,159 @@ export default function MapView() {
     }
   }, [selectedId, pointedId, items, kind, category, query]);
 
+  // The item being looked at on a sheet over the list, by its id, and the row
+  // it was opened from — which is given the keyboard back when the sheet is
+  // put away, so the arrows carry on from where they were.
+  const [previewId, setPreviewId] = useState(null);
+  const lookedFrom = useRef(null);
+  const look = (item, from) => {
+    lookedFrom.current = from ?? null;
+    setPreviewId(item.id);
+  };
+  const lookAway = () => {
+    setPreviewId(null);
+    lookedFrom.current?.focus?.();
+  };
+
+  // A row picked with the keys or the wheel, rather than with the pointer: it
+  // is given the keyboard, and is from then on the one row marked — the row
+  // the pointer happens to be lying on is no longer marked for that (see
+  // data-keyed in the styles) until the pointer is moved again. Beside the
+  // map the row picked is the item chosen on it as well: the map goes to its
+  // pin and puts its bubble up, or puts the bubble away for one with no pin.
+  const pick = (list, row) => {
+    if (!row) return;
+    list.dataset.keyed = "";
+    row.querySelector("a")?.focus();
+    if (listing) return;
+    const item = listed?.[[...list.children].indexOf(row)];
+    if (!item?.located) {
+      setSelectedId(null);
+      return;
+    }
+    touchedRef.current = true;
+    setSelectedId(item.id);
+    const map = mapRef.current;
+    map?.flyTo({ center: [item.longitude, item.latitude], zoom: Math.max(map.getZoom(), 14), duration: 500 });
+  };
+  const unkey = (event) => {
+    delete event.currentTarget.dataset.keyed;
+  };
+
+  // The keys a list of rows answers to, heard on the list from whichever row
+  // has the keyboard: the arrows move to the row above or below — and, where
+  // the rows stand in columns, to the nearest row in the column beside — and
+  // the space bar opens the row's item on the sheet, or puts the sheet away.
+  const rowKeys = (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const list = event.currentTarget;
+    const row = event.target.closest?.("li");
+    if (!row || row.parentElement !== list) return;
+    const rows = [...list.children];
+    const at = rows.indexOf(row);
+    if (event.key === " ") {
+      event.preventDefault();
+      if (previewId) lookAway();
+      else if (listed?.[at]) look(listed[at], row.querySelector("a"));
+      return;
+    }
+    if (previewId) return;
+    let next = null;
+    if (event.key === "ArrowUp") next = rows[at - 1];
+    else if (event.key === "ArrowDown") next = rows[at + 1];
+    else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const side = event.key === "ArrowLeft" ? -1 : 1;
+      const here = row.getBoundingClientRect();
+      // The rows of the nearest column on that side, and of them the one
+      // level with this one, or the nearest to level there is.
+      const beside = rows
+        .map((each) => ({ each, box: each.getBoundingClientRect() }))
+        .filter(({ box }) => (box.left - here.left) * side > 1);
+      const nearest = Math.min(...beside.map(({ box }) => Math.abs(box.left - here.left)));
+      next = beside
+        .filter(({ box }) => Math.abs(Math.abs(box.left - here.left) - nearest) < 1)
+        .sort((a, b) => Math.abs(a.box.top - here.top) - Math.abs(b.box.top - here.top))[0]?.each;
+    } else return;
+    event.preventDefault();
+    pick(list, next);
+  };
+
+  // The wheel over the columns of items, turned up or down, picks among them:
+  // it steps from the row that has the keyboard to the next or the one before,
+  // a row to a notch — what a trackpad sends in crumbs is saved up until it
+  // comes to a notch's worth — and the columns follow the row. Where no row
+  // has the keyboard yet, the first notch gives it to the row under the
+  // pointer, or to the first. A wheel turned sideways draws the columns
+  // sideways, as it always did.
+  const wheeled = useRef({ sum: 0, at: 0, stepped: 0 });
+  const rowWheel = (event, list) => {
+    if (!list || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    if (previewId) return;
+    const held = document.activeElement?.closest?.("li");
+    const row = held?.parentElement === list ? held : null;
+    const saved = wheeled.current;
+    // Crumbs from a turn that stopped a while ago are not part of this one.
+    if (event.timeStamp - saved.at > 250) saved.sum = 0;
+    saved.at = event.timeStamp;
+    saved.sum += event.deltaMode === 0 ? event.deltaY : event.deltaY * 40;
+    if (Math.abs(saved.sum) < 40) return;
+    // And no faster than the eye follows: a flick of a trackpad is a few
+    // rows, not the whole list gone by.
+    if (event.timeStamp - saved.stepped < 70) {
+      saved.sum = 0;
+      return;
+    }
+    saved.stepped = event.timeStamp;
+    const under = event.target.closest?.("li");
+    const next = !row
+      ? under?.parentElement === list
+        ? under
+        : list.firstElementChild
+      : saved.sum > 0
+        ? row.nextElementSibling
+        : row.previousElementSibling;
+    saved.sum = 0;
+    pick(list, next);
+  };
+
+  // The list beside the map is picked among by the wheel the same way. It is a
+  // list that scrolls up and down itself, so there the wheel is taken from it
+  // — which only a listener put on by hand may do — and the row picked is
+  // brought into view instead.
+  const sideListRef = useRef(null);
+  const rowWheelRef = useRef(rowWheel);
+  rowWheelRef.current = rowWheel;
+  useEffect(() => {
+    const box = sideListRef.current;
+    if (!box) return undefined;
+    const turned = (event) => {
+      const list = box.querySelector("ul");
+      if (!list || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      event.preventDefault();
+      rowWheelRef.current(event, list);
+    };
+    box.addEventListener("wheel", turned, { passive: false });
+    return () => box.removeEventListener("wheel", turned);
+  }, []);
+
   // A row of the list pressed, for an item that stands on the map: the first
   // press goes to its pin — the map moves there and its bubble is put up — and
   // keeps the row from going to the item's page; pressed again, with its
   // bubble up, the row goes there as it always did. An item with no pin has
   // nowhere on the map to go to, and its row goes to the page at once.
+  //
+  // As lists there is no map to go to, and an item with no pin has nowhere on
+  // one: those rows open the item on a sheet over the list instead (see
+  // ItemPreview), from which its page is one press further.
   const pressRow = (item, event) => {
-    if (!item.located || selectedId === item.id) return;
     // A press meant for a new tab or window is left to be one.
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (listing || !item.located) {
+      event.preventDefault();
+      look(item, event.currentTarget);
+      return;
+    }
+    if (selectedId === item.id) return;
     const map = mapRef.current;
     if (!map) return;
     event.preventDefault();
@@ -618,7 +830,7 @@ export default function MapView() {
   }
 
   return (
-    <div className={styles.layout}>
+    <div className={listing ? `${styles.layout} ${styles.listing}` : styles.layout}>
       {/* Beside the map, where the reader is: the name of the area they stand
           in, and under it everything offered there — the items with pins and
           the ones without. It does not follow the map as it is moved. */}
@@ -635,39 +847,63 @@ export default function MapView() {
             {listed && <span>{t("map.areaCount", { count: listed.length })}</span>}
           </p>
         </header>
-        {/* Over the list, the box that narrows it: what is typed here is looked
-            for in the items already on the page. */}
-        <div className={styles.filter} role="search">
-          <svg className={styles.filterGlass} viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="11" cy="11" r="6" />
-            <path d="m20 20-4.5-4.5" />
-          </svg>
-          <input
-            className={styles.filterInput}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && query) {
-                event.stopPropagation();
-                setQuery("");
-              }
-            }}
-            placeholder={t("search.placeholder")}
-            aria-label={t("search.placeholder")}
-            enterKeyHint="search"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
+        {/* The box that narrows the list: in the top bar where there is room
+            (see Header), and here on a phone. */}
+        <FilterBox slash className={styles.sideFilter} value={query} onChange={onQuery} placeholder={t("search.placeholder")} />
+        {/* As lists, the column is what narrows them: the kinds as the row of
+            small boxes the map has in its corner, and under it the categories
+            of the kind in force. */}
+        {listing && (
+          <div className={styles.kindRow} role="group" aria-label={t("item.kind")}>
+            {[null, ...KINDS].map((each) => (
+              <button
+                key={each ?? "all"}
+                type="button"
+                className={kind === each ? `${styles.kind} ${styles.kindChosen}` : styles.kind}
+                aria-pressed={kind === each}
+                onClick={() => chooseKind(each)}
+              >
+                {each && <CategoryIcon kind={each} />}
+                {each ? t(`kind.${each}`) : t("kind.all")}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Over the categories, the box that finds one among them. */}
+        {listing && (
+          <FilterBox
+            className={styles.categoryFilter}
+            value={categoryQuery}
+            onChange={setCategoryQuery}
+            placeholder={t("item.categorySearch")}
           />
-          {query && (
-            <button type="button" className={styles.filterClear} onClick={() => setQuery("")} aria-label={t("map.searchClear")}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-          )}
-        </div>
-        <div className={styles.sideList}>
+        )}
+        {/* The categories of the kind in force, as a list of short rows: the
+            one pressed is the one the items are narrowed to. */}
+        {listing && (
+          <ul className={styles.choices} aria-label={t("item.category")}>
+            {categoriesFound.length === 0 && <li className={styles.choiceNone}>{t("item.categoryNoMatch")}</li>}
+            {categoriesFound.map((option) => (
+              <li key={option.value}>
+                <button
+                  type="button"
+                  className={category === option.value ? `${styles.choice} ${styles.choiceChosen}` : styles.choice}
+                  aria-pressed={category === option.value}
+                  onClick={() => setCategory(option.value)}
+                >
+                  {option.label}
+                  {/* How many of them are offered here, at the row's far end:
+                      everything of the kind in force for "all", and nothing
+                      written where there are none. */}
+                  {(option.value === "" ? heldAll : held.get(option.value)) > 0 && (
+                    <span className={styles.choiceCount}>{option.value === "" ? heldAll : held.get(option.value)}</span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div ref={sideListRef} className={styles.sideList} hidden={listing}>
           {/* A search that found nothing says so. An area with nothing in
               it says so too, and asks for the first thing: the way to put
               one out, here where it is missing. */}
@@ -684,11 +920,12 @@ export default function MapView() {
               </div>
             ))}
           {listed?.length > 0 && (
-            <ul className="row-list">
+            <ul className="row-list" onKeyDown={rowKeys} onMouseMove={unkey}>
               {listed.map((item) => (
                 <ItemRow
                   key={item.id}
                   item={item}
+                  pin
                   chosen={item.id === selectedId}
                   onPress={(event) => pressRow(item, event)}
                   onPoint={item.located ? (on) => setPointedId((current) => (on ? item.id : current === item.id ? null : current)) : undefined}
@@ -698,6 +935,40 @@ export default function MapView() {
           )}
         </div>
       </aside>
+
+      {/* And the rest of the page: everything offered here, laid out in
+          columns of the same width, as many as there are, read sideways. A
+          wheel turned up or down picks among them, row by row (see
+          rowWheel). */}
+      {listing &&
+        (listed?.length > 0 ? (
+          <ul
+            className={`row-list ${styles.tiles}`}
+            onKeyDown={rowKeys}
+            onMouseMove={unkey}
+            onWheel={(event) => rowWheel(event, event.currentTarget)}
+          >
+            {listed.map((item) => (
+              <ItemRow key={item.id} item={item} pin onPress={(event) => pressRow(item, event)} />
+            ))}
+          </ul>
+        ) : (
+          listed && (
+            <div className={`${styles.sideEmpty} ${styles.tilesEmpty}`}>
+              {filtering ? (
+                <p>{t("search.empty")}</p>
+              ) : (
+                <>
+                  <p>{t("map.areaEmpty")}</p>
+                  <p>{t("map.areaEmptyAsk")}</p>
+                  <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(LIST_EVENT))}>
+                    {t("header.list")}
+                  </button>
+                </>
+              )}
+            </div>
+          )
+        ))}
 
       <section className={`${styles.frame} map-frame`} aria-label={t("map.title")}>
         <div ref={containerRef} className={styles.container} />
@@ -820,6 +1091,22 @@ export default function MapView() {
             popupNode,
           )}
       </section>
+
+      {/* An item opened from its row, on a sheet over the list. */}
+      <ItemPreview
+        id={previewId}
+        onClose={lookAway}
+        // Deleted or switched off on the sheet, it is taken out of what is
+        // listed and pinned here at once, rather than left until the next
+        // time the lists are asked for.
+        onGone={(gone) => {
+          const without = (list) => list?.filter((item) => item.id !== gone) ?? list;
+          setOffered(without);
+          setItems(without);
+          setFound(without);
+          setSelectedId((current) => (current === gone ? null : current));
+        }}
+      />
     </div>
   );
 }

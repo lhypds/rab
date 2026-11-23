@@ -7,21 +7,12 @@ import { MAPBOX_TOKEN, MAP_STYLE, PIN_PATH, locate, mapLanguage } from "../../ut
 import { MapSearch, MapTools, showSelf } from "../MapParts/index.js";
 import styles from "./spot.module.css";
 
-function Pin() {
-  return (
-    <svg viewBox="0 0 24 21.6" aria-hidden="true">
-      <path d={PIN_PATH} />
-      <circle cx="12" cy="10" r="2.5" />
-    </svg>
-  );
-}
-
 // A small map about one spot, in two uses that are the same drawing.
 //
 // With `onMove` it is how a spot is chosen: the pin is dragged to it, or the
 // map is pressed where it should stand, and `onMove` is told where it landed.
 // Without, it is how a spot is shown: the same pin on the same ground, standing
-// still.
+// still — while the ground under it can be dragged and zoomed to look around.
 //
 // `target` is somewhere to go to on request — a new object each time, so asking
 // for the same place twice still moves the map.
@@ -44,12 +35,14 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
       zoom,
       language: mapLanguage(i18n.language),
       attributionControl: false,
-      // A map that is only showing a spot does not take the page's scroll.
-      interactive: picking,
       // The picker is zoomed by the wheel like any map, as well as by its
       // buttons, a pinch and a double click — though it sits in a form that
       // scrolls, and a wheel turned over it no longer scrolls the form.
-      scrollZoom: picking,
+      //
+      // A map that is only showing a spot is dragged and zoomed too, but does
+      // not take the page's scroll to do it: there the wheel zooms with Ctrl
+      // or ⌘ held, and a finger moves the page while two move the map.
+      cooperativeGestures: !picking,
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
@@ -57,8 +50,17 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
     // Redrawn to its box whenever the box changes size, not only the window.
     const sized = new ResizeObserver(() => map.resize());
     sized.observe(containerRef.current);
+    map.touchZoomRotate.disableRotation();
+    if (!picking) {
+      // The pin of a spot being shown: a marker of the map's own, so that it
+      // stays on its spot as the ground is moved. Not something to press.
+      const element = document.createElement("span");
+      element.className = `${styles.marker} ${styles.shown}`;
+      element.innerHTML = `<svg viewBox="0 0 24 21.6" aria-hidden="true"><path d="${PIN_PATH}"/><circle cx="12" cy="10" r="2.5"/></svg>`;
+      const marker = new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat([longitude, latitude]).addTo(map);
+      markerRef.current = { marker };
+    }
     if (picking) {
-      map.touchZoomRotate.disableRotation();
       // The pin is the thing being placed, so it is the thing that is moved:
       // picked up and dragged, or sent to wherever the map is pressed. The
       // ground under it pans and zooms without taking the pin along.
@@ -112,7 +114,10 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
     if (picking) {
       markerRef.current?.marker.setLngLat([longitude, latitude]);
       markerRef.current?.label();
-    } else mapRef.current?.jumpTo({ center: [longitude, latitude] });
+    } else {
+      markerRef.current?.marker.setLngLat([longitude, latitude]);
+      mapRef.current?.jumpTo({ center: [longitude, latitude] });
+    }
   }, [picking, latitude, longitude]);
 
   useEffect(() => {
@@ -171,14 +176,6 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
             }}
           />
         </>
-      )}
-      {/* Shown, the pin is the page's rather than the map's: fixed to the
-          middle of the frame, its point on the centre. Chosen, it is a marker
-          of the map's own, which is what lets it be dragged (see above). */}
-      {!picking && (
-        <span className={styles.pin}>
-          <Pin />
-        </span>
       )}
     </div>
   );

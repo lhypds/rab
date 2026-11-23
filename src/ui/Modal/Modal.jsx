@@ -133,7 +133,7 @@ const Modal = ({
 
   const box = [styles.modal, wide ? styles.wide : "", large ? styles.large : "", className];
   return (
-    <div className={styles.overlay} onClick={handleOverlayClick} {...gestures}>
+    <div className={styles.overlay} data-modal="" onClick={handleOverlayClick} {...gestures}>
       <div className={box.filter(Boolean).join(" ")}>
         <div className={styles.header}>
           {title && <span className={styles.title}>{title}</span>}

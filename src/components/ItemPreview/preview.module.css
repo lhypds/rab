@@ -1,0 +1,38 @@
+/* The sheet an item's page is read on: larger than the large sheet is, since
+   what it holds was drawn for a window — wide enough for the page's two
+   columns at their full width, and most of the window tall from the start,
+   so the page does not open in a letterbox. Said of the div so that it is the
+   last word over the sheet's own sizes. */
+div.sheet {
+  width: 96%;
+  max-width: 1200px;
+  min-height: 78vh;
+  min-height: 78dvh;
+  max-height: 92vh;
+  max-height: 92dvh;
+}
+
+/* The way to the item's own page, in the sheet's bar: small grey words,
+   underlined to say they are pressed, kept clear of the cross beside them. */
+.open {
+  flex: none;
+  margin: 0 12px 0 auto;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  white-space: nowrap;
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .open:hover {
+    color: var(--ink);
+  }
+}
+
+/* The measure of the item's own page (see .wide-page: 1080px, less its
+   margins), held in the middle of a sheet that is wider than that. */
+.page {
+  width: min(100%, 1056px);
+  margin: 0 auto;
+}

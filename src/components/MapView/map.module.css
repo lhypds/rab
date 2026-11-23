@@ -71,68 +71,18 @@
   background: var(--soft);
 }
 
-/* The box over the list that narrows it, the width of the panel. Its own
-   height rather than the bar's (--search-h): it stands over a list, not in a
-   row of buttons, and has room to be a field. */
-.filter {
+/* The box that narrows the list stands in the top bar where there is room
+   for it (see Header); on a phone the bar is full, and it stands here. */
+.sideFilter,
+.categoryFilter {
   flex: none;
-  height: 28px;
-  display: flex;
-  align-items: center;
   margin-bottom: 10px;
-  border: 1px solid var(--ink);
-  background: var(--paper);
 }
 
-.filterGlass {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  margin-left: 8px;
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.filterInput {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 0;
-  outline: 0;
-  background: none;
-  font-size: 12px;
-}
-
-@media (pointer: coarse) {
-  .filterInput {
-    font-size: 16px;
+@media (min-width: 760px) {
+  .sideFilter {
+    display: none;
   }
-}
-
-.filterClear {
-  flex: none;
-  width: 26px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-}
-
-.filterClear svg {
-  width: 10px;
-  height: 10px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
 }
 
 /* The list is what scrolls; the name over it stays. */
@@ -143,6 +93,21 @@
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* The row that has the keyboard, in either list: on the grey a row takes when
+   pointed at, which is how the arrows are seen to move. */
+.sideList :global(.row-item):focus-within,
+.tiles :global(.row-item):focus-within {
+  background: var(--soft);
+}
+
+/* While the rows are being picked with the keys or the wheel, one row is
+   marked and it is the one picked: not the one the pointer was left lying on,
+   and not the one whose pin was chosen before. */
+.sideList [data-keyed] :global(.row-item):not(:focus-within),
+.tiles[data-keyed] :global(.row-item):not(:focus-within) {
+  background: none;
 }
 
 /* Nothing to list: said in the middle of where the list would be, under the
@@ -168,6 +133,146 @@
 
 .sideEmpty :global(.small-button) {
   margin-top: 6px;
+}
+
+/* ----------------------------------------------------------------- lists -- */
+
+/* The page read as lists instead of on the map: one column that narrows — the
+   kinds, and the categories of the kind in force — and then everything
+   offered, in columns, every column the width the panel beside the map is,
+   in the frame the map stands in. The map is put away. The items are what
+   move sideways; on a phone, where the frame itself does not fit beside the
+   column, the page is drawn sideways to reach it. */
+.listing {
+  --column: 300px;
+  flex-direction: row;
+  overflow-x: auto;
+  /* Sideways only: the rules between the columns run on past the foot. */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.listing .side {
+  flex: none;
+  width: var(--column);
+  height: auto;
+}
+
+.listing .frame,
+.sideList[hidden] {
+  display: none;
+}
+
+/* The kinds, as the map has them in its corner, here over the categories. */
+.kindRow {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+/* The categories under them: a list of rows, shorter than the rows of items
+   are — there are many, and each is a word — scrolled where there are more
+   than the column is tall. */
+.choices {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--line);
+}
+
+.choice {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.choiceCount {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.choiceNone {
+  padding: 5px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The one in force: on the grey a chosen row takes (see .row-chosen). */
+.choiceChosen {
+  background: var(--soft);
+}
+
+/* The items: down a column, then on to the next one beside it — inside a
+   frame ruled as the map's is, filling what the first column leaves and never
+   narrower than one column of its own. Each row is ruled above by a shadow
+   rather than a border, so no two rules ever meet; the one over the head of a
+   column falls under the frame's edge, which is the rule there. */
+.tiles {
+  flex: 1 0 calc(var(--column) + 26px);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  /* Room for the rule after each column and no more: the rows carry their
+     own margins, so that their rules run from one column's rule to the next. */
+  column-gap: 1px;
+  border: 1px solid var(--ink);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.tiles > li,
+.tiles > li:first-child {
+  position: relative;
+  flex: none;
+  /* A column's width of row, and the margin to either side of it inside the
+     row: the rule under it crosses the whole of both. */
+  width: calc(var(--column) + 24px);
+  padding: 0 12px;
+  border-top: 0;
+  box-shadow: 0 -1px 0 var(--line);
+}
+
+/* A rule down the far side of every column of them, in the grey the rows are
+   ruled in, clear of the rows' own rules. Each row draws it from its own top
+   to well past the foot of the page, where the list cuts it off: so the rule
+   runs the whole height of a column however few rows stand in it. */
+.tiles > li::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  height: 200vh;
+  right: -1px;
+  width: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+
+.tilesEmpty {
+  flex: 1 0 calc(var(--column) + 26px);
+  border: 1px solid var(--ink);
 }
 
 /* The map: one frame filling the rest, ruled like every other box here. */
@@ -522,8 +627,8 @@
 }
 
 @media (hover: hover) {
-  .filterClear:hover {
-    color: var(--ink);
+  .choice:not(.choiceChosen):hover {
+    background: var(--soft);
   }
 
   .kind:hover {

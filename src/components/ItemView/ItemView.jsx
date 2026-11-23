@@ -517,6 +517,29 @@ export default function ItemView({
           {/* Somebody else's: said, with what follows from it. */}
           {shared && <p className={styles.small}>{t("item.sharedNote")}</p>}
 
+          {/* Where it is, for one that stands somewhere: the spot on a map, and
+              under it the address and the way there. Over how its owner is
+              reached, since where to go is asked before whom to ask. */}
+          {item.located && (
+            <div className={styles.accessPart}>
+              {/* Headed as the contacts under it are: in the page's own type. */}
+              <div className={`${styles.calendarHead} ${styles.contactHead}`}>
+                <h2>{t("item.access")}</h2>
+                <span>{formatCoords(item.latitude, item.longitude)}</span>
+              </div>
+              <div className={styles.accessMap}>
+                <SpotMap latitude={item.latitude} longitude={item.longitude} />
+              </div>
+              <p className={styles.access}>
+                {item.place && <span>{item.place}</span>}
+                <a href={directionsUrl(item.latitude, item.longitude)} target="_blank" rel="noreferrer noopener">
+                  {t("item.openMaps")}
+                  <span aria-hidden="true"> ↗</span>
+                </a>
+              </p>
+            </div>
+          )}
+
           {/* Booked by asking, the card has no calendar: in its place, how the
               owner is reached — the first way, then the second. A number
               and an email address are pressed to call or to write. */}
@@ -732,26 +755,6 @@ export default function ItemView({
                 <h2>{t("item.description")}</h2>
               </div>
               <p className={styles.description}>{item.description}</p>
-            </>
-          )}
-
-          {/* -------------------------------------------------- location */}
-          {item.located && (
-            <>
-              <div className="part-heading">
-                <h2>{t("item.location")}</h2>
-                <span>{formatCoords(item.latitude, item.longitude)}</span>
-              </div>
-              <div className={styles.map}>
-                <SpotMap latitude={item.latitude} longitude={item.longitude} />
-              </div>
-              <p className={styles.meta}>
-                {item.place && <span>{item.place}</span>}
-                <a href={directionsUrl(item.latitude, item.longitude)} target="_blank" rel="noreferrer noopener">
-                  {t("item.openMaps")}
-                  <span aria-hidden="true"> ↗</span>
-                </a>
-              </p>
             </>
           )}
 
