@@ -1,10 +1,6 @@
 node_modules/
 dist/
-/data/*
-!/data/crawlers/
-/data/crawlers/**/__pycache__/
-/data/crawlers/**/last-run.json
-/data/crawlers/**/operators*report.json
+/data/
 .env
 .DS_Store
 db.sqlite
