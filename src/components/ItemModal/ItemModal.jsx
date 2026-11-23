@@ -1207,8 +1207,31 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   <span className={styles.hint}>{t(fields.shared ? "item.whoseOthersHint" : "item.whoseMineHint")}</span>
                 </div>
               )}
-              {/* The photographs first of what the thing is: they are what is taken
-                  before anything is written. */}
+              {/* Which kind of thing it is, before anything else is said of it:
+                  the one question whose answer is known before a photograph
+                  is taken. */}
+              <div className="field">
+                <span className="field-label">{t("item.kind")}</span>
+                <div className="tabs" role="group">
+                  {KINDS.map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      className={fields.kind === kind ? "tab active" : "tab"}
+                      aria-pressed={fields.kind === kind}
+                      onClick={() => setFields((current) => ({ ...current, kind, category: "" }))}
+                    >
+                      {/* One's own time is a skill one has; somebody else's
+                          is a service they give. The kind kept is the same. */}
+                      {t(kind === "service" && !fields.shared ? "kind.skill" : `kind.${kind}`)}
+                    </button>
+                  ))}
+                </div>
+                <span className={styles.hint}>{t(`kind.${fields.kind}Hint`)}</span>
+              </div>
+
+              {/* Then the photographs: they are what is taken before anything
+                  is written. */}
               <div className="field">
                 <span className="field-label">
                   {t("item.photos")}
@@ -1271,9 +1294,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
               </div>
 
               {/* Under the photographs, a field of its own: the rest of what
-                  the thing is — its kind, its category, its name and what is
-                  said about it — made out from the main one, with a line
-                  saying so. */}
+                  the thing is — its category, its name and what is said about
+                  it, and its kind where the picture says otherwise — made out
+                  from the main one, with a line saying so. */}
               <div className="field">
                 <button
                   type="button"
@@ -1284,26 +1307,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   {t(generating ? "item.generating" : "item.generate")}
                 </button>
                 <span className={styles.hint}>{t("item.generateHint")}</span>
-              </div>
-
-              <div className="field">
-                <span className="field-label">{t("item.kind")}</span>
-                <div className="tabs" role="group">
-                  {KINDS.map((kind) => (
-                    <button
-                      key={kind}
-                      type="button"
-                      className={fields.kind === kind ? "tab active" : "tab"}
-                      aria-pressed={fields.kind === kind}
-                      onClick={() => setFields((current) => ({ ...current, kind, category: "" }))}
-                    >
-                      {/* One's own time is a skill one has; somebody else's
-                          is a service they give. The kind kept is the same. */}
-                      {t(kind === "service" && !fields.shared ? "kind.skill" : `kind.${kind}`)}
-                    </button>
-                  ))}
-                </div>
-                <span className={styles.hint}>{t(`kind.${fields.kind}Hint`)}</span>
               </div>
 
               <div className="field">

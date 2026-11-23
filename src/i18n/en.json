@@ -300,7 +300,7 @@
     "whoseMine": "Mine",
     "whoseOthers": "Someone else’s",
     "whoseMineHint": "Your own: only you can edit or delete it.",
-    "whoseOthersHint": "Someone else’s that you are listing for them. It is not kept under your account: anyone signed in can edit it, it is booked by inquiry only, and it cannot be changed back to yours.",
+    "whoseOthersHint": "Someone else’s that you are listing for them. It is not kept under your account: anyone signed in can edit it, it is booked by inquiry only, and it cannot be changed back to yours. It can be used to list public services.",
     "sharedNote": "Listed on someone else’s behalf. Anyone signed in can edit it.",
     "inquiryExplainShared": "This is booked by inquiry. Use the contact details above to arrange it.",
     "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
