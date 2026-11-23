@@ -898,7 +898,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                 type="button"
                 className={kind === each ? `${styles.kind} ${styles.kindChosen}` : styles.kind}
                 aria-pressed={kind === each}
-                onClick={() => chooseKind(each)}
+                // Pressed again, the kind in force is let go of: back to all.
+                onClick={() => chooseKind(kind === each ? null : each)}
               >
                 {each && <CategoryIcon kind={each} />}
                 {each ? t(`kind.${each}`) : t("kind.all")}

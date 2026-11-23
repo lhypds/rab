@@ -624,20 +624,31 @@ a {
   object-fit: cover;
 }
 
+/* As tall as the fullest row — a name on two lines and the meta under them —
+   whatever this one holds, so every row in a list is the one height; a name on
+   one line stands in the middle of that. */
 .row-lines {
   min-width: 0;
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   gap: 4px;
 }
 
+/* A name runs to a second line before it is cut short: set small enough that
+   two lines of it and the meta under them stand about as tall as the picture. */
 .row-lines strong {
   max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 14px;
 }
 
 .row-meta {
@@ -648,6 +659,7 @@ a {
   color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
+  line-height: 12px;
 }
 
 .row-side {
