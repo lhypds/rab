@@ -8,7 +8,7 @@ import { Link, Select, showToast } from "../../ui/index.js";
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
-import { CATEGORIES, KINDS } from "../../utils/kinds.js";
+import { CATEGORIES, KINDS, sortLabel } from "../../utils/kinds.js";
 import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
@@ -313,7 +313,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     if (kind && item.kind !== kind) return false;
     if (category && item.category !== category) return false;
     if (words.length === 0) return true;
-    const text = [item.title, item.description, item.place, item.owner, t(`kind.${item.kind}`)]
+    const text = [item.title, item.description, item.place, item.owner, t(`kind.${item.kind}`), item.category && t(`category.${item.category}`, item.category)]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -1117,7 +1117,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                 {open.description && <span className={styles.cardLead}>{open.description}</span>}
                 <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>
                 <span className={styles.cardMeta}>
-                  {dotted([t(`kind.${open.kind}`), open.place, open.owner && <UserName name={open.owner} inside />])}
+                  {dotted([sortLabel(open, t), open.place, open.owner && <UserName name={open.owner} inside />])}
                 </span>
               </Link>
               {/* The two things to do about it, as lo's bubbles say theirs: small

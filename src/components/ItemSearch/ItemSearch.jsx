@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { useNavigate } from "../../ui/index.js";
 import { priceLine } from "../../utils/format.js";
+import { sortLabel } from "../../utils/kinds.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./search.module.css";
 
@@ -133,7 +134,7 @@ export default function ItemSearch() {
                   <span>
                     {dotted([
                       priceLine(item, i18n.language, t),
-                      t(`kind.${item.kind}`),
+                      sortLabel(item, t),
                       item.place,
                       item.owner && <UserName name={item.owner} inside />,
                     ])}

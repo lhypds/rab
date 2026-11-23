@@ -58,3 +58,13 @@ export const CATEGORIES = {
     "other",
   ],
 };
+
+// What an item is called by where it is listed among others — in a row, in a
+// pin's card: its category when it has one, and only otherwise its kind.
+// "Other" alone says nothing, so it says which kind's it is: "Other (Things)".
+export function sortLabel(item, t) {
+  const kind = t(`kind.${item.kind}`);
+  if (!item.category) return kind;
+  const name = t(`category.${item.category}`, item.category);
+  return item.category === "other" ? t("item.categoryWithin", { name, kind }) : name;
+}

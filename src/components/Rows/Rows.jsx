@@ -4,6 +4,8 @@ import * as api from "../../api.js";
 import { ActionButton, Link, Modal, TextArea, showToast } from "../../ui/index.js";
 import { bookingEnded, bookingWhen, canCancel, cancelLine } from "../../utils/bookings.js";
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
+import { iconParts } from "../../utils/categoryIcons.js";
+import { sortLabel } from "../../utils/kinds.js";
 import { PIN_PATH } from "../../utils/mapbox.js";
 import ReviewModal from "../ReviewModal/index.js";
 import UserName, { dotted } from "../UserName/index.js";
@@ -26,7 +28,7 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
   const { t, i18n } = useTranslation();
   const meta = [
     priceLine(item, i18n.language, t),
-    t(`kind.${item.kind}`),
+    sortLabel(item, t),
     // Its rating, once somebody has rated it.
     item.rating?.count > 0 && `★ ${item.rating.average.toFixed(1)} (${item.rating.count})`,
     item.place || item.region?.name,
@@ -55,6 +57,20 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
           {pin && item.located && (
             <svg className="row-pin" viewBox="0 0 24 21.6" role="img" aria-label={t("header.pinned")}>
               <path d={PIN_PATH} />
+              {/* The category's mark in the pin's head, placed as it is in a
+                  pin on the map (see pinElement in MapView). */}
+              <g className="row-pin-glyph" transform="translate(12 10) scale(0.4) translate(-12 -12)">
+                {iconParts(item.kind, item.category).map((part, index) =>
+                  typeof part === "string" ? (
+                    // A drawing's parts are in a fixed order and have no other identity.
+                    // eslint-disable-next-line react/no-array-index-key
+                    <path key={index} d={part} />
+                  ) : (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <circle key={index} cx={part[0]} cy={part[1]} r={part[2]} />
+                  ),
+                )}
+              </g>
             </svg>
           )}
           {showPublished && item.active && <span className="status">{t("item.published")}</span>}
