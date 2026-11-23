@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Link, Modal, Select, TextArea } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
-import { formatCoords, formatPrice, formatUsername, relativeTime, unitName } from "../../utils/format.js";
+import { barePhone, formatCoords, formatPrice, formatUsername, relativeTime, unitName } from "../../utils/format.js";
+import { contactHref } from "../../utils/dialing.js";
+import { MESSAGES_EVENT } from "../Header/Header.jsx";
 import { directionsUrl } from "../../utils/mapbox.js";
-import { cellsOn, clockOf, dayPrice as ruledDayPrice, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
+import { DAY_UNIT, cellsOn, clockOf, dayPrice as ruledDayPrice, inquiryUnitOf, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
 import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
@@ -66,6 +68,7 @@ export default function ItemView({
   focusBooking = false,
   onBook,
   onSetActive,
+  onDelete,
   onEdit,
   onEditAvailability,
   onMessage,
@@ -88,8 +91,16 @@ export default function ItemView({
   // the time.
   const [picked, setPicked] = useState(null);
   const [note, setNote] = useState("");
-  const [startTime, setStartTime] = useState(DEFAULT_START_TIME);
-  const [endTime, setEndTime] = useState(DEFAULT_END_TIME);
+  // Whether the owner has pressed Delete and is being asked if they mean it.
+  const [confirming, setConfirming] = useState(false);
+  // The hours of the day it is handed over in, where it says any: the times
+  // to choose between are the ones inside them, and the two the form starts
+  // with are brought inside them too.
+  const band = item.dayHours ?? null;
+  const within = (time) => (!band ? time : time < band.start ? band.start : time > band.end ? band.end : time);
+  const dayTimes = band ? TIME_OPTIONS.filter((option) => option.value >= band.start && option.value <= band.end) : TIME_OPTIONS;
+  const [startTime, setStartTime] = useState(() => within(DEFAULT_START_TIME));
+  const [endTime, setEndTime] = useState(() => within(DEFAULT_END_TIME));
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [photo, setPhoto] = useState(0);
@@ -112,6 +123,14 @@ export default function ItemView({
 
   const mine = item.mine;
   const bySlot = item.mode === "time";
+  // Booked by asking: no calendar and no request — the card says how the
+  // owner is reached, and the two sides arrange it themselves.
+  const inquiry = item.mode === "inquiry";
+  // Somebody else's, written down by an account that does not have it: any
+  // account may change it or delete it, and nobody can switch it off.
+  const shared = item.shared === true;
+  const canEdit = mine || (shared && Boolean(viewer) && !preview);
+  const contacts = item.contacts ?? [];
   const states = useMemo(() => dayStates(calendar, bookings), [calendar, bookings]);
   const free = useMemo(() => nextFreeDay(item, calendar), [item, calendar]);
   // The figure at the head of the card: what it costs today, at this hour.
@@ -208,6 +227,20 @@ export default function ItemView({
     }
   }
 
+  // Deleting is asked twice: the button, then the answer to "delete it?".
+  async function remove() {
+    if (busy || preview) return;
+    setBusy(true);
+    setFormError("");
+    try {
+      await onDelete?.();
+    } catch (error) {
+      setFormError(error.message);
+      setConfirming(false);
+      setBusy(false);
+    }
+  }
+
   const chosen = selection
     ? bySlot
       ? [
@@ -242,11 +275,42 @@ export default function ItemView({
   const photoLimit = size?.width && size?.height ? Math.floor(Math.min(size.width, (size.height * 4) / 3)) : undefined;
   const status = !item.active
     ? t("item.inactive")
-    : free === today()
+    : inquiry
+      ? t("item.byInquiry")
+      : free === today()
       ? t("item.freeToday")
       : free
         ? t("item.freeFrom", { date: formatDay(free, lang) })
         : t("item.noDays");
+
+  // The buttons at the foot of the card, for whoever may change the item. One
+  // for the whole item: it can be had, or it cannot — which is not asked of
+  // somebody else's, since that is its owner's to say. And beside it, at the
+  // right, the way to be rid of the item altogether, in red and asked twice.
+  const removal = confirming ? (
+    <div className={styles.buttons}>
+      <span className={styles.confirm}>{t("item.deleteConfirm")}</span>
+      <button type="button" className="small-button" disabled={busy} onClick={() => setConfirming(false)}>
+        {t("common.cancel")}
+      </button>
+      <button type="button" className={`small-button ${styles.danger} ${styles.dangerFilled}`} disabled={busy} onClick={remove}>
+        {t("item.delete")}
+      </button>
+    </div>
+  ) : (
+    <div className={styles.buttons}>
+      {/* Where there is no such button, Delete stands alone at the left edge:
+          nothing empty is left in its place to hold a gap open. */}
+      {mine && !shared && (
+        <button type="button" className="small-button" disabled={busy || preview} onClick={() => setActive(!item.active)}>
+          {item.active ? t("calendar.close") : t("calendar.open")}
+        </button>
+      )}
+      <button type="button" className={`small-button ${styles.danger}`} disabled={busy || preview} onClick={() => setConfirming(true)}>
+        {t("item.delete")}
+      </button>
+    </div>
+  );
 
   return (
     <article className={styles.page}>
@@ -261,13 +325,19 @@ export default function ItemView({
           </p>
           <h1 className={styles.title}>{item.title}</h1>
           <p className={styles.meta}>
-            {preview ? (
+            {/* Whose account it is under — not said of somebody else's,
+                which is nobody's by name. */}
+            {shared || !item.owner ? null : preview ? (
               <span>{formatUsername(item.owner)}</span>
             ) : (
               <Link to={`/u/${encodeURIComponent(item.owner)}`}>{formatUsername(item.owner)}</Link>
             )}
             {item.place && <span>{item.place}</span>}
-            {item.region && item.region.name !== item.place && <span>{item.region.name}</span>}
+            {[item.region, ...(item.moreRegions ?? [])]
+              .filter((region) => region && region.name !== item.place)
+              .map((region) => (
+                <span key={`${region.name}|${region.bbox.join()}`}>{region.name}</span>
+              ))}
             {item.createdAt && <span>{relativeTime(item.createdAt, lang, t)}</span>}
           </p>
           {/* What the people who rented it gave it: nothing to say of a draft. */}
@@ -326,8 +396,14 @@ export default function ItemView({
         <aside className={styles.card} ref={cardRef}>
           <p className={styles.price}>
             <strong>{priceHead}</strong>
-            <span>{bySlot ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) }) : t("item.aDay")}</span>
-            <span className={`status ${item.active && free === today() ? "status-confirmed" : "status-pending"}`}>
+            <span>
+              {bySlot
+                ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) })
+                : inquiry && inquiryUnitOf(item) !== DAY_UNIT
+                  ? t("item.anHour", { unit: unitName(inquiryUnitOf(item), t) })
+                  : t("item.aDay")}
+            </span>
+            <span className={`status ${item.active && (inquiry || free === today()) ? "status-confirmed" : "status-pending"}`}>
               {status}
             </span>
           </p>
@@ -344,7 +420,7 @@ export default function ItemView({
               </svg>
               {t("item.share")}
             </button>
-            {mine ? (
+            {canEdit && (
               <>
                 <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
                   {t("item.editTitle")}
@@ -355,7 +431,9 @@ export default function ItemView({
                   {t("item.availabilityTitle")}
                 </button>
               </>
-            ) : (
+            )}
+            {/* Writing to its owner — where it has one by name. */}
+            {!mine && item.owner && !shared && (
               <button
                 type="button"
                 className="small-button"
@@ -367,6 +445,66 @@ export default function ItemView({
             )}
           </div>
 
+          {/* Somebody else's: said, with what follows from it. */}
+          {shared && <p className={styles.small}>{t("item.sharedNote")}</p>}
+
+          {/* Booked by asking, the card has no calendar: in its place, how the
+              owner is reached — the first way, then the second. A number
+              and an email address are pressed to call or to write. */}
+          {/* One booked by the date or the time says how its owner is reached
+              too, over its calendar, where it says any way at all. */}
+          {(inquiry || contacts.length > 0) && (
+            <>
+              <div className={`${styles.calendarHead} ${styles.contactHead}`}>
+                <h2>{t("item.contact")}</h2>
+              </div>
+              {item.active || mine ? (
+                <dl className={styles.contacts}>
+                  {contacts.map((contact, index) => (
+                    <div key={index}>
+                      <dt>{t(`item.contactTypes.${contact.type}`)}</dt>
+                      <dd>
+                        {contact.type === "message" ? (
+                          // A message here on rab: the line that says so is
+                          // pressed to write one — to the owner, by whoever
+                          // is reading; the owner's own page opens the
+                          // messages they have. A preview goes nowhere.
+                          preview ? (
+                            t("item.contactMessageNote")
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.contactWrite}
+                              onClick={() => {
+                                if (!viewer) onSignIn?.();
+                                else if (mine || !item.owner) window.dispatchEvent(new Event(MESSAGES_EVENT));
+                                else onMessage?.(item.owner);
+                              }}
+                            >
+                              {t("item.contactMessageNote")}
+                            </button>
+                          )
+                        ) : contact.type === "phone" ? (
+                          <a href={contactHref(contact)}>
+                            {contact.code ? `${contact.code} ` : ""}
+                            {barePhone(contact.value)}
+                          </a>
+                        ) : contactHref(contact) ? (
+                          <a href={contactHref(contact)}>{contact.value}</a>
+                        ) : (
+                          contact.value
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {inquiry && item.active && !mine && <p className={styles.small}>{shared || !item.owner ? t("item.inquiryExplainShared") : t("item.inquiryExplain", { name: formatUsername(item.owner) })}</p>}
+            </>
+          )}
+
+          {!inquiry && (
+          <>
           <div className={styles.calendarHead}>
             <h2>{t("calendar.title")}</h2>
             <span>{mine ? t("calendar.yours") : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
@@ -408,21 +546,20 @@ export default function ItemView({
               <p className={`${styles.small} ${styles.tip}`}>{t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}</p>
             </>
           )}
+          </>
+          )}
 
           {mine ? (
             <div className={styles.panel}>
               {/* The days picked, said back. Nothing is changed about them
                   here: what a day costs and whether it can be had are the
                   item form's to set. */}
-              {item.active ? selection && <p className={styles.chosen}>{chosen}</p> : <p className={styles.small}>{t("item.inactiveNote")}</p>}
-              {/* One button for the whole item: it can be had, or it cannot. */}
-              <div className={styles.buttons}>
-                <button type="button" className="small-button" disabled={busy || preview} onClick={() => setActive(!item.active)}>
-                  {item.active ? t("calendar.close") : t("calendar.open")}
-                </button>
-              </div>
+              {item.active ? !inquiry && selection && <p className={styles.chosen}>{chosen}</p> : <p className={styles.small}>{t("item.inactiveNote")}</p>}
+              {removal}
               {formError && <p className="form-message error">{formError}</p>}
             </div>
+          ) : inquiry ? (
+            !item.active && <p className={styles.small}>{t("item.inactiveNote")}</p>
           ) : item.active ? (
             <form className={styles.panel} onSubmit={book}>
               <p className={styles.chosen}>
@@ -445,6 +582,9 @@ export default function ItemView({
               <fieldset className={styles.fields} disabled={!selection}>
                 {/* The hours, where the item goes by the day: when it is
                     picked up on the first day and brought back on the last. */}
+                {!bySlot && band && (
+                  <p className={styles.small}>{t("booking.dayHours", { start: band.start, end: band.end })}</p>
+                )}
                 {!bySlot && (
                   <div className={styles.times}>
                     <div>
@@ -456,7 +596,7 @@ export default function ItemView({
                         label={t("booking.pickupTime")}
                         value={startTime}
                         onChange={setStartTime}
-                        options={TIME_OPTIONS}
+                        options={dayTimes}
                         searchPlaceholder={t("booking.timeSearch")}
                         emptyLabel={t("booking.timeNoMatch")}
                       />
@@ -470,7 +610,7 @@ export default function ItemView({
                         label={t("booking.returnTime")}
                         value={endTime}
                         onChange={setEndTime}
-                        options={TIME_OPTIONS}
+                        options={dayTimes}
                         searchPlaceholder={t("booking.timeSearch")}
                         emptyLabel={t("booking.timeNoMatch")}
                       />
@@ -482,7 +622,9 @@ export default function ItemView({
                   className="text-area"
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
-                  placeholder={t("booking.notePlaceholder", { name: formatUsername(item.owner) })}
+                  placeholder={
+                    shared || !item.owner ? t("booking.notePlaceholderShared") : t("booking.notePlaceholder", { name: formatUsername(item.owner) })
+                  }
                   maxLength={NOTE_MAX}
                   rows={2}
                   minHeight={56}
@@ -498,6 +640,15 @@ export default function ItemView({
             </form>
           ) : (
             <p className={styles.small}>{t("item.inactiveNote")}</p>
+          )}
+          {/* Somebody else's can be deleted by anybody signed in, as it can
+              be changed by them: the same button its own account has. */}
+          {!mine && canEdit && (
+            <div className={styles.panel}>
+              {removal}
+              {/* Where there is no request form above to say it in. */}
+              {(inquiry || !item.active) && formError && <p className="form-message error">{formError}</p>}
+            </div>
           )}
         </aside>
 
@@ -534,7 +685,9 @@ export default function ItemView({
           )}
 
           {/* ---------------------------------------------------- status */}
-          {!preview && (
+          {/* Booked by asking, there are no requests to list — unless some
+              were made before it was turned to that. */}
+          {!preview && (!inquiry || bookings.length > 0) && (
             <>
               <div className="part-heading">
                 <h2>{mine ? t("booking.requests") : t("booking.yours")}</h2>

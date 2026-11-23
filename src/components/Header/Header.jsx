@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButton, Link, useNavigate } from "../../ui/index.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
@@ -12,6 +12,12 @@ import TravelModal from "../TravelModal/index.js";
 // pages that are somewhere you went to rather than where you start: back to the
 // list the page was opened from, where it was opened from one (the row says so
 // in the entry's state), and to the map otherwise.
+// Asked of the window by anything that wants the form for putting something
+// out for rent opened: `window.dispatchEvent(new Event(LIST_EVENT))`.
+export const LIST_EVENT = "rab:list";
+// And by anything that wants the account's messages opened.
+export const MESSAGES_EVENT = "rab:messages";
+
 export default function Header({ back = false }) {
   const { t } = useTranslation();
   const { user, unread } = useAuth();
@@ -23,6 +29,20 @@ export default function Header({ back = false }) {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [listing, setListing] = useState(false);
   const [travelOpen, setTravelOpen] = useState(false);
+
+  // The form for putting something out is opened from the bar, and from
+  // wherever else on the page asks for it (see LIST_EVENT): an area with
+  // nothing in it does. A stranger is sent to sign in first, as from the bar.
+  useEffect(() => {
+    const open = () => (user ? setListing(true) : navigate(loginPath()));
+    const read = () => (user ? setMessagesOpen(true) : navigate(loginPath()));
+    window.addEventListener(LIST_EVENT, open);
+    window.addEventListener(MESSAGES_EVENT, read);
+    return () => {
+      window.removeEventListener(LIST_EVENT, open);
+      window.removeEventListener(MESSAGES_EVENT, read);
+    };
+  }, [user, navigate]);
 
   return (
     <>

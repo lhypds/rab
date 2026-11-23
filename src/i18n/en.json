@@ -10,7 +10,7 @@
   "header": {
     "back": "Back",
     "backHome": "Back to home",
-    "list": "Rent something out",
+    "list": "Post",
     "mine": "Mine",
     "account": "Account",
     "signIn": "Sign in",
@@ -19,7 +19,7 @@
   "auth": {
     "username": "Username",
     "usernameTaken": "That username is taken",
-    "usernameRule": "1–32 characters: letters, digits, - and _. Not starting with -, and not only digits",
+    "usernameRule": "1–32 characters: letters, digits, - and _. Starting with a letter or a digit, and not only digits",
     "next": "Next",
     "password": "Password",
     "login": "Sign in",
@@ -51,12 +51,16 @@
     "codeWrong": "That is not the code.",
     "codeExpired": "That code has expired. Ask for a new one.",
     "codeTooSoon": "A code was just sent. Wait a minute before asking again.",
-    "resend": "Send again"
+    "resend": "Send again",
+    "usernameReserved": "That username is not available"
   },
   "account": {
     "title": "Account",
     "username": "Username",
     "joined": "Joined",
+    "contacts": "Contact",
+    "contactsHint": "Your phone, email or address. An item of yours that is booked by inquiry starts with these filled in; nothing is shown anywhere until you put it on an item.",
+    "contactsSaved": "Contact saved",
     "signOut": "Sign out"
   },
   "messages": {
@@ -85,20 +89,21 @@
     "allCategories": "All categories",
     "area": "Current area",
     "areaUnknown": "Around here",
-    "areaEmpty": "Nothing is out for rent in this area yet.",
     "areaCount_one": "{{count}} item",
     "areaCount_other": "{{count}} items",
     "title": "Map",
     "noToken": "The map needs a Mapbox token: set VITE_MAPBOX_TOKEN in .env.",
     "search": "Search a place",
     "searchEmpty": "No place by that name",
+    "areaEmpty": "Nothing is posted in this area yet.",
+    "areaEmptyAsk": "Be the first to post something.",
     "searchFailed": "Search is unavailable",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "locate": "My location",
     "locateFailed": "Could not find your location",
     "failed": "Could not load items",
-    "empty": "Nothing for rent here yet",
+    "empty": "Nothing posted here yet",
     "count_one": "{{count}} item here",
     "count_other": "{{count}} items here",
     "open": "View",
@@ -107,13 +112,14 @@
   },
   "item": {
     "region": "Service area",
-    "regionPlaceholder": "Search for a city or region",
-    "regionChange": "Change",
+    "regionPlaceholder": "Search for a city, region or postcode",
     "regionRequired": "Pick the area it is offered in",
-    "regionHint": "Required. Filled in with the city you are in, or the location's city once you add one. Anyone looking at this area on the map sees it in the list, even without a location.",
+    "regionAdd": "+ Add another area",
+    "regionRemove": "Remove",
+    "regionHint": "Required. Filled in with the city you are in. Anyone looking at this area on the map sees it in the list, even without a location.",
     "perDay": "{{price}}/day",
     "aDay": "a day",
-    "newTitle": "Rent something out",
+    "newTitle": "Post",
     "editTitle": "Edit item",
     "photos": "Photos",
     "photoAdd": "Add a photo",
@@ -127,7 +133,7 @@
     "priceRequired": "Set a default price",
     "currency": "Currency",
     "description": "Description",
-    "descriptionPlaceholder": "Condition, what's included, how to pick it up",
+    "descriptionPlaceholder": "What it is, what's included, anything people should know",
     "location": "Location",
     "place": "Place name",
     "placePlaceholder": "Neighbourhood or landmark",
@@ -154,12 +160,21 @@
     "photoMain": "Main",
     "photoMakeMain": "Make this the main photo",
     "photosHint": "Up to 100 photos, compressed before upload. The first is the main photo and is shown on the map — press a photo to make it the main one.",
+    "generate": "Recognize",
+    "generating": "Recognizing…",
+    "generateHint": "Fills in the kind, category, name and description from the main photo.",
+    "generateUnavailable": "This server is not set up to fill this in from the photo.",
+    "generateBusy": "Too many photos at once. Try again in a moment.",
+    "generateFailed": "This could not be filled in from the photo. Fill it in yourself.",
     "locationAdd": "Add a location",
     "locationRemove": "Remove",
-    "locationChoose": "Choose from my locations",
-    "locationSave": "Save to my locations",
+    "locationChoose": "Choose from locations",
+    "locationChoosePublic": "Choose from locations",
+    "locationNone": "No saved locations yet",
+    "locationNonePublic": "No locations yet",
+    "locationSave": "Save location",
     "locationName": "A name for it — Home, the studio",
-    "locationSaved": "Saved to your locations",
+    "locationSaved": "Location saved",
     "locationOptional": "Optional. Without one the item is not on the map, and is found by search and by its link.",
     "pricing": "Pricing",
     "everyDay": "Every day",
@@ -178,7 +193,8 @@
     "previewBlocked": "The browser blocked the preview tab. Allow pop-ups for this site and try again.",
     "mode": {
       "day": "By date",
-      "time": "By date and time"
+      "time": "By date and time",
+      "inquiry": "By inquiry"
     },
     "everyHour": "Per {{unit}}",
     "perHour": "{{price}} / {{unit}}",
@@ -188,6 +204,9 @@
       "end": "Until"
     },
     "ruleTimesWrong": "A price rule's hours need a start before their end",
+    "dayHours": "Available hours",
+    "dayHoursHint": "When it can be picked up and returned. Start and end times of a booking are chosen within these hours; leave both empty for any time.",
+    "dayHoursWrong": "Set both ends of the available hours, the start before the end",
     "hours": "Available hours",
     "openDays": "Days it can be had",
     "hourRuleAdd": "Add hours",
@@ -202,13 +221,15 @@
     "bookingType": "Booking type",
     "modeHint": {
       "day": "Booked by the day, priced per day.",
-      "time": "Booked for a day and a stretch of hours."
+      "time": "Booked for a day and a stretch of hours.",
+      "inquiry": "Nothing is booked here: people contact you directly and you arrange it together."
     },
     "priceUnit": "Price per",
     "basePricing": "Default pricing",
     "pricingHint": {
       "day": "What an ordinary day costs. To price one date differently, press the pencil beside it on the calendar below.",
-      "time": "The default price, for the stretch of time picked under “Price per” — which can differ from the booking step: priced per hour and booked by 15 minutes, a 15-minute booking costs a quarter of it. To price one date differently, press the pencil beside it on the calendar below."
+      "time": "The default price, for the stretch of time picked under “Price per” — which can differ from the booking step: priced per hour and booked by 15 minutes, a 15-minute booking costs a quarter of it. To price one date differently, press the pencil beside it on the calendar below.",
+      "inquiry": "The usual price, for the stretch of time picked under “Price per”, shown as a guide. The final price is agreed when you are contacted."
     },
     "datePrice": "Default pricing · {{date}}",
     "datePriceHint": "Left empty, this date costs the overall default price.",
@@ -217,7 +238,7 @@
     "extraRates_one": "{{count}} earlier price rule is still in force.",
     "extraRates_other": "{{count}} earlier price rules are still in force.",
     "extraRatesClear": "Remove",
-    "availabilityTitle": "Edit availability and pricing",
+    "availabilityTitle": "Edit availability",
     "next": "Next",
     "back": "Back",
     "usualHours": "Usual hours",
@@ -236,7 +257,41 @@
       "hours": "Hours"
     },
     "cancelCount": "How many",
-    "categoryWithin": "{{name}} ({{kind}})"
+    "categoryWithin": "{{name}} ({{kind}})",
+    "contact": "Contact",
+    "contactType": "Contact type",
+    "contactMessageNote": "By a message here on rab",
+    "contactCode": "Country code",
+    "contactCodeSearch": "Search a country or code",
+    "contactCodeNoMatch": "No match",
+    "contactTypes": {
+      "phone": "Phone",
+      "email": "Email",
+      "address": "Address",
+      "message": "Message"
+    },
+    "contactHint": "Shown on the item page to anyone who opens it. The primary contact is required; add more with +.",
+    "contactRequired": "Enter a primary contact.",
+    "byInquiry": "By inquiry",
+    "inquiryExplain": "This is booked by inquiry. Contact {{name}} directly to arrange it.",
+    "contactNth": {
+      "0": "Primary contact",
+      "1": "Secondary contact",
+      "2": "Third contact",
+      "3": "Fourth contact",
+      "4": "Fifth contact"
+    },
+    "contactAdd": "+ Add contact",
+    "contactRemove": "Remove contact",
+    "unitDay": "1 day",
+    "whose": "Whose is it",
+    "whoseMine": "Mine",
+    "whoseOthers": "Someone else’s",
+    "whoseMineHint": "Your own: only you can edit or delete it.",
+    "whoseOthersHint": "Someone else’s that you are listing for them. It is not kept under your account: anyone signed in can edit it, it is booked by inquiry only, and it cannot be changed back to yours.",
+    "sharedNote": "Listed on someone else’s behalf. Anyone signed in can edit it.",
+    "inquiryExplainShared": "This is booked by inquiry. Use the contact details above to arrange it.",
+    "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below."
   },
   "calendar": {
     "title": "Availability",
@@ -270,6 +325,7 @@
     "pickupTime": "Start time",
     "returnTime": "End time",
     "timeOrder": "The end time must be after the start time.",
+    "dayHours": "Available {{start}}–{{end}}",
     "request": "Request to book",
     "signIn": "Sign in to book",
     "explain": "Nothing is charged here. The owner confirms or declines, and you arrange payment and the details by message.",
@@ -295,11 +351,12 @@
       "cancelled": "Cancelled"
     },
     "timeSearch": "Type a time",
-    "timeNoMatch": "No such time"
+    "timeNoMatch": "No such time",
+    "notePlaceholderShared": "A note (optional)"
   },
   "mine": {
     "title": "Mine",
-    "itemsEmpty": "You have nothing out for rent. Press + to add something.",
+    "itemsEmpty": "You have nothing posted. Press + to post something.",
     "noneShown": "Nothing here.",
     "items": "Items",
     "skills": "Skills"
@@ -307,8 +364,8 @@
   "user": {
     "missing": "There is nobody by that name.",
     "joined": "joined {{date}}",
-    "items": "For rent",
-    "itemsEmpty": "Nothing out for rent.",
+    "items": "Posts",
+    "itemsEmpty": "Nothing posted.",
     "reviews": "Reviews",
     "reviewsEmpty": "No reviews yet.",
     "asOwner": "as owner",
@@ -325,7 +382,7 @@
     "home": "Back to my location"
   },
   "gate": {
-    "body": "rab shows what is for rent around you. Allow location so the map can open where you are.",
+    "body": "rab shows what is posted around you. Allow location so the map can open where you are.",
     "enable": "Allow location",
     "locating": "Locating",
     "retry": "Try again",
@@ -338,7 +395,7 @@
     "insecureHint": "Browsers only give a position to pages on https or localhost. Open rab at an https address."
   },
   "search": {
-    "placeholder": "Search rentals",
+    "placeholder": "Search posts",
     "empty": "Nothing by that name"
   },
   "kind": {
@@ -346,6 +403,7 @@
     "item": "Things",
     "space": "Spaces",
     "service": "Services",
+    "skill": "Skills",
     "itemHint": "Something you own: a car, a camera, a projector, a 3D printer.",
     "spaceHint": "A place: a home, a meeting room, storage, a music studio.",
     "serviceHint": "Your time: photography, lessons, repairs, a guide."
@@ -443,7 +501,7 @@
   "others": {
     "title": "Others",
     "empty": "You have not booked anything yet.",
-    "rentals": "Rentals",
+    "rentals": "My Rentals",
     "noneShown": "Nothing here."
   }
 }

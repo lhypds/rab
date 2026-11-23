@@ -55,6 +55,7 @@ export default function AuthPage() {
 
   function nameError(requestError) {
     if (requestError.code === "USER_EXISTS") return t("auth.usernameTaken");
+    if (requestError.code === "USERNAME_RESERVED") return t("auth.usernameReserved");
     if (requestError.status === 400) return t("auth.usernameRule");
     return requestError.message;
   }

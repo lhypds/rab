@@ -11,7 +11,42 @@
 //
 // A day is a plain date and a time is "HH:MM"; both compare correctly as text.
 
-export const MODES = new Set(["day", "time"]);
+// A third way has no booking in it at all: by asking. The item says how its
+// owner is reached (see readContacts) and the two sides arrange it themselves;
+// its price is read as a day's, the way a by-the-date item's is.
+export const MODES = new Set(["day", "time", "inquiry"]);
+// "message" is a message here on rab, to the owner's account: a way with
+// nothing written for it.
+export const CONTACT_TYPES = new Set(["phone", "email", "address", "message"]);
+const CONTACT_MAX = 200;
+const CONTACTS_MAX = 5;
+const DIAL_CODE_RE = /^\+\d{1,4}$/;
+
+// How the owner of an item booked by asking is reached: the first way, the
+// second, the third and so on — [{ type, value }], a way with nothing
+// written in it left out.
+export function readContacts(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, CONTACTS_MAX)
+    .map((entry) => {
+      const type = CONTACT_TYPES.has(entry?.type) ? entry.type : "phone";
+      if (type === "message") return { type, value: "" };
+      const written = String(entry?.value ?? "").replace(/\s+/g, " ").trim();
+      if (type !== "phone") return { type, value: written.slice(0, CONTACT_MAX) };
+      // A phone number is kept as its digits, and shown that way: where its
+      // groups are differs by country. The code it is dialled with from
+      // abroad is kept beside it (`code`, "+81"), the number as it is dialled
+      // at home. One sent without a code — from before a code was asked for
+      // — keeps a + in front of its digits where it was written with one.
+      const digits = written.replace(/\D/g, "").slice(0, CONTACT_MAX);
+      const code = DIAL_CODE_RE.test(String(entry?.code ?? "")) ? String(entry.code) : null;
+      if (code) return { type, code, value: digits };
+      return { type, value: (written.startsWith("+") ? "+" : "") + digits };
+    })
+    // A message is said once, and is a way with nothing written in it.
+    .filter((entry, index, all) => (entry.type === "message" ? all.findIndex((each) => each.type === "message") === index : entry.value));
+}
 export const STEP = 30; // minutes in one piece of the clock
 // Enough for a price on single stretches of single dates, which the form
 // writes as one rule for each stretch and price (see the item form).
@@ -100,6 +135,16 @@ export function readCancel(value) {
 // to Friday" — or null where it is every day.
 export const readOpenDays = readWeekdays;
 
+// The hours of the day an item booked by the date can be picked up and
+// brought back in, { start, end } — or null where it says none, and any time
+// of day will do.
+export function readDayHours(value) {
+  const start = String(value?.start ?? "");
+  const end = String(value?.end ?? "");
+  if (!TIME_RE.test(start) || !TIME_RE.test(end) || start >= end) return null;
+  return { start, end };
+}
+
 // A plain list of dates, in order; empty where none are named.
 export const readDayList = (value) => readDates(value) ?? [];
 
@@ -150,6 +195,14 @@ export function readUnit(value) {
 export function readPriceUnit(item) {
   const per = Number(item?.priceUnit);
   return UNITS.includes(per) ? per : readUnit(item?.unit);
+}
+
+// What the price of an item booked by asking is for: one of the stretches of
+// the clock above, or a whole day — which is what it is where none is said.
+export const DAY_UNIT = 1440;
+export function readInquiryUnit(value) {
+  const per = Number(value);
+  return UNITS.includes(per) ? per : DAY_UNIT;
 }
 
 // The one figure an item is listed under: an ordinary day, or an ordinary hour.

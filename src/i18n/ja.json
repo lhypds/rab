@@ -10,8 +10,8 @@
   "header": {
     "back": "戻る",
     "backHome": "ホームに戻る",
-    "list": "貸し出す",
-    "mine": "マイ",
+    "list": "ポストする",
+    "mine": "私の",
     "account": "アカウント",
     "signIn": "ログイン",
     "others": "他人の"
@@ -19,7 +19,7 @@
   "auth": {
     "username": "ユーザー名",
     "usernameTaken": "そのユーザー名は使われています",
-    "usernameRule": "1〜32文字：英字、数字、- と _。- で始めることはできず、数字だけにもできません",
+    "usernameRule": "1〜32文字：英字、数字、- と _。先頭は英字か数字で、数字だけにはできません",
     "next": "次へ",
     "password": "パスワード",
     "login": "ログイン",
@@ -51,12 +51,16 @@
     "codeWrong": "コードが違います。",
     "codeExpired": "コードの有効期限が切れました。再送してください。",
     "codeTooSoon": "コードを送ったばかりです。1分後にもう一度お試しください。",
-    "resend": "再送する"
+    "resend": "再送する",
+    "usernameReserved": "そのユーザー名は使用できません"
   },
   "account": {
     "title": "アカウント",
     "username": "ユーザー名",
     "joined": "登録日",
+    "contacts": "連絡先",
+    "contactsHint": "電話・メール・住所を登録できます。問い合わせ予約のアイテムを作るときに自動で入力されます。アイテムに載せるまで、どこにも表示されません。",
+    "contactsSaved": "連絡先を保存しました",
     "signOut": "ログアウト"
   },
   "messages": {
@@ -85,19 +89,20 @@
     "allCategories": "すべてのカテゴリ",
     "area": "現在のエリア",
     "areaUnknown": "このあたり",
-    "areaEmpty": "このエリアにはまだ借りられるものがありません。",
     "areaCount_other": "{{count}}件",
     "title": "地図",
     "noToken": "地図には Mapbox トークンが必要です。.env に VITE_MAPBOX_TOKEN を設定してください。",
     "search": "場所を検索",
     "searchEmpty": "その場所は見つかりません",
+    "areaEmpty": "このエリアにはまだポストがありません。",
+    "areaEmptyAsk": "最初のひとつをポストしてみませんか？",
     "searchFailed": "検索は利用できません",
     "zoomIn": "拡大",
     "zoomOut": "縮小",
     "locate": "現在地",
     "locateFailed": "現在地を取得できません",
     "failed": "アイテムを読み込めません",
-    "empty": "ここにはまだ貸し出しがありません",
+    "empty": "ここにはまだポストがありません",
     "count_other": "ここに{{count}}件",
     "open": "見る",
     "searchClear": "クリア",
@@ -105,13 +110,14 @@
   },
   "item": {
     "region": "提供エリア",
-    "regionPlaceholder": "市区町村や都道府県を検索",
-    "regionChange": "変更",
+    "regionPlaceholder": "市区町村・都道府県・郵便番号で検索",
     "regionRequired": "提供エリアを選んでください",
-    "regionHint": "必須です。今いる市区町村が入ります。場所を追加すると、その場所の市区町村になります。地図でこのエリアを見ている人のリストに表示されます。位置を追加しなくても表示されます。",
+    "regionAdd": "+ 提供エリアを追加",
+    "regionRemove": "削除",
+    "regionHint": "必須です。今いる市区町村が入ります。地図でこのエリアを見ている人のリストに表示されます。位置を追加しなくても表示されます。",
     "perDay": "{{price}}/日",
     "aDay": "1日あたり",
-    "newTitle": "貸し出す",
+    "newTitle": "ポストする",
     "editTitle": "アイテムを編集",
     "photos": "写真",
     "photoAdd": "写真を追加",
@@ -119,13 +125,13 @@
     "photoOpen": "写真を拡大",
     "photoFailed": "写真をアップロードできません",
     "title": "名前",
-    "titlePlaceholder": "何を貸しますか？",
+    "titlePlaceholder": "何をポストしますか？",
     "titleRequired": "アイテムの名前を入力してください",
     "price": "料金",
     "priceRequired": "通常料金を設定してください",
     "currency": "通貨",
     "description": "説明",
-    "descriptionPlaceholder": "状態、付属品、受け渡し方法",
+    "descriptionPlaceholder": "内容、含まれるもの、利用する人に伝えたいこと",
     "location": "場所",
     "place": "場所の名前",
     "placePlaceholder": "地区や目印",
@@ -152,12 +158,21 @@
     "photoMain": "メイン",
     "photoMakeMain": "メイン写真にする",
     "photosHint": "最大100枚、アップロード前に圧縮されます。1枚目がメイン写真で、地図に表示されます。写真を押すとメインにできます。",
+    "generate": "認識",
+    "generating": "認識中…",
+    "generateHint": "メイン写真から種類・カテゴリ・名前・説明を自動で入力します。",
+    "generateUnavailable": "このサーバーでは写真からの自動入力が設定されていません。",
+    "generateBusy": "混み合っています。少し待ってからもう一度お試しください。",
+    "generateFailed": "写真から入力できませんでした。手動で入力してください。",
     "locationAdd": "場所を追加",
     "locationRemove": "削除",
-    "locationChoose": "自分の場所から選ぶ",
-    "locationSave": "自分の場所に保存",
+    "locationChoose": "場所から選ぶ",
+    "locationChoosePublic": "場所から選ぶ",
+    "locationNone": "保存した場所はまだありません",
+    "locationNonePublic": "場所はまだありません",
+    "locationSave": "場所を保存",
     "locationName": "名前を付ける（自宅、スタジオなど）",
-    "locationSaved": "自分の場所に保存しました",
+    "locationSaved": "場所を保存しました",
     "locationOptional": "任意です。追加しない場合は地図に表示されず、検索とリンクからのみ見つかります。",
     "pricing": "料金",
     "everyDay": "毎日",
@@ -175,7 +190,8 @@
     "previewBlocked": "ブラウザがプレビューのタブをブロックしました。このサイトのポップアップを許可してもう一度お試しください。",
     "mode": {
       "day": "日付で予約",
-      "time": "日付と時間で予約"
+      "time": "日付と時間で予約",
+      "inquiry": "問い合わせ予約"
     },
     "everyHour": "{{unit}}あたり",
     "perHour": "{{price}}/{{unit}}",
@@ -185,6 +201,9 @@
       "end": "終了時刻"
     },
     "ruleTimesWrong": "料金ルールの時間帯は、開始を終了より前にしてください",
+    "dayHours": "利用可能時間帯",
+    "dayHoursHint": "受け渡しができる時間帯です。予約の開始・終了時刻はこの中から選ばれます。両方空欄なら終日です。",
+    "dayHoursWrong": "利用可能時間帯は開始と終了の両方を設定し、開始を終了より前にしてください",
     "hours": "利用可能時間帯",
     "openDays": "貸し出せる曜日",
     "hourRuleAdd": "時間を追加",
@@ -199,13 +218,15 @@
     "bookingType": "予約タイプ",
     "modeHint": {
       "day": "日単位で貸し出します。料金は1日ごとです。",
-      "time": "日付と時間帯を選んで予約します。"
+      "time": "日付と時間帯を選んで予約します。",
+      "inquiry": "ここでは予約を受け付けません。相手が直接連絡し、お互いに相談して決めます。"
     },
     "priceUnit": "料金の基準",
     "basePricing": "通常料金",
     "pricingHint": {
       "day": "通常の1日の料金です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。",
-      "time": "通常料金で、「料金の基準」で選んだ時間の分です。予約の刻みと別にできます：1時間あたりの料金で15分単位の予約なら、15分の予約は料金の4分の1です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。"
+      "time": "通常料金で、「料金の基準」で選んだ時間の分です。予約の刻みと別にできます：1時間あたりの料金で15分単位の予約なら、15分の予約は料金の4分の1です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。",
+      "inquiry": "通常料金で、「料金の基準」で選んだ時間の分です。目安として表示され、最終的な料金は連絡の際に決めます。"
     },
     "datePrice": "通常料金 · {{date}}",
     "datePriceHint": "空欄の場合、この日は全体の通常料金になります。",
@@ -213,7 +234,7 @@
     "datePriceDone": "完了",
     "extraRates_other": "以前の料金ルールが{{count}}件、まだ有効です。",
     "extraRatesClear": "削除",
-    "availabilityTitle": "利用可能日時と料金を編集",
+    "availabilityTitle": "利用可能性を編集",
     "next": "次へ",
     "back": "戻る",
     "usualHours": "通常の時間",
@@ -232,7 +253,41 @@
       "hours": "時間"
     },
     "cancelCount": "数",
-    "categoryWithin": "{{name}}（{{kind}}）"
+    "categoryWithin": "{{name}}（{{kind}}）",
+    "contact": "連絡先",
+    "contactType": "連絡先の種類",
+    "contactMessageNote": "rab 内のメッセージで受け取ります",
+    "contactCode": "国番号",
+    "contactCodeSearch": "国名や番号で検索",
+    "contactCodeNoMatch": "見つかりません",
+    "contactTypes": {
+      "phone": "電話",
+      "email": "メール",
+      "address": "住所",
+      "message": "サイト内メッセージ"
+    },
+    "contactHint": "アイテムのページに表示され、ページを開いた人は誰でも見られます。第一連絡先は必須で、+ で追加できます。",
+    "contactRequired": "第一連絡先を入力してください。",
+    "byInquiry": "問い合わせ予約",
+    "inquiryExplain": "問い合わせ予約です。{{name}} さんに直接連絡して相談してください。",
+    "contactNth": {
+      "0": "第一連絡先",
+      "1": "第二連絡先",
+      "2": "第三連絡先",
+      "3": "第四連絡先",
+      "4": "第五連絡先"
+    },
+    "contactAdd": "+ 連絡先を追加",
+    "contactRemove": "連絡先を削除",
+    "unitDay": "1日",
+    "whose": "誰のもの",
+    "whoseMine": "私の",
+    "whoseOthers": "他人の",
+    "whoseMineHint": "自分のものです。編集や削除ができるのは自分だけです。",
+    "whoseOthersHint": "他人のものを代わりに登録します。自分のアカウントには紐づかず、ログインしているユーザーなら誰でも編集できます。予約は問い合わせ予約のみで、あとから「私の」に戻すことはできません。",
+    "sharedNote": "他人のものとして登録されています。ログインしているユーザーなら誰でも編集できます。",
+    "inquiryExplainShared": "問い合わせ予約です。上の連絡先に直接連絡して相談してください。",
+    "modeHintShared": "他人のものは問い合わせ予約のみです。下の連絡先に直接連絡してもらいます。"
   },
   "calendar": {
     "title": "空き状況",
@@ -263,6 +318,7 @@
     "pickupTime": "開始時刻",
     "returnTime": "終了時刻",
     "timeOrder": "終了時刻は開始時刻より後にしてください。",
+    "dayHours": "利用可能時間帯：{{start}}–{{end}}",
     "request": "予約をリクエスト",
     "signIn": "ログインして予約",
     "explain": "ここでは支払いは発生しません。貸主が承認または辞退し、支払いと詳細はメッセージで相談します。",
@@ -287,11 +343,12 @@
       "cancelled": "キャンセル"
     },
     "timeSearch": "時刻を入力",
-    "timeNoMatch": "該当する時刻がありません"
+    "timeNoMatch": "該当する時刻がありません",
+    "notePlaceholderShared": "メッセージ（任意）"
   },
   "mine": {
-    "title": "マイ",
-    "itemsEmpty": "貸し出しているものはありません。+ から追加できます。",
+    "title": "私の",
+    "itemsEmpty": "ポストしたものはありません。+ から追加できます。",
     "noneShown": "該当するアイテムはありません。",
     "items": "アイテム",
     "skills": "スキル"
@@ -299,8 +356,8 @@
   "user": {
     "missing": "そのユーザーは見つかりません。",
     "joined": "{{date}} 登録",
-    "items": "貸し出し中",
-    "itemsEmpty": "貸し出しているものはありません。",
+    "items": "ポスト",
+    "itemsEmpty": "ポストしたものはありません。",
     "reviews": "レビュー",
     "reviewsEmpty": "まだレビューはありません。",
     "asOwner": "貸主として",
@@ -317,7 +374,7 @@
     "home": "現在地に戻る"
   },
   "gate": {
-    "body": "rab は周りで借りられるものを表示します。位置情報を許可すると、地図が現在地から開きます。",
+    "body": "rab は周りのポストを表示します。位置情報を許可すると、地図が現在地から開きます。",
     "enable": "位置情報を許可",
     "locating": "取得中",
     "retry": "再試行",
@@ -330,7 +387,7 @@
     "insecureHint": "ブラウザは https または localhost のページにだけ位置情報を渡します。https のアドレスで rab を開いてください。"
   },
   "search": {
-    "placeholder": "レンタルを検索",
+    "placeholder": "ポストを検索",
     "empty": "見つかりません"
   },
   "kind": {
@@ -338,6 +395,7 @@
     "item": "モノ",
     "space": "スペース",
     "service": "サービス",
+    "skill": "スキル",
     "itemHint": "持ち物：車、カメラ、プロジェクター、3Dプリンターなど。",
     "spaceHint": "場所：住まい、会議室、収納スペース、音楽スタジオなど。",
     "serviceHint": "あなたの時間：撮影、レッスン、修理、ガイドなど。"
@@ -432,7 +490,7 @@
   "others": {
     "title": "他人の",
     "empty": "まだ何も予約していません。",
-    "rentals": "レンタル",
-    "noneShown": "該当するレンタルはありません。"
+    "rentals": "私の予約リスト",
+    "noneShown": "該当する予約はありません。"
   }
 }

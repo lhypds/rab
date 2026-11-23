@@ -1,1 +1,1 @@
-export { MapSearch, MapTools } from "./MapParts.jsx";
+export { MapSearch, MapTools, showSelf } from "./MapParts.jsx";

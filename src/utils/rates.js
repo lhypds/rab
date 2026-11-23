@@ -98,6 +98,14 @@ export function priceUnitOf(item) {
   return item?.unit == null ? 60 : unitOf(item);
 }
 
+// What the price of an item booked by asking is for: one of the stretches of
+// the clock above, or a whole day — which is what it is where none is said.
+export const DAY_UNIT = 1440;
+export const INQUIRY_UNITS = [...UNITS, DAY_UNIT];
+export function inquiryUnitOf(item) {
+  return item?.mode === "inquiry" && UNITS.includes(Number(item.priceUnit)) ? Number(item.priceUnit) : DAY_UNIT;
+}
+
 // One day's hours cut into the pieces that can be asked for — the item's unit
 // long, counted from where each stretch of hours starts — each with the
 // price in force then, which is for one stretch of the pricing unit. What is left at the end of a stretch and is shorter than a

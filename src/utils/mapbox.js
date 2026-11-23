@@ -58,6 +58,49 @@ export function locateFailure() {
   return failure;
 }
 
+// Where the reader was last found, and whoever wants telling when that changes:
+// the dot a map draws for them (see showSelf in MapParts). Told by every
+// position that comes back, and — once the reader has said yes — by a watch
+// on the device, so the dot moves as they do.
+let self = null;
+let watchId = null;
+const watchers = new Set();
+
+function seen(spot) {
+  self = spot;
+  for (const tell of watchers) tell(spot);
+}
+
+// Only ever begun after a yes: a watch on a browser that has not been asked
+// would put the system's question up on its own.
+function follow() {
+  if (watchId !== null || watchers.size === 0 || !navigator.geolocation || !window.isSecureContext) return;
+  watchId = navigator.geolocation.watchPosition(
+    (found) => seen({ latitude: found.coords.latitude, longitude: found.coords.longitude }),
+    () => {},
+    { enableHighAccuracy: false, maximumAge: 60 * 1000 },
+  );
+}
+
+// `tell` is handed the reader's position now, if it is known, and each time it
+// changes. Nobody is asked anything on its account: where the browser already
+// answers, it is watched; where it does not, the first position the reader
+// allows (the gate, the locate button) starts it. Returns the way to stop.
+export function onPosition(tell) {
+  watchers.add(tell);
+  if (self) tell(self);
+  locationPermission().then((permission) => {
+    if (permission === "granted" && watchers.has(tell)) follow();
+  });
+  return () => {
+    watchers.delete(tell);
+    if (watchers.size === 0 && watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+  };
+}
+
 function position(options) {
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
@@ -88,6 +131,8 @@ export async function locate({ timeout = 8000 } = {}) {
   if (answer.spot) {
     failure = null;
     remember("yes");
+    seen(answer.spot);
+    follow();
     return answer.spot;
   }
   const denied = answer.error.code === answer.error.PERMISSION_DENIED;
@@ -133,7 +178,12 @@ export async function geocode(query, { lang = "en", country = null, near = null,
   const response = await fetch(`${GEOCODE}/forward?${params}`, { signal });
   if (!response.ok) throw new Error("Search failed");
   const data = await response.json();
-  return (data.features ?? []).map((feature) => ({
+  return (data.features ?? []).map(placeOf);
+}
+
+// One of the geocoder's answers, as a place is passed about in here.
+function placeOf(feature) {
+  return {
     id: feature.id,
     name: feature.properties?.name ?? "",
     detail: feature.properties?.place_formatted ?? "",
@@ -142,7 +192,7 @@ export async function geocode(query, { lang = "en", country = null, near = null,
     longitude: feature.geometry?.coordinates?.[0],
     latitude: feature.geometry?.coordinates?.[1],
     bbox: feature.properties?.bbox ?? null,
-  }));
+  };
 }
 
 // What a spot is called, roughly: the neighbourhood and the town, which is as
@@ -177,7 +227,8 @@ export const AREA_TYPES = "place,locality,district,region";
 // A place that comes without a box is given a few kilometres round its middle.
 export function areaOf(place) {
   if (!place?.name) return null;
-  const spread = 0.05;
+  // Less of it for a neighbourhood, which is not a town's size.
+  const spread = place.type === "locality" || place.type === "neighborhood" ? 0.01 : 0.05;
   const bbox =
     place.bbox?.length === 4
       ? place.bbox
@@ -260,6 +311,42 @@ export async function areaAt(latitude, longitude, lang, signal) {
     longitude: ground?.longitude ?? longitude,
     latitude: ground?.latitude ?? latitude,
   };
+}
+
+// The areas a spot could be said to be in, widest first: the town, and the
+// neighbourhood of it the spot stands in — 京都市, and 傘鉾町 — as places to
+// choose between (see areaOf). The ward between the two is left out: where
+// Mapbox files it as a second town (京都市下京区 beside 京都市), the town is
+// the one the other is named after.
+export async function areasAt(latitude, longitude, lang, signal) {
+  if (!MAPBOX_TOKEN) return [];
+  const params = new URLSearchParams({
+    longitude: String(longitude),
+    latitude: String(latitude),
+    language: mapLanguage(lang),
+    types: "locality,place",
+    access_token: MAPBOX_TOKEN,
+  });
+  const response = await fetch(`${GEOCODE}/reverse?${params}`, { signal });
+  if (!response.ok) throw new Error("Search failed");
+  const data = await response.json();
+  const features = (data.features ?? []).filter((each) => each.properties?.name);
+  const towns = features.filter((each) => each.properties.feature_type === "place");
+  const town =
+    towns.find((each) => towns.some((other) => other !== each && other.properties.name.includes(each.properties.name))) ??
+    towns[0];
+  const neighbourhood = features.find((each) => each.properties.feature_type === "locality");
+  return [town, neighbourhood].filter(Boolean).map(placeOf);
+}
+
+// What somebody typed, as a postcode where it is nothing but one: its digits,
+// whatever width they were typed in, with Japan's seven written 600-8009, the
+// only way the geocoder knows them. Null for anything with a word in it.
+export function postcodeOf(text) {
+  const written = text.normalize("NFKC").replace(/^〒/, "").trim();
+  if (!/^\d[\d\s-]{2,}$/.test(written)) return null;
+  const digits = written.replace(/\D/g, "");
+  return digits.length === 7 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : written;
 }
 
 // Mapbox's half of that: the town a spot stands in, and failing that the

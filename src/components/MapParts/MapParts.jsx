@@ -1,11 +1,36 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButton } from "../../ui/index.js";
-import { geocode } from "../../utils/mapbox.js";
+import mapboxgl from "mapbox-gl";
+import { geocode, onPosition } from "../../utils/mapbox.js";
 import { loadRegion, useRegion } from "../../utils/region.js";
 import styles from "./parts.module.css";
 
 const SEARCH_DELAY_MS = 350;
+
+// The reader's own position on a map: a dot, where the browser says they are,
+// moved as they move. Drawn only where the position is already to be had or
+// comes to be (see onPosition) — the dot itself asks nobody anything. It is
+// not something to press, and stands under the pins. Returns the way to take
+// it off again.
+export function showSelf(map) {
+  const element = document.createElement("span");
+  element.className = styles.self;
+  element.setAttribute("aria-hidden", "true");
+  const marker = new mapboxgl.Marker({ element, anchor: "center" });
+  let placed = false;
+  const stop = onPosition((spot) => {
+    marker.setLngLat([spot.longitude, spot.latitude]);
+    if (!placed) {
+      marker.addTo(map);
+      placed = true;
+    }
+  });
+  return () => {
+    stop();
+    marker.remove();
+  };
+}
 
 // The place search that stands in the top left of a map: a glass to say what it
 // is, the field, and the cross that empties it once there is something in it. It looks inside the country the reader is taken to be in (see

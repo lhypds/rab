@@ -35,6 +35,7 @@ const {
   getBookingsForItemByRenter,
   getBookingsForOwner,
   getBookingsToReview,
+  getContacts,
   getConversation,
   getDays,
   getDaysBetween,
@@ -54,6 +55,7 @@ const {
   hasOwnOverlap,
   overlapping,
   readConversation,
+  saveContacts,
   saveLocation,
   saveSession,
   searchItems,
@@ -63,11 +65,11 @@ const {
   setDays,
   touchSession,
   transaction,
-  updateItem,
+  updateItem, PUBLIC_ID, PUBLIC_NAME
 } = await import("./db.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImage, storeImage } = await import("./images.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, storeImage } = await import("./images.js");
 const { mailConfigured, sendMail } = await import("./mail.js");
-const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
+const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
 
@@ -77,11 +79,14 @@ const isProduction = process.env.NODE_ENV === "production";
 /* -------------------------------------------------------------------- rules */
 
 // A username is nearly one a Unix system would take: letters, digits, - and _,
-// 32 characters at most, not starting with - and not a number — "318yang" is a
-// name, "318" is not. (Capitals are folded to lower case before this is asked.)
-const USERNAME_RE = /^(?!\d+$)[a-z0-9_][a-z0-9_-]{0,31}$/;
-const USERNAME_HINT = "A username is 1–32 characters: letters, digits, - and _, not starting with - and not a number";
-// What a name could be before that rule: all digits, CJK characters. Nobody
+// 32 characters at most, starting with a letter or a digit and not a number —
+// "318yang" is a name, "318" is not. A name starting with _ is the server's
+// own to give: "_public" is the account nobody has (see db.js). (Capitals are
+// folded to lower case before this is asked.)
+const USERNAME_RE = /^(?!\d+$)[a-z0-9][a-z0-9_-]{0,31}$/;
+const USERNAME_HINT = "A username is 1–32 characters: letters, digits, - and _, starting with a letter or a digit and not a number";
+// What a name could be before that rule: all digits, CJK characters, _ at the
+// front. Nobody
 // can take such a name any more; whoever already has one still signs in by it.
 const EARLIER_USERNAME_RE =
   /^[a-z0-9_\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}-]{1,32}$/u;
@@ -117,6 +122,34 @@ deleteExpiredSessions(Date.now());
 function normalizeUsername(value) {
   return String(value ?? "").trim().normalize("NFKC").toLowerCase();
 }
+
+// A profile lives at /u/<name> and an item at /i/<id>, so no name can shadow
+// one of rab's own pages; these are refused only so nobody can pass for the
+// site or for the people who run it. Each is refused however it is dressed:
+// with - and _ in it, with digits after it, with "rab" or "official" beside
+// it — "admin", "_admin_", "admin01", "rab-admin" and "official_support" are
+// all the one name. Only a name that comes to exactly one of these: "admin"
+// inside a longer word ("badminton") is nobody passing for anybody.
+const RESERVED_NAMES = new Set([
+  "rab", "admin", "admins", "administrator", "administrators", "administration", "sysadmin", "superadmin",
+  "root", "superuser", "sudo", "system", "sys", "owner", "master", "webmaster", "hostmaster", "postmaster",
+  "staff", "team", "official", "operator", "moderator", "moderators", "mod", "mods",
+  "support", "help", "helpdesk", "service", "customerservice", "customersupport", "contact", "info",
+  "security", "abuse", "noreply", "mailer", "mail", "email", "billing", "payment", "payments",
+  "login", "logout", "signin", "signup", "register", "account", "accounts", "mine", "others", "me", "user", "users",
+  "public", "api", "www", "null", "undefined", "anonymous", "guest", "everyone", "all", "bot", "test",
+  "kanri", "kanrisha", "unei", "uneisha", "guanli", "guanliyuan", "kefu",
+]);
+
+function reservedName(username) {
+  const bare = username.replace(/[-_]/g, "").replace(/\d+$/, "");
+  if (RESERVED_NAMES.has(bare)) return true;
+  // And one of them with the site's own name or "official" at either end.
+  const inner = bare.replace(/^(rab|official|the)+/, "").replace(/(rab|official)+$/, "");
+  return inner === "" || RESERVED_NAMES.has(inner);
+}
+
+const RESERVED_FAULT = { error: "That username is not available", code: "USERNAME_RESERVED" };
 
 function usernameFault(username) {
   return USERNAME_RE.test(username) ? null : { error: USERNAME_HINT, code: "USERNAME_INVALID" };
@@ -242,18 +275,23 @@ app.get("/api/session", requireSession, (req, res) => {
 // account on a typo.
 app.post("/api/username", (req, res) => {
   const username = normalizeUsername(req.body?.username);
+  // The account that is nobody's is not one to sign in to.
+  if (username === PUBLIC_NAME) return res.status(409).json(RESERVED_FAULT);
   const user = knownUser(username);
   if (user) return res.json({ username: user.username });
   // Not an account — and, where the name breaks the rule, not one that could
   // be made either, which is said now rather than after a password is chosen.
   const fault = usernameFault(username);
   if (fault) return res.status(400).json(fault);
+  // Nor one that passes for the site: said now too. An account that already
+  // has such a name, from before it was refused, was answered above.
+  if (reservedName(username)) return res.status(409).json(RESERVED_FAULT);
   res.status(404).json({ error: "No such user", code: "USER_NOT_FOUND" });
 });
 
 app.post("/api/login", (req, res) => {
   const username = normalizeUsername(req.body?.username);
-  const user = knownUser(username);
+  const user = username === PUBLIC_NAME ? null : knownUser(username);
   if (!user) return res.status(404).json({ error: "No such user", code: "USER_NOT_FOUND" });
   if (!checkPassword(username, String(req.body?.password ?? ""))) {
     return res.status(401).json({ error: "Wrong password", code: "PASSWORD_WRONG" });
@@ -267,9 +305,6 @@ app.post("/api/logout", (req, res) => {
   res.status(204).end();
 });
 
-// A profile lives at /u/<name> and an item at /i/<id>, so no name can shadow
-// one of rab's own pages; these are refused only so nobody can pass for the site.
-const RESERVED_NAMES = new Set(["rab", "admin", "support", "login", "mine"]);
 
 // Whether rab uses email at all. A setting, ENABLE_EMAIL in .env, and off
 // unless it says so. What it turns on so far is one thing: opening an account
@@ -310,7 +345,7 @@ function newAccount(body) {
   if (fault) return { status: 400, fault };
   const password = usablePassword(body?.password);
   if (!password) return { status: 400, fault: { error: PASSWORD_HINT, code: "PASSWORD_INVALID" } };
-  if (RESERVED_NAMES.has(username)) return { status: 409, fault: { error: "That username is not available" } };
+  if (reservedName(username)) return { status: 409, fault: RESERVED_FAULT };
   if (getUser(username)) return { status: 409, fault: { error: "That username is taken", code: "USER_EXISTS" } };
   // No address is asked for, or kept, where the setting is off.
   if (!ENABLE_EMAIL) return { username, password, email: null };
@@ -406,12 +441,15 @@ app.post("/api/users", (req, res) => {
 // them and what those people said, and what they have out for rent.
 app.get("/api/users/:username", (req, res) => {
   const user = getUser(normalizeUsername(req.params.username));
-  if (!user) return res.status(404).json({ error: "No such user" });
+  // The account that is nobody's has no page.
+  if (!user || user.id === PUBLIC_ID) return res.status(404).json({ error: "No such user" });
   res.json({
     user: { username: user.username, createdAt: user.createdAt },
     rating: getRating(user.id),
     reviews: getReviewsOf(user.id).slice(0, REVIEWS_SHOWN),
-    items: getItemsByUser(user.id, { publicOnly: true }).map(publicItem),
+    // Not somebody else's that this account wrote down: those are nobody's
+    // by name, and are not listed as this account's.
+    items: getItemsByUser(user.id, { publicOnly: true }).filter((item) => !item.shared).map(publicItem),
   });
 });
 
@@ -456,17 +494,38 @@ function parseImages(value) {
   return images;
 }
 
-// An item's photographs belong in its owner's folder, whoever uploaded them.
-function keepImages(userId, images) {
-  for (const image of images) {
-    keepImage(userId, image.name);
-    keepImage(userId, image.thumb);
-  }
+// An item's photographs belong in the item's own folder, whoever uploaded
+// them: taken there once the item is saved and has a folder to take them to.
+function keepItemImages(item) {
+  keepImages(item.ownerId, item.id, getItemImages(item.id).flatMap((image) => [image.name, image.thumb]));
 }
 
 // An area, as the form sends it: what it is called, the line saying where that
 // is, and its box as [west, south, east, north]. Null where any of it is
 // missing or out of range.
+const MORE_REGIONS_MAX = 3;
+
+// Whether one area is inside another: its ground within the other's, and the
+// other named in what it is called or in the line saying where it is — 傘鉾町,
+// "京都府京都市下京区", is inside 京都市. The ground alone does not say: the box
+// round a big town has its neighbours in it too. (The same rule as the form's,
+// in ItemModal.jsx.)
+function regionWithin(inner, outer) {
+  const edge = 0.002;
+  const [west, south, east, north] = inner.bbox;
+  const [outerWest, outerSouth, outerEast, outerNorth] = outer.bbox;
+  if (west < outerWest - edge || south < outerSouth - edge || east > outerEast + edge || north > outerNorth + edge) return false;
+  return inner.name.includes(outer.name) || inner.detail.includes(outer.name);
+}
+
+// Whether two areas cannot both be an item's: the same one, or one inside the
+// other.
+function regionsOverlap(a, b) {
+  if (!a || !b) return false;
+  const same = a.name === b.name && a.bbox.every((edge, index) => Math.abs(edge - b.bbox[index]) < 1e-4);
+  return same || regionWithin(a, b) || regionWithin(b, a);
+}
+
 function parseRegion(value) {
   const name = text(value?.name, REGION_MAX);
   const bbox = Array.isArray(value?.bbox) && value.bbox.length === 4 ? value.bbox : null;
@@ -492,6 +551,15 @@ function parseItem(body, { regionOptional = false } = {}) {
   if (!region && !regionOptional) {
     return { error: "Say which area it is offered in", code: "REGION_REQUIRED" };
   }
+  // The areas it is offered in besides: something that stands between two is
+  // listed in both. A few at most, none said twice, and none inside another.
+  const moreRegions = [];
+  for (const entry of Array.isArray(body?.moreRegions) ? body.moreRegions : []) {
+    const more = parseRegion(entry);
+    if (!more || [region, ...moreRegions].some((other) => regionsOverlap(other, more))) continue;
+    moreRegions.push(more);
+    if (moreRegions.length === MORE_REGIONS_MAX) break;
+  }
   const kind = KINDS.has(body?.kind) ? body.kind : "item";
   const category = CATEGORY_RE.test(String(body?.category ?? "")) ? String(body?.category ?? "") : "";
   const currency = String(body?.currency ?? "");
@@ -499,13 +567,22 @@ function parseItem(body, { regionOptional = false } = {}) {
 
   // The rules that price it. A request from before there were any — a bare
   // price — is one rule: that price, every day.
-  const mode = MODES.has(body?.mode) ? body.mode : "day";
+  // Somebody else's is booked by asking and no other way: a request made
+  // here would be nobody's to answer.
+  const mode = body?.shared === true ? "inquiry" : MODES.has(body?.mode) ? body.mode : "day";
   const sent = Array.isArray(body?.rates) && body.rates.length > 0 ? body.rates : [{ price: body?.price }];
   const parsed = parseRates(mode, sent, PRICE_MAX);
   if (parsed.error) return { error: parsed.error };
   // The hours it can be had, which only an item booked by the time has.
   const hours = mode === "time" ? parseHours(body?.hours) : { hours: [] };
   if (hours.error) return { error: hours.error, code: hours.code };
+  // How the owner is reached, which an item booked by asking has to say.
+  // How the owner is reached, whichever way it is booked. Somebody else's has
+  // no account to send a message to, so that way is not one of its.
+  const contacts = readContacts(body?.contacts).filter((contact) => body?.shared !== true || contact.type !== "message");
+  if (mode === "inquiry" && contacts.length === 0) {
+    return { error: "Say how you can be contacted", code: "CONTACT_REQUIRED" };
+  }
 
   // Where it is, which is optional: a service has no doorway, and not every
   // owner wants a pin on their street. Both numbers or neither.
@@ -527,12 +604,22 @@ function parseItem(body, { regionOptional = false } = {}) {
       // The piece of the clock it is booked in, where it is booked by the time.
       unit: readUnit(body?.unit),
       // And the stretch of the clock its prices are for.
-      priceUnit: readPriceUnit(body),
+      // Booked by asking, that may be a whole day as well.
+      priceUnit: mode === "inquiry" ? readInquiryUnit(body?.priceUnit) : readPriceUnit(body),
       // The rule for days, and the dates whose hours were wiped (see rates.js).
       openDays: readOpenDays(body?.openDays),
+      // The hours of the day one booked by the date is handed over in.
+      dayHours: mode === "day" ? readDayHours(body?.dayHours) : null,
       hoursOff: mode === "time" ? readDayList(body?.hoursOff) : [],
       // When a confirmed booking may still be called off by whoever made it.
       cancel: readCancel(body?.cancel),
+      contacts,
+      // Whether it is somebody else's rather than the account's own: it is
+      // then kept under the public account, which is nobody's, and anybody
+      // signed in may change it or delete it. It cannot be switched off,
+      // which is its owner's to say and not whoever wrote it down — and it
+      // is booked by asking (see below), there being nobody here to say yes.
+      shared: body?.shared === true,
       price: listPrice(mode, parsed.rates),
       currency,
       located,
@@ -540,8 +627,9 @@ function parseItem(body, { regionOptional = false } = {}) {
       longitude: located ? Math.round(longitude * 1e6) / 1e6 : 0,
       place: located ? text(body?.place, PLACE_MAX) || null : null,
       region,
+      moreRegions: region ? moreRegions : [],
       images,
-      active: body?.active !== false,
+      active: body?.shared === true || body?.active !== false,
     },
   };
 }
@@ -655,23 +743,63 @@ app.get("/api/items/:id", (req, res) => {
   res.json(itemAnswer(item, req.user));
 });
 
+// Where somebody else's item is put is one of the public account's places
+// from then on (its locations.json), for the next such item to be put at: the
+// spot, and what it is called — the line written under the pin, or failing
+// that the item's name. A spot that is one of them already is not added twice.
+function rememberPublicPlace(item) {
+  if (!item.shared || !item.located || item.latitude == null || item.longitude == null) return;
+  const near = (a, b) => Math.abs(a - b) < 1e-5;
+  if (getLocations(PUBLIC_ID).some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) return;
+  saveLocation(PUBLIC_ID, {
+    id: null,
+    name: text(item.place || item.title, LOCATION_NAME_MAX),
+    address: item.place ?? "",
+    latitude: item.latitude,
+    longitude: item.longitude,
+    region: item.region ?? null,
+  });
+}
+
+// How the signed-in account is reached, as it wrote it on its account's own
+// sheet: kept in its folder's user.json, and what an item of its own that is
+// booked by asking starts with. Nothing an item says is kept here — only what
+// is sent here. A message on rab is not one of them: it has nothing to write.
+app.get("/api/contacts", requireSession, (req, res) => {
+  res.json({ contacts: getContacts(req.user.id) });
+});
+
+app.put("/api/contacts", requireSession, (req, res) => {
+  if (!Array.isArray(req.body?.contacts)) return res.status(400).json({ error: "Send the contacts as a list" });
+  const contacts = readContacts(req.body.contacts).filter((contact) => contact.type !== "message");
+  saveContacts(req.user.id, contacts);
+  res.json({ contacts });
+});
+
 app.post("/api/items", requireSession, (req, res) => {
   const parsed = parseItem(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
-  keepImages(req.user.id, parsed.item.images);
-  const item = createItem(req.user.id, parsed.item);
+  // Somebody else's is put under the public account, in its folder, and is
+  // not the account's own from the first: nothing says who wrote it down.
+  const ownerId = parsed.item.shared ? PUBLIC_ID : req.user.id;
+  const item = createItem(ownerId, parsed.item);
+  keepItemImages(item);
+  rememberPublicPlace(parsed.item);
   applyClosed(item, req.body?.closed);
   applyOpened(item, req.body?.opened);
-  res.status(201).json({ item: { ...publicItem(item), mine: true } });
+  res.status(201).json({ item: { ...publicItem(item), mine: !parsed.item.shared } });
 });
 
+// The item a request is about, where the account asking may change it: its
+// own — or anybody's, where the item is somebody else's that an account wrote
+// down (`shared`), which is everybody's to keep right.
 function ownItem(req, res) {
   const item = getItem(req.params.id);
   if (!item) {
     res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
     return null;
   }
-  if (item.ownerId !== req.user.id) {
+  if (item.ownerId !== req.user.id && !item.shared) {
     res.status(403).json({ error: "That is not your item" });
     return null;
   }
@@ -689,13 +817,20 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
   };
   // An item from before areas were asked for has none, and is not made to
   // find one just to be switched off: it is asked for when the form sends one.
-  const parsed = parseItem({ ...stored, ...req.body }, { regionOptional: !current.region && !("region" in (req.body ?? {})) });
+  // Somebody else's stays somebody else's: it is under the public account,
+  // and no account can take it for its own. An account's own can be said to
+  // be somebody else's, once, and is then moved there (see updateItem).
+  const sent = current.shared ? { ...req.body, shared: true } : req.body;
+  const parsed = parseItem({ ...stored, ...sent }, { regionOptional: !current.region && !("region" in (req.body ?? {})) });
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
-  keepImages(req.user.id, parsed.item.images);
-  const item = updateItem(req.user.id, current.id, parsed.item);
+  // Its folder goes where it is kept — the public account's for somebody
+  // else's (see updateItem) — and its photographs are put in it.
+  const item = updateItem(current.ownerId, current.id, parsed.item);
+  keepItemImages(item);
+  rememberPublicPlace(parsed.item);
   applyClosed(item, req.body?.closed);
   applyOpened(item, req.body?.opened);
-  res.json({ item: { ...publicItem(item), mine: true } });
+  res.json({ item: { ...publicItem(item), mine: item.ownerId === req.user.id } });
 });
 
 app.delete("/api/items/:id", requireSession, (req, res) => {
@@ -707,9 +842,11 @@ app.delete("/api/items/:id", requireSession, (req, res) => {
     for (const booking of getBookingsForItem(item.id)) {
       if (booking.status !== "pending" && booking.status !== "confirmed") continue;
       setBookingStatus(booking.id, "cancelled");
-      createMessage(req.user.id, booking.renterId, "", { kind: "cancelled", bookingId: booking.id });
+      // Said by the account the booking was made with, which for an item
+      // since made somebody else's is not the one it is under now.
+      createMessage(booking.ownerId, booking.renterId, "", { kind: "cancelled", bookingId: booking.id });
     }
-    deleteItem(req.user.id, item.id);
+    deleteItem(item.ownerId, item.id);
   });
   res.status(204).end();
 });
@@ -778,6 +915,10 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
   if (!item) return res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
   if (item.ownerId === req.user.id) return res.status(400).json({ error: "You cannot rent your own item" });
   if (!item.active) return res.status(409).json({ error: "This item is not available", code: "ITEM_INACTIVE" });
+  // Booked by asking, it is arranged with its owner and not requested here.
+  if (item.mode === "inquiry") {
+    return res.status(409).json({ error: "This item is booked by contacting its owner", code: "INQUIRY_ONLY" });
+  }
 
   const bySlot = item.mode === "time";
   const start = req.body?.start;
@@ -803,6 +944,11 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
     }
     if (start === end && startTime >= endTime) {
       return res.status(400).json({ error: "The end time must be after the start time", code: "TIME_ORDER" });
+    }
+    // Inside the hours the item is handed over in, where it says any.
+    const band = item.dayHours;
+    if (band && [startTime, endTime].some((time) => time < band.start || time > band.end)) {
+      return res.status(400).json({ error: `Pick times between ${band.start} and ${band.end}`, code: "TIME_OUTSIDE" });
     }
   }
 
@@ -1004,8 +1150,20 @@ app.get("/api/mine", requireSession, (req, res) => {
 const LOCATION_NAME_MAX = 60;
 const LOCATION_ID_RE = /^[a-z0-9-]{1,40}$/;
 
+// The spots of the public account's items from before they were kept: each
+// one that is not among its places yet is added, when the server starts.
+for (const item of getItemsByUser(PUBLIC_ID)) rememberPublicPlace({ ...item, located: item.latitude != null });
+
+// The public account has places too (`shared`): the ones somebody else's
+// things are at — a shop, a hall — kept in its folder like any account's, for
+// anybody signed in to put such a thing at. They are every spot such a thing
+// has been put at: saving somebody else's item with a spot adds the spot (see
+// rememberPublicPlace). One sent here is added too, and none is changed: one
+// sent under an id is given an id of its own all the same.
+const sharedPlaces = (req) => req.query.shared === "1" || req.body?.shared === true;
+
 app.get("/api/locations", requireSession, (req, res) => {
-  res.json({ locations: getLocations(req.user.id) });
+  res.json({ locations: getLocations(sharedPlaces(req) ? PUBLIC_ID : req.user.id) });
 });
 
 app.post("/api/locations", requireSession, (req, res) => {
@@ -1014,9 +1172,10 @@ app.post("/api/locations", requireSession, (req, res) => {
   const latitude = parseNumber(req.body?.latitude, -90, 90);
   const longitude = parseNumber(req.body?.longitude, -180, 180);
   if (latitude === null || longitude === null) return res.status(400).json({ error: "A location needs a spot on the map" });
-  const id = req.body?.id == null ? null : String(req.body.id).toLowerCase();
+  const shared = sharedPlaces(req);
+  const id = shared || req.body?.id == null ? null : String(req.body.id).toLowerCase();
   if (id !== null && !LOCATION_ID_RE.test(id)) return res.status(400).json({ error: "Invalid location id" });
-  const location = saveLocation(req.user.id, {
+  const location = saveLocation(shared ? PUBLIC_ID : req.user.id, {
     id,
     name,
     address: text(req.body?.address, PLACE_MAX),

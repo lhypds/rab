@@ -51,6 +51,8 @@
   width: 28px;
   aspect-ratio: 24 / 21.6;
   cursor: grab;
+  /* Over the dot that says where the reader is. */
+  z-index: 1;
 }
 
 .marker:active {

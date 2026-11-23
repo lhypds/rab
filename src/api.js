@@ -122,10 +122,26 @@ export const getItem = (id, options) => request(`/api/items/${name(id)}`, option
 export const createItem = (item) => send("POST", "/api/items", item);
 export const updateItem = (id, item) => send("PATCH", `/api/items/${name(id)}`, item);
 export const deleteItem = (id) => send("DELETE", `/api/items/${name(id)}`);
+// What a photograph is of, as a listing would say it: { kind, category, title,
+// description }, in the language asked for (see server/describe.js). The
+// model takes its time, so this waits longer than most.
+export const describePhoto = (blob, lang) =>
+  request(`/api/describe?lang=${encodeURIComponent(lang)}`, {
+    method: "POST",
+    body: blob,
+    headers: { "Content-Type": blob.type || "application/octet-stream" },
+    timeoutMs: 90 * 1000,
+  });
 // The signed-in account's own places, to put an item at.
-export const getLocations = () => request("/api/locations");
+// `shared` asks for the public account's instead: the places somebody else's
+// things are at, which anybody signed in may choose from and add to.
+export const getLocations = ({ shared = false } = {}) => request(shared ? "/api/locations?shared=1" : "/api/locations");
 export const saveLocation = (location) => send("POST", "/api/locations", location);
 export const deleteLocation = (id) => send("DELETE", `/api/locations/${name(id)}`);
+// How the signed-in account is reached, as it wrote it on its account's
+// sheet: a phone number, an email address, an address.
+export const getContacts = () => request("/api/contacts");
+export const saveContacts = (contacts) => send("PUT", "/api/contacts", { contacts });
 export const setDays = (id, change) => send("PUT", `/api/items/${name(id)}/days`, change);
 
 /* ----------------------------------------------------------------- bookings */

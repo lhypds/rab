@@ -125,6 +125,19 @@
   --action-icon: 14px;
 }
 
+/* Where the reader is: a dot in the page's ink ringed in its paper, with a
+   faint round of the same ink about it. Under the pins, and not to be pressed. */
+.self {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 6px rgb(0 0 0 / 12%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 @media (hover: hover) {
   .result:hover {
     background: var(--soft);

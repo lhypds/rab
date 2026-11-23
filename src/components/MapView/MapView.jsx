@@ -7,6 +7,7 @@ import * as api from "../../api.js";
 import { Link, Select } from "../../ui/index.js";
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
+import { contactHref } from "../../utils/dialing.js";
 import { CATEGORIES, KINDS } from "../../utils/kinds.js";
 import {
   DEFAULT_VIEW,
@@ -22,9 +23,10 @@ import {
   savedView,
 } from "../../utils/mapbox.js";
 import { currentRegion, loadRegion, onTravel, takeJourney } from "../../utils/region.js";
-import { MapTools } from "../MapParts/index.js";
+import { MapTools, showSelf } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
+import { LIST_EVENT } from "../Header/Header.jsx";
 import CategoryIcon from "../CategoryIcon/index.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
@@ -101,6 +103,25 @@ function setPinPhoto(element, src) {
 
 // The map the site opens on: everything out for rent in the window being
 // looked at, each standing where it is picked up.
+// The way an item's owner is reached first, as a small drawing beside the
+// word that asks for it: a telephone, a letter, or a message here on rab.
+// Nothing for an address, or where no way is said.
+const CONTACT_ICONS = {
+  phone: "M7 3h3l1.5 4.5-2 1.5a12 12 0 0 0 5.5 5.5l1.5-2L21 14v3a3 3 0 0 1-3 3A15 15 0 0 1 4 6a3 3 0 0 1 3-3z",
+  email: "M3 6h18v12H3zM3 7l9 7 9-7",
+  message: "M4 5h16v11H10l-5 4v-4H4z",
+};
+
+function ContactIcon({ type }) {
+  const path = CONTACT_ICONS[type];
+  if (!path) return null;
+  return (
+    <svg className={styles.cardIcon} viewBox="0 0 24 24" aria-hidden="true">
+      <path d={path} />
+    </svg>
+  );
+}
+
 export default function MapView() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -119,6 +140,9 @@ export default function MapView() {
   // The pin the pointer is resting on, where there is a pointer. Its bubble is
   // borrowed from the chosen one for as long as it rests there.
   const [hoveredId, setHoveredId] = useState(null);
+  // The row of the list the pointer is resting on: its pin is lit for as long
+  // as it rests there, and no bubble is put up for it.
+  const [pointedId, setPointedId] = useState(null);
   const leaveRef = useRef(null);
   const [kind, setKind] = useState(null);
   // The question about location, while it is being asked: "ask" before the
@@ -249,6 +273,9 @@ export default function MapView() {
     const sized = new ResizeObserver(() => map.resize());
     sized.observe(containerRef.current);
 
+    // Where the reader is, as a dot among the pins.
+    const hideSelf = showSelf(map);
+
     let timer = null;
     let controller = null;
     let cancelled = false;
@@ -377,6 +404,7 @@ export default function MapView() {
       window.clearTimeout(timer);
       window.clearTimeout(leaveRef.current);
       controller?.abort();
+      hideSelf();
       for (const { marker } of markersRef.current.values()) marker.remove();
       markersRef.current.clear();
       popupRef.current?.remove();
@@ -479,8 +507,26 @@ export default function MapView() {
   useEffect(() => {
     for (const [id, entry] of markersRef.current) {
       entry.element.classList.toggle(styles.pinChosen, id === selectedId);
+      entry.element.classList.toggle(styles.pinPointed, id === pointedId);
     }
-  }, [selectedId, items, kind, category, query]);
+  }, [selectedId, pointedId, items, kind, category, query]);
+
+  // A row of the list pressed, for an item that stands on the map: the first
+  // press goes to its pin — the map moves there and its bubble is put up — and
+  // keeps the row from going to the item's page; pressed again, with its
+  // bubble up, the row goes there as it always did. An item with no pin has
+  // nowhere on the map to go to, and its row goes to the page at once.
+  const pressRow = (item, event) => {
+    if (!item.located || selectedId === item.id) return;
+    // A press meant for a new tab or window is left to be one.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const map = mapRef.current;
+    if (!map) return;
+    event.preventDefault();
+    touchedRef.current = true;
+    setSelectedId(item.id);
+    map.flyTo({ center: [item.longitude, item.latitude], zoom: Math.max(map.getZoom(), 14), duration: 800 });
+  };
 
   // The bubble itself holds a borrowed bubble open while the pointer is in it.
   useEffect(() => {
@@ -612,11 +658,31 @@ export default function MapView() {
           )}
         </div>
         <div className={styles.sideList}>
-          {listed?.length === 0 && <p className={styles.sideEmpty}>{words.length ? t("search.empty") : t("map.areaEmpty")}</p>}
+          {/* A search that found nothing says so. An area with nothing in
+              it says so too, and asks for the first thing: the way to put
+              one out, here where it is missing. */}
+          {listed?.length === 0 &&
+            (words.length > 0 ? (
+              <p className={styles.sideEmpty}>{t("search.empty")}</p>
+            ) : (
+              <div className={styles.sideEmpty}>
+                <p>{t("map.areaEmpty")}</p>
+                <p>{t("map.areaEmptyAsk")}</p>
+                <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(LIST_EVENT))}>
+                  {t("header.list")}
+                </button>
+              </div>
+            ))}
           {listed?.length > 0 && (
             <ul className="row-list">
               {listed.map((item) => (
-                <ItemRow key={item.id} item={item} />
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  chosen={item.id === selectedId}
+                  onPress={(event) => pressRow(item, event)}
+                  onPoint={item.located ? (on) => setPointedId((current) => (on ? item.id : current === item.id ? null : current)) : undefined}
+                />
               ))}
             </ul>
           )}
@@ -721,11 +787,24 @@ export default function MapView() {
                 <Link className={styles.cardLink} to={`/i/${open.id}`}>
                   {t("map.open")}
                 </Link>
-                {open.owner !== user?.username && (
-                  <Link className={styles.cardLink} to={`/i/${open.id}?book=1`}>
-                    {t("map.request")}
-                  </Link>
-                )}
+                {open.owner !== user?.username &&
+                  // Something booked by asking is asked for the way its
+                  // owner said first: a phone number is called and an
+                  // email address is written to, straight from here. Any
+                  // other goes to the page, on its calendar or its address.
+                  // Beside the word, the way its owner said first, drawn:
+                  // a telephone, a letter, a message here.
+                  (open.mode === "inquiry" && contactHref(open.contacts?.[0], open.title) ? (
+                    <a className={styles.cardLink} href={contactHref(open.contacts[0], open.title)}>
+                      {t("map.request")}
+                      <ContactIcon type={open.contacts[0].type} />
+                    </a>
+                  ) : (
+                    <Link className={styles.cardLink} to={`/i/${open.id}?book=1`}>
+                      {t("map.request")}
+                      <ContactIcon type={open.contacts?.[0]?.type} />
+                    </Link>
+                  ))}
               </span>
             </div>,
             popupNode,

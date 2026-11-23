@@ -4,7 +4,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { formatCoords } from "../../utils/format.js";
 import { MAPBOX_TOKEN, MAP_STYLE, PIN_PATH, locate, mapLanguage } from "../../utils/mapbox.js";
-import { MapSearch, MapTools } from "../MapParts/index.js";
+import { MapSearch, MapTools, showSelf } from "../MapParts/index.js";
 import styles from "./spot.module.css";
 
 function Pin() {
@@ -46,10 +46,10 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
       attributionControl: false,
       // A map that is only showing a spot does not take the page's scroll.
       interactive: picking,
-      // The picker sits in a form that scrolls, and a wheel turned over it is
-      // somebody on their way down the form: it is zoomed by its buttons, by a
-      // pinch and by a double click.
-      scrollZoom: false,
+      // The picker is zoomed by the wheel like any map, as well as by its
+      // buttons, a pinch and a double click — though it sits in a form that
+      // scrolls, and a wheel turned over it no longer scrolls the form.
+      scrollZoom: picking,
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
@@ -92,7 +92,10 @@ export default function SpotMap({ latitude, longitude, zoom = 14, onMove, target
       markerRef.current = { marker, tell, label };
     }
     mapRef.current = map;
+    // Where the reader is, beside where the item is.
+    const hideSelf = showSelf(map);
     return () => {
+      hideSelf();
       sized.disconnect();
       mapRef.current = null;
       markerRef.current = null;

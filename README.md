@@ -64,7 +64,7 @@ Layout
     server/migrate.js  moves a database from before the folders into them, once
     server/rates.js    pricing rules and hours: by the date, by the date and time
     server/region.js   country of a request, from its address (ipwho.is)
-    server/images.js   photo storage under data/users/<username>/images/
+    server/images.js   photo storage, each item's in its own folder
     src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
@@ -84,10 +84,15 @@ What is kept where: `db.sqlite` holds the accounts — a name, a password's hash
 it was made — and who is signed in, and nothing else. Everything an account has is in
 a folder of its own, named after the account's username:
 
-    data/users/<username>/items.json      what they have out for rent, each with its calendar's exceptions
-    data/users/<username>/bookings.json   every rental they are one side of (the other side holds the same)
-    data/users/<username>/messages.json   their side of every conversation
-    data/users/<username>/images/         the photographs they uploaded, each named after its own bytes
+    data/users/<username>/items/<made>/item.json   one thing they have out for rent, with its calendar's exceptions
+    data/users/<username>/items/<made>/<name>      that item's photographs, each named after its own bytes
+    data/users/<username>/uploads/                 photographs sent and not yet saved with an item
+    data/users/<username>/user.json                how the account is reached, as written on its account sheet
+    data/users/<username>/bookings.json            every rental they are one side of (the other side holds the same)
+    data/users/<username>/messages.json            their side of every conversation
+
+`<made>` is when the item was made, in Unix time to the millisecond, and is the item's
+id: what its address is, and what a booking points at it by.
 
 The server reads the folders when it starts and writes a file back whenever something
 in it changes, so one server process owns them; a file edited by hand is picked up at

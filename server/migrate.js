@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { dataDir, userDir, writeList } from "./files.js";
+import { ITEM_FILE, dataDir, itemDir, itemFolders, readList, userDir, userFolders, writeItem, writeList } from "./files.js";
 
 // rab used to keep everything in db.sqlite and every photograph in one folder,
 // data/images/. This moves a database from then into the users' folders (see
@@ -150,4 +150,124 @@ export function moveIntoFolders(db, databasePath) {
   } catch {}
 
   console.log(`rab: moved ${owners.size} items into data/users/ — the database as it was is ${backup}`);
+}
+
+// An account's items used to be one list, items.json, and its photographs one
+// folder, images/. Each item is given a folder of its own, with item.json and
+// the item's photographs in it (see files.js), once: an account that still has
+// an items.json is one not moved yet. The folders are named after the items'
+// ids as they were then, and given their proper names next (see
+// renameItemFolders and renumberItems).
+export function moveItemsIntoFolders() {
+  const users = userFolders();
+  const oldImages = (userId) => path.join(userDir(userId), "images");
+  const copied = new Set();
+  let count = 0;
+  let any = false;
+  for (const userId of users) {
+    const file = path.join(userDir(userId), "items.json");
+    if (!fs.existsSync(file)) continue;
+    any = true;
+    for (const item of readList(userId, "items.json")) {
+      const dir = itemDir(userId, item.id);
+      fs.mkdirSync(dir, { recursive: true });
+      const names = (item.images ?? []).flatMap((image) => [image?.name, image?.thumb]);
+      for (const name of new Set(names.filter(Boolean).map((name) => path.basename(String(name))))) {
+        // In its owner's images, unless it was somebody else's upload.
+        const from = [userId, ...users].map((id) => path.join(oldImages(id), name)).find((place) => fs.existsSync(place));
+        if (!from) continue;
+        fs.copyFileSync(from, path.join(dir, name));
+        copied.add(from);
+      }
+      writeItem(userId, item);
+      count += 1;
+    }
+    // Only now that every item of the list is on disk does the list go.
+    fs.rmSync(file);
+  }
+  if (!any) return;
+
+  // Copied first and removed after, since two items may carry the same
+  // picture. A picture no item carried was sent and never used: it waits in
+  // uploads/, where such pictures now wait.
+  for (const file of copied) fs.rmSync(file, { force: true });
+  for (const userId of users) {
+    let left;
+    try {
+      left = fs.readdirSync(oldImages(userId));
+    } catch {
+      continue;
+    }
+    const uploads = path.join(userDir(userId), "uploads");
+    if (left.length > 0) fs.mkdirSync(uploads, { recursive: true });
+    for (const name of left) fs.renameSync(path.join(oldImages(userId), name), path.join(uploads, name));
+    fs.rmdirSync(oldImages(userId));
+  }
+
+  console.log(`rab: moved ${count} items into folders of their own, under data/users/<username>/items/`);
+}
+
+// An item's folder used to be named after the item's id. One that still is —
+// any whose name is not a number — is named after the millisecond its item was
+// made, in Unix time, once. Two made in the same one cannot both have it: the
+// later one found takes the next millisecond that is free, in anybody's
+// folder, so that an item can change account and keep its folder's name.
+export function renameItemFolders() {
+  const users = userFolders();
+  const taken = new Set(users.flatMap((userId) => itemFolders(userId)));
+  let count = 0;
+  for (const userId of users) {
+    for (const name of itemFolders(userId)) {
+      if (/^\d+$/.test(name)) continue;
+      let item;
+      try {
+        item = JSON.parse(fs.readFileSync(path.join(itemDir(userId, name), ITEM_FILE), "utf8"));
+      } catch (error) {
+        if (error.code === "ENOENT") continue;
+        throw error;
+      }
+      const made = Date.parse(item?.createdAt);
+      let stamp = Number.isFinite(made) ? made : Date.now();
+      while (taken.has(String(stamp))) stamp += 1;
+      taken.add(String(stamp));
+      fs.renameSync(itemDir(userId, name), itemDir(userId, String(stamp)));
+      count += 1;
+    }
+  }
+  if (count > 0) console.log(`rab: named ${count} item folders after when their items were made`);
+}
+
+// An item's id used to be eight letters and digits drawn at random, with its
+// folder named after when it was made. The folder's name is the id now: an
+// item.json that still says another id is given its folder's, once, and keeps
+// the old one as `was`, so an address handed out under it still opens. The
+// bookings that point at the item are made to point at it by its new id.
+export function renumberItems() {
+  const users = userFolders();
+  const renamed = new Map();
+  for (const userId of users) {
+    for (const folder of itemFolders(userId)) {
+      let item;
+      try {
+        item = JSON.parse(fs.readFileSync(path.join(itemDir(userId, folder), ITEM_FILE), "utf8"));
+      } catch (error) {
+        if (error.code === "ENOENT") continue;
+        throw error;
+      }
+      if (!item || item.id == null || String(item.id) === folder) continue;
+      renamed.set(String(item.id), folder);
+      writeItem(userId, { ...item, id: folder, was: String(item.id) });
+    }
+  }
+  if (renamed.size === 0) return;
+  for (const userId of users) {
+    const bookings = readList(userId, "bookings.json");
+    if (!bookings.some((booking) => renamed.has(String(booking.itemId)))) continue;
+    writeList(
+      userId,
+      "bookings.json",
+      bookings.map((booking) => (renamed.has(String(booking.itemId)) ? { ...booking, itemId: renamed.get(String(booking.itemId)) } : booking)),
+    );
+  }
+  console.log(`rab: gave ${renamed.size} items the time they were made as their id`);
 }

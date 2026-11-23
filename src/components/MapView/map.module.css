@@ -139,16 +139,35 @@
 .sideList {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
+/* Nothing to list: said in the middle of where the list would be, under the
+   rule the list would start at. */
 .sideEmpty {
+  flex: 1;
   margin: 0;
-  padding: 10px 0;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
+  text-align: center;
+}
+
+.sideEmpty p {
+  margin: 0;
+}
+
+.sideEmpty :global(.small-button) {
+  margin-top: 6px;
 }
 
 /* The map: one frame filling the rest, ruled like every other box here. */
@@ -194,6 +213,8 @@
   border: 0;
   background: none;
   cursor: pointer;
+  /* Over the dot that says where the reader is, whichever was drawn first. */
+  z-index: 1;
 }
 
 .pin svg {
@@ -221,13 +242,20 @@
 }
 
 .pin:hover svg,
-.pinChosen svg {
+.pinChosen svg,
+.pinPointed svg {
   fill: #000;
   stroke: #fff;
 }
 
 .pinChosen {
   z-index: 2;
+}
+
+/* The pin of the row the pointer is on, in the list beside the map: lit like
+   the chosen one, and over every other. */
+.pinPointed {
+  z-index: 3;
 }
 
 /* The item's main photograph, standing over its pin: a small square in the
@@ -408,20 +436,42 @@
 /* The foot of the bubble, in lo's own hand: the words for what can be done,
    in the small grey mono the rest of the bubble's small print is set in,
    underlined to say they are pressed, one at each end of the line. */
+/* The two things to do with it, side by side at the left. */
 .cardActions {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
 }
 
 .cardLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
-  text-decoration: underline;
+  line-height: 1.2;
+  /* A rule under the whole of it rather than the text's own underline, which
+     stops at the last letter: this one runs on under the drawing beside the
+     word. */
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* How its owner is reached first, drawn beside the word: in the word's own
+   colour and about its height. */
+.cardIcon {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .cardPhoto {

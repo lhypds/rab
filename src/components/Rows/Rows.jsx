@@ -11,7 +11,12 @@ import UserName, { dotted } from "../UserName/index.js";
 // it is. The whole row is the way to its page. In the owner's own list the row
 // also says, at the right, that the item is published; one that is not says
 // nothing.
-export function ItemRow({ item, showOwner = false, showPublished = false }) {
+//
+// Beside a map the row can be made to point at the item's pin first: `onPress`
+// is asked before the row goes to the page, and keeps it from going by calling
+// preventDefault; `onPoint` is told when the pointer comes onto the row (true)
+// and leaves it (false); `chosen` marks the row whose pin is the one picked.
+export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, chosen = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
     priceLine(item, i18n.language, t),
@@ -22,11 +27,15 @@ export function ItemRow({ item, showOwner = false, showPublished = false }) {
     showOwner && item.owner ? <UserName name={item.owner} inside /> : null,
   ];
   return (
-    <li className="row-item">
+    <li
+      className={chosen ? "row-item row-chosen" : "row-item"}
+      onMouseEnter={onPoint && (() => onPoint(true))}
+      onMouseLeave={onPoint && (() => onPoint(false))}
+    >
       <div className="row">
         {/* `back`: the item's page was come to from a list, and its way back
             is to that list (see Header). */}
-        <Link className="row-copy" to={`/i/${item.id}`} state={{ back: true }} draggable={false}>
+        <Link className="row-copy" to={`/i/${item.id}`} state={{ back: true }} draggable={false} onClick={onPress}>
           {item.thumb && <img className="row-thumb" src={item.thumb} alt="" width="40" height="40" loading="lazy" draggable={false} />}
           <span className="row-lines">
             <strong>{item.title}</strong>

@@ -105,6 +105,13 @@ export default function ItemPage({ id }) {
               await api.updateItem(item.id, { active });
               await load();
             }}
+            // Deleted, there is no page left to stand on: back to the owner's
+            // own list.
+            onDelete={async () => {
+              await api.deleteItem(item.id);
+              showToast(t("item.deleted"), 1800);
+              navigate("/mine", { replace: true });
+            }}
             onEdit={() => setEditing("item")}
             onEditAvailability={() => setEditing("availability")}
             onMessage={setWritingTo}
@@ -115,7 +122,9 @@ export default function ItemPage({ id }) {
         )}
       </main>
 
-      {item?.mine && (
+      {/* The form, for whoever may change the item: the account it is under,
+          or anybody signed in where it is somebody else's. */}
+      {(item?.mine || (item?.shared && user)) && (
         <ItemModal
           isOpen={Boolean(editing)}
           // Which of the form's two sheets: the item, or when it can be had.
@@ -126,11 +135,6 @@ export default function ItemPage({ id }) {
           onSaved={() => {
             setEditing(null);
             load();
-          }}
-          onDeleted={() => {
-            setEditing(null);
-            showToast(t("item.deleted"), 1800);
-            navigate("/mine", { replace: true });
           }}
         />
       )}

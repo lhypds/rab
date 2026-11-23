@@ -12,7 +12,7 @@ import { Stars } from "./ReviewModal.jsx";
 //
 // `rating` is { average, count }; `reviews` is what was said, newest first,
 // each { id, rating, comment, time, from } — and, of a person, `as` (what they
-// were in that booking) and `itemTitle` (what it was a booking of).
+// were in that booking). Never what the booking was of: that is private.
 export default function Rating({ rating, reviews = [], className = "" }) {
   const { t, i18n } = useTranslation();
   const [reading, setReading] = useState(false);
@@ -42,7 +42,6 @@ export default function Rating({ rating, reviews = [], className = "" }) {
                     {dotted([
                       <UserName name={review.from} onClick={() => setReading(false)} />,
                       review.as && t(review.as === "owner" ? "user.asOwner" : "user.asRenter"),
-                      review.itemTitle,
                       formatDate(review.time, i18n.language),
                     ])}
                   </span>

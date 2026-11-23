@@ -2,17 +2,17 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { nameFolders, readList, removeUserDir, renameNumberedFolders, userFolders, writeList } from "./files.js";
-import { moveIntoFolders } from "./migrate.js";
+import { moveItemDir, nameFolders, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
+import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberItems } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sqlite");
 
 // The database holds who has an account and who is signed in, and that is all.
 // What an account has — its items, its bookings, its messages, its photographs
-// — is in its own folder, data/users/<username>/ (see files.js). All of it is read
-// into memory when the server starts and written back, a file at a time, as it
-// changes; so one server process owns the folders, and a file edited by hand is
+// — is in its own folder, data/users/<username>/ (see files.js), each item in a
+// folder of its own inside it. All of it is read into memory when the server
+// starts and written back, a file at a time, as it changes; so one server process owns the folders, and a file edited by hand is
 // picked up at the next start.
 export const db = new DatabaseSync(databasePath);
 
@@ -52,6 +52,19 @@ if (!db.prepare("PRAGMA table_info(users)").all().some((column) => column.name =
 }
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email COLLATE NOCASE) WHERE email IS NOT NULL");
 
+// One account is nobody's: "_public", which has what is everybody's — the
+// items that are somebody else's, written down by an account that does not
+// have them (an item's `shared`). They are kept in its folder,
+// data/users/_public/, like any account's, and anybody signed in may change
+// them or delete them. It is made here, once, with a password nobody was
+// given; nobody signs in as it whatever its password is (see checkPassword),
+// and its name starts with _, which no name somebody chooses can.
+export const PUBLIC_NAME = "_public";
+if (!db.prepare("SELECT id FROM users WHERE username = ?").get(PUBLIC_NAME)) {
+  db.prepare("INSERT INTO users (username, password) VALUES (?, ?)").run(PUBLIC_NAME, crypto.randomBytes(32).toString("base64url"));
+}
+export const PUBLIC_ID = db.prepare("SELECT id FROM users WHERE username = ?").get(PUBLIC_NAME).id;
+
 // The folders are named after usernames, and only the database knows which
 // username is which id.
 {
@@ -63,10 +76,17 @@ db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email COLLAT
   });
 }
 
-// A database from when it held everything is moved into the folders, once; and
-// folders from when they were named after ids are given their usernames, once.
+// A database from when it held everything is moved into the folders, once;
+// folders from when they were named after ids are given their usernames, once;
+// items from when an account's were one list are given their own folders,
+// once; item folders from when they were named after a random id are named
+// after when the item was made, once; and the items take that for their id,
+// once.
 moveIntoFolders(db, databasePath);
 renameNumberedFolders();
+moveItemsIntoFolders();
+renameItemFolders();
+renumberItems();
 
 const now = () => new Date().toISOString();
 
@@ -133,6 +153,8 @@ export function setPassword(userId, password) {
 }
 
 export function checkPassword(username, password) {
+  // Nobody signs in as the account that is nobody's.
+  if (String(username).toLowerCase() === PUBLIC_NAME) return false;
   const row = selectPassword.get(username);
   return row ? passwordMatches(password, row.password) : false;
 }
@@ -159,12 +181,17 @@ export const deleteExpiredSessions = (time) => deleteExpired.run(time);
 
 // Everything in the users' folders, as it is held while the server runs.
 //
-// An item is in its owner's items.json and nowhere else. A booking is between
+// An item is in its own folder under its owner's items/ — item.json, with its
+// photographs beside it — and nowhere else. Its id is the millisecond it was
+// made, in Unix time, and its folder is named after it. One from when ids were
+// drawn at random still says what it was called then (`was`), and `idByOldId`
+// finds it by that. A booking is between
 // two accounts and is in both their bookings.json, the same on each side. A
 // line of a conversation is in the messages.json of each end separately, as
 // that end sees it — `with` the other account, `mine` or not — so deleting a
 // conversation takes it out of one folder and leaves the other's alone.
 const itemsById = new Map();
+const idByOldId = new Map();
 const bookingsById = new Map();
 const messagesByUser = new Map();
 let lastBookingId = 0;
@@ -184,10 +211,14 @@ function perUnit(item) {
 
 function load() {
   itemsById.clear();
+  idByOldId.clear();
   bookingsById.clear();
   messagesByUser.clear();
   for (const userId of userFolders()) {
-    for (const item of readList(userId, "items.json")) itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
+    for (const item of readItems(userId)) {
+      itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
+      if (item.was) idByOldId.set(String(item.was), item.id);
+    }
     // Both sides hold the booking; should the two ever differ, the one changed
     // last is the one that is right.
     for (const booking of readList(userId, "bookings.json")) {
@@ -195,6 +226,15 @@ function load() {
       if (!known || booking.updatedAt > known.updatedAt) bookingsById.set(booking.id, booking);
     }
     messagesByUser.set(userId, readList(userId, "messages.json"));
+  }
+  // Somebody else's, found in the folder of the account that wrote it down —
+  // from before such items were the public account's: it is the public
+  // account's from here on, and its folder goes there with it.
+  for (const item of itemsById.values()) {
+    if (item.shared !== true || item.ownerId === PUBLIC_ID) continue;
+    const from = item.ownerId;
+    item.ownerId = PUBLIC_ID;
+    changedItem(item, from);
   }
   lastBookingId = Math.max(0, ...bookingsById.keys());
   lastMessageId = 0;
@@ -205,22 +245,34 @@ function load() {
 
 // What has changed and is not on disk yet, as "<user id>/<file>".
 const unsaved = new Set();
+// The items that have changed and are not on disk yet, by id — each with the
+// account whose folder it is still in, where it has changed owner since it was
+// last written, and null where it has not.
+const unsavedItems = new Map();
 let depth = 0;
 
 function changed(userId, file) {
   unsaved.add(`${userId}/${file}`);
 }
 
+function changedItem(item, from = null) {
+  unsavedItems.set(item.id, from ?? unsavedItems.get(item.id) ?? null);
+}
+
 function save() {
+  for (const [id, from] of unsavedItems) {
+    unsavedItems.delete(id);
+    const item = itemsById.get(id);
+    if (!item) continue;
+    // The whole folder goes to the new owner, photographs and all.
+    if (from !== null && from !== item.ownerId) moveItemDir(from, item.ownerId, id);
+    const { ownerId, ...kept } = item;
+    writeItem(ownerId, kept);
+  }
   for (const entry of unsaved) {
     const [id, file] = entry.split("/");
     const userId = Number(id);
-    if (file === "items.json") {
-      const items = [...itemsById.values()]
-        .filter((item) => item.ownerId === userId)
-        .map(({ ownerId, ...item }) => item);
-      writeList(userId, file, items);
-    } else if (file === "bookings.json") {
+    if (file === "bookings.json") {
       const bookings = [...bookingsById.values()].filter(
         (booking) => booking.ownerId === userId || booking.renterId === userId,
       );
@@ -246,6 +298,7 @@ export function transaction(work) {
     depth = Math.max(0, depth - 1);
     if (depth === 0) {
       unsaved.clear();
+      unsavedItems.clear();
       load();
     }
     throw error;
@@ -253,6 +306,8 @@ export function transaction(work) {
 }
 
 load();
+// Whatever load() moved is written where it now belongs.
+save();
 
 const nameOf = (userId) => selectUserById.get(userId)?.username ?? null;
 const newestFirst = (a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
@@ -284,6 +339,9 @@ function servedItem(item) {
     place: item.place ?? null,
     // The area it is offered in, with its box as [west, south, east, north].
     region: item.region ?? null,
+    // And the other areas it is offered in as well, for something that stands
+    // between two: the same shape, a few at most.
+    moreRegions: item.moreRegions ?? [],
     images,
     // The first photograph is the main one: what a list row and a pin draw.
     thumb: images[0]?.thumb ?? null,
@@ -305,9 +363,16 @@ function servedItem(item) {
     // When a confirmed booking may still be called off by whoever made it:
     // { mode: "any" | "none" | "days", days }. Any time, where nothing is said.
     cancel: item.cancel ?? { mode: "any" },
+    // Whether it is somebody else's, put here by an account that does not
+    // have it: anybody signed in may then change it or delete it.
+    shared: item.shared === true,
+    // How its owner is reached, where it is booked by asking: [{ type, value }].
+    contacts: item.contacts ?? [],
     // The rule for days — which days of the week it can be had, null for all —
     // and the dates whose hours the owner wiped.
     openDays: item.openDays ?? null,
+    // The hours of the day one booked by the date is handed over in.
+    dayHours: item.dayHours ?? null,
     hoursOff: item.hoursOff ?? [],
     // The dates the owner gave a price of their own, from yesterday on (a
     // reader west of the server's UTC is still in it): what a list needs to
@@ -321,7 +386,10 @@ function servedItem(item) {
     // What the people who rented it gave it once they had (see reviews).
     rating: ratingOf(getItemReviews(item.id)),
     ownerId: item.ownerId,
-    owner: nameOf(item.ownerId),
+    // Whose account it is under — which is not said of somebody else's: the
+    // account that wrote it down does not have it, and it is everybody's to
+    // keep right.
+    owner: item.shared === true ? null : nameOf(item.ownerId),
   };
 }
 
@@ -336,8 +404,10 @@ function between(longitude, west, east) {
   return west <= east ? longitude >= west && longitude <= east : longitude >= west || longitude <= east;
 }
 
+// The item an id is the id of — or was, for an address from when ids were
+// drawn at random.
 function liveItem(id) {
-  const item = itemsById.get(id);
+  const item = itemsById.get(id) ?? itemsById.get(idByOldId.get(id));
   return item && !item.deletedAt ? item : null;
 }
 
@@ -368,7 +438,8 @@ export function getItemsInBox({ south, north, west, east }, limit = 300) {
     .map(servedItem);
 }
 
-// The items offered where somebody is looking: the ones whose area has that
+// The items offered where somebody is looking: the ones with an area — the
+// first, or one of those added to it — that has that
 // spot inside it, pin or no pin — and the ones whose pin stands inside the area
 // being looked at, whatever area they say, which is what lists an item from
 // before areas were asked for. `box` is the area being looked at, as { south,
@@ -377,8 +448,9 @@ export function getItemsInBox({ south, north, west, east }, limit = 300) {
 export function getItemsAt(latitude, longitude, box = null, limit = 200) {
   return listedItems()
     .filter((item) => {
-      if (item.region) {
-        const [west, south, east, north] = item.region.bbox;
+      for (const region of [item.region, ...(item.moreRegions ?? [])]) {
+        if (!region) continue;
+        const [west, south, east, north] = region.bbox;
         if (latitude >= south && latitude <= north && between(longitude, west, east)) return true;
       }
       return Boolean(
@@ -404,13 +476,13 @@ export function getItemsByUser(userId, { publicOnly = false } = {}) {
   }));
 }
 
-function newItemId() {
-  // 40 bits, in letters and digits nobody has to read aloud twice.
-  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
-  for (;;) {
-    const id = Array.from(crypto.randomBytes(8), (byte) => alphabet[byte % alphabet.length]).join("");
-    if (!itemsById.has(id)) return id;
-  }
+// A new item's id: the millisecond it was made, in Unix time, which is also
+// what its folder is called. Should that one be some item's already, it is the
+// next one that is free.
+function newItemId(time) {
+  let stamp = Date.parse(time);
+  while (itemsById.has(String(stamp))) stamp += 1;
+  return String(stamp);
 }
 
 // What the form decides about an item, as it is kept.
@@ -426,7 +498,10 @@ function itemFields(item) {
     unit: item.unit ?? 30,
     priceUnit: item.priceUnit ?? item.unit ?? 30,
     cancel: item.cancel ?? { mode: "any" },
+    contacts: item.contacts ?? [],
+    shared: item.shared === true,
     openDays: item.openDays ?? null,
+    dayHours: item.dayHours ?? null,
     hoursOff: item.hoursOff ?? [],
     price: item.price,
     currency: item.currency,
@@ -435,14 +510,15 @@ function itemFields(item) {
     longitude: item.longitude,
     place: item.place ?? null,
     region: item.region ?? null,
-    // {name, thumb, width, height}: file names in the owner's images folder.
+    moreRegions: item.moreRegions ?? [],
+    // {name, thumb, width, height}: the names of files in the item's own folder.
     images: item.images,
   };
 }
 
 export function createItem(userId, item) {
-  const id = newItemId();
   const time = now();
+  const id = newItemId(time);
   transaction(() => {
     itemsById.set(id, {
       id,
@@ -462,7 +538,7 @@ export function createItem(userId, item) {
       deletedAt: null,
       ownerId: userId,
     });
-    changed(userId, "items.json");
+    changedItem(itemsById.get(id));
   });
   return getItem(id);
 }
@@ -472,7 +548,14 @@ export function updateItem(userId, id, item) {
   if (!current || current.ownerId !== userId) return null;
   transaction(() => {
     Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
-    changed(userId, "items.json");
+    // Said to be somebody else's, it leaves the account's folder for the
+    // public account's, and is nobody's from then on.
+    if (current.shared && current.ownerId !== PUBLIC_ID) {
+      current.ownerId = PUBLIC_ID;
+      changedItem(current, userId);
+    } else {
+      changedItem(current);
+    }
   });
   return getItem(id);
 }
@@ -489,7 +572,7 @@ export function deleteItem(userId, id) {
   transaction(() => {
     current.deletedAt = now();
     current.active = false;
-    changed(userId, "items.json");
+    changedItem(current);
   });
   return true;
 }
@@ -520,7 +603,7 @@ export function setDays(itemId, days, { available, price, explicit = false }) {
       else kept.set(day, { day, available: Boolean(available), price: price ?? null });
     }
     item.days = [...kept.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
-    changed(item.ownerId, "items.json");
+    changedItem(item);
   });
 }
 
@@ -747,8 +830,9 @@ export function getReviewsOf(userId) {
       time: review.time,
       from: nameOf(side === "owner" ? booking.renterId : booking.ownerId),
       // What the account was in that booking: the "owner" or the "renter".
+      // And not what the booking was of: what somebody has borrowed is
+      // theirs to know, not for whoever reads their reviews.
       as: side,
-      itemTitle: itemsById.get(booking.itemId)?.title ?? null,
     });
   }
   return reviews.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
@@ -926,6 +1010,9 @@ export function deleteConversation(userId, otherId) {
 // location carries the spot and the address itself.
 const LOCATIONS_FILE = "locations.json";
 export const LOCATIONS_MAX = 100;
+// The public account's are every spot somebody else's thing has been put at,
+// which is as many as there are such things.
+const PUBLIC_LOCATIONS_MAX = 5000;
 
 export function getLocations(userId) {
   return readList(userId, LOCATIONS_FILE);
@@ -938,7 +1025,7 @@ export function saveLocation(userId, location) {
   const list = getLocations(userId);
   const id = location.id || crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x");
   const at = list.findIndex((each) => each.id === id);
-  if (at === -1 && list.length >= LOCATIONS_MAX) return null;
+  if (at === -1 && list.length >= (userId === PUBLIC_ID ? PUBLIC_LOCATIONS_MAX : LOCATIONS_MAX)) return null;
   const saved = { ...location, id, createdAt: at === -1 ? now() : list[at].createdAt };
   if (at === -1) list.push(saved);
   else list[at] = saved;
@@ -952,6 +1039,23 @@ export function deleteLocation(userId, id) {
   if (kept.length === list.length) return false;
   writeList(userId, LOCATIONS_FILE, kept);
   return true;
+}
+
+/* ---------------------------------------------------------------- contacts */
+
+// How an account is reached — [{ type, value }], as an item booked by asking
+// carries them (see rates.js) — kept in its folder's user.json as the account
+// wrote them on its own sheet, so an item of its own starts with them filled
+// in. Read and written as they are asked for, like the locations.
+const USER_FILE = "user.json";
+
+export function getContacts(userId) {
+  const { contacts } = readRecord(userId, USER_FILE);
+  return Array.isArray(contacts) ? contacts : [];
+}
+
+export function saveContacts(userId, contacts) {
+  writeRecord(userId, USER_FILE, { ...readRecord(userId, USER_FILE), contacts });
 }
 
 /* ----------------------------------------------------------------- removal */
@@ -971,6 +1075,7 @@ export function deleteUser(userId) {
     for (const [id, item] of itemsById) {
       if (item.ownerId !== userId) continue;
       itemsById.delete(id);
+      unsavedItems.delete(id);
       if (!item.deletedAt) counts.items += 1;
     }
     for (const [id, booking] of bookingsById) {

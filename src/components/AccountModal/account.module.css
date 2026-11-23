@@ -27,3 +27,70 @@
   font-family: var(--mono);
   font-size: 12px;
 }
+
+/* How the account is reached: a short form under the facts — one line to a
+   way, what kind it is and what is written for it, with the cross that takes
+   it off. */
+.contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.contactRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contactRow :global(.text-input) {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+}
+
+.small {
+  flex: none;
+}
+
+.small > button {
+  height: 24px;
+}
+
+.remove {
+  flex: none;
+  width: 22px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.remove svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Adding one at the left, saving them at the right. */
+.contactActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 11px;
+}

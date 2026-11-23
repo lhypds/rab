@@ -10,7 +10,7 @@
   "header": {
     "back": "返回",
     "backHome": "返回首页",
-    "list": "发布出租",
+    "list": "发布",
     "mine": "我的",
     "account": "账号",
     "signIn": "登录",
@@ -19,7 +19,7 @@
   "auth": {
     "username": "用户名",
     "usernameTaken": "该用户名已被使用",
-    "usernameRule": "1–32 个字符：字母、数字、- 和 _；不能以 - 开头，也不能全是数字",
+    "usernameRule": "1–32 个字符：字母、数字、- 和 _；必须以字母或数字开头，也不能全是数字",
     "next": "下一步",
     "password": "密码",
     "login": "登录",
@@ -51,12 +51,16 @@
     "codeWrong": "验证码不对。",
     "codeExpired": "验证码已失效，请重新获取。",
     "codeTooSoon": "验证码刚刚发过，请一分钟后再试。",
-    "resend": "重新发送"
+    "resend": "重新发送",
+    "usernameReserved": "该用户名不可使用"
   },
   "account": {
     "title": "账号",
     "username": "用户名",
     "joined": "注册于",
+    "contacts": "联系方式",
+    "contactsHint": "可以添加电话、邮箱、地址。创建咨询预约的项目时会自动填入；在放到项目上之前，不会显示在任何地方。",
+    "contactsSaved": "联系方式已保存",
     "signOut": "退出登录"
   },
   "messages": {
@@ -85,19 +89,20 @@
     "allCategories": "全部分类",
     "area": "当前地区",
     "areaUnknown": "这一带",
-    "areaEmpty": "这个地区还没有可租的东西。",
     "areaCount_other": "{{count}} 件",
     "title": "地图",
     "noToken": "地图需要 Mapbox token：请在 .env 中设置 VITE_MAPBOX_TOKEN。",
     "search": "搜索地点",
     "searchEmpty": "没有找到这个地点",
+    "areaEmpty": "这个地区还没有任何发布。",
+    "areaEmptyAsk": "来发布第一个吧。",
     "searchFailed": "搜索暂不可用",
     "zoomIn": "放大",
     "zoomOut": "缩小",
     "locate": "我的位置",
     "locateFailed": "无法获取你的位置",
     "failed": "无法加载项目",
-    "empty": "这里还没有可租的东西",
+    "empty": "这里还没有任何发布",
     "count_other": "这里有 {{count}} 个项目",
     "open": "查看",
     "searchClear": "清空",
@@ -105,13 +110,14 @@
   },
   "item": {
     "region": "服务地区",
-    "regionPlaceholder": "搜索城市或地区",
-    "regionChange": "更换",
+    "regionPlaceholder": "搜索城市、地区或邮编",
     "regionRequired": "请选择服务地区",
-    "regionHint": "必填。默认为你当前所在的城市；添加位置后，默认为该位置所在的城市。在地图上看这个地区的人会在列表里看到它，即使没有添加位置。",
+    "regionAdd": "+ 添加服务地区",
+    "regionRemove": "删除",
+    "regionHint": "必填。默认为你当前所在的城市。在地图上看这个地区的人会在列表里看到它，即使没有添加位置。",
     "perDay": "{{price}}/天",
     "aDay": "每天",
-    "newTitle": "发布出租",
+    "newTitle": "发布",
     "editTitle": "编辑项目",
     "photos": "照片",
     "photoAdd": "添加照片",
@@ -125,7 +131,7 @@
     "priceRequired": "请设置默认价格",
     "currency": "货币",
     "description": "描述",
-    "descriptionPlaceholder": "新旧程度、包含什么、如何取还",
+    "descriptionPlaceholder": "具体内容、包含什么、需要对方了解的事项",
     "location": "位置",
     "place": "地点名称",
     "placePlaceholder": "街区或地标",
@@ -152,12 +158,21 @@
     "photoMain": "主图",
     "photoMakeMain": "设为主图",
     "photosHint": "最多 100 张，上传前会自动压缩。第一张是主图，会显示在地图上；点一张照片可把它设为主图。",
+    "generate": "识别",
+    "generating": "识别中…",
+    "generateHint": "根据主照片自动填写种类、分类、名称和说明。",
+    "generateUnavailable": "这台服务器没有配置根据照片自动填写的功能。",
+    "generateBusy": "请求太多，请稍后再试。",
+    "generateFailed": "无法根据照片填写，请手动填写。",
     "locationAdd": "添加位置",
     "locationRemove": "移除",
-    "locationChoose": "从我的位置里选择",
-    "locationSave": "保存到我的位置",
+    "locationChoose": "从位置里选择",
+    "locationChoosePublic": "从位置里选择",
+    "locationNone": "还没有保存的位置",
+    "locationNonePublic": "还没有位置",
+    "locationSave": "保存位置",
     "locationName": "给它起个名字，比如 家、工作室",
-    "locationSaved": "已保存到你的位置",
+    "locationSaved": "位置已保存",
     "locationOptional": "可不填。不填则不会出现在地图上，只能通过搜索和链接找到。",
     "pricing": "价格",
     "everyDay": "每天",
@@ -175,7 +190,8 @@
     "previewBlocked": "浏览器拦截了预览页面。请允许本站弹出窗口后重试。",
     "mode": {
       "day": "按日期预约",
-      "time": "按日期和时间预约"
+      "time": "按日期和时间预约",
+      "inquiry": "咨询预约"
     },
     "everyHour": "每 {{unit}}",
     "perHour": "{{price}}/{{unit}}",
@@ -185,6 +201,9 @@
       "end": "结束时间"
     },
     "ruleTimesWrong": "价格规则的时间段，开始必须早于结束",
+    "dayHours": "可利用时间段",
+    "dayHoursHint": "可以交接的时间段。预订的开始和结束时间只能在这个范围内选择；两个都留空表示全天。",
+    "dayHoursWrong": "可利用时间段需要同时设置开始和结束，且开始早于结束",
     "hours": "可预约时间段",
     "openDays": "可预约的星期",
     "hourRuleAdd": "添加时间",
@@ -199,13 +218,15 @@
     "bookingType": "预约类型",
     "modeHint": {
       "day": "按天出租，价格按天计算。",
-      "time": "选择日期和时间段预约。"
+      "time": "选择日期和时间段预约。",
+      "inquiry": "不在这里预订：对方直接联系你，双方自行商定。"
     },
     "priceUnit": "价格按",
     "basePricing": "默认价格",
     "pricingHint": {
       "day": "平时一天的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。",
-      "time": "默认价格，对应“价格按”里选的时长。它可以和预约步长不同：按每小时定价、按 15 分钟预约时，预约 15 分钟收四分之一的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。"
+      "time": "默认价格，对应“价格按”里选的时长。它可以和预约步长不同：按每小时定价、按 15 分钟预约时，预约 15 分钟收四分之一的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。",
+      "inquiry": "通常价格，对应「价格按」里选的时间长度，仅供参考。最终价格在联系时商定。"
     },
     "datePrice": "默认价格 · {{date}}",
     "datePriceHint": "留空则这一天使用总体的默认价格。",
@@ -213,7 +234,7 @@
     "datePriceDone": "完成",
     "extraRates_other": "还有 {{count}} 条以前的价格规则在生效。",
     "extraRatesClear": "移除",
-    "availabilityTitle": "编辑可利用时间和价格",
+    "availabilityTitle": "编辑可用性",
     "next": "下一步",
     "back": "返回",
     "usualHours": "通常时间",
@@ -232,7 +253,41 @@
       "hours": "小时"
     },
     "cancelCount": "数量",
-    "categoryWithin": "{{name}}（{{kind}}）"
+    "categoryWithin": "{{name}}（{{kind}}）",
+    "contact": "联系方式",
+    "contactType": "联系方式类型",
+    "contactMessageNote": "通过 rab 的站内信联系",
+    "contactCode": "国际区号",
+    "contactCodeSearch": "搜索国家或区号",
+    "contactCodeNoMatch": "没有找到",
+    "contactTypes": {
+      "phone": "电话",
+      "email": "Email",
+      "address": "地址",
+      "message": "站内信"
+    },
+    "contactHint": "会显示在物品页面上，打开页面的人都能看到。第一联系方式必填，可以用 + 追加更多。",
+    "contactRequired": "请填写第一联系方式。",
+    "byInquiry": "咨询预约",
+    "inquiryExplain": "这是咨询预约，请直接联系 {{name}} 商定。",
+    "contactNth": {
+      "0": "第一联系方式",
+      "1": "第二联系方式",
+      "2": "第三联系方式",
+      "3": "第四联系方式",
+      "4": "第五联系方式"
+    },
+    "contactAdd": "+ 添加联系方式",
+    "contactRemove": "删除联系方式",
+    "unitDay": "1 天",
+    "whose": "这是谁的",
+    "whoseMine": "我的",
+    "whoseOthers": "别人的",
+    "whoseMineHint": "自己的：只有你可以编辑和删除。",
+    "whoseOthersHint": "代别人登记的。不会挂在你的账号下：任何登录的用户都可以编辑，只能用咨询预约，之后也不能改回「我的」。",
+    "sharedNote": "这是代别人登记的，任何登录的用户都可以编辑。",
+    "inquiryExplainShared": "这是咨询预约，请通过上面的联系方式直接商定。",
+    "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。"
   },
   "calendar": {
     "title": "可利用时间",
@@ -263,6 +318,7 @@
     "pickupTime": "开始时间",
     "returnTime": "结束时间",
     "timeOrder": "结束时间必须晚于开始时间。",
+    "dayHours": "可利用时间段：{{start}}–{{end}}",
     "request": "申请预订",
     "signIn": "登录后预订",
     "explain": "这里不会扣款。物主确认或拒绝后，你们通过消息商量付款和具体安排。",
@@ -287,7 +343,8 @@
       "cancelled": "已取消"
     },
     "timeSearch": "输入时间",
-    "timeNoMatch": "没有这个时间"
+    "timeNoMatch": "没有这个时间",
+    "notePlaceholderShared": "留言（可不填）"
   },
   "mine": {
     "title": "我的",
@@ -299,8 +356,8 @@
   "user": {
     "missing": "没有这个用户。",
     "joined": "{{date}} 加入",
-    "items": "出租中",
-    "itemsEmpty": "暂无出租项目。",
+    "items": "发布",
+    "itemsEmpty": "暂无发布。",
     "reviews": "评价",
     "reviewsEmpty": "还没有评价。",
     "asOwner": "作为物主",
@@ -317,7 +374,7 @@
     "home": "回到我的位置"
   },
   "gate": {
-    "body": "rab 显示你周围可租的东西。允许获取位置，地图就会从你所在的地方打开。",
+    "body": "rab 显示你周围发布的东西。允许获取位置，地图就会从你所在的地方打开。",
     "enable": "允许获取位置",
     "locating": "定位中",
     "retry": "重试",
@@ -330,7 +387,7 @@
     "insecureHint": "浏览器只对 https 或 localhost 的页面提供位置。请用 https 地址打开 rab。"
   },
   "search": {
-    "placeholder": "搜索可租的东西",
+    "placeholder": "搜索发布",
     "empty": "没有找到"
   },
   "kind": {
@@ -338,6 +395,7 @@
     "item": "物品",
     "space": "空间",
     "service": "服务",
+    "skill": "技能",
     "itemHint": "你拥有的东西：汽车、相机、投影机、3D 打印机。",
     "spaceHint": "一个地方：房屋、会议室、储存空间、Music Studio。",
     "serviceHint": "你的时间：摄影、教学、维修、向导。"
@@ -432,7 +490,7 @@
   "others": {
     "title": "别人的",
     "empty": "你还没有预订任何东西。",
-    "rentals": "租赁",
+    "rentals": "我的预约列表",
     "noneShown": "这里没有租赁。"
   }
 }

@@ -32,7 +32,7 @@ const EDGE = 8;
 // With `fit` the closed box is as wide as the name it is showing, rather than
 // as wide as the longest name it could show: for a box that stands on its own
 // and has nothing beside it to keep in line.
-export default function Select({ options: all, value, onChange, label, className, searchPlaceholder, emptyLabel, fit = false }) {
+export default function Select({ options: all, value, onChange, label, className, searchPlaceholder, emptyLabel, fit = false, sans = false }) {
   const searchable = Boolean(searchPlaceholder);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -61,7 +61,8 @@ export default function Select({ options: all, value, onChange, label, className
   // A value the list has no row for is still shown as itself — the caller may be
   // holding something this build has no name for, and a box that showed nothing
   // would read as a menu nobody had answered yet.
-  const shown = chosen ? chosen.label : value;
+  // A row may say less in the closed box than it does in the list (`short`).
+  const shown = chosen ? (chosen.short ?? chosen.label) : value;
 
   // Where the list stands, from where the box stands. Answered fresh every time
   // rather than remembered: between one opening and the next the sheet may have
@@ -228,7 +229,14 @@ export default function Select({ options: all, value, onChange, label, className
   }
 
   return (
-    <div ref={wrapperRef} className={`${styles.wrapper}${className ? ` ${className}` : ""}`}>
+    <div
+      ref={wrapperRef}
+      className={`${styles.wrapper}${className ? ` ${className}` : ""}`}
+      // The box and its list are set in the monospace face, which suits a code
+      // or a number; one that holds words (`sans`) is set like the text
+      // fields beside it.
+      style={sans ? { "--select-font": "var(--sans)" } : undefined}
+    >
       <button
         ref={triggerRef}
         type="button"

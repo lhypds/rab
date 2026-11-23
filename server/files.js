@@ -5,10 +5,16 @@ import { fileURLToPath } from "node:url";
 // Where everything that belongs to somebody is kept: one folder per account,
 // named after the account's username, under data/users/.
 //
-//   data/users/<username>/items.json      what they have out for rent, calendar included
-//   data/users/<username>/bookings.json   every rental they are one side of
-//   data/users/<username>/messages.json   their side of every conversation
-//   data/users/<username>/images/         the photographs they uploaded
+//   data/users/<username>/items/<made>/item.json   one thing they have out for rent, calendar included
+//   data/users/<username>/items/<made>/<name>      that item's photographs, beside it
+//   data/users/<username>/uploads/                 photographs sent and not yet an item's (see images.js)
+//   data/users/<username>/user.json                what the account keeps about itself: how it is reached
+//   data/users/<username>/bookings.json            every rental they are one side of
+//   data/users/<username>/messages.json            their side of every conversation
+//
+// <made> is when the item was made, in Unix time to the millisecond. It is the
+// item's id — what its address and everything else points at it by — and its
+// folder's name, both.
 //
 // db.sqlite knows the account — its name, its password, when it was made — and
 // nothing of what the account has done.
@@ -90,6 +96,89 @@ export function renameNumberedFolders() {
   }
 }
 
+// Written beside the file and moved over it, so a crash mid-write leaves the
+// old file whole rather than half of the new one.
+function writeJson(file, value) {
+  const partial = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(partial, `${JSON.stringify(value, null, 2)}\n`);
+  fs.renameSync(partial, file);
+}
+
+/* ------------------------------------------------------------------- items */
+
+// Every item has a folder of its own in its owner's items/, named after the
+// item's id — the millisecond it was made (see db.js) — in which item.json is
+// the item, and the pictures beside it are its own.
+export const ITEM_FILE = "item.json";
+
+// An item's folder's name: one piece of a path and nothing cleverer.
+const ITEM_FOLDER_RE = /^[A-Za-z0-9_-]+$/;
+
+export const itemsDir = (userId) => path.join(userDir(userId), "items");
+
+export function itemDir(userId, folder) {
+  const name = String(folder ?? "");
+  if (!ITEM_FOLDER_RE.test(name)) throw new Error(`not an item's folder: ${name}`);
+  return path.join(itemsDir(userId), name);
+}
+
+// The names of the item folders an account has.
+export function itemFolders(userId) {
+  try {
+    return fs
+      .readdirSync(itemsDir(userId), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && ITEM_FOLDER_RE.test(entry.name))
+      .map((entry) => entry.name);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+// Every item an account has. A folder with no item.json in it is not an item
+// and is passed over; one that is there and cannot be read is an error, as
+// with a list. The folder's name is the item's id, whatever the file says.
+export function readItems(userId) {
+  const items = [];
+  for (const folder of itemFolders(userId)) {
+    const file = path.join(itemDir(userId, folder), ITEM_FILE);
+    let text;
+    try {
+      text = fs.readFileSync(file, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    const item = JSON.parse(text);
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${file} is not an item`);
+    items.push({ ...item, id: folder });
+  }
+  return items;
+}
+
+export function writeItem(userId, item) {
+  const dir = itemDir(userId, item.id);
+  fs.mkdirSync(dir, { recursive: true });
+  writeJson(path.join(dir, ITEM_FILE), item);
+}
+
+// An item's whole folder — the item and its photographs — from one account's
+// items to another's: what is done when an item becomes the public account's.
+export function moveItemDir(fromUserId, toUserId, folder) {
+  const from = itemDir(fromUserId, folder);
+  const to = itemDir(toUserId, folder);
+  if (from === to || !fs.existsSync(from)) return;
+  fs.mkdirSync(itemsDir(toUserId), { recursive: true });
+  if (fs.existsSync(to)) {
+    fs.cpSync(from, to, { recursive: true });
+    fs.rmSync(from, { recursive: true, force: true });
+  } else {
+    fs.renameSync(from, to);
+  }
+}
+
+/* ------------------------------------------------------------------- lists */
+
 // A list kept in one of a user's files; empty where the file is not there yet.
 // A file that is there and cannot be read is an error, not an empty list: the
 // next save would otherwise write that emptiness over whatever is in it.
@@ -106,13 +195,30 @@ export function readList(userId, name) {
   return parsed;
 }
 
-// Written beside the file and moved over it, so a crash mid-write leaves the
-// old file whole rather than half of the new one.
 export function writeList(userId, name, list) {
   const dir = userDir(userId);
   fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, name);
-  const partial = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(partial, `${JSON.stringify(list, null, 2)}\n`);
-  fs.renameSync(partial, file);
+  writeJson(path.join(dir, name), list);
+}
+
+// One thing kept in one of a user's files, as an object; empty where the file
+// is not there yet. As with a list, a file that is there and cannot be read is
+// an error.
+export function readRecord(userId, name) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(userDir(userId), name), "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    throw error;
+  }
+  const parsed = JSON.parse(text);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${path.join(userDir(userId), name)} is not a record`);
+  return parsed;
+}
+
+export function writeRecord(userId, name, record) {
+  const dir = userDir(userId);
+  fs.mkdirSync(dir, { recursive: true });
+  writeJson(path.join(dir, name), record);
 }

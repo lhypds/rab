@@ -2,19 +2,49 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { userDir, userFolders } from "./files.js";
+import { itemDir, itemFolders, userDir, userFolders } from "./files.js";
 
-// Where photographs are kept: data/users/<username>/images/, in the folder of whoever
-// uploaded them, one file per picture, named after its own bytes. Public by
-// definition — they are pictures of things put out for rent — so a picture is
-// asked for by its name alone and there is nothing to decide about who may see
-// what.
+// Where photographs are kept: beside the item they are of, in the item's own
+// folder, data/users/<username>/items/<item id>/ (see files.js) — one file per picture, named
+// after its own bytes. A picture is sent before the item it is for is saved,
+// and until then it waits in data/users/<username>/uploads/, in the folder of
+// whoever sent it; saving the item takes it from there (see keepImages).
+//
+// Public by definition — they are pictures of things put out for rent — so a
+// picture is asked for by its name alone and there is nothing to decide about
+// who may see what.
 
-const imagesDir = (userId) => path.join(userDir(userId), "images");
+const uploadsDir = (userId) => path.join(userDir(userId), "uploads");
 
-// Which folder a picture was last seen in, so serving one does not look through
-// every account's each time.
-const seenIn = new Map();
+// Which folders each picture is in, by its name, so serving one does not look
+// through every item's each time: read off the disk once, and kept up as
+// pictures are stored and moved. `waiting` is which of those folders are
+// somebody's uploads rather than an item's.
+let places = null;
+const waiting = new Set();
+
+function note(name, dir) {
+  if (!places.has(name)) places.set(name, new Set());
+  places.get(name).add(dir);
+}
+
+function survey() {
+  places = new Map();
+  waiting.clear();
+  for (const userId of userFolders()) {
+    const uploads = uploadsDir(userId);
+    waiting.add(uploads);
+    for (const dir of [uploads, ...itemFolders(userId).map((folder) => itemDir(userId, folder))]) {
+      let names;
+      try {
+        names = fs.readdirSync(dir);
+      } catch {
+        continue;
+      }
+      for (const name of names) if (isStoredName(name)) note(name, dir);
+    }
+  }
+}
 
 // The browser compresses before it uploads, so this is a ceiling on a mistake
 // — a RAW file, a video — rather than a size a photo is expected to be.
@@ -63,48 +93,73 @@ function sniffExtension(buffer) {
 }
 
 // Naming the file after its digest stores the same photo once however often
-// its owner uploads it, and lets the URL be cached forever.
+// it is sent, and lets the URL be cached forever.
 export async function storeImage(userId, buffer) {
   const extension = sniffExtension(buffer);
   if (!extension) return null;
   const name = `${crypto.createHash("sha256").update(buffer).digest("hex").slice(0, 32)}.${extension}`;
-  await fsp.mkdir(imagesDir(userId), { recursive: true });
-  await fsp.writeFile(path.join(imagesDir(userId), name), buffer);
-  seenIn.set(name, Number(userId));
+  const dir = uploadsDir(userId);
+  await fsp.mkdir(dir, { recursive: true });
+  await fsp.writeFile(path.join(dir, name), buffer);
+  if (!places) survey();
+  waiting.add(dir);
+  note(name, dir);
   return { name, url: `/api/images/${name}`, bytes: buffer.length, type: IMAGE_TYPES[extension] };
 }
 
+// A folder the picture is in, or null.
 function findImage(name) {
-  const known = seenIn.get(name);
-  if (known !== undefined && fs.existsSync(path.join(imagesDir(known), name))) return known;
-  for (const userId of userFolders()) {
-    if (fs.existsSync(path.join(imagesDir(userId), name))) {
-      seenIn.set(name, userId);
-      return userId;
+  if (!places) survey();
+  const look = () => {
+    for (const dir of places.get(name) ?? []) {
+      if (fs.existsSync(path.join(dir, name))) return dir;
     }
-  }
-  seenIn.delete(name);
-  return null;
+    return null;
+  };
+  const found = look();
+  if (found || !places.has(name)) return found;
+  // Known, and not where it was: its item's folder has gone to another
+  // account, or been taken away. The disk is read again, once — after which
+  // the name is either found or no longer known.
+  survey();
+  return look();
 }
 
 // Where a stored picture is on disk, with the type to serve it as — null for a
 // name this module did not write or a file that is no longer there.
 export function imageFile(name) {
   if (!isStoredName(name)) return null;
-  const userId = findImage(name);
-  if (userId === null) return null;
-  return { path: path.join(imagesDir(userId), name), type: IMAGE_TYPES[path.extname(name).slice(1)] };
+  const dir = findImage(name);
+  if (dir === null) return null;
+  return { path: path.join(dir, name), type: IMAGE_TYPES[path.extname(name).slice(1)] };
 }
 
-// Makes sure a picture an item carries is in its owner's own folder. It is
-// already, unless the item names a picture somebody else uploaded — the bytes
-// are the same, and the copy is what keeps the owner's folder whole by itself.
-export function keepImage(userId, name) {
-  if (!isStoredName(name)) return;
-  const own = path.join(imagesDir(userId), name);
-  if (fs.existsSync(own)) return;
-  const from = findImage(name);
-  if (from === null) return;
-  fs.mkdirSync(imagesDir(userId), { recursive: true });
-  fs.copyFileSync(path.join(imagesDir(from), name), own);
+// Makes an item's folder hold the pictures the item carries, and no others.
+// One still waiting in somebody's uploads is moved in; one that is another
+// item's as well is copied — the bytes are the same, and the copy is what
+// keeps each item's folder whole by itself. A picture the item has stopped
+// carrying is removed from its folder.
+export function keepImages(userId, itemId, names) {
+  const dir = itemDir(userId, itemId);
+  const carried = new Set(names.filter(isStoredName));
+  fs.mkdirSync(dir, { recursive: true });
+  for (const name of carried) {
+    const own = path.join(dir, name);
+    if (!fs.existsSync(own)) {
+      const from = findImage(name);
+      if (from === null) continue;
+      fs.copyFileSync(path.join(from, name), own);
+      if (waiting.has(from)) {
+        fs.rmSync(path.join(from, name), { force: true });
+        places.get(name)?.delete(from);
+      }
+    }
+    if (!places) survey();
+    note(name, dir);
+  }
+  for (const name of fs.readdirSync(dir)) {
+    if (!isStoredName(name) || carried.has(name)) continue;
+    fs.rmSync(path.join(dir, name), { force: true });
+    places?.get(name)?.delete(dir);
+  }
 }

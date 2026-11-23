@@ -587,11 +587,6 @@
   }
 }
 
-.confirm {
-  align-self: center;
-  font-size: 12px;
-}
-
 @media (hover: hover) {
   .photoRemove:hover,
   .ruleRemove:not(:disabled):hover,
@@ -616,15 +611,22 @@
 /* ------------------------------------------------------------------ area -- */
 
 /* The area picked: its name and where that is, with the way to pick another. */
+/* The area as it is, pressed to pick another. */
 .area {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-height: 32px;
-  padding: 4px 4px 4px 10px;
+  padding: 4px 10px;
   border: 1px solid var(--ink);
+  border-radius: 0;
   background: var(--paper);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .areaName {
@@ -642,6 +644,22 @@
 
 .areaSearch {
   position: relative;
+}
+
+/* An area added to the first: the field, and the way to take it off again. */
+.moreArea {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.moreArea > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.moreArea > :global(.small-button) {
+  margin-top: 4px;
 }
 
 /* The answers hang from the field, ruled into it. */
@@ -687,4 +705,34 @@
   .areaResult:hover span {
     color: var(--paper);
   }
+}
+
+/* One way the owner is reached, for an item booked by asking: which way it is
+   — first or second — over a line of what kind it is and what is written. */
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contactRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A way with nothing to write for it: a line saying so where the field would
+   be. */
+.contactNote {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.contactRow :global(.text-input) {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
 }

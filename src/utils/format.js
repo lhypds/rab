@@ -1,4 +1,4 @@
-import { priceNow, priceUnitOf } from "./rates.js";
+import { DAY_UNIT, inquiryUnitOf, priceNow, priceUnitOf } from "./rates.js";
 
 export function formatCoords(latitude, longitude) {
   const lat = `${Math.abs(latitude).toFixed(5)}°${latitude >= 0 ? "N" : "S"}`;
@@ -52,6 +52,7 @@ export function formatPrice(amount, currency, locale) {
 // The piece of the clock an item is booked and priced in, as words: "30 min",
 // "1 hour".
 export function unitName(unit, t) {
+  if (unit === DAY_UNIT) return t("item.unitDay");
   return unit === 60 ? t("item.unitHour") : t("item.unitMinutes", { count: unit });
 }
 
@@ -59,6 +60,10 @@ export function unitName(unit, t) {
 // today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
   const price = formatPrice(priceNow(item), item.currency, locale);
+  // Booked by asking, the price is for whatever its owner said it is for.
+  if (item.mode === "inquiry" && inquiryUnitOf(item) !== DAY_UNIT) {
+    return t("item.perHour", { price, unit: unitName(inquiryUnitOf(item), t) });
+  }
   return item.mode === "time" ? t("item.perHour", { price, unit: unitName(priceUnitOf(item), t) }) : t("item.perDay", { price });
 }
 
@@ -121,4 +126,13 @@ export function formatDate(iso, locale) {
   const time = Date.parse(iso);
   if (Number.isNaN(time)) return "";
   return new Date(time).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+}
+
+// A phone number as it is typed, kept and shown: its digits and nothing
+// between them — a + at the front, where there is one, and no hyphens, spaces
+// or brackets. Where a number's groups are differs from country to country,
+// so none are marked.
+export function barePhone(value) {
+  const typed = String(value ?? "").trim();
+  return (typed.startsWith("+") ? "+" : "") + typed.replace(/\D/g, "");
 }
