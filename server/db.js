@@ -610,7 +610,7 @@ export function searchItems(query, limit = 20) {
     .map(servedItem);
 }
 
-export function getItemsInBox({ south, north, west, east }, limit = 2000) {
+export function getItemsInBox({ south, north, west, east }, limit = 4000) {
   return listedItems()
     .filter(
       (item) =>
@@ -627,7 +627,7 @@ export function getItemsInBox({ south, north, west, east }, limit = 2000) {
 // before areas were asked for. `box` is the area being looked at, as { south,
 // north, west, east }, where it is known; without one only the items' own
 // areas decide.
-export function getItemsAt(latitude, longitude, box = null, limit = 2000) {
+export function getItemsAt(latitude, longitude, box = null, limit = 4000) {
   return listedItems()
     .filter((item) => {
       for (const region of [item.region, ...(item.moreRegions ?? [])]) {
