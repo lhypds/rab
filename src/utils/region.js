@@ -9,8 +9,12 @@ import { MAPBOX_TOKEN, geocode } from "./mapbox.js";
 // the map on that country's capital. The plane in the top bar changes it: a
 // place picked there is somewhere else to stand, and the country it is in
 // becomes the one being searched.
+//
+// `place` is where the plane has put the reader down, for as long as they are
+// away: the one thing besides their own position that says where they stand.
+// Looking around the map does not — it moves the window, not the reader.
 
-let region = { country: null, center: null, ready: false, traveling: false };
+let region = { country: null, center: null, ready: false, traveling: false, place: null };
 // The country the reader is really in, kept so that coming home from somewhere
 // puts the search back inside it.
 let homeCountry = null;
@@ -70,7 +74,7 @@ export function loadRegion() {
     // this was on its way is a later answer than this one.
     homeCountry = country;
     if (!region.traveling) set({ country, center, ready: true });
-    else set({ center });
+    else set({ center, ready: true });
     return region;
   })();
   return asked;
@@ -87,7 +91,11 @@ const travelListeners = new Set();
 
 export function travelTo(place) {
   journey = { ...place, ticket: Date.now() };
-  set({ traveling: true, ...(place.country ? { country: place.country } : null) });
+  set({
+    traveling: true,
+    place: { latitude: place.latitude, longitude: place.longitude },
+    ...(place.country ? { country: place.country } : null),
+  });
   for (const listener of travelListeners) listener(journey);
 }
 
@@ -96,8 +104,15 @@ export function travelTo(place) {
 // position where the browser gives it, their country's capital where not.
 export function travelHome() {
   journey = { home: true, ticket: Date.now() };
-  set({ traveling: false, country: homeCountry ?? region.country });
+  set({ traveling: false, place: null, country: homeCountry ?? region.country });
   for (const listener of travelListeners) listener(journey);
+}
+
+// The journey still waiting to be made, looked at without being taken: a map
+// that is put up and taken down again before it has drawn anything (as React
+// does to every page once, in development) leaves it for the map that stays.
+export function waitingJourney() {
+  return journey;
 }
 
 // The journey still waiting to be made, taken by whoever makes it.

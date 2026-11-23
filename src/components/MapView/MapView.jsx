@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
@@ -19,10 +19,11 @@ import {
   locateFailure,
   locationPermission,
   mapLanguage,
+  onPosition,
   saveView,
   savedView,
 } from "../../utils/mapbox.js";
-import { currentRegion, loadRegion, onTravel, takeJourney } from "../../utils/region.js";
+import { currentRegion, loadRegion, onTravel, takeJourney, useRegion, waitingJourney } from "../../utils/region.js";
 import { MapTools, showSelf } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
@@ -150,9 +151,28 @@ export default function MapView() {
   // it came to nothing: "denied", "failed" or "insecure" (see locateFailure).
   const [gate, setGate] = useState(null);
   const lang = i18n.language;
-  // The middle of the map, once it has stopped: the spot the panel beside it is
-  // about.
-  const [spot, setSpot] = useState(null);
+  // Where the reader stands, which is the spot the panel beside the map is
+  // about: where the plane put them down while they are away, otherwise where
+  // the device says they are, and their country's capital where it will not
+  // say. Looking around the map changes none of these — the panel stays with
+  // the reader, and only the plane takes them anywhere.
+  const region = useRegion();
+  const [self, setSelf] = useState(null);
+  useEffect(() => {
+    // The capital is what stands in for a position that is not to be had, so
+    // it is asked for whether or not the map itself needs it to open on.
+    loadRegion();
+    return onPosition((found) => setSelf(found));
+  }, []);
+  const stand = region.place ?? self ?? region.center ?? (region.ready ? DEFAULT_VIEW : null);
+  // To about a hundred metres: a step that leaves the reader in the same place
+  // does not ask about the place again.
+  const standLatitude = stand ? Math.round(stand.latitude * 1000) / 1000 : null;
+  const standLongitude = stand ? Math.round(stand.longitude * 1000) / 1000 : null;
+  const spot = useMemo(
+    () => (standLatitude === null ? null : { latitude: standLatitude, longitude: standLongitude }),
+    [standLatitude, standLongitude],
+  );
   // What that spot's area is called and the ground it covers — { name, within,
   // bbox } — or null where it has no name, and undefined until the first
   // answer.
@@ -248,7 +268,9 @@ export default function MapView() {
     // Where the map opens, before anything has been asked: where it was left
     // if the reader has been here this visit, and otherwise the country they
     // are taken to be in, if that is already known.
-    const journey = takeJourney();
+    // A journey begun on another page is waiting here. It is only looked at
+    // for now, and taken when this map has loaded and can make it.
+    const journey = waitingJourney();
     const kept = savedView();
     const view = kept ?? currentRegion().center ?? DEFAULT_VIEW;
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -312,31 +334,14 @@ export default function MapView() {
         });
     }
 
-    // Where the map is looking, to about a hundred metres: a nudge that leaves
-    // it in the same place does not ask about the place again.
-    function mark() {
-      const center = map.getCenter().wrap();
-      const latitude = Math.round(center.lat * 1000) / 1000;
-      const longitude = Math.round(center.lng * 1000) / 1000;
-      setSpot((current) =>
-        current?.latitude === latitude && current?.longitude === longitude ? current : { latitude, longitude },
-      );
-    }
-
     function settle() {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        ask();
-        mark();
-      }, SETTLE_MS);
+      timer = window.setTimeout(ask, SETTLE_MS);
       const center = map.getCenter().wrap();
       saveView({ latitude: center.lat, longitude: center.lng, zoom: map.getZoom() });
     }
 
-    map.on("load", () => {
-      ask();
-      mark();
-    });
+    map.on("load", ask);
     map.on("moveend", settle);
     // A move the reader made carries the event that made it; one made by code
     // does not.
@@ -366,11 +371,16 @@ export default function MapView() {
     };
 
     if (journey?.home) {
-      map.once("load", goHome);
+      map.once("load", () => {
+        // Unless a later one has been made in the meantime.
+        if (takeJourney() === journey) goHome();
+      });
     } else if (journey) {
       // Somewhere picked with the plane before the map was on screen.
       touchedRef.current = true;
-      map.once("load", () => fly(journey, { animate: false }));
+      map.once("load", () => {
+        if (takeJourney() === journey) fly(journey, { animate: false });
+      });
     } else if (!kept) {
       // A fresh visit. Where the browser will say where the reader is, the map
       // opens there. Where it has to ask first, the question is put to them
@@ -423,7 +433,7 @@ export default function MapView() {
 
   /* --------------------------------------------------------------- the area */
 
-  // What the spot in the middle of the map is called, in the reader's language.
+  // What the place the reader stands in is called, in their language.
   useEffect(() => {
     if (!spot) return undefined;
     const controller = new AbortController();
@@ -609,9 +619,9 @@ export default function MapView() {
 
   return (
     <div className={styles.layout}>
-      {/* Beside the map, what it is looking at: the name of the area in its
-          middle, and under it everything offered there — the items with pins
-          and the ones without. */}
+      {/* Beside the map, where the reader is: the name of the area they stand
+          in, and under it everything offered there — the items with pins and
+          the ones without. It does not follow the map as it is moved. */}
       <aside className={styles.side} aria-label={t("map.area")}>
         <header className={styles.sideHead}>
           <h1 className={styles.areaName}>
