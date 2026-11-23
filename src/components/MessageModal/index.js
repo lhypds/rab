@@ -1,1 +1,1 @@
-export { default } from "./MessageModal.jsx";
+export { default, MessageThread } from "./MessageModal.jsx";

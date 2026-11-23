@@ -18,6 +18,11 @@ const THREAD_REFRESH_MS = 5000;
 // How close to the foot of the thread counts as being at it.
 const AT_END = 24;
 
+// What every link out of an exchange leaves on the entry it opens: that there
+// is a step back from it, so the page's own back arrow returns to where the
+// exchange was read rather than going home.
+const BACK = { back: true };
+
 function same(a, b) {
   return (
     a.length === b.length &&
@@ -31,10 +36,11 @@ function same(a, b) {
 }
 
 // One exchange with one person: what has been said, oldest first, and a box at
-// the foot of it to answer in. `onNavigate` is told when a link inside the
-// sheet is about to leave for a page, so whatever is holding sheets open over
-// this one can put them away too.
-export default function MessageModal({ username, onClose, onNavigate }) {
+// the foot of it to answer in. The body of a sheet rather than a sheet itself,
+// so it can stand alone in one (see MessageModal below) or beside the list of
+// people in the inbox. `onLeave` is told when a link inside it is about to
+// leave for a page, so whatever is holding it open can put itself away.
+export function MessageThread({ username, onLeave }) {
   const { t, i18n } = useTranslation();
   const { user, noteUnread } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -163,6 +169,112 @@ export default function MessageModal({ username, onClose, onNavigate }) {
   const readTo = messages.reduce((last, message) => (message.mine && message.read ? message.id : last), null);
   const me = user?.username ?? "";
 
+  return (
+    <div className={styles.sheet}>
+      <div
+        className={styles.thread}
+        ref={threadRef}
+        onScroll={(event) => {
+          const box = event.currentTarget;
+          atEndRef.current = box.scrollHeight - box.scrollTop - box.clientHeight <= AT_END;
+        }}
+      >
+        {messages.length === 0 ? (
+          loading ? (
+            <Skeleton rows={3} lines={1} label={t("common.loading")} />
+          ) : (
+            !error && (
+              <p className={styles.empty}>{t("messages.emptyThread", { name: formatUsername(username ?? "") })}</p>
+            )
+          )
+        ) : (
+          <ul className={styles.lines}>
+            {messages.map((message) => {
+              const who = message.mine ? me : username;
+              const event = isBookingLine(message);
+              const about = event ? lineItemId(message) : null;
+              return (
+                <li key={message.id} className={message.mine ? `${styles.line} ${styles.mine}` : styles.line}>
+                  {who && <UserName name={who} className={styles.who} state={BACK} onClick={onLeave} />}
+                  {event ? (
+                    // What became of a booking — or what the administrator
+                    // was sent about an item — and the way to the item it
+                    // is about, where the calendar and the answer are.
+                    about ? (
+                      <Link
+                        className={`${styles.bubble} ${styles.event}`}
+                        to={`/i/${about}`}
+            state={BACK}
+                        onClick={onLeave}
+                      >
+                        <span className={`${styles.eventLine} ${styles.eventItem}`}>
+                          {bookingLine(message, t, i18n.language)}
+                        </span>
+                        {message.body && <span>{message.body}</span>}
+                      </Link>
+                    ) : (
+                      <span className={`${styles.bubble} ${styles.event}`}>
+                        <span className={styles.eventLine}>{bookingLine(message, t, i18n.language)}</span>
+                        {message.body && <span>{message.body}</span>}
+                      </span>
+                    )
+                  ) : (
+                    <span className={styles.bubble}>{message.body}</span>
+                  )}
+                  <span className={styles.meta}>
+                    <time className={styles.when} dateTime={message.time}>
+                      {relativeTime(message.time, i18n.language, t)}
+                    </time>
+                    {message.id === readTo && <span className={styles.read}>{t("messages.read")}</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <form className={styles.composer} onSubmit={send} autoComplete="off">
+        <TextArea
+          className={styles.text}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setError("");
+          }}
+          onKeyDown={(event) => {
+            // Enter sends and Shift+Enter breaks the line; an Enter that is
+            // still choosing a candidate in an input method is neither.
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              send(event);
+            }
+          }}
+          placeholder={t("messages.placeholder")}
+          maxLength={BODY_MAX}
+          rows={2}
+          minHeight={64}
+          disabled={sending}
+        />
+        <div className={styles.footer}>
+          <span className={styles.count}>
+            {draft.length}/{BODY_MAX}
+          </span>
+          <button type="submit" className="primary-button" disabled={sending || !draft.trim()}>
+            {sending ? t("messages.sending") : t("messages.send")}
+          </button>
+        </div>
+      </form>
+
+      {error && <p className="form-message error">{error}</p>}
+    </div>
+  );
+}
+
+// The exchange in a sheet of its own, for the places that open one person's
+// thread without the inbox around it. `onNavigate` is told when a link inside
+// the sheet is about to leave for a page, so whatever is holding sheets open
+// over this one can put them away too.
+export default function MessageModal({ username, onClose, onNavigate }) {
   function leave() {
     onClose();
     onNavigate?.();
@@ -174,7 +286,7 @@ export default function MessageModal({ username, onClose, onNavigate }) {
       // The name is the way through to the other person's page.
       title={
         username && (
-          <Link className={styles.profile} to={`/u/${encodeURIComponent(username)}`} onClick={leave}>
+          <Link className={styles.profile} to={`/u/${encodeURIComponent(username)}`} state={BACK} onClick={leave}>
             {formatUsername(username)}
           </Link>
         )
@@ -183,102 +295,7 @@ export default function MessageModal({ username, onClose, onNavigate }) {
       closeOnOverlay
       wide
     >
-      <div className={styles.sheet}>
-        <div
-          className={styles.thread}
-          ref={threadRef}
-          onScroll={(event) => {
-            const box = event.currentTarget;
-            atEndRef.current = box.scrollHeight - box.scrollTop - box.clientHeight <= AT_END;
-          }}
-        >
-          {messages.length === 0 ? (
-            loading ? (
-              <Skeleton rows={3} lines={1} label={t("common.loading")} />
-            ) : (
-              !error && (
-                <p className={styles.empty}>{t("messages.emptyThread", { name: formatUsername(username ?? "") })}</p>
-              )
-            )
-          ) : (
-            <ul className={styles.lines}>
-              {messages.map((message) => {
-                const who = message.mine ? me : username;
-                const event = isBookingLine(message);
-                const about = event ? lineItemId(message) : null;
-                return (
-                  <li key={message.id} className={message.mine ? `${styles.line} ${styles.mine}` : styles.line}>
-                    {who && <UserName name={who} className={styles.who} onClick={leave} />}
-                    {event ? (
-                      // What became of a booking — or what the administrator
-                      // was sent about an item — and the way to the item it
-                      // is about, where the calendar and the answer are.
-                      about ? (
-                        <Link
-                          className={`${styles.bubble} ${styles.event}`}
-                          to={`/i/${about}`}
-                          onClick={leave}
-                        >
-                          <span className={`${styles.eventLine} ${styles.eventItem}`}>
-                            {bookingLine(message, t, i18n.language)}
-                          </span>
-                          {message.body && <span>{message.body}</span>}
-                        </Link>
-                      ) : (
-                        <span className={`${styles.bubble} ${styles.event}`}>
-                          <span className={styles.eventLine}>{bookingLine(message, t, i18n.language)}</span>
-                          {message.body && <span>{message.body}</span>}
-                        </span>
-                      )
-                    ) : (
-                      <span className={styles.bubble}>{message.body}</span>
-                    )}
-                    <span className={styles.meta}>
-                      <time className={styles.when} dateTime={message.time}>
-                        {relativeTime(message.time, i18n.language, t)}
-                      </time>
-                      {message.id === readTo && <span className={styles.read}>{t("messages.read")}</span>}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
-        <form className={styles.composer} onSubmit={send} autoComplete="off">
-          <TextArea
-            className={styles.text}
-            value={draft}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setError("");
-            }}
-            onKeyDown={(event) => {
-              // Enter sends and Shift+Enter breaks the line; an Enter that is
-              // still choosing a candidate in an input method is neither.
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                send(event);
-              }
-            }}
-            placeholder={t("messages.placeholder")}
-            maxLength={BODY_MAX}
-            rows={2}
-            minHeight={64}
-            disabled={sending}
-          />
-          <div className={styles.footer}>
-            <span className={styles.count}>
-              {draft.length}/{BODY_MAX}
-            </span>
-            <button type="submit" className="primary-button" disabled={sending || !draft.trim()}>
-              {sending ? t("messages.sending") : t("messages.send")}
-            </button>
-          </div>
-        </form>
-
-        {error && <p className="form-message error">{error}</p>}
-      </div>
+      <MessageThread username={username} onLeave={leave} />
     </Modal>
   );
 }

@@ -27,7 +27,13 @@ export default function Header({ back = false, view, onView, query = "", onQuery
   // The sheets opened from here and nowhere else, so the bar holds them open
   // itself.
   const [accountOpen, setAccountOpen] = useState(false);
-  const [messagesOpen, setMessagesOpen] = useState(false);
+  // The inbox is also what a step back returns to: a link pressed inside it
+  // leaves the name of the open exchange on the entry being left (see
+  // leaveMessages), and an entry carrying one opens the inbox on that exchange
+  // again — when the bar is first put up on it, and when a step back lands on
+  // it under a bar that was already standing.
+  const [messagesWith, setMessagesWith] = useState(() => window.history.state?.messages ?? null);
+  const [messagesOpen, setMessagesOpen] = useState(() => Boolean(window.history.state?.messages));
   const [listing, setListing] = useState(false);
   const [travelOpen, setTravelOpen] = useState(false);
 
@@ -44,6 +50,36 @@ export default function Header({ back = false, view, onView, query = "", onQuery
       window.removeEventListener(MESSAGES_EVENT, read);
     };
   }, [user, navigate]);
+
+  useEffect(() => {
+    const onPopState = (event) => {
+      const username = event.state?.messages;
+      if (!username) return;
+      setMessagesWith(username);
+      setMessagesOpen(true);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Put away by the reader: the entry gives up its note, so the inbox does not
+  // come back on a reload or on a later step back to here.
+  function closeMessages() {
+    setMessagesOpen(false);
+    setMessagesWith(null);
+    if (window.history.state?.messages) {
+      const { messages: _gone, ...rest } = window.history.state;
+      window.history.replaceState(rest, "");
+    }
+  }
+
+  // Put away by a link inside it, on the way to another page: the entry being
+  // left is told whose exchange was open, before the router pushes the next.
+  function leaveMessages(username) {
+    setMessagesOpen(false);
+    setMessagesWith(null);
+    window.history.replaceState({ ...window.history.state, messages: username }, "");
+  }
 
   return (
     <>
@@ -177,7 +213,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
           carries a stacking context of its own, and a sheet opened in there
           would be pinned under it. */}
       <TravelModal isOpen={travelOpen} onClose={() => setTravelOpen(false)} />
-      {user && <MessagesModal isOpen={messagesOpen} onClose={() => setMessagesOpen(false)} />}
+      {user && <MessagesModal isOpen={messagesOpen} username={messagesWith} onClose={closeMessages} onLeave={leaveMessages} />}
       {user && <AccountModal isOpen={accountOpen} onClose={() => setAccountOpen(false)} />}
       {user && (
         <ItemModal

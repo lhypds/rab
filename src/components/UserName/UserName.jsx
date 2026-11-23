@@ -9,14 +9,18 @@ import { formatUsername } from "../../utils/format.js";
 // button — a row that leads to an item, a search result. A link cannot hold
 // another, so there the name is a span that acts as one, and a press on it
 // stops at the name and does not reach what it is written in.
-export default function UserName({ name, inside = false, className = "", onClick }) {
+//
+// `state` is what the entry the press opens is to carry (see Link) — that
+// there is a step back from it, where the name is pressed somewhere a reader
+// will want to return to.
+export default function UserName({ name, inside = false, className = "", onClick, state }) {
   const navigate = useNavigate();
   if (!name) return null;
   const to = `/u/${encodeURIComponent(name)}`;
   const classes = className ? `user-link ${className}` : "user-link";
   if (!inside) {
     return (
-      <Link className={classes} to={to} onClick={onClick}>
+      <Link className={classes} to={to} state={state} onClick={onClick}>
         {formatUsername(name)}
       </Link>
     );
@@ -25,7 +29,7 @@ export default function UserName({ name, inside = false, className = "", onClick
     event.preventDefault();
     event.stopPropagation();
     onClick?.(event);
-    navigate(to);
+    navigate(to, { state });
   };
   return (
     <span

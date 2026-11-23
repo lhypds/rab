@@ -2,22 +2,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Modal, Skeleton } from "../../ui/index.js";
-import { messagePreview } from "../../utils/bookings.js";
-import { formatUsername, relativeTime } from "../../utils/format.js";
+import { formatUsername } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
-import MessageModal from "../MessageModal/index.js";
+import { MessageThread } from "../MessageModal/index.js";
 import styles from "./messages.module.css";
 
-// The inbox: one row per person you have an exchange with, the last thing said
-// in it, and a wash on the rows with something unread.
-export default function MessagesModal({ isOpen, onClose }) {
-  const { t, i18n } = useTranslation();
+// The inbox, in two columns: the people you have an exchange with down the
+// left, a wash on the ones with something unread, and the exchange with the one
+// that is picked on the right.
+//
+// `username` is whose exchange to open on, when the inbox is being put back
+// where a step back found it. `onLeave` is told, with the open exchange's name,
+// when a link inside is about to leave for a page.
+export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
+  const { t } = useTranslation();
   const { noteUnread } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // The correspondent whose exchange is open over the list, or null.
-  const [reading, setReading] = useState(null);
+  // The correspondent who was last picked, or null before anyone has been.
+  const [picked, setPicked] = useState(username ?? null);
+
+  useEffect(() => {
+    if (isOpen && username) setPicked(username);
+  }, [isOpen, username]);
   // The row whose delete is uncovered, by a swipe to the left.
   const [revealed, setRevealed] = useState(null);
 
@@ -46,6 +54,27 @@ export default function MessagesModal({ isOpen, onClose }) {
     if (isOpen) load();
   }, [isOpen, load]);
 
+  // Whose exchange the right column shows: the one picked while it is still in
+  // the list, and otherwise the first — so the column is never left empty
+  // beside a list with somebody in it, and deleting the open one moves on to
+  // the next.
+  const reading = conversations.some((conversation) => conversation.username === picked)
+    ? picked
+    : (conversations[0]?.username ?? null);
+
+  // The exchange on the right is read by being shown, so its row gives up the
+  // wash without waiting for the list to be asked for again.
+  useEffect(() => {
+    if (!isOpen || !reading) return;
+    setConversations((current) =>
+      current.some((conversation) => conversation.username === reading && conversation.unread > 0)
+        ? current.map((conversation) =>
+            conversation.username === reading ? { ...conversation, unread: 0 } : conversation,
+          )
+        : current,
+    );
+  }, [isOpen, reading, conversations]);
+
   const swipe = useRef(null);
   const swiped = useRef(false);
 
@@ -65,7 +94,7 @@ export default function MessagesModal({ isOpen, onClose }) {
     setRevealed(dx < 0 ? gesture.key : null);
   }
 
-  function openThread(conversation) {
+  function pick(conversation) {
     if (swiped.current) {
       swiped.current = false;
       return;
@@ -74,15 +103,7 @@ export default function MessagesModal({ isOpen, onClose }) {
       setRevealed(null);
       return;
     }
-    setReading(conversation.username);
-  }
-
-  function closeThread() {
-    setReading(null);
-    setRevealed(null);
-    // What was just read is no longer unread, and what was just said is the
-    // row's new last line.
-    load();
+    setPicked(conversation.username);
   }
 
   async function remove(username) {
@@ -97,23 +118,22 @@ export default function MessagesModal({ isOpen, onClose }) {
   }
 
   return (
-    <>
-      <Modal isOpen={isOpen} title={t("messages.title")} onClose={onClose} closeOnOverlay wide>
-        <div className={styles.sheet}>
-          {error && <p className="form-message error">{error}</p>}
+    <Modal isOpen={isOpen} title={t("messages.title")} onClose={onClose} closeOnOverlay className={styles.box}>
+      <div className={styles.sheet}>
+        {error && <p className="form-message error">{error}</p>}
 
-          {/* Waiting is not the same answer as none. */}
-          {conversations.length === 0 ? (
-            loading ? (
-              <Skeleton rows={4} lines={2} label={t("common.loading")} />
-            ) : (
-              !error && <p className={styles.empty}>{t("messages.empty")}</p>
-            )
+        {/* Waiting is not the same answer as none. */}
+        {conversations.length === 0 ? (
+          loading ? (
+            <Skeleton rows={4} lines={2} label={t("common.loading")} />
           ) : (
+            !error && <p className={styles.empty}>{t("messages.empty")}</p>
+          )
+        ) : (
+          <div className={styles.columns}>
             <ul className={styles.list}>
               {conversations.map((conversation) => {
                 const key = conversation.username;
-                const preview = messagePreview(conversation, t, i18n.language);
                 return (
                   <li key={key} className={styles.row}>
                     <div
@@ -121,6 +141,7 @@ export default function MessagesModal({ isOpen, onClose }) {
                         styles.slider,
                         revealed === key && styles.revealed,
                         conversation.unread > 0 && styles.unread,
+                        reading === key && styles.current,
                       ]
                         .filter(Boolean)
                         .join(" ")}
@@ -130,18 +151,13 @@ export default function MessagesModal({ isOpen, onClose }) {
                         swipe.current = null;
                       }}
                     >
-                      <button type="button" className={styles.item} onClick={() => openThread(conversation)}>
-                        <span className={styles.lines}>
-                          <span className={styles.who}>{formatUsername(conversation.username)}</span>
-                          <span className={styles.preview}>
-                            <time className={styles.when} dateTime={conversation.time}>
-                              {relativeTime(conversation.time, i18n.language, t)}
-                            </time>
-                            <span className={styles.previewText}>
-                              {conversation.mine ? t("messages.said", { body: preview }) : preview}
-                            </span>
-                          </span>
-                        </span>
+                      <button
+                        type="button"
+                        className={styles.item}
+                        onClick={() => pick(conversation)}
+                        aria-current={reading === key ? "true" : undefined}
+                      >
+                        <span className={styles.who}>{formatUsername(conversation.username)}</span>
                       </button>
                     </div>
                     {/* Behind the row until a swipe uncovers it. */}
@@ -163,13 +179,13 @@ export default function MessagesModal({ isOpen, onClose }) {
                 );
               })}
             </ul>
-          )}
-        </div>
-      </Modal>
 
-      {/* Beside the inbox rather than inside it: two sheets, one over the
-          other, each the page's own child. */}
-      <MessageModal username={reading} onClose={closeThread} onNavigate={onClose} />
-    </>
+            <div className={styles.pane}>
+              <MessageThread username={reading} onLeave={() => (onLeave ?? onClose)(reading)} />
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

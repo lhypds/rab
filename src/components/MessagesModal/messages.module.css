@@ -16,21 +16,58 @@
    the sheet rather than by the sheet changing size. */
 .sheet {
   padding: 0;
-  height: calc(36vh + 178px);
-  min-height: 318px;
-  max-height: 498px;
+  min-height: clamp(318px, calc(36vh + 178px), 498px);
   display: flex;
   flex-direction: column;
 }
 
+/* Wider than the house's wide sheet, which is cut for one column: this one has
+   the list of people standing beside the exchange. The class is doubled so the
+   cap wins over the modal's own whatever order the two stylesheets land in. */
+.box.box {
+  max-width: 720px;
+}
+
+/* The people on the left and the exchange with the one picked on the right. The
+   left column is as wide as a name needs and no wider; the exchange takes the
+   rest. */
+.columns {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  align-items: start;
+}
+
+/* Held off the rule between the columns by its own inset, so the rule stands
+   against the list and the exchange starts clear of it. */
+.pane {
+  min-width: 0;
+  padding-left: 16px;
+}
+
+/* The sheet's own height, said on the list itself so a long column of people
+   scrolls inside it rather than stretching the sheet past the exchange. */
 .list {
   margin: 0;
   padding: 0;
-  flex: 1;
-  min-height: 0;
+  height: clamp(318px, calc(36vh + 178px), 498px);
   overflow-y: auto;
   overscroll-behavior: contain;
   list-style: none;
+  /* The rule between the two columns, the full height of the list. */
+  border-right: 1px solid var(--line);
+}
+
+/* On a phone the names give up room to the words. */
+@media (max-width: 560px) {
+  .columns {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .pane {
+    padding-left: 10px;
+  }
 }
 
 /* Closed on both edges rather than only fenced off from the next one: every row
@@ -83,25 +120,22 @@
   background: rgb(255 255 173);
 }
 
-/* The picture, two lines of who and what, and when at the far end — the row a
-   list of people has in lo, with the second line being the one thing this list
-   adds. A button rather than a link on a letter or a column, because what is on
-   the other side of the press is a sheet over this one rather than an address:
-   an exchange between two accounts is nobody else's to open, so there is
-   nothing there to link to. A follower's row and a posted row are the links —
-   what they lead to is a page and a post on the map, which have addresses — and
-   they wear the same clothes, underline off, so the kinds read as one list.
+/* The row whose exchange is open beside the list: the grey a row takes under
+   the pointer, kept. */
+.slider.current {
+  background: var(--soft);
+}
 
-   Set on the top rather than the middle: the name starts where the picture
-   starts, so a row whose last line runs long reads against the same edge as one
-   that does not. */
+/* One name to a row. A button rather than a link, because what the press
+   changes is the column beside it rather than the address: an exchange between
+   two accounts is nobody else's to open, so there is nothing there to link
+   to. */
 .item {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 9px 0;
+  padding: 9px 8px;
   border: 0;
   background: none;
   color: inherit;
@@ -143,63 +177,13 @@
   stroke-linejoin: round;
 }
 
-/* Square and ruled like every other picture in lo, at the size a row can hold.
-   Nothing at all where somebody has not put one up — the row starts at the name
-   instead, which is the reading every other list of people takes. */
-.avatar {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--ink);
-  background: var(--soft);
-  object-fit: cover;
-}
-
-.lines {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-/* Grey, over the black line beneath it. Who the exchange is with is the label on
-   the row; a name set as dark as the words it heads reads as somebody being
-   addressed rather than named, which turns an inbox into a page of mentions. */
+/* The name, on one line and cut short where the column runs out. */
 .who {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted);
   font-size: 13px;
-}
-
-/* When it was said, then one line of what was said. The time keeps the grey it
-   shares with the name above it and the words themselves take the black: what is
-   read down this column is the last thing said in each exchange, told apart by
-   the name standing over it. */
-.preview {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.previewText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink);
-}
-
-.when {
-  flex: none;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
 }
 
 /* Centred in the content area rather than sitting at its top: an empty inbox is
@@ -225,7 +209,8 @@
 
   /* An unread row keeps its warning wash under the pointer rather than taking the
      grey hover over it — the yellow is the state, not something to paint out. */
-  .slider.unread .item:hover {
+  .slider.unread .item:hover,
+  .slider.current .item:hover {
     background: transparent;
   }
 }
