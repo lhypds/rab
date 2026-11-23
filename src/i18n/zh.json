@@ -61,7 +61,11 @@
     "contacts": "联系方式",
     "contactsHint": "可以添加电话、邮箱、地址。创建咨询预约的项目时会自动填入；在放到项目上之前，不会显示在任何地方。",
     "contactsSaved": "联系方式已保存",
-    "signOut": "退出登录"
+    "signOut": "退出登录",
+    "email": "邮箱",
+    "emailHint": "账号本身的邮箱，与下面的联系方式无关，不会展示给任何人。",
+    "emailSaved": "邮箱已保存",
+    "emailRemoved": "邮箱已移除"
   },
   "messages": {
     "title": "消息",
@@ -82,7 +86,9 @@
       "cancelled": "预订已取消：{{item}} · {{dates}}",
       "gone": "已删除的项目",
       "cancelRequest": "申请取消：{{item}} · {{dates}}",
-      "cancelRefused": "取消申请被拒绝：{{item}} · {{dates}}"
+      "cancelRefused": "取消申请被拒绝：{{item}} · {{dates}}",
+      "deleteRequest": "申请删除：{{item}}",
+      "report": "举报（{{reason}}）：{{item}}"
     }
   },
   "map": {
@@ -287,7 +293,9 @@
     "whoseOthersHint": "代别人登记的。不会挂在你的账号下：任何登录的用户都可以编辑，只能用咨询预约，之后也不能改回「我的」。",
     "sharedNote": "这是代别人登记的，任何登录的用户都可以编辑。",
     "inquiryExplainShared": "这是咨询预约，请通过上面的联系方式直接商定。",
-    "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。"
+    "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。",
+    "report": "举报",
+    "requestDelete": "申请删除"
   },
   "calendar": {
     "title": "可利用时间",
@@ -492,5 +500,27 @@
     "empty": "你还没有预订任何东西。",
     "rentals": "我的预约列表",
     "noneShown": "这里没有租赁。"
+  },
+  "report": {
+    "title": "举报",
+    "lead": "“{{item}}”有什么问题？举报会以站内信的形式发送给管理员。",
+    "reasons": {
+      "unavailable": "已不可用（通知管理员删除）",
+      "spam": "垃圾信息或广告",
+      "inaccurate": "信息错误或有误导性",
+      "prohibited": "违禁或违法",
+      "scam": "诈骗",
+      "offensive": "令人反感的内容",
+      "other": "其他"
+    },
+    "placeholder": "详细说明（可不填）",
+    "placeholderOther": "请说明问题",
+    "send": "提交",
+    "sent": "举报已发送",
+    "deleteTitle": "申请删除",
+    "deleteLead": "“{{item}}”是代别人登记的，只有管理员可以删除。你的申请会以站内信的形式发送给管理员。",
+    "deletePlaceholder": "为什么要删除？（可不填）",
+    "deleteSend": "发送申请",
+    "deleteSent": "申请已发送"
   }
 }

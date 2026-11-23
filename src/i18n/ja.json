@@ -61,7 +61,11 @@
     "contacts": "連絡先",
     "contactsHint": "電話・メール・住所を登録できます。問い合わせ予約のアイテムを作るときに自動で入力されます。アイテムに載せるまで、どこにも表示されません。",
     "contactsSaved": "連絡先を保存しました",
-    "signOut": "ログアウト"
+    "signOut": "ログアウト",
+    "email": "メールアドレス",
+    "emailHint": "アカウント自体のメールアドレスです。下の連絡先とは別で、誰にも表示されません。",
+    "emailSaved": "メールアドレスを保存しました",
+    "emailRemoved": "メールアドレスを削除しました"
   },
   "messages": {
     "title": "メッセージ",
@@ -82,7 +86,9 @@
       "cancelled": "予約キャンセル：{{item}} · {{dates}}",
       "gone": "削除されたアイテム",
       "cancelRequest": "キャンセル依頼：{{item}} · {{dates}}",
-      "cancelRefused": "キャンセル依頼が拒否されました：{{item}} · {{dates}}"
+      "cancelRefused": "キャンセル依頼が拒否されました：{{item}} · {{dates}}",
+      "deleteRequest": "削除依頼：{{item}}",
+      "report": "報告（{{reason}}）：{{item}}"
     }
   },
   "map": {
@@ -287,7 +293,9 @@
     "whoseOthersHint": "他人のものを代わりに登録します。自分のアカウントには紐づかず、ログインしているユーザーなら誰でも編集できます。予約は問い合わせ予約のみで、あとから「私の」に戻すことはできません。",
     "sharedNote": "他人のものとして登録されています。ログインしているユーザーなら誰でも編集できます。",
     "inquiryExplainShared": "問い合わせ予約です。上の連絡先に直接連絡して相談してください。",
-    "modeHintShared": "他人のものは問い合わせ予約のみです。下の連絡先に直接連絡してもらいます。"
+    "modeHintShared": "他人のものは問い合わせ予約のみです。下の連絡先に直接連絡してもらいます。",
+    "report": "報告",
+    "requestDelete": "削除を依頼"
   },
   "calendar": {
     "title": "空き状況",
@@ -492,5 +500,27 @@
     "empty": "まだ何も予約していません。",
     "rentals": "私の予約リスト",
     "noneShown": "該当する予約はありません。"
+  },
+  "report": {
+    "title": "報告",
+    "lead": "「{{item}}」の何が問題ですか？報告はメッセージとして管理者に送られます。",
+    "reasons": {
+      "unavailable": "もう利用できない（管理者に削除を依頼）",
+      "spam": "スパム・宣伝",
+      "inaccurate": "誤った情報・誤解を招く情報",
+      "prohibited": "禁止されているもの・違法なもの",
+      "scam": "詐欺",
+      "offensive": "不快な内容",
+      "other": "その他"
+    },
+    "placeholder": "詳細（任意）",
+    "placeholderOther": "問題の内容を書いてください",
+    "send": "送信",
+    "sent": "報告を送信しました",
+    "deleteTitle": "削除を依頼",
+    "deleteLead": "「{{item}}」は他人のものとして登録されているため、削除できるのは管理者だけです。依頼はメッセージとして管理者に送られます。",
+    "deletePlaceholder": "削除する理由（任意）",
+    "deleteSend": "依頼を送信",
+    "deleteSent": "依頼を送信しました"
   }
 }

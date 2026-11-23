@@ -80,14 +80,20 @@ Looking after the accounts, from the project's root (see `server/cli.js`):
     ./rab user <username> pass <new>     give an account a new password, and sign it out everywhere
     ./rab user delete <username>         delete an account and everything it has (stop the server first)
 
-What is kept where: `db.sqlite` holds the accounts — a name, a password's hash, when
-it was made — and who is signed in, and nothing else. Everything an account has is in
-a folder of its own, named after the account's username:
+Two accounts are the server's own, made when it first starts and always there: `_public`,
+which holds the items listed on someone else's behalf, and `_admin`, which looks after the
+site. A report of an item, and a request to delete one of `_public`'s items, are messages
+to `_admin` — and only `_admin` deletes those items. It starts with no password, and
+cannot be signed in to until it has one; set one with `./rab user _admin pass <new>` and sign in as `_admin` to read them.
+
+What is kept where: `db.sqlite` holds who is signed in, and nothing else. An account is
+a folder of its own, named after its username, and everything it has is in it:
 
     data/users/<username>/items/<made>/item.json   one thing they have out for rent, with its calendar's exceptions
     data/users/<username>/items/<made>/<name>      that item's photographs, each named after its own bytes
     data/users/<username>/uploads/                 photographs sent and not yet saved with an item
-    data/users/<username>/user.json                how the account is reached, as written on its account sheet
+    data/users/<username>/user.json                the account itself: its id, when it was made, its password,
+                                                   its email address, how it is reached
     data/users/<username>/bookings.json            every rental they are one side of (the other side holds the same)
     data/users/<username>/messages.json            their side of every conversation
 

@@ -12,6 +12,8 @@ import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
 import { BookingRow } from "../Rows/index.js";
+import { isAdmin } from "../../utils/admin.js";
+import ReportModal from "../ReportModal/index.js";
 import ShareModal from "../ShareModal/index.js";
 import SpotMap from "../SpotMap/index.js";
 import { DayTimes } from "../TimeTable/index.js";
@@ -106,6 +108,9 @@ export default function ItemView({
   const [photo, setPhoto] = useState(0);
   const [zoomed, setZoomed] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // What is being sent to the administrator about the item, on a sheet:
+  // "report", "delete" (a request to delete it), or null.
+  const [posting, setPosting] = useState(null);
   // How big each photograph really is, by its address, learned as it loads —
   // for the ones whose size was not written down when they were uploaded.
   const [natural, setNatural] = useState({});
@@ -129,7 +134,12 @@ export default function ItemView({
   // Somebody else's, written down by an account that does not have it: any
   // account may change it or delete it, and nobody can switch it off.
   const shared = item.shared === true;
-  const canEdit = mine || (shared && Boolean(viewer) && !preview);
+  // The account that looks after the site: it may change any item as its own
+  // account may — edit it, say when it can be had, switch it off, delete it —
+  // somebody else's included, and is the one everybody else's reports and
+  // requests go to.
+  const admin = isAdmin(viewer) && !preview;
+  const canEdit = mine || admin || (shared && Boolean(viewer) && !preview);
   const contacts = item.contacts ?? [];
   const states = useMemo(() => dayStates(calendar, bookings), [calendar, bookings]);
   const free = useMemo(() => nextFreeDay(item, calendar), [item, calendar]);
@@ -287,7 +297,15 @@ export default function ItemView({
   // for the whole item: it can be had, or it cannot — which is not asked of
   // somebody else's, since that is its owner's to say. And beside it, at the
   // right, the way to be rid of the item altogether, in red and asked twice.
-  const removal = confirming ? (
+  // Somebody else's is not deleted by whoever is reading it: the button asks
+  // the administrator to, on a sheet of its own.
+  const removal = shared && !admin ? (
+    <div className={styles.buttons}>
+      <button type="button" className={`small-button ${styles.danger}`} disabled={preview} onClick={() => setPosting("delete")}>
+        {t("item.requestDelete")}
+      </button>
+    </div>
+  ) : confirming ? (
     <div className={styles.buttons}>
       <span className={styles.confirm}>{t("item.deleteConfirm")}</span>
       <button type="button" className="small-button" disabled={busy} onClick={() => setConfirming(false)}>
@@ -301,7 +319,7 @@ export default function ItemView({
     <div className={styles.buttons}>
       {/* Where there is no such button, Delete stands alone at the left edge:
           nothing empty is left in its place to hold a gap open. */}
-      {mine && !shared && (
+      {((mine && !shared) || admin) && (
         <button type="button" className="small-button" disabled={busy || preview} onClick={() => setActive(!item.active)}>
           {item.active ? t("calendar.close") : t("calendar.open")}
         </button>
@@ -441,6 +459,18 @@ export default function ItemView({
                 disabled={preview}
               >
                 {t("messages.write", { name: formatUsername(item.owner) })}
+              </button>
+            )}
+            {/* Saying something is wrong with it, to the administrator: for
+                anybody but the account it is under, and the administrator. */}
+            {!mine && !admin && (
+              <button
+                type="button"
+                className="small-button"
+                onClick={() => (viewer ? setPosting("report") : onSignIn?.())}
+                disabled={preview}
+              >
+                {t("item.report")}
               </button>
             )}
           </div>
@@ -641,8 +671,10 @@ export default function ItemView({
           ) : (
             <p className={styles.small}>{t("item.inactiveNote")}</p>
           )}
-          {/* Somebody else's can be deleted by anybody signed in, as it can
-              be changed by them: the same button its own account has. */}
+          {/* Whoever may change an item that is not their own — anybody
+              signed in, for somebody else's; the admin, for any — has the
+              way to be rid of it here: asking the admin, or for the admin
+              the same buttons its own account has. */}
           {!mine && canEdit && (
             <div className={styles.panel}>
               {removal}
@@ -717,6 +749,7 @@ export default function ItemView({
         </div>
       </div>
 
+      <ReportModal item={item} mode={posting} onClose={() => setPosting(null)} />
       <ShareModal isOpen={sharing} onClose={() => setSharing(false)} title={item.title} url={url} slug={item.id} />
       <Modal isOpen={zoomed && Boolean(shownPhoto)} title={item.title} onClose={() => setZoomed(false)} closeOnOverlay large>
         {shownPhoto && <img className={styles.zoomed} src={shownPhoto.src} alt={item.title} />}

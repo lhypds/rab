@@ -61,7 +61,11 @@
     "contacts": "Contact",
     "contactsHint": "Your phone, email or address. An item of yours that is booked by inquiry starts with these filled in; nothing is shown anywhere until you put it on an item.",
     "contactsSaved": "Contact saved",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "email": "Email",
+    "emailHint": "The address of the account itself. It is separate from the contact details below and is not shown to anyone.",
+    "emailSaved": "Email saved",
+    "emailRemoved": "Email removed"
   },
   "messages": {
     "title": "Messages",
@@ -82,7 +86,9 @@
       "cancelled": "Booking cancelled: {{item}} · {{dates}}",
       "gone": "an item that has been removed",
       "cancelRequest": "Cancellation requested: {{item}} · {{dates}}",
-      "cancelRefused": "Cancellation refused: {{item}} · {{dates}}"
+      "cancelRefused": "Cancellation refused: {{item}} · {{dates}}",
+      "deleteRequest": "Delete request: {{item}}",
+      "report": "Report ({{reason}}): {{item}}"
     }
   },
   "map": {
@@ -291,7 +297,9 @@
     "whoseOthersHint": "Someone else’s that you are listing for them. It is not kept under your account: anyone signed in can edit it, it is booked by inquiry only, and it cannot be changed back to yours.",
     "sharedNote": "Listed on someone else’s behalf. Anyone signed in can edit it.",
     "inquiryExplainShared": "This is booked by inquiry. Use the contact details above to arrange it.",
-    "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below."
+    "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
+    "report": "Report",
+    "requestDelete": "Request a delete"
   },
   "calendar": {
     "title": "Availability",
@@ -503,5 +511,27 @@
     "empty": "You have not booked anything yet.",
     "rentals": "My Rentals",
     "noneShown": "Nothing here."
+  },
+  "report": {
+    "title": "Report",
+    "lead": "What is wrong with “{{item}}”? Your report is sent to the administrator as a message.",
+    "reasons": {
+      "unavailable": "No longer available (ask the administrator to delete it)",
+      "spam": "Spam or advertising",
+      "inaccurate": "Wrong or misleading information",
+      "prohibited": "Prohibited or illegal",
+      "scam": "Scam or fraud",
+      "offensive": "Offensive content",
+      "other": "Something else"
+    },
+    "placeholder": "Details (optional)",
+    "placeholderOther": "Say what is wrong",
+    "send": "Submit",
+    "sent": "Report sent",
+    "deleteTitle": "Request a delete",
+    "deleteLead": "“{{item}}” is listed on someone else’s behalf, so only the administrator can delete it. Your request is sent to them as a message.",
+    "deletePlaceholder": "Why should it be deleted? (optional)",
+    "deleteSend": "Send request",
+    "deleteSent": "Request sent"
   }
 }

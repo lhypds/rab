@@ -20,11 +20,28 @@ export function bookingWhen(booking, locale) {
   return `${dates} ${booking.slots.map((slot) => `${slot.start}–${slot.end}`).join(", ")}`;
 }
 
+// And the lines sent to the administrator about an item: a request to delete
+// it, a report of it. They are worded here in the same way — the server keeps
+// the kind, the item and, for a report, what kind of thing is wrong.
+export const ADMIN_KINDS = ["deleteRequest", "report"];
+
+// Whether a line is one rab words itself rather than something typed.
 export function isBookingLine(message) {
-  return BOOKING_KINDS.includes(message?.kind);
+  return BOOKING_KINDS.includes(message?.kind) || ADMIN_KINDS.includes(message?.kind);
+}
+
+// The item such a line leads to, where there still is one.
+export function lineItemId(message) {
+  return message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
 }
 
 export function bookingLine(message, t, locale) {
+  if (ADMIN_KINDS.includes(message.kind)) {
+    return t(`messages.event.${message.kind}`, {
+      item: message.item?.title ?? t("messages.event.gone"),
+      reason: message.reason ? t(`report.reasons.${message.reason}`, message.reason) : "",
+    });
+  }
   const booking = message.booking;
   const dates = booking ? bookingWhen(booking, locale) : "";
   return t(`messages.event.${message.kind}`, {

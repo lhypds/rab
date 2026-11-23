@@ -2,88 +2,178 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { moveItemDir, nameFolders, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
+import { accountFolders, moveItemDir, nameFolders, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberItems } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sqlite");
 
-// The database holds who has an account and who is signed in, and that is all.
-// What an account has — its items, its bookings, its messages, its photographs
-// — is in its own folder, data/users/<username>/ (see files.js), each item in a
-// folder of its own inside it. All of it is read into memory when the server
-// starts and written back, a file at a time, as it changes; so one server process owns the folders, and a file edited by hand is
-// picked up at the next start.
+// The database holds who is signed in, and that is all. An account is its
+// folder, data/users/<username>/ (see files.js): the folder's name is its
+// username, and user.json in it says the rest about it — its id, when it was
+// made, its password, its address, how it is reached. What an account has —
+// its items, its bookings, its messages, its photographs — is in the same
+// folder, each item in a folder of its own inside it. All of it is read into
+// memory when the server starts and written back, a file at a time, as it
+// changes; so one server process owns the folders, and a file edited by hand
+// is picked up at the next start.
 export const db = new DatabaseSync(databasePath);
 
 db.exec(`
   PRAGMA journal_mode = WAL;
-  PRAGMA foreign_keys = ON;
-
-  -- An account is a name and a password. The name is what its folder is
-  -- called; the id is what everything in the folders points at: an item's owner, a booking's
-  -- renter, the other end of a message.
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    -- The password itself, as it was typed (see passwordMatches).
-    password TEXT NOT NULL,
-    bio TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  );
 
   -- Only the digest of a session token is kept: enough to find the account when
   -- the token comes back, and not a usable credential to whoever reads the file.
+  -- user_id is the id in the account's user.json.
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
   ) WITHOUT ROWID;
-
-  CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
 `);
 
-// An account has an address too, from when one was first asked for at sign-up:
-// proved by a code sent to it, and one account to an address. Accounts older
-// than that have none. Added to a table that already exists, once.
-if (!db.prepare("PRAGMA table_info(users)").all().some((column) => column.name === "email")) {
-  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
+// What an account keeps about itself, in its folder's user.json: its id, when
+// it was made, its password, its address, how it is reached (see "users" and
+// "contacts" below).
+const USER_FILE = "user.json";
+
+// The accounts there are, as they are held while the server runs: by id, and
+// the id by username — which is folded to lower case, a name being nobody
+// else's whatever its capitals. An account is { id, username, createdAt }.
+//
+// The id is what everything in the folders points at — an item's owner, a
+// booking's renter, the other end of a message, a session. It is the
+// millisecond the account was made, in Unix time, like an item's; an account
+// from when the database numbered them keeps the number it was given.
+const usersById = new Map();
+const idByName = new Map();
+const nameKey = (username) => String(username ?? "").toLowerCase();
+
+function remember(user) {
+  usersById.set(user.id, user);
+  idByName.set(nameKey(user.username), user.id);
 }
-db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email COLLATE NOCASE) WHERE email IS NOT NULL");
+
+function forget(userId) {
+  const user = usersById.get(userId);
+  if (!user) return;
+  usersById.delete(userId);
+  idByName.delete(nameKey(user.username));
+}
+
+// The folders are named after usernames, and this is where it is known which
+// username is which id.
+nameFolders({
+  nameOf: (id) => usersById.get(id)?.username ?? null,
+  idOf: (username) => idByName.get(nameKey(username)) ?? null,
+});
+
+// The accounts used to be a table in the database: id, username, when it was
+// made, and for a time the password and the address. A database that still
+// has it has each account's row written into its user.json, and then the
+// table goes — once. Nothing is dropped until every file is written: a start
+// that fails part-way does it all again. The sessions go on pointing at the
+// same ids, in a table that no longer leans on the one that went.
+if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'").get()) {
+  const rows = db.prepare("SELECT * FROM users ORDER BY id").all();
+  for (const row of rows) remember({ id: row.id, username: row.username, createdAt: row.created_at });
+  // And two older moves, from when the table was there to be asked: a
+  // database that held everything is moved into the folders, and folders
+  // named after ids are given their usernames.
+  moveIntoFolders(db, databasePath);
+  renameNumberedFolders();
+  for (const row of rows) {
+    const about = readRecord(row.id, USER_FILE);
+    const record = { id: row.id, createdAt: row.created_at, ...about };
+    record.id = row.id;
+    if (row.password != null) record.password = String(row.password);
+    if (row.email != null) record.email = String(row.email);
+    writeRecord(row.id, USER_FILE, record);
+  }
+  db.exec(`
+    PRAGMA foreign_keys = OFF;
+    BEGIN;
+    CREATE TABLE sessions_kept (
+      token_hash TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) WITHOUT ROWID;
+    INSERT INTO sessions_kept SELECT token_hash, user_id, expires_at, created_at FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_kept RENAME TO sessions;
+    DROP TABLE users;
+    COMMIT;
+  `);
+  console.log(`rab: moved ${rows.length} accounts out of db.sqlite into data/users/<username>/user.json`);
+}
+
+db.exec("CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at)");
+
+// The accounts, read from the folders: every folder whose user.json has an id
+// is the account of that id, called what the folder is called. A folder
+// without one is nobody's and is left alone.
+usersById.clear();
+idByName.clear();
+for (const { username, record } of accountFolders(USER_FILE)) {
+  const id = Number(record.id);
+  if (!Number.isSafeInteger(id) || id <= 0) continue;
+  if (usersById.has(id)) {
+    console.warn(`rab: data/users/${username} was not read: its id, ${id}, is also that of ${usersById.get(id).username}`);
+    continue;
+  }
+  remember({ id, username, createdAt: typeof record.createdAt === "string" ? record.createdAt : new Date(id).toISOString() });
+}
+
+// A new account's id: the millisecond it is made, in Unix time — the next one
+// that is free, should that one be some account's already.
+function newUserId() {
+  let stamp = Date.now();
+  while (usersById.has(stamp)) stamp += 1;
+  return stamp;
+}
+
+// An account, made: its folder, with a user.json saying its id, when it was
+// made, and whatever else is said of it (`about`). One whose file could not
+// be written is not left behind as a name with nothing under it.
+function addUser(username, about = {}) {
+  const user = { id: newUserId(), username, createdAt: new Date().toISOString() };
+  remember(user);
+  try {
+    writeRecord(user.id, USER_FILE, { id: user.id, createdAt: user.createdAt, ...about });
+  } catch (error) {
+    forget(user.id);
+    throw error;
+  }
+  return user;
+}
 
 // One account is nobody's: "_public", which has what is everybody's — the
 // items that are somebody else's, written down by an account that does not
 // have them (an item's `shared`). They are kept in its folder,
 // data/users/_public/, like any account's, and anybody signed in may change
-// them or delete them. It is made here, once, with a password nobody was
-// given; nobody signs in as it whatever its password is (see checkPassword),
-// and its name starts with _, which no name somebody chooses can.
+// them. It is made here, once, with no password; nobody signs in as it
+// whatever its user.json says (see checkPassword), and its name starts with
+// _, which no name somebody chooses can.
 export const PUBLIC_NAME = "_public";
-if (!db.prepare("SELECT id FROM users WHERE username = ?").get(PUBLIC_NAME)) {
-  db.prepare("INSERT INTO users (username, password) VALUES (?, ?)").run(PUBLIC_NAME, crypto.randomBytes(32).toString("base64url"));
-}
-export const PUBLIC_ID = db.prepare("SELECT id FROM users WHERE username = ?").get(PUBLIC_NAME).id;
+export const PUBLIC_ID = (usersById.get(idByName.get(PUBLIC_NAME)) ?? addUser(PUBLIC_NAME)).id;
 
-// The folders are named after usernames, and only the database knows which
-// username is which id.
-{
-  const nameById = db.prepare("SELECT username FROM users WHERE id = ?");
-  const idByName = db.prepare("SELECT id FROM users WHERE username = ?");
-  nameFolders({
-    nameOf: (id) => nameById.get(id)?.username ?? null,
-    idOf: (username) => idByName.get(username)?.id ?? null,
-  });
-}
+// And one is whoever looks after the site: "_admin", which is always there —
+// made here, once, like the public account, under a name nobody can choose.
+// It is the account the site's own post goes to: a request to delete one of
+// the public account's items, a report of an item (see index.js) — each a line
+// in a conversation with it, like any message. Unlike the public account it is
+// signed in to, by whoever looks after the server: it starts with no password,
+// which nothing typed matches, and `rab user _admin pass <new>` gives it one
+// (see cli.js).
+export const ADMIN_NAME = "_admin";
+export const ADMIN_ID = (usersById.get(idByName.get(ADMIN_NAME)) ?? addUser(ADMIN_NAME)).id;
 
-// A database from when it held everything is moved into the folders, once;
-// folders from when they were named after ids are given their usernames, once;
-// items from when an account's were one list are given their own folders,
+// Items from when an account's were one list are given their own folders,
 // once; item folders from when they were named after a random id are named
 // after when the item was made, once; and the items take that for their id,
 // once.
-moveIntoFolders(db, databasePath);
-renameNumberedFolders();
 moveItemsIntoFolders();
 renameItemFolders();
 renumberItems();
@@ -92,9 +182,15 @@ const now = () => new Date().toISOString();
 
 /* ------------------------------------------------------------------- users */
 
+// An account's password and its address are in its folder's user.json —
+// `password` and `email` — beside its id and how it is reached.
+// They are read and written as they are asked for, so one changed by hand, or
+// by cli.js under a running server, is the one that counts from then on.
+//
 // A password is kept as it was typed, so whoever looks after the server can
-// read one and write one straight into the table. Anybody who can read the
-// database file can therefore read every password in it.
+// read one and write one straight into the file. Anybody who can read the
+// folders can therefore read every password in them. An account with none
+// written — the server's own start so — is not signed in to at all.
 //
 // One kept from when they were hashed — scrypt$<salt>$<hash> — is still
 // answered to, so an account made then can still sign in; it is written plain
@@ -109,70 +205,94 @@ function passwordMatches(password, stored) {
   return expected.length === given.length && crypto.timingSafeEqual(expected, given);
 }
 
-const USER_COLUMNS = "id, username, created_at AS createdAt";
-const selectUser = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE username = ?`);
-const selectUserById = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`);
-const selectPassword = db.prepare("SELECT password FROM users WHERE username = ?");
-const insertUser = db.prepare("INSERT INTO users (username, password, email) VALUES (?, ?, ?)");
-const selectByEmail = db.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE");
+// What an account's user.json says, with one thing in it changed: a value of
+// null takes the thing out.
+function keepAbout(userId, name, value) {
+  const record = readRecord(userId, USER_FILE);
+  if (value == null) delete record[name];
+  else record[name] = value;
+  writeRecord(userId, USER_FILE, record);
+}
 
+// What goes out about an account is a copy: what is held is not handed round
+// to be written on.
 export function getUser(username) {
-  return selectUser.get(username) ?? null;
+  const user = usersById.get(idByName.get(nameKey(username)));
+  return user ? { ...user } : null;
 }
 
 export function getUserById(id) {
-  return selectUserById.get(id) ?? null;
+  const user = usersById.get(id);
+  return user ? { ...user } : null;
 }
 
 // `email` is the address the account was opened with, or null for one made
-// by whoever looks after the server (see cli.js), which asks for none.
+// where none is asked for.
 export function createUser(username, password, email = null) {
-  insertUser.run(username, String(password), email);
-  return getUser(username);
+  return { ...addUser(username, { password: String(password), ...(email ? { email } : null) }) };
 }
 
-// Whether an address already has an account.
-export function emailTaken(email) {
-  return Boolean(selectByEmail.get(email));
+// The account's own address — the one it signs up with or sets on its sheet,
+// which is the account's and not a way it says it is reached (see contacts) —
+// or null where it has none.
+export function getEmail(userId) {
+  const { email } = readRecord(userId, USER_FILE);
+  return typeof email === "string" && email ? email : null;
+}
+
+export function setEmail(userId, email) {
+  keepAbout(userId, "email", email || null);
+}
+
+// Whether an address already has an account — other than `exceptId`, the
+// account asking, where it is one that is changing its own. One account to an
+// address, whatever its capitals: every account's file is asked, there being
+// no index of what is in them.
+export function emailTaken(email, exceptId = null) {
+  const wanted = String(email).toLowerCase();
+  return [...usersById.values()].some((user) => user.id !== exceptId && getEmail(user.id)?.toLowerCase() === wanted);
 }
 
 // Every account, oldest first: for whoever looks after the server (see cli.js).
-const selectUsers = db.prepare(`SELECT ${USER_COLUMNS} FROM users ORDER BY id`);
 export function listUsers() {
-  return selectUsers.all();
+  return [...usersById.values()]
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id - b.id))
+    .map((user) => ({ ...user }));
 }
 
 // A new password for an account, set by whoever looks after the server. The
 // account is signed out everywhere: whoever was in on the old one is not in on
 // the new one.
-const updatePassword = db.prepare("UPDATE users SET password = ? WHERE id = ?");
 const deleteSessionsOf = db.prepare("DELETE FROM sessions WHERE user_id = ?");
 export function setPassword(userId, password) {
-  updatePassword.run(String(password), userId);
+  keepAbout(userId, "password", String(password));
   deleteSessionsOf.run(userId);
 }
 
 export function checkPassword(username, password) {
   // Nobody signs in as the account that is nobody's.
   if (String(username).toLowerCase() === PUBLIC_NAME) return false;
-  const row = selectPassword.get(username);
-  return row ? passwordMatches(password, row.password) : false;
+  const user = getUser(username);
+  if (!user) return false;
+  const kept = readRecord(user.id, USER_FILE).password;
+  return typeof kept === "string" && kept !== "" ? passwordMatches(password, kept) : false;
 }
 
 /* ---------------------------------------------------------------- sessions */
 
 const insertSession = db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)");
-const selectSession = db.prepare(`
-  SELECT s.user_id AS userId, s.expires_at AS expiresAt, u.username
-  FROM sessions s JOIN users u ON u.id = s.user_id
-  WHERE s.token_hash = ?
-`);
+const selectSession = db.prepare("SELECT user_id AS userId, expires_at AS expiresAt FROM sessions WHERE token_hash = ?");
 const deleteSessionRow = db.prepare("DELETE FROM sessions WHERE token_hash = ?");
 const touchSessionRow = db.prepare("UPDATE sessions SET expires_at = ? WHERE token_hash = ?");
 const deleteExpired = db.prepare("DELETE FROM sessions WHERE expires_at <= ?");
 
 export const saveSession = (hash, userId, expiresAt) => insertSession.run(hash, userId, expiresAt);
-export const getSession = (hash) => selectSession.get(hash) ?? null;
+// A session of an account there no longer is, is no session.
+export function getSession(hash) {
+  const session = selectSession.get(hash);
+  const username = session ? usersById.get(session.userId)?.username : null;
+  return username ? { ...session, username } : null;
+}
 export const deleteSession = (hash) => deleteSessionRow.run(hash);
 export const touchSession = (hash, expiresAt) => touchSessionRow.run(expiresAt, hash);
 export const deleteExpiredSessions = (time) => deleteExpired.run(time);
@@ -309,7 +429,7 @@ load();
 // Whatever load() moved is written where it now belongs.
 save();
 
-const nameOf = (userId) => selectUserById.get(userId)?.username ?? null;
+const nameOf = (userId) => usersById.get(userId)?.username ?? null;
 const newestFirst = (a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
 const highestFirst = (a, b) => b.id - a.id;
 
@@ -877,6 +997,12 @@ export const getRating = (userId) => ratingOf(getReviewsOf(userId));
 // hands, so that everything about a rental is in the conversation it is being
 // arranged in; bookingId says which one, and the client words the line.
 //
+// Two more are what is sent to the account that looks after the site (see
+// ADMIN_NAME): deleteRequest, asking for one of the public account's items to
+// be deleted, and report, saying something is wrong with an item. `itemId`
+// says which item, `reason` what kind of thing is wrong with it, and the body
+// is what was written about it.
+//
 // `read` is whether the one it was sent to has read it, on both copies: it is
 // what the receiver's unread count goes by and what the sender is shown.
 function servedMessage(line) {
@@ -889,6 +1015,15 @@ function servedMessage(line) {
     time: line.time,
     mine: line.mine === true,
     read: line.read === true,
+    // The item a line sent to the admin is about; `gone` once it is deleted.
+    item: line.itemId
+      ? {
+          id: line.itemId,
+          title: itemsById.get(line.itemId)?.title ?? null,
+          gone: !itemsById.get(line.itemId) || Boolean(itemsById.get(line.itemId).deletedAt),
+        }
+      : null,
+    reason: line.reason ?? null,
     booking: booking
       ? {
           id: booking.id,
@@ -961,11 +1096,20 @@ export function readConversation(userId, otherId) {
   });
 }
 
-export function createMessage(fromId, toId, body, { kind = "text", bookingId = null } = {}) {
+export function createMessage(fromId, toId, body, { kind = "text", bookingId = null, itemId = null, reason = null } = {}) {
   // The clock, so a number is never handed out twice even after both ends have
   // deleted the lines that carried the highest ones.
   lastMessageId = Math.max(Date.now(), lastMessageId + 1);
-  const line = { id: lastMessageId, body, kind, bookingId, time: now(), read: false };
+  const line = {
+    id: lastMessageId,
+    body,
+    kind,
+    bookingId,
+    ...(itemId ? { itemId } : null),
+    ...(reason ? { reason } : null),
+    time: now(),
+    read: false,
+  };
   const sent = { ...line, with: toId, mine: true };
   transaction(() => {
     linesOf(fromId).push(sent);
@@ -1047,15 +1191,13 @@ export function deleteLocation(userId, id) {
 // carries them (see rates.js) — kept in its folder's user.json as the account
 // wrote them on its own sheet, so an item of its own starts with them filled
 // in. Read and written as they are asked for, like the locations.
-const USER_FILE = "user.json";
-
 export function getContacts(userId) {
   const { contacts } = readRecord(userId, USER_FILE);
   return Array.isArray(contacts) ? contacts : [];
 }
 
 export function saveContacts(userId, contacts) {
-  writeRecord(userId, USER_FILE, { ...readRecord(userId, USER_FILE), contacts });
+  keepAbout(userId, "contacts", contacts);
 }
 
 /* ----------------------------------------------------------------- removal */
@@ -1068,7 +1210,6 @@ export function saveContacts(userId, contacts) {
 //
 // Not for a running server to have done to it from outside: the server holds
 // the folders in memory and would write some of this back (see cli.js).
-const deleteUserRow = db.prepare("DELETE FROM users WHERE id = ?");
 export function deleteUser(userId) {
   const counts = { items: 0, bookings: 0, conversations: 0 };
   transaction(() => {
@@ -1097,7 +1238,8 @@ export function deleteUser(userId) {
     for (const entry of [...unsaved]) if (entry.startsWith(`${userId}/`)) unsaved.delete(entry);
   });
   removeUserDir(userId);
-  // The sessions go with the row (ON DELETE CASCADE).
-  deleteUserRow.run(userId);
+  // And with the folder, the account: nothing is signed in as it any more.
+  deleteSessionsOf.run(userId);
+  forget(userId);
   return counts;
 }

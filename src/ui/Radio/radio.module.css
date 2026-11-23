@@ -1,0 +1,66 @@
+.radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The real control, kept for the keyboard and for screen readers and drawn to
+   nothing: what is seen is the ring beside it. */
+.input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ring {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* The dot, shown in the one that is chosen. */
+.ring::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+}
+
+.input:checked + .ring::before {
+  opacity: 1;
+}
+
+/* The keyboard's focus is on a control drawn to nothing, so the ring wears it. */
+.input:focus-visible + .ring {
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.radio[data-disabled="true"] {
+  cursor: default;
+}
+
+.radio[data-disabled="true"] .ring {
+  opacity: 0.4;
+}
+
+@media (hover: hover) {
+  .radio:not([data-disabled="true"]):hover .ring {
+    background: var(--soft);
+  }
+}

@@ -104,6 +104,12 @@ export const createUser = (username, password, email, code) =>
 export const logout = () => send("POST", "/api/logout").finally(dropSession);
 export const getUser = (username) => request(`/api/users/${name(username)}`);
 export const getMine = () => request("/api/mine");
+// The account's own address — { email, verify } — apart from the ways it says
+// it is reached: `verify` is whether a new one is proved by a code mailed to
+// it, which is then asked for first and sent back with the address.
+export const getAccount = () => request("/api/account");
+export const sendEmailCode = (email, lang) => send("POST", "/api/account/email/code", { email, lang });
+export const setAccountEmail = (email, code) => send("PUT", "/api/account/email", { email, code });
 
 /* -------------------------------------------------------------------- items */
 
@@ -122,6 +128,11 @@ export const getItem = (id, options) => request(`/api/items/${name(id)}`, option
 export const createItem = (item) => send("POST", "/api/items", item);
 export const updateItem = (id, item) => send("PATCH", `/api/items/${name(id)}`, item);
 export const deleteItem = (id) => send("DELETE", `/api/items/${name(id)}`);
+// What is sent to the administrator about an item, each a message in the
+// sender's conversation with them: asking for one listed for somebody else to
+// be deleted, and saying what is wrong with one (`reason` is the kind).
+export const requestDelete = (id, note) => send("POST", `/api/items/${name(id)}/delete-request`, { note });
+export const reportItem = (id, reason, note) => send("POST", `/api/items/${name(id)}/report`, { reason, note });
 // What a photograph is of, as a listing would say it: { kind, category, title,
 // description }, in the language asked for (see server/describe.js). The
 // model takes its time, so this waits longer than most.

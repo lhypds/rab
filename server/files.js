@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 //   data/users/<username>/items/<made>/item.json   one thing they have out for rent, calendar included
 //   data/users/<username>/items/<made>/<name>      that item's photographs, beside it
 //   data/users/<username>/uploads/                 photographs sent and not yet an item's (see images.js)
-//   data/users/<username>/user.json                what the account keeps about itself: how it is reached
+//   data/users/<username>/user.json                the account itself: its id, when it was made, its
+//                                                  password, its email address, how it is reached
 //   data/users/<username>/bookings.json            every rental they are one side of
 //   data/users/<username>/messages.json            their side of every conversation
 //
@@ -16,13 +17,14 @@ import { fileURLToPath } from "node:url";
 // item's id — what its address and everything else points at it by — and its
 // folder's name, both.
 //
-// db.sqlite knows the account — its name, its password, when it was made — and
-// nothing of what the account has done.
+// The folder is the account: there is no other list of them. db.sqlite knows
+// only who is signed in.
 //
-// Everything in the folders, and everything in the server, still points at an
-// account by its id; only the folder's name is the username. Which name goes
-// with which id is the database's to say, and it says it here (`nameFolders`)
-// before any folder is opened.
+// Everything in the folders, and everything in the server, points at an
+// account by its id, which its user.json says; only the folder's name is the
+// username. Which name goes with which id is read from those files when the
+// server starts (see db.js), and said here (`nameFolders`) before any other
+// file is opened.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +33,7 @@ export const usersDir = path.join(dataDir, "users");
 
 let names = null;
 
-// Told once, by the database: how to get an account's username from its id
+// Told once, by db.js: how to get an account's username from its id
 // (`nameOf`) and its id from its username (`idOf`); either gives null for an
 // account there is not.
 export function nameFolders(lookup) {
@@ -64,6 +66,28 @@ function folders() {
   }
 }
 
+// Every folder with the file an account keeps about itself in it (see db.js),
+// as { username, record }: the folder's name, and what the file says. This is
+// asked before it is known which folder is whose, and is how that is learned.
+// A folder without the file is passed over; a file that is there and cannot
+// be read is an error, as everywhere here.
+export function accountFolders(file) {
+  const found = [];
+  for (const username of folders()) {
+    let text;
+    try {
+      text = fs.readFileSync(path.join(usersDir, username, file), "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") continue;
+      throw error;
+    }
+    const record = JSON.parse(text);
+    if (!record || typeof record !== "object" || Array.isArray(record)) throw new Error(`${path.join(usersDir, username, file)} is not a record`);
+    found.push({ username, record });
+  }
+  return found;
+}
+
 // The ids of the accounts that have a folder. A folder no account is called
 // is left alone and not read.
 export function userFolders() {
@@ -73,7 +97,7 @@ export function userFolders() {
 }
 
 // An account's whole folder, gone: what is done when the account is deleted.
-// Asked for by id while the database still knows the name that goes with it.
+// Asked for by id while it is still known which name goes with it.
 export function removeUserDir(userId) {
   fs.rmSync(userDir(userId), { recursive: true, force: true });
 }

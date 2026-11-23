@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Link, Modal, Skeleton, TextArea } from "../../ui/index.js";
-import { bookingLine, isBookingLine } from "../../utils/bookings.js";
+import { bookingLine, isBookingLine, lineItemId } from "../../utils/bookings.js";
 import { formatUsername, relativeTime } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
 import UserName from "../UserName/index.js";
@@ -205,16 +205,18 @@ export default function MessageModal({ username, onClose, onNavigate }) {
               {messages.map((message) => {
                 const who = message.mine ? me : username;
                 const event = isBookingLine(message);
+                const about = event ? lineItemId(message) : null;
                 return (
                   <li key={message.id} className={message.mine ? `${styles.line} ${styles.mine}` : styles.line}>
                     {who && <UserName name={who} className={styles.who} onClick={leave} />}
                     {event ? (
-                      // What became of a booking, and the way to the item it
-                      // is about — where the calendar and the answer are.
-                      message.booking ? (
+                      // What became of a booking — or what the administrator
+                      // was sent about an item — and the way to the item it
+                      // is about, where the calendar and the answer are.
+                      about ? (
                         <Link
                           className={`${styles.bubble} ${styles.event}`}
-                          to={`/i/${message.booking.itemId}`}
+                          to={`/i/${about}`}
                           onClick={leave}
                         >
                           <span className={`${styles.eventLine} ${styles.eventItem}`}>

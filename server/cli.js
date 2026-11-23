@@ -9,9 +9,11 @@ import { fileURLToPath } from "node:url";
 //   rab user list                      every account
 //   rab user <username> items          what an account has out for rent
 //   rab user <username> pass <new>     give an account a new password
+//                                      (`rab user _admin pass <new>` is how the
+//                                      admin account is first given one)
 //   rab user delete <username>         delete an account and everything it has
 //
-// They read and write the same db.sqlite and data/users/ the server does (and
+// They read and write the same data/users/ and db.sqlite the server does (and
 // the same .env says where those are). Listing is safe at any time, and so is
 // a password. Deleting is not done under a running server, which holds the
 // folders in memory and would write part of what was deleted back: stop it
@@ -94,6 +96,10 @@ if (first === "list" && words.length === 2) {
 } else if (first === "delete" || second === "delete") {
   // Either order: `rab user delete liu`, `rab user liu delete`.
   const user = account(first === "delete" ? second : first);
+  // The two accounts the server makes for itself are always there.
+  if (user.username === store.PUBLIC_NAME || user.username === store.ADMIN_NAME) {
+    fail(`${user.username} is rab's own account and is not deleted.`);
+  }
   const port = await serverRunning();
   if (port) {
     fail(`rab is running on port ${port}. Stop it first (it holds the folders in memory and would write some of this back), then run this again.`);

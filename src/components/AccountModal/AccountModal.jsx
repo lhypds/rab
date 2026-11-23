@@ -45,6 +45,15 @@ export default function AccountModal({ isOpen, onClose }) {
   const [changed, setChanged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // The account's own address: what is kept ({ email, verify }, null until it
+  // has been read), what is written in the box, and — where a new one has to
+  // be proved — the address a code was mailed to and the code typed back.
+  const [account, setAccount] = useState(null);
+  const [email, setEmail] = useState("");
+  const [codeFor, setCodeFor] = useState("");
+  const [code, setCode] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   useEffect(() => {
     if (!isOpen || !user) return undefined;
@@ -52,6 +61,19 @@ export default function AccountModal({ isOpen, onClose }) {
     setContacts(null);
     setChanged(false);
     setError("");
+    setAccount(null);
+    setEmail("");
+    setCodeFor("");
+    setCode("");
+    setEmailError("");
+    api
+      .getAccount()
+      .then((answer) => {
+        if (cancelled) return;
+        setAccount(answer);
+        setEmail(answer.email ?? "");
+      })
+      .catch(() => !cancelled && setAccount({ email: null, verify: false }));
     api
       .getContacts()
       .then((answer) => !cancelled && setContacts((answer.contacts ?? []).slice(0, CONTACTS_MAX).map(lineOf)))
@@ -67,6 +89,54 @@ export default function AccountModal({ isOpen, onClose }) {
     onClose();
     await logout();
     navigate("/");
+  }
+
+  // The address as it would be kept, whether it differs from the one that is,
+  // and whether its code has been sent and is waited for.
+  const typedEmail = email.trim().toLowerCase();
+  const emailChanged = Boolean(account) && typedEmail !== (account.email ?? "");
+  const proving = Boolean(account?.verify) && typedEmail !== "";
+  const awaitingCode = proving && codeFor === typedEmail;
+
+  function emailFault(requestError) {
+    const known = {
+      EMAIL_INVALID: "auth.emailInvalid",
+      EMAIL_TAKEN: "auth.emailTaken",
+      MAIL_FAILED: "auth.mailFailed",
+      CODE_WRONG: "auth.codeWrong",
+      CODE_EXPIRED: "auth.codeExpired",
+      CODE_TOO_SOON: "auth.codeTooSoon",
+    }[requestError.code];
+    return known ? t(known) : requestError.message;
+  }
+
+  // One button, two goes where the address has to be proved: the first mails
+  // the code, the second brings it back with the address.
+  async function saveEmail(event) {
+    event.preventDefault();
+    if (emailBusy || !emailChanged) return;
+    setEmailBusy(true);
+    setEmailError("");
+    try {
+      if (proving && !awaitingCode) {
+        await api.sendEmailCode(typedEmail, lang);
+        setCodeFor(typedEmail);
+        setCode("");
+      } else {
+        const answer = await api.setAccountEmail(typedEmail, awaitingCode ? code : undefined);
+        setAccount({ ...account, email: answer.email });
+        setEmail(answer.email ?? "");
+        setCodeFor("");
+        setCode("");
+        showToast(t(answer.email ? "account.emailSaved" : "account.emailRemoved"), 2000);
+      }
+    } catch (requestError) {
+      // A code that is no good any more is asked for again.
+      if (requestError.code === "CODE_EXPIRED") setCodeFor("");
+      setEmailError(emailFault(requestError));
+    } finally {
+      setEmailBusy(false);
+    }
   }
 
   const edit = (next) => {
@@ -117,6 +187,54 @@ export default function AccountModal({ isOpen, onClose }) {
           <dd>{formatDate(user.createdAt, i18n.language)}</dd>
         </div>
       </dl>
+
+      {/* The account's own address, apart from the ways it is reached below:
+          one box, and the button that keeps what is in it once it differs. */}
+      <form className={styles.contacts} onSubmit={saveEmail} autoComplete="off">
+        <span className="field-label">{t("account.email")}</span>
+        <div className={styles.contactRow}>
+          <input
+            className="text-input"
+            type="email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setEmailError("");
+            }}
+            maxLength={254}
+            disabled={!account || emailBusy}
+            aria-label={t("account.email")}
+          />
+          {emailChanged && !awaitingCode && (
+            <button type="submit" className="small-button" disabled={emailBusy}>
+              {proving ? t("auth.sendCode") : t("common.save")}
+            </button>
+          )}
+        </div>
+        {awaitingCode && (
+          <div className={styles.contactRow}>
+            <input
+              className="text-input"
+              inputMode="numeric"
+              value={code}
+              onChange={(event) => {
+                setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                setEmailError("");
+              }}
+              placeholder={t("auth.code")}
+              disabled={emailBusy}
+              aria-label={t("auth.code")}
+            />
+            <button type="submit" className="small-button" disabled={emailBusy || code.length < 6}>
+              {t("common.save")}
+            </button>
+          </div>
+        )}
+        <span className={styles.hint}>
+          {awaitingCode ? t("auth.codeHint", { email: typedEmail }) : t("account.emailHint")}
+        </span>
+        {emailError && <p className="form-message error">{emailError}</p>}
+      </form>
 
       {/* How the account is reached: as many ways as are added, each a kind
           and what is written for it, saved together. */}

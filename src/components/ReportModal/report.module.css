@@ -1,0 +1,17 @@
+/* What the sheet is about, and where what is written on it goes. */
+.lead {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* The kinds of thing that can be wrong, one under another. */
+.reasons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 12px;
+}

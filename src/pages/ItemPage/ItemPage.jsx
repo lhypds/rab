@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Header, ItemModal, ItemView, MessageModal, loginPath, useAuth } from "../../components/index.js";
 import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
+import { isAdmin } from "../../utils/admin.js";
 
 // How often an open page asks again where things stand. An item's page is what
 // both sides of a rental come back to for the answer, so it keeps itself
@@ -123,8 +124,8 @@ export default function ItemPage({ id }) {
       </main>
 
       {/* The form, for whoever may change the item: the account it is under,
-          or anybody signed in where it is somebody else's. */}
-      {(item?.mine || (item?.shared && user)) && (
+          anybody signed in where it is somebody else's, or the admin. */}
+      {(item?.mine || (item?.shared && user) || (item && isAdmin(user))) && (
         <ItemModal
           isOpen={Boolean(editing)}
           // Which of the form's two sheets: the item, or when it can be had.

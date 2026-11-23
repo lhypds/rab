@@ -65,7 +65,10 @@ const {
   setDays,
   touchSession,
   transaction,
-  updateItem, PUBLIC_ID, PUBLIC_NAME
+  updateItem, PUBLIC_ID, PUBLIC_NAME,
+  ADMIN_ID,
+  getEmail,
+  setEmail,
 } = await import("./db.js");
 const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, storeImage } = await import("./images.js");
 const { mailConfigured, sendMail } = await import("./mail.js");
@@ -81,7 +84,8 @@ const isProduction = process.env.NODE_ENV === "production";
 // A username is nearly one a Unix system would take: letters, digits, - and _,
 // 32 characters at most, starting with a letter or a digit and not a number —
 // "318yang" is a name, "318" is not. A name starting with _ is the server's
-// own to give: "_public" is the account nobody has (see db.js). (Capitals are
+// own to give: "_public" is the account nobody has, and "_admin" the one that
+// looks after the site (see db.js). (Capitals are
 // folded to lower case before this is asked.)
 const USERNAME_RE = /^(?!\d+$)[a-z0-9][a-z0-9_-]{0,31}$/;
 const USERNAME_HINT = "A username is 1–32 characters: letters, digits, - and _, starting with a letter or a digit and not a number";
@@ -371,28 +375,27 @@ const CODE_MAIL = {
   }),
 };
 
-app.post("/api/users/code", async (req, res) => {
-  if (!ENABLE_EMAIL) return res.status(404).json({ error: "Email verification is not in use", code: "VERIFY_OFF" });
-  const account = newAccount(req.body);
-  if (account.fault) return res.status(account.status).json(account.fault);
-  const { username, email } = account;
+// A code mailed to an address for an account's name — one being opened, or
+// one changing its address — and kept to be brought back. Null where it went,
+// or what went wrong, as the answer to send back.
+async function mailCode(email, username, lang) {
   // One mail a minute to an address, so the button cannot be leaned on.
   const waiting = codes.get(email);
   if (waiting && Date.now() - waiting.sentAt < CODE_RESEND_MS) {
-    return res.status(429).json({ error: "A code was just sent. Wait a minute before asking for another.", code: "CODE_TOO_SOON" });
+    return { status: 429, fault: { error: "A code was just sent. Wait a minute before asking for another.", code: "CODE_TOO_SOON" } };
   }
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
-  const mail = (CODE_MAIL[String(req.body?.lang ?? "").slice(0, 2)] ?? CODE_MAIL.en)(code);
+  const mail = (CODE_MAIL[String(lang ?? "").slice(0, 2)] ?? CODE_MAIL.en)(code);
   if (mailConfigured()) {
     try {
       await sendMail({ to: email, ...mail });
     } catch (error) {
       console.error(`[mail] ${error.message}`);
-      return res.status(502).json({ error: "The email could not be sent", code: "MAIL_FAILED" });
+      return { status: 502, fault: { error: "The email could not be sent", code: "MAIL_FAILED" } };
     }
   } else if (isProduction) {
     console.error("[mail] not configured: set AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and RAB_MAIL_FROM");
-    return res.status(503).json({ error: "The email could not be sent", code: "MAIL_FAILED" });
+    return { status: 503, fault: { error: "The email could not be sent", code: "MAIL_FAILED" } };
   } else {
     // Worked on with no mail set up: the code is said here instead of sent.
     console.log(`[mail] not configured — the code for ${email} is ${code}`);
@@ -404,6 +407,37 @@ app.post("/api/users/code", async (req, res) => {
     tries: 0,
     sentAt: Date.now(),
   });
+  return null;
+}
+
+// The code that went to that address for that name, brought back: still good
+// and not guessed at too often. A wrong one counts; the right one is used
+// once. Null where it is the code, or what is wrong, as the answer to send.
+function spendCode(email, username, given) {
+  const waiting = codes.get(email);
+  if (!waiting || waiting.username !== username || waiting.expires < Date.now()) {
+    codes.delete(email);
+    return { status: 400, fault: { error: "That code has expired. Ask for a new one.", code: "CODE_EXPIRED" } };
+  }
+  if (waiting.tries >= CODE_TRIES) {
+    codes.delete(email);
+    return { status: 429, fault: { error: "Too many wrong codes. Ask for a new one.", code: "CODE_EXPIRED" } };
+  }
+  const hash = sessionHash(String(given ?? "").replace(/\D/g, ""));
+  if (hash.length !== waiting.hash.length || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(waiting.hash))) {
+    waiting.tries += 1;
+    return { status: 400, fault: { error: "That is not the code", code: "CODE_WRONG" } };
+  }
+  codes.delete(email);
+  return null;
+}
+
+app.post("/api/users/code", async (req, res) => {
+  if (!ENABLE_EMAIL) return res.status(404).json({ error: "Email verification is not in use", code: "VERIFY_OFF" });
+  const account = newAccount(req.body);
+  if (account.fault) return res.status(account.status).json(account.fault);
+  const failed = await mailCode(account.email, account.username, req.body?.lang);
+  if (failed) return res.status(failed.status).json(failed.fault);
   res.status(204).end();
 });
 
@@ -416,25 +450,56 @@ app.post("/api/users", (req, res) => {
     const user = createUser(username, password);
     return res.status(201).json({ user, token: startSession(user), unread: 0 });
   }
-  // The code that went to that address for that name, still good and not
-  // guessed at too often. A wrong one counts; the right one is used once.
-  const waiting = codes.get(email);
-  if (!waiting || waiting.username !== username || waiting.expires < Date.now()) {
-    codes.delete(email);
-    return res.status(400).json({ error: "That code has expired. Ask for a new one.", code: "CODE_EXPIRED" });
-  }
-  if (waiting.tries >= CODE_TRIES) {
-    codes.delete(email);
-    return res.status(429).json({ error: "Too many wrong codes. Ask for a new one.", code: "CODE_EXPIRED" });
-  }
-  const given = sessionHash(String(req.body?.code ?? "").replace(/\D/g, ""));
-  if (given.length !== waiting.hash.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(waiting.hash))) {
-    waiting.tries += 1;
-    return res.status(400).json({ error: "That is not the code", code: "CODE_WRONG" });
-  }
-  codes.delete(email);
+  const wrong = spendCode(email, username, req.body?.code);
+  if (wrong) return res.status(wrong.status).json(wrong.fault);
   const user = createUser(username, password, email);
   res.status(201).json({ user, token: startSession(user), unread: 0 });
+});
+
+// The signed-in account's own address: the one the account is known by, apart
+// from the ways it says it is reached (see /api/contacts). Any account may set
+// one, change it, or — where the server does not ask for one — take it away;
+// one account to an address. `verify` is whether a new one has to be proved
+// with a code mailed to it first, which it does wherever signing up does.
+app.get("/api/account", requireSession, (req, res) => {
+  res.json({ email: getEmail(req.user.id), verify: ENABLE_EMAIL });
+});
+
+// The address an account is asking to have, checked — or what is wrong with it.
+function newEmail(req) {
+  const email = readEmail(req.body?.email);
+  if (!email) return { status: 400, fault: { error: "Enter an email address", code: "EMAIL_INVALID" } };
+  if (emailTaken(email, req.user.id)) {
+    return { status: 409, fault: { error: "That email address already has an account", code: "EMAIL_TAKEN" } };
+  }
+  return { email };
+}
+
+app.post("/api/account/email/code", requireSession, async (req, res) => {
+  if (!ENABLE_EMAIL) return res.status(404).json({ error: "Email verification is not in use", code: "VERIFY_OFF" });
+  const asked = newEmail(req);
+  if (asked.fault) return res.status(asked.status).json(asked.fault);
+  const failed = await mailCode(asked.email, req.user.username, req.body?.lang);
+  if (failed) return res.status(failed.status).json(failed.fault);
+  res.status(204).end();
+});
+
+app.put("/api/account/email", requireSession, (req, res) => {
+  // Sent empty, the address is taken away — where an account may be without.
+  if (String(req.body?.email ?? "").trim() === "") {
+    if (ENABLE_EMAIL) return res.status(400).json({ error: "Enter an email address", code: "EMAIL_INVALID" });
+    setEmail(req.user.id, null);
+    return res.json({ email: null });
+  }
+  const asked = newEmail(req);
+  if (asked.fault) return res.status(asked.status).json(asked.fault);
+  // The one it has already is not proved again.
+  if (ENABLE_EMAIL && asked.email !== getEmail(req.user.id)) {
+    const wrong = spendCode(asked.email, req.user.username, req.body?.code);
+    if (wrong) return res.status(wrong.status).json(wrong.fault);
+  }
+  setEmail(req.user.id, asked.email);
+  res.json({ email: asked.email });
 });
 
 // Who somebody is: when they joined, how the people they have dealt with rate
@@ -541,7 +606,10 @@ function parseRegion(value) {
 
 // A whole item, as the form sends it. Returns the fields or a sentence about
 // what is wrong with them.
-function parseItem(body, { regionOptional = false } = {}) {
+// `sharedMayBeOff`: somebody else's is on when it is first written down; one
+// that is already there may have been switched off by the admin, and is then
+// left as the request says (see the patch).
+function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}) {
   const title = text(body?.title, TITLE_MAX);
   if (!title) return { error: "An item needs a name" };
   // The area it is offered in, which every item says — it is what lists an
@@ -616,8 +684,8 @@ function parseItem(body, { regionOptional = false } = {}) {
       contacts,
       // Whether it is somebody else's rather than the account's own: it is
       // then kept under the public account, which is nobody's, and anybody
-      // signed in may change it or delete it. It cannot be switched off,
-      // which is its owner's to say and not whoever wrote it down — and it
+      // signed in may change it. It cannot be switched off — except by the
+      // admin — which is its owner's to say and not whoever wrote it down — and it
       // is booked by asking (see below), there being nobody here to say yes.
       shared: body?.shared === true,
       price: listPrice(mode, parsed.rates),
@@ -629,7 +697,7 @@ function parseItem(body, { regionOptional = false } = {}) {
       region,
       moreRegions: region ? moreRegions : [],
       images,
-      active: body?.shared === true || body?.active !== false,
+      active: (body?.shared === true && !sharedMayBeOff) || body?.active !== false,
     },
   };
 }
@@ -792,14 +860,16 @@ app.post("/api/items", requireSession, (req, res) => {
 
 // The item a request is about, where the account asking may change it: its
 // own — or anybody's, where the item is somebody else's that an account wrote
-// down (`shared`), which is everybody's to keep right.
+// down (`shared`), which is everybody's to keep right. The account that looks
+// after the site may change any item at all: edit it, say when it can be had,
+// switch it off, delete it.
 function ownItem(req, res) {
   const item = getItem(req.params.id);
   if (!item) {
     res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
     return null;
   }
-  if (item.ownerId !== req.user.id && !item.shared) {
+  if (item.ownerId !== req.user.id && !item.shared && req.user.id !== ADMIN_ID) {
     res.status(403).json({ error: "That is not your item" });
     return null;
   }
@@ -820,8 +890,16 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
   // Somebody else's stays somebody else's: it is under the public account,
   // and no account can take it for its own. An account's own can be said to
   // be somebody else's, once, and is then moved there (see updateItem).
-  const sent = current.shared ? { ...req.body, shared: true } : req.body;
-  const parsed = parseItem({ ...stored, ...sent }, { regionOptional: !current.region && !("region" in (req.body ?? {})) });
+  // Nor is somebody else's switched off or on by whoever is reading it: that
+  // is the admin's alone, and stays as it is through anybody else's change.
+  const admin = req.user.id === ADMIN_ID;
+  const sent = current.shared
+    ? { ...req.body, shared: true, active: admin && "active" in (req.body ?? {}) ? req.body.active : current.active }
+    : req.body;
+  const parsed = parseItem(
+    { ...stored, ...sent },
+    { regionOptional: !current.region && !("region" in (req.body ?? {})), sharedMayBeOff: current.shared },
+  );
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
   // Its folder goes where it is kept — the public account's for somebody
   // else's (see updateItem) — and its photographs are put in it.
@@ -836,6 +914,12 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
 app.delete("/api/items/:id", requireSession, (req, res) => {
   const item = ownItem(req, res);
   if (!item) return;
+  // Somebody else's is everybody's to keep right and nobody's to throw away:
+  // it is deleted by the account that looks after the site, which is asked
+  // (see the delete request below).
+  if (item.shared && req.user.id !== ADMIN_ID) {
+    return res.status(403).json({ error: "Ask the administrator to delete this item", code: "DELETE_BY_REQUEST" });
+  }
   // Whatever was still open on it is closed with it, and said so to whoever
   // was waiting on an answer.
   transaction(() => {
@@ -849,6 +933,54 @@ app.delete("/api/items/:id", requireSession, (req, res) => {
     deleteItem(item.ownerId, item.id);
   });
   res.status(204).end();
+});
+
+/* ------------------------------------------------------------ to the admin */
+
+// What is sent to the account that looks after the site about an item: each
+// is a line in the sender's conversation with it, like any message, which says
+// which item it is about (see createMessage) — so the admin reads it in its
+// inbox, goes to the item from it, and answers in the same place.
+function adminPost(req, res) {
+  const item = getItem(req.params.id);
+  if (!item) {
+    res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
+    return null;
+  }
+  // The admin has nobody to send it to but itself.
+  if (req.user.id === ADMIN_ID) {
+    res.status(400).json({ error: "You are the administrator" });
+    return null;
+  }
+  return item;
+}
+
+// Asking for somebody else's item to be deleted, with a word about why: it
+// is the admin that deletes one (see the delete above).
+app.post("/api/items/:id/delete-request", requireSession, (req, res) => {
+  const item = adminPost(req, res);
+  if (!item) return;
+  if (!item.shared) return res.status(400).json({ error: "Only an item listed for somebody else is deleted by request" });
+  createMessage(req.user.id, ADMIN_ID, text(req.body?.note, NOTE_MAX), { kind: "deleteRequest", itemId: item.id });
+  res.status(201).json({ sent: true });
+});
+
+// Saying something is wrong with an item: what kind of thing, and a word
+// about it — which "other" has to have, there being nothing else said.
+// "unavailable" is that the thing is not there to be had any more, which
+// asks the admin to delete it.
+const REPORT_REASONS = new Set(["unavailable", "spam", "inaccurate", "prohibited", "scam", "offensive", "other"]);
+
+app.post("/api/items/:id/report", requireSession, (req, res) => {
+  const item = adminPost(req, res);
+  if (!item) return;
+  if (item.ownerId === req.user.id) return res.status(400).json({ error: "You cannot report your own item" });
+  const reason = String(req.body?.reason ?? "");
+  if (!REPORT_REASONS.has(reason)) return res.status(400).json({ error: "Choose what is wrong with it", code: "REASON_REQUIRED" });
+  const note = text(req.body?.note, NOTE_MAX);
+  if (reason === "other" && !note) return res.status(400).json({ error: "Say what is wrong with it", code: "NOTE_REQUIRED" });
+  createMessage(req.user.id, ADMIN_ID, note, { kind: "report", itemId: item.id, reason });
+  res.status(201).json({ sent: true });
 });
 
 /* ----------------------------------------------------------------- calendar */
