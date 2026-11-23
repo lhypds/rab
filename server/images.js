@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 import { itemDir, itemFolders, userDir, userFolders } from "./files.js";
 
 // Where photographs are kept: beside the item they are of, in the item's own
@@ -50,6 +51,15 @@ function survey() {
 // — a RAW file, a video — rather than a size a photo is expected to be.
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+// What every picture is stored as: WebP, no longer than this on its long side.
+// The browser sends exactly that already (see src/utils/image.js) and is kept
+// byte for byte; anything else — the phone app's JPEG, an old Safari's, a file
+// sent as it was — is brought to it here.
+const STORED_MAX = 1600;
+const STORED_QUALITY = 82;
+
+// The other types are what was stored before everything became WebP, and are
+// still served.
 const IMAGE_TYPES = {
   webp: "image/webp",
   png: "image/png",
@@ -92,19 +102,46 @@ function sniffExtension(buffer) {
   return null;
 }
 
-// Naming the file after its digest stores the same photo once however often
-// it is sent, and lets the URL be cached forever.
-export async function storeImage(userId, buffer) {
-  const extension = sniffExtension(buffer);
-  if (!extension) return null;
-  const name = `${crypto.createHash("sha256").update(buffer).digest("hex").slice(0, 32)}.${extension}`;
+// The picture as WebP within STORED_MAX, turned the way its EXIF says it is
+// held — or null for bytes that are not a picture after all.
+async function toWebp(buffer, extension) {
+  try {
+    if (extension === "webp") {
+      const { width, height, pages } = await sharp(buffer).metadata();
+      if (Math.max(width, height) <= STORED_MAX && !(pages > 1)) return buffer;
+    }
+    return await sharp(buffer)
+      .autoOrient()
+      .resize({ width: STORED_MAX, height: STORED_MAX, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: STORED_QUALITY })
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
+// Any picture's bytes as the bytes to keep and the name to keep them under —
+// null for what is not a picture. Naming the file after its digest stores the
+// same photo once however often it is sent, and lets the URL be cached forever.
+export async function asStored(sent) {
+  const sentAs = sniffExtension(sent);
+  if (!sentAs) return null;
+  const buffer = await toWebp(sent, sentAs);
+  if (!buffer) return null;
+  return { name: `${crypto.createHash("sha256").update(buffer).digest("hex").slice(0, 32)}.webp`, buffer };
+}
+
+export async function storeImage(userId, sent) {
+  const picture = await asStored(sent);
+  if (!picture) return null;
+  const { name, buffer } = picture;
   const dir = uploadsDir(userId);
   await fsp.mkdir(dir, { recursive: true });
   await fsp.writeFile(path.join(dir, name), buffer);
   if (!places) survey();
   waiting.add(dir);
   note(name, dir);
-  return { name, url: `/api/images/${name}`, bytes: buffer.length, type: IMAGE_TYPES[extension] };
+  return { name, url: `/api/images/${name}`, bytes: buffer.length, type: IMAGE_TYPES.webp };
 }
 
 // A folder the picture is in, or null.

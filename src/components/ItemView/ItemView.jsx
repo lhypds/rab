@@ -182,6 +182,7 @@ export default function ItemView({
   const todayPrices = bySlot ? cellsOn(item, today()).map((cell) => cell.price) : [];
   const lowToday = todayPrices.length > 0 ? Math.min(...todayPrices) : priceToday;
   const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
+  const priceOnRequest = inquiry && item.price == null;
   const priceHead =
     highToday === lowToday
       ? formatPrice(lowToday, item.currency, lang)
@@ -432,14 +433,16 @@ export default function ItemView({
         {/* ------------------------------------------------- the booking card */}
         <aside className={styles.card} ref={cardRef}>
           <p className={styles.price}>
-            <strong>{priceHead}</strong>
-            <span>
-              {bySlot
-                ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) })
-                : inquiry && inquiryUnitOf(item) !== DAY_UNIT
-                  ? t("item.anHour", { unit: unitName(inquiryUnitOf(item), t) })
-                  : t("item.aDay")}
-            </span>
+            <strong>{priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>
+            {!priceOnRequest && (
+              <span>
+                {bySlot
+                  ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) })
+                  : inquiry && inquiryUnitOf(item) !== DAY_UNIT
+                    ? t("item.anHour", { unit: unitName(inquiryUnitOf(item), t) })
+                    : t("item.aDay")}
+              </span>
+            )}
             <span className={`status ${item.active && (inquiry || free === today()) ? "status-confirmed" : "status-pending"}`}>
               {status}
             </span>

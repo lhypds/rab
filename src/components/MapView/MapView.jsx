@@ -708,25 +708,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     pick(list, next);
   };
 
-  // The list beside the map is picked among by the wheel the same way. It is a
-  // list that scrolls up and down itself, so there the wheel is taken from it
-  // — which only a listener put on by hand may do — and the row picked is
-  // brought into view instead.
-  const sideListRef = useRef(null);
-  const rowWheelRef = useRef(rowWheel);
-  rowWheelRef.current = rowWheel;
-  useEffect(() => {
-    const box = sideListRef.current;
-    if (!box) return undefined;
-    const turned = (event) => {
-      const list = box.querySelector("ul");
-      if (!list || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-      event.preventDefault();
-      rowWheelRef.current(event, list);
-    };
-    box.addEventListener("wheel", turned, { passive: false });
-    return () => box.removeEventListener("wheel", turned);
-  }, []);
+  // The list beside the map is not picked among by the wheel: it is a list
+  // that scrolls up and down itself, and the wheel over it scrolls it.
 
   // A row of the list pressed, for an item that stands on the map: the first
   // press goes to its pin — the map moves there and its bubble is put up — and
@@ -907,7 +890,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             ))}
           </ul>
         )}
-        <div ref={sideListRef} className={styles.sideList} hidden={listing}>
+        <div className={styles.sideList} hidden={listing}>
           {/* A search that found nothing says so. An area with nothing in
               it says so too, and asks for the first thing: the way to put
               one out, here where it is missing. */}

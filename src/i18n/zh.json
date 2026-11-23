@@ -137,6 +137,7 @@
     "titlePlaceholder": "这是什么？",
     "titleRequired": "请填写项目名称",
     "price": "价格",
+    "priceOnRequest": "价格请咨询商家",
     "priceRequired": "请设置默认价格",
     "currency": "货币",
     "description": "说明",

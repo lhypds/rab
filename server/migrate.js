@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { asStored, isStoredName } from "./images.js";
 import { ITEM_FILE, accountFolders, dataDir, itemDir, itemFolders, readList, userDir, userFolders, usersDir, writeItem, writeList } from "./files.js";
 
 // rab used to keep everything in db.sqlite and every photograph in one folder,
@@ -270,6 +271,55 @@ export function renumberItems() {
     );
   }
   console.log(`rab: gave ${renamed.size} items the time they were made as their id`);
+}
+
+/* ------------------------------------------------------------------ WebP */
+
+// Photographs used to be kept as whatever they were sent as — a JPEG from the
+// phone app, a PNG — and are all WebP now (see images.js). Each item's that
+// are not yet are made so, once: the new file is written beside the old, the
+// item is told its pictures' new names, and only then do the old files go. A
+// file that cannot be read as a picture is left as it is and still served.
+export async function storeAsWebp() {
+  let count = 0;
+  for (const userId of userFolders()) {
+    for (const folder of itemFolders(userId)) {
+      const dir = itemDir(userId, folder);
+      let item;
+      try {
+        item = JSON.parse(fs.readFileSync(path.join(dir, ITEM_FILE), "utf8"));
+      } catch (error) {
+        if (error.code === "ENOENT") continue;
+        throw error;
+      }
+      const old = (name) => typeof name === "string" && isStoredName(name) && !name.endsWith(".webp");
+      if (!Array.isArray(item?.images) || !item.images.some((image) => old(image?.name) || old(image?.thumb))) continue;
+      const renamed = new Map();
+      for (const name of new Set(item.images.flatMap((image) => [image?.name, image?.thumb]).filter(old))) {
+        let bytes;
+        try {
+          bytes = fs.readFileSync(path.join(dir, name));
+        } catch (error) {
+          if (error.code === "ENOENT") continue;
+          throw error;
+        }
+        const picture = await asStored(bytes);
+        if (!picture) continue;
+        fs.writeFileSync(path.join(dir, picture.name), picture.buffer);
+        renamed.set(name, picture.name);
+      }
+      if (renamed.size === 0) continue;
+      const now = (name) => renamed.get(name) ?? name;
+      writeItem(userId, {
+        ...item,
+        id: folder,
+        images: item.images.map((image) => ({ ...image, name: now(image.name), thumb: now(image.thumb) })),
+      });
+      for (const name of renamed.keys()) fs.rmSync(path.join(dir, name), { force: true });
+      count += renamed.size;
+    }
+  }
+  if (count > 0) console.log(`rab: stored ${count} photographs as WebP`);
 }
 
 /* ---------------------------------------------------------- accounts' ids */

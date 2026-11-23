@@ -1434,8 +1434,9 @@ app.delete("/api/messages/:username", requireSession, (req, res) => {
 
 /* ------------------------------------------------------------------- images */
 
-// The bytes arrive already compressed to WebP by the browser, which keeps rab
-// free of an image library and the wire free of an 8 MB phone photo.
+// The browser compresses to WebP before it sends, which keeps the wire free of
+// an 8 MB phone photo; whatever arrives as something else is made WebP as it
+// is stored (see images.js).
 // What a photograph is of, for a form that wants filling in: its kind, its
 // category, a name and a description (see describe.js). Asked by the phone as
 // soon as a photo is taken. Nothing is kept: the picture is looked at and gone.
@@ -1526,7 +1527,7 @@ const escapeHtml = (value) =>
 function sharePage(html, req, item) {
   const origin = `${req.protocol}://${req.get("host")}`;
   const title = `${item.title} — rab`;
-  const price = `${item.price} ${item.currency}`;
+  const price = item.price == null ? "" : `${item.price} ${item.currency}`;
   const description = [price, item.place, item.description]
     .filter(Boolean)
     .join(" · ")

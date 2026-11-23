@@ -1,6 +1,9 @@
 node_modules/
 dist/
-data/
+/data/*
+!/data/crawlers/
+/data/crawlers/**/__pycache__/
+/data/crawlers/**/last-run.json
 .env
 .DS_Store
 db.sqlite

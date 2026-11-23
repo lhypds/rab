@@ -137,6 +137,7 @@
     "titlePlaceholder": "何をポストしますか？",
     "titleRequired": "アイテムの名前を入力してください",
     "price": "料金",
+    "priceOnRequest": "料金はお問い合わせください",
     "priceRequired": "通常料金を設定してください",
     "currency": "通貨",
     "description": "説明",

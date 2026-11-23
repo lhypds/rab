@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { accountFolders, moveItemDir, nameFolders, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
-import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems } from "./migrate.js";
+import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sqlite");
@@ -183,6 +183,10 @@ export const ADMIN_ID = (usersById.get(idByName.get(ADMIN_NAME)) ?? addUser(ADMI
 moveItemsIntoFolders();
 renameItemFolders();
 renumberItems();
+
+// And the photographs kept as JPEG or PNG from before every one was stored as
+// WebP are made WebP, once.
+await storeAsWebp();
 
 const now = () => new Date().toISOString();
 

@@ -59,6 +59,7 @@ export function unitName(unit, t) {
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
 // today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
+  if (item.mode === "inquiry" && item.price == null) return t("item.priceOnRequest");
   const price = formatPrice(priceNow(item), item.currency, locale);
   // Booked by asking, the price is for whatever its owner said it is for.
   if (item.mode === "inquiry" && inquiryUnitOf(item) !== DAY_UNIT) {

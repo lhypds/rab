@@ -1,8 +1,10 @@
 import { authHeaders } from "../api.js";
 
 // Photographs are reduced in the browser before they are sent: every browser
-// that can draw the map can also encode a canvas, so the server needs no image
-// library and the wire carries the small file rather than the one off a phone.
+// that can draw the map can also encode a canvas, so the wire carries the
+// small file rather than the one off a phone. The server stores WebP only and
+// converts what is not (see server/images.js), so the JPEG below still ends up
+// as one.
 const PHOTO_MAX = 1600;
 const PHOTO_QUALITY = 0.82;
 // The copy a list row, a pin and a calendar of thumbnails draw instead.
