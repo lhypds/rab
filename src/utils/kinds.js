@@ -68,3 +68,37 @@ export function sortLabel(item, t) {
   const name = t(`category.${item.category}`, item.category);
   return item.category === "other" ? t("item.categoryWithin", { name, kind }) : name;
 }
+
+// What the home page's address calls each kind, and "all" where a category is
+// chosen with no kind: /things, /things/camera, /all/other. The address is
+// what gets sent to somebody, so it says what the page is narrowed to.
+const KIND_PATHS = { item: "things", space: "spaces", service: "services" };
+
+// The one kind a category belongs to, or null where it is in more than one
+// ("other" is in all three) or in none.
+function onlyKindOf(slug) {
+  const kinds = KINDS.filter((kind) => CATEGORIES[kind].includes(slug));
+  return kinds.length === 1 ? kinds[0] : null;
+}
+
+// The home page's address for a kind (null for all) and a category ("" for
+// all of them). A category chosen with no kind chooses the kind it belongs
+// to as well: /things/camera, and /all/other only for the one every kind has.
+export function homePath(kind, category) {
+  const head = KIND_PATHS[kind ?? onlyKindOf(category)];
+  if (category) return `/${head ?? "all"}/${category}`;
+  return head ? `/${head}` : "/";
+}
+
+// What such an address narrows the home page to — { kind, category } — or
+// null where the path is not one of the home page's: a category the kind does
+// not have is no address at all.
+export function homeFilter(pathname) {
+  const [head, slug = "", ...more] = pathname.replace(/^\/|\/$/g, "").split("/");
+  if (more.length > 0) return null;
+  if (!head) return { kind: null, category: "" };
+  const kind = KINDS.find((each) => KIND_PATHS[each] === head) ?? null;
+  if (!kind && (head !== "all" || !slug)) return null;
+  if (slug && !(kind ? [kind] : KINDS).some((each) => CATEGORIES[each].includes(slug))) return null;
+  return { kind: kind ?? onlyKindOf(slug), category: slug };
+}

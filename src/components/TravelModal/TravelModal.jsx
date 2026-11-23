@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, useLocation, useNavigate } from "../../ui/index.js";
+import { homeFilter } from "../../utils/kinds.js";
 import { findPlaces } from "../../utils/places.js";
 import { travelHome, travelTo, useRegion } from "../../utils/region.js";
 import { readCoordinates, toSpot } from "../../utils/travel.js";
@@ -175,7 +176,7 @@ export default function TravelModal({ isOpen, onClose }) {
   // of its sort covers, so a country opens wider than a neighbourhood.
   function arrive(spot, place = null) {
     travelTo({ ...spot, country: place?.countryCode ?? null, zoom: place?.zoom ?? 14 });
-    if (pathname !== "/") navigate("/");
+    if (!homeFilter(pathname)) navigate("/");
     close();
   }
 
@@ -188,7 +189,7 @@ export default function TravelModal({ isOpen, onClose }) {
   // way it does on a first visit.
   function home() {
     travelHome();
-    if (pathname !== "/") navigate("/");
+    if (!homeFilter(pathname)) navigate("/");
     close();
   }
 

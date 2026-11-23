@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as api from "../../api.js";
-import { Link, Select, showToast } from "../../ui/index.js";
+import { Link, Select, showToast, useLocation, useNavigate } from "../../ui/index.js";
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
-import { CATEGORIES, KINDS, sortLabel } from "../../utils/kinds.js";
+import { CATEGORIES, KINDS, homeFilter, homePath, sortLabel } from "../../utils/kinds.js";
 import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
@@ -156,7 +156,16 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // as it rests there, and no bubble is put up for it.
   const [pointedId, setPointedId] = useState(null);
   const leaveRef = useRef(null);
-  const [kind, setKind] = useState(null);
+  // Which kind and which category the pins are for is in the address —
+  // /things/camera — so the page can be sent to somebody as it stands.
+  // Changing either changes the address in place: no new entry to step back
+  // through, and what the entry carries (see utils/back.js) is kept.
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { kind, category } = homeFilter(pathname) ?? { kind: null, category: "" };
+  const narrow = (nextKind, nextCategory) =>
+    navigate(homePath(nextKind, nextCategory), { replace: true, scroll: false, state: window.history.state });
+  const setCategory = (slug) => narrow(kind, slug);
   // The question about location, while it is being asked: "ask" before the
   // reader has answered, "locating" while the browser does, and afterwards why
   // it came to nothing: "denied", "failed" or "insecure" (see locateFailure).
@@ -199,7 +208,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // Which category the pins are for, within the kind in force: "" is all of
   // them. The choices are that kind's categories, or every kind's where no
   // kind is chosen ("other" is in all three, and is listed once).
-  const [category, setCategory] = useState("");
   // "Other" is always the last of them.
   const categoryChoices = categoriesOf(kind);
   // Each one leads with its own mark, the one its pins wear on the map — and
@@ -304,12 +312,10 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     }
   };
 
-  // A category belongs to a kind: one the newly chosen kind does not have is
-  // let go of rather than left filtering everything out.
-  const chooseKind = (next) => {
-    setKind(next);
-    if (next && category && !CATEGORIES[next].includes(category)) setCategory("");
-  };
+  // Pressing a kind starts over within it: every category of that kind. All
+  // is every kind and every category; and the kind in force, pressed again,
+  // is let go of — back to all.
+  const chooseKind = (next) => narrow(next === kind ? null : next, "");
   // An item passes when it is of the kind and the category in force and every
   // word typed is somewhere in what it says about itself.
   const passes = (item) => {
@@ -938,8 +944,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                 type="button"
                 className={kind === each ? `${styles.kind} ${styles.kindChosen}` : styles.kind}
                 aria-pressed={kind === each}
-                // Pressed again, the kind in force is let go of: back to all.
-                onClick={() => chooseKind(kind === each ? null : each)}
+                onClick={() => chooseKind(each)}
               >
                 {each && <CategoryIcon kind={each} />}
                 {each ? t(`kind.${each}`) : t("kind.all")}
