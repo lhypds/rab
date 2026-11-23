@@ -12,7 +12,7 @@
     "backHome": "返回首页",
     "list": "发布",
     "mine": "我的",
-    "account": "账号",
+    "account": "用户",
     "signIn": "登录",
     "others": "别人的",
     "viewMap": "地图",
@@ -58,7 +58,13 @@
     "usernameReserved": "该用户名不可使用"
   },
   "account": {
-    "title": "账号",
+    "title": "用户",
+    "locations": "位置",
+    "locationsHint": "保存起来用于放置项目的位置。在这里修改不会移动已经放在该位置的项目。",
+    "locationsEmpty": "还没有保存的位置",
+    "locationEdit": "编辑",
+    "locationAddress": "地址或地标",
+    "locationRemoved": "位置已移除",
     "username": "用户名",
     "joined": "注册于",
     "contacts": "联系方式",

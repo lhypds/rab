@@ -12,7 +12,7 @@
     "backHome": "Back to home",
     "list": "Post",
     "mine": "Mine",
-    "account": "Account",
+    "account": "User",
     "signIn": "Sign in",
     "others": "Others",
     "viewMap": "Map",
@@ -58,7 +58,13 @@
     "usernameReserved": "That username is not available"
   },
   "account": {
-    "title": "Account",
+    "title": "User",
+    "locations": "Locations",
+    "locationsHint": "Places you keep to put your items at. Changing one here does not move items already placed there.",
+    "locationsEmpty": "No saved locations yet",
+    "locationEdit": "Edit",
+    "locationAddress": "Address or landmark",
+    "locationRemoved": "Location removed",
     "username": "Username",
     "joined": "Joined",
     "contacts": "Contact",

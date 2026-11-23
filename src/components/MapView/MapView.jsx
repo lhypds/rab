@@ -60,6 +60,9 @@ const HOVERS = window.matchMedia("(hover: hover)").matches;
 // what the bubble offers can be reached and pressed.
 const LEAVE_MS = 120;
 
+// vi's keys for moving, and the arrows they stand for among the rows.
+const VI_KEYS = { h: "ArrowLeft", j: "ArrowDown", k: "ArrowUp", l: "ArrowRight" };
+
 function gateDismissed() {
   try {
     return sessionStorage.getItem(GATE_KEY) === "1";
@@ -682,43 +685,80 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     delete event.currentTarget.dataset.keyed;
   };
 
+  // The row a key leads to from `row`: the arrows go to the row above or
+  // below — and, where the rows stand in columns, to the nearest row in the
+  // column beside. h, j, k and l are the arrows left, down, up and right, as
+  // they are in vi. Undefined for any other key; null where there is no row
+  // that way.
+  const rowToward = (list, row, pressed) => {
+    const key = VI_KEYS[pressed] ?? pressed;
+    const rows = [...list.children];
+    const at = rows.indexOf(row);
+    if (key === "ArrowUp") return rows[at - 1] ?? null;
+    if (key === "ArrowDown") return rows[at + 1] ?? null;
+    if (key !== "ArrowLeft" && key !== "ArrowRight") return undefined;
+    const side = key === "ArrowLeft" ? -1 : 1;
+    const here = row.getBoundingClientRect();
+    // The rows of the nearest column on that side, and of them the one
+    // level with this one, or the nearest to level there is.
+    const beside = rows
+      .map((each) => ({ each, box: each.getBoundingClientRect() }))
+      .filter(({ box }) => (box.left - here.left) * side > 1);
+    const nearest = Math.min(...beside.map(({ box }) => Math.abs(box.left - here.left)));
+    return (
+      beside
+        .filter(({ box }) => Math.abs(Math.abs(box.left - here.left) - nearest) < 1)
+        .sort((a, b) => Math.abs(a.box.top - here.top) - Math.abs(b.box.top - here.top))[0]?.each ?? null
+    );
+  };
+
   // The keys a list of rows answers to, heard on the list from whichever row
-  // has the keyboard: the arrows move to the row above or below — and, where
-  // the rows stand in columns, to the nearest row in the column beside — and
-  // the space bar opens the row's item on the sheet, or puts the sheet away.
+  // has the keyboard: the arrows and h, j, k, l move among the rows (see
+  // rowToward), and the space bar opens the row's item on the sheet, or puts
+  // the sheet away.
   const rowKeys = (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const list = event.currentTarget;
     const row = event.target.closest?.("li");
     if (!row || row.parentElement !== list) return;
-    const rows = [...list.children];
-    const at = rows.indexOf(row);
     if (event.key === " ") {
       event.preventDefault();
+      const at = [...list.children].indexOf(row);
       if (previewId) lookAway();
       else if (listed?.[at]) look(listed[at], row.querySelector("a"));
       return;
     }
     if (previewId) return;
-    let next = null;
-    if (event.key === "ArrowUp") next = rows[at - 1];
-    else if (event.key === "ArrowDown") next = rows[at + 1];
-    else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      const side = event.key === "ArrowLeft" ? -1 : 1;
-      const here = row.getBoundingClientRect();
-      // The rows of the nearest column on that side, and of them the one
-      // level with this one, or the nearest to level there is.
-      const beside = rows
-        .map((each) => ({ each, box: each.getBoundingClientRect() }))
-        .filter(({ box }) => (box.left - here.left) * side > 1);
-      const nearest = Math.min(...beside.map(({ box }) => Math.abs(box.left - here.left)));
-      next = beside
-        .filter(({ box }) => Math.abs(Math.abs(box.left - here.left) - nearest) < 1)
-        .sort((a, b) => Math.abs(a.box.top - here.top) - Math.abs(b.box.top - here.top))[0]?.each;
-    } else return;
+    const next = rowToward(list, row, event.key);
+    if (next === undefined) return;
     event.preventDefault();
     pick(list, next);
   };
+
+  // h, j, k and l pressed where no row has the keyboard yet — anywhere on the
+  // page that is not being typed into, with no sheet open over it — start
+  // among the rows: from the row chosen on the map where there is one, and
+  // otherwise at the first. From then on the list hears them itself.
+  const sideRows = useRef(null);
+  const tileRows = useRef(null);
+  useEffect(() => {
+    const start = (event) => {
+      if (!(event.key in VI_KEYS) || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      const at = event.target;
+      if (at instanceof HTMLElement && (at.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName))) return;
+      if (document.querySelector("[data-modal]")) return;
+      const list = listing ? tileRows.current : sideRows.current;
+      // Not a list put away at this width; and one whose row has the keyboard
+      // has heard the key already.
+      if (!list || list.offsetParent === null || list.contains(at)) return;
+      const chosen = list.querySelector(".row-chosen");
+      const next = chosen ? (rowToward(list, chosen, event.key) ?? chosen) : list.firstElementChild;
+      event.preventDefault();
+      pick(list, next);
+    };
+    window.addEventListener("keydown", start);
+    return () => window.removeEventListener("keydown", start);
+  });
 
   // The wheel over the columns of items, turned up or down, picks among them:
   // it steps from the row that has the keyboard to the next or the one before,
@@ -975,7 +1015,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
               </div>
             ))}
           {listed?.length > 0 && (
-            <ul className="row-list" onKeyDown={rowKeys} onMouseMove={unkey}>
+            <ul ref={sideRows} className="row-list" onKeyDown={rowKeys} onMouseMove={unkey}>
               {listed.map((item) => (
                 <ItemRow
                   key={item.id}
@@ -998,6 +1038,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       {listing &&
         (listed?.length > 0 ? (
           <ul
+            ref={tileRows}
             className={`row-list ${styles.tiles}`}
             onKeyDown={rowKeys}
             onMouseMove={unkey}

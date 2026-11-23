@@ -6,6 +6,7 @@ import { dialCodeOf, dialCodes, splitDialCode } from "../../utils/dialing.js";
 import { formatDate, formatUsername } from "../../utils/format.js";
 import { useRegion } from "../../utils/region.js";
 import { useAuth } from "../AuthProvider/index.js";
+import Locations from "./Locations.jsx";
 import styles from "./account.module.css";
 
 // The ways an account can say it is reached, and how many of them.
@@ -172,7 +173,7 @@ export default function AccountModal({ isOpen, onClose }) {
   }
 
   return (
-    <Modal isOpen={isOpen} title={t("account.title")} onClose={onClose} closeOnOverlay>
+    <Modal isOpen={isOpen} title={t("account.title")} onClose={onClose} closeOnOverlay wide>
       <dl className={styles.facts}>
         <div>
           <dt>{t("account.username")}</dt>
@@ -311,6 +312,9 @@ export default function AccountModal({ isOpen, onClose }) {
         <span className={styles.hint}>{t("account.contactsHint")}</span>
         {error && <p className="form-message error">{error}</p>}
       </form>
+
+      {/* The places the user keeps to put items at. */}
+      <Locations isOpen={isOpen} />
 
       <div className="modal-actions">
         <button type="button" className="outline-button" onClick={signOut}>

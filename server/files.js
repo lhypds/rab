@@ -161,23 +161,30 @@ export function itemFolders(userId) {
   }
 }
 
+// The item in one folder of an account's items, or null where the folder has
+// no item.json in it. One that is there and cannot be read is an error. The
+// folder's name is the item's id, whatever the file says.
+export function readItem(userId, folder) {
+  const file = path.join(itemDir(userId, folder), ITEM_FILE);
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+  const item = JSON.parse(text);
+  if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${file} is not an item`);
+  return { ...item, id: folder };
+}
+
 // Every item an account has. A folder with no item.json in it is not an item
-// and is passed over; one that is there and cannot be read is an error, as
-// with a list. The folder's name is the item's id, whatever the file says.
+// and is passed over; one that cannot be read is an error, as with a list.
 export function readItems(userId) {
   const items = [];
   for (const folder of itemFolders(userId)) {
-    const file = path.join(itemDir(userId, folder), ITEM_FILE);
-    let text;
-    try {
-      text = fs.readFileSync(file, "utf8");
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw error;
-    }
-    const item = JSON.parse(text);
-    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${file} is not an item`);
-    items.push({ ...item, id: folder });
+    const item = readItem(userId, folder);
+    if (item) items.push(item);
   }
   return items;
 }

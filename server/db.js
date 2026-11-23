@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { accountFolders, moveItemDir, nameFolders, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
+import { accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -371,6 +371,29 @@ function load() {
   for (const lines of messagesByUser.values()) {
     for (const line of lines) lastMessageId = Math.max(lastMessageId, line.id);
   }
+}
+
+// The public account's items that were put in its folder while the server was
+// running — by a crawler (see data/crawlers), which writes a whole item folder
+// and moves it into place — and are not held here yet: taken in, and their ids
+// given back. Only a folder not known is read, so one the server holds is
+// never read over what has been changed here; and one that cannot be read yet
+// is left for the next time round.
+export function adoptPublicItems() {
+  const adopted = [];
+  for (const folder of itemFolders(PUBLIC_ID)) {
+    if (itemsById.has(folder)) continue;
+    let item;
+    try {
+      item = readItem(PUBLIC_ID, folder);
+    } catch {
+      continue;
+    }
+    if (!item) continue;
+    itemsById.set(item.id, { ...perUnit(item), ownerId: PUBLIC_ID });
+    adopted.push(item.id);
+  }
+  return adopted;
 }
 
 // What has changed and is not on disk yet, as "<user id>/<file>".

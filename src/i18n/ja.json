@@ -12,7 +12,7 @@
     "backHome": "ホームに戻る",
     "list": "ポストする",
     "mine": "私の",
-    "account": "アカウント",
+    "account": "ユーザー",
     "signIn": "ログイン",
     "others": "他人の",
     "viewMap": "地図",
@@ -58,7 +58,13 @@
     "usernameReserved": "そのユーザー名は使用できません"
   },
   "account": {
-    "title": "アカウント",
+    "title": "ユーザー",
+    "locations": "場所",
+    "locationsHint": "アイテムを置くために保存しておく場所です。ここで変更しても、すでにその場所に置いたアイテムは動きません。",
+    "locationsEmpty": "保存した場所はまだありません",
+    "locationEdit": "編集",
+    "locationAddress": "住所または目印",
+    "locationRemoved": "場所を削除しました",
     "username": "ユーザー名",
     "joined": "登録日",
     "contacts": "連絡先",

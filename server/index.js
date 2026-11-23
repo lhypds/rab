@@ -69,11 +69,12 @@ const {
   touchSession,
   transaction,
   updateItem, PUBLIC_ID, PUBLIC_NAME,
+  adoptPublicItems,
   ADMIN_ID,
   getEmail,
   setEmail,
 } = await import("./db.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, storeImage } = await import("./images.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, storeImage } = await import("./images.js");
 const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
@@ -125,6 +126,17 @@ const BOOKING_MAX_DAYS = 90;
 const CALENDAR_DAYS = 366;
 
 deleteExpiredSessions(Date.now());
+
+// A crawler left running (data/crawlers) keeps putting new items in the public
+// account's folder; they are on the map within the minute, without a restart.
+const ADOPT_EVERY_MS = 60 * 1000;
+setInterval(() => {
+  try {
+    for (const id of adoptPublicItems()) noteItemImages(PUBLIC_ID, id);
+  } catch (error) {
+    console.error(error);
+  }
+}, ADOPT_EVERY_MS).unref();
 
 function normalizeUsername(value) {
   return String(value ?? "").trim().normalize("NFKC").toLowerCase();

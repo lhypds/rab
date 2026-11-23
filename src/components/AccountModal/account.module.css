@@ -94,3 +94,71 @@
   color: var(--muted);
   font-size: 11px;
 }
+
+/* The places kept to put items at: a ruled list, one to a line — what it is
+   called, and where, with the button that opens it at the far end. */
+.locations {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.locations li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.locationRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.locationText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.locationName {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locationWhere {
+  color: var(--muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One of them being written: its name, its address, and the map its pin is
+   put on, with what to do about it underneath. */
+.locationForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.locationForm > :global(.text-input) {
+  height: 24px;
+  padding: 0 8px;
+}
+
+.locationMap {
+  position: relative;
+  height: 240px;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+}
+
+.locationButtons {
+  display: flex;
+  gap: 6px;
+}

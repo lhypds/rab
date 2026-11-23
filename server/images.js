@@ -171,6 +171,21 @@ export function imageFile(name) {
   return { path: path.join(dir, name), type: IMAGE_TYPES[path.extname(name).slice(1)] };
 }
 
+// An item's folder that was put there from outside while the server was
+// running (see adoptPublicItems in db.js): the pictures in it are served from
+// here on.
+export function noteItemImages(userId, itemId) {
+  if (!places) return survey();
+  const dir = itemDir(userId, itemId);
+  let names;
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) if (isStoredName(name)) note(name, dir);
+}
+
 // Makes an item's folder hold the pictures the item carries, and no others.
 // One still waiting in somebody's uploads is moved in; one that is another
 // item's as well is copied — the bytes are the same, and the copy is what
