@@ -26,7 +26,7 @@ export const CATEGORIES = {
     "clothing",
     "other",
   ],
-  space: ["home", "meeting-room", "studio", "storage", "event-space", "workspace", "parking", "other"],
+  space: ["home", "meeting-room", "studio", "music-studio", "storage", "event-space", "workspace", "parking", "other"],
   service: [
     "photography",
     "teaching",

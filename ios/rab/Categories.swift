@@ -8,7 +8,7 @@ import Vision
 enum Categories {
     static let all: [Kind: [String]] = [
         .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "audio", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
-        .space: ["home", "meeting-room", "studio", "storage", "event-space", "workspace", "parking", "other"],
+        .space: ["home", "meeting-room", "studio", "music-studio", "storage", "event-space", "workspace", "parking", "other"],
         .service: [
             "photography", "teaching", "repair", "moving", "cleaning", "design", "3d-printing", "guide", "translation", "music", "fitness", "beauty",
             "massage", "pet-care", "childcare", "care", "cooking", "driver", "delivery", "gardening", "it-support", "programming",
@@ -27,7 +27,7 @@ enum Categories {
         "drone": "Drone", "binoculars": "Binoculars", "computer": "Computer", "game-console": "Game console",
         "kitchen-appliance": "Kitchen appliances", "cleaning-appliance": "Cleaning appliances", "beauty-appliance": "Beauty appliances",
         "camping": "Camping gear", "sports": "Sports gear", "clothing": "Clothing", "other": "Other",
-        "home": "Home", "meeting-room": "Meeting room", "studio": "Studio", "storage": "Storage",
+        "home": "Home", "meeting-room": "Meeting room", "studio": "Studio", "music-studio": "Music studio", "storage": "Storage",
         "event-space": "Event space", "workspace": "Workspace", "parking": "Parking",
         "photography": "Photography", "teaching": "Teaching", "repair": "Repair", "moving": "Moving help",
         "cleaning": "Cleaning", "design": "Design", "3d-printing": "3D printing", "guide": "Guide", "translation": "Translation", "music": "Music",
@@ -63,6 +63,7 @@ enum Categories {
         // spaces
         "home": ["house", "home", "apartment", "bedroom", "living_room", "kitchen", "interior_room", "房子", "公寓", "住宅", "民宿", "部屋", "アパート"],
         "meeting-room": ["conference", "meeting", "会议室", "会議室"],
+        "music-studio": ["rehearsal", "music studio", "practice room", "drum", "piano room", "排练室", "琴房", "音乐工作室", "音楽スタジオ", "練習スタジオ", "リハーサル", "音楽室"],
         "studio": ["studio", "录音棚", "工作室", "スタジオ"],
         "storage": ["storage", "warehouse", "closet", "shed", "仓库", "储物", "倉庫", "収納"],
         "event-space": ["hall", "stage", "ballroom", "venue", "auditorium", "event", "活动场地", "宴会", "イベント", "ホール"],

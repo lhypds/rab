@@ -175,20 +175,16 @@ export default function AccountModal({ isOpen, onClose }) {
     const now = new Date().getFullYear();
     return Array.from({ length: now - 1900 + 1 }, (_, back) => String(now - back));
   }, []);
-  const monthName = useMemo(() => {
-    const format = new Intl.DateTimeFormat(lang, { month: lang.startsWith("en") ? "long" : "numeric" });
-    return (month) => format.format(new Date(2000, month - 1, 1));
-  }, [lang]);
+  // Numbers only, and the word in an empty box no wider than they are: each
+  // box is as wide as the longest thing it could show (see Select), so it is
+  // the same width before a number is picked as after.
+  const numbers = (count) => Array.from({ length: count }, (_, at) => ({ value: String(at + 1), label: String(at + 1) }));
   const birthOptions = [
-    [{ value: "", label: t("account.birthYear") }, ...birthYears.map((year) => ({ value: year, label: t("account.yearOf", { year }) }))],
-    [{ value: "", label: t("account.birthMonth") }, ...Array.from({ length: 12 }, (_, at) => ({ value: String(at + 1), label: monthName(at + 1) }))],
-    [
-      { value: "", label: t("account.birthDay") },
-      ...Array.from({ length: birthParts[0] && birthParts[1] ? daysIn(birthParts[0], birthParts[1]) : 31 }, (_, at) => ({
-        value: String(at + 1),
-        label: t("account.dayOf", { day: at + 1 }),
-      })),
-    ],
+    [{ value: "", label: t("account.birthYearHolder") }, ...birthYears.map((year) => ({ value: year, label: year }))],
+    [{ value: "", label: t("account.birthMonthHolder") }, ...numbers(12)],
+    // Always 31 rows, so the box does not change width with the month; a day
+    // the month does not have is taken back to its last (see pickBirth).
+    [{ value: "", label: t("account.birthDayHolder") }, ...numbers(31)],
   ];
 
   // The date of birth, kept — or taken away, sent empty. Whether the account
@@ -321,7 +317,6 @@ export default function AccountModal({ isOpen, onClose }) {
             <Select
               key={name}
               className={styles.small}
-              fit
               label={name}
               value={birthParts[index]}
               onChange={(value) => pickBirth(index, value)}

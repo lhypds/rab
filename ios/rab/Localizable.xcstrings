@@ -559,6 +559,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会议室" } }
       }
     },
+    "Music studio" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音楽スタジオ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音乐工作室" } }
+      }
+    },
     "Studio" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "スタジオ" } },
