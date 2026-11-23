@@ -36,7 +36,7 @@ SEARCH = [
     ('service', 'driver', '観光タクシー', r'タクシー|ハイヤー'),
 ]
 CAR_INDEX = 'https://www.2525r.com/kyoto/kyoto/'
-LABEL = {'car': 'レンタカー', 'clothing': '着物レンタル', 'bike': 'レンタサイクル', 'parking': '時間貸し駐車場', 'event-space': 'テルサホール',
+LABEL = {'storage': '貸倉庫', 'guide': 'ガイド', 'teaching': '体験教室', 'studio': 'レンタルスタジオ', 'workspace': 'レンタルオフィス', 'home': '一棟貸し', 'car': 'レンタカー', 'clothing': '着物レンタル', 'bike': 'レンタサイクル', 'parking': '時間貸し駐車場', 'event-space': '貸ホール',
          'meeting-room': '貸会議室', 'driver': '観光タクシー', 'photography': 'プロカメラマン撮影プラン'}
 session = requests.Session()
 session.headers['User-Agent'] = 'RAB-Kyoto-Rental-Directory/1.0'
@@ -90,7 +90,7 @@ def point_ward(lat, lng):
 
 
 def address_point(address, point):
-    address = unicodedata.normalize('NFKC', address)
+    address = re.sub(r'^(〒?\s*\d{3})[−‐‑–](\d{4})', r'\1-\2', unicodedata.normalize('NFKC', address))
     if not re.match(r'^(?:〒?\s*\d{3}-?\d{4}\s*)?(?:京都府)?' + WARD, address):
         raise ValueError('address outside Kyoto City or ambiguous')
     method = 'facility map'
@@ -245,11 +245,11 @@ def publish(offer, root, stored):
         while any(root.parent.parent.glob(f'*/items/{ident}')):
             ident = str(int(ident) + 1)
         now = datetime.fromtimestamp(int(ident)/1000, timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-        label = LABEL[offer['category']]
+        label = offer.get('label', LABEL[offer['category']])
         title = offer['title']
         if label not in title:
             title += '（' + label + '）'
-        item = dict(id=ident, title=title, description=f'{address}。料金・利用条件は公式サイトでご確認ください。',
+        item = dict(id=ident, title=title, description=f'{address}。料金・利用条件は公式サイトでご確認ください。' + offer.get('note', ''),
                     kind=offer['kind'], category=offer['category'], active=True, shared=True, mode='inquiry',
                     contacts=[dict(type='phone', code='+81', value=digits)], homepage=offer['homepage'],
                     located=True, latitude=lat, longitude=lng, place=address, region=REGION,

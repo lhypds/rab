@@ -35,7 +35,7 @@ export function currencySymbol(currency, locale) {
 // tent at ¥1,500 a day is not ¥1,500.00 — and anything with cents keeps both.
 export function formatPrice(amount, currency, locale) {
   const value = Number(amount);
-  if (!Number.isFinite(value)) return "";
+  if (amount == null || amount === "" || !Number.isFinite(value)) return "";
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
@@ -59,8 +59,10 @@ export function unitName(unit, t) {
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
 // today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
-  if (item.mode === "inquiry" && item.price == null) return t("item.priceOnRequest");
-  const price = formatPrice(priceNow(item), item.currency, locale);
+  // One that says no price is asked about, however it is booked.
+  const now = priceNow(item);
+  if (now == null) return t("item.priceOnRequest");
+  const price = formatPrice(now, item.currency, locale);
   // Booked by asking, the price is for whatever its owner said it is for.
   if (item.mode === "inquiry" && inquiryUnitOf(item) !== DAY_UNIT) {
     return t("item.perHour", { price, unit: unitName(inquiryUnitOf(item), t) });
@@ -72,7 +74,7 @@ export function priceLine(item, locale, t) {
 // and never ¥12,500.50: what is said of a price when it is asked about.
 export function wholePrice(amount, currency, locale) {
   const value = Number(amount);
-  if (!Number.isFinite(value)) return "";
+  if (amount == null || amount === "" || !Number.isFinite(value)) return "";
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
@@ -89,7 +91,7 @@ export function wholePrice(amount, currency, locale) {
 // The same price small enough for a pin or a calendar square: ¥1.5K.
 export function compactPrice(amount, currency, locale) {
   const value = Number(amount);
-  if (!Number.isFinite(value)) return "";
+  if (amount == null || amount === "" || !Number.isFinite(value)) return "";
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",

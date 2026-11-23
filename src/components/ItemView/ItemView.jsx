@@ -182,7 +182,7 @@ export default function ItemView({
   const todayPrices = bySlot ? cellsOn(item, today()).map((cell) => cell.price) : [];
   const lowToday = todayPrices.length > 0 ? Math.min(...todayPrices) : priceToday;
   const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
-  const priceOnRequest = inquiry && item.price == null;
+  const priceOnRequest = priceToday == null;
   const priceHead =
     highToday === lowToday
       ? formatPrice(lowToday, item.currency, lang)
@@ -198,7 +198,10 @@ export default function ItemView({
   // The pieces of the stretch picked, each costing its share of the price in
   // force then, which is for one stretch of the pricing unit.
   const chosenSlots = picked ? slots.filter((slot) => slot.start >= picked.start && slot.start < picked.end && !slot.taken) : [];
-  const slotTotal = Math.round(chosenSlots.reduce((sum, slot) => sum + (slot.price * unitOf(item)) / priceUnitOf(item), 0) * 100) / 100;
+  // An item that says no price comes to no total.
+  const slotTotal = chosenSlots.some((slot) => slot.price == null)
+    ? null
+    : Math.round(chosenSlots.reduce((sum, slot) => sum + (slot.price * unitOf(item)) / priceUnitOf(item), 0) * 100) / 100;
   // Picked up and brought back on the same day, it has to come back later than
   // it went out.
   const timesWrong =

@@ -67,8 +67,9 @@ function reading(item, states, calendar, day) {
       pending: slots.some((slot) => slot.pending && !slot.taken),
       // What the hours still to be had cost: the least of them, and the most
       // where they do not all cost the same.
-      price: free.length > 0 ? Math.min(...free.map((slot) => slot.price)) : null,
-      priceMax: free.length > 0 ? Math.max(...free.map((slot) => slot.price)) : null,
+      // None, where the item says no price.
+      price: free.length > 0 && free.every((slot) => slot.price != null) ? Math.min(...free.map((slot) => slot.price)) : null,
+      priceMax: free.length > 0 && free.every((slot) => slot.price != null) ? Math.max(...free.map((slot) => slot.price)) : null,
       slots,
     };
   }
@@ -93,6 +94,8 @@ export function quote(item, calendar, bookings, selection) {
   const states = dayStates(calendar, bookings);
   const days = daysBetween(selection.start, selection.end).map((day) => reading(item, states, calendar, day));
   if (!days.every(open)) return null;
+  // No total, where a day of them has no price said.
+  if (days.some((day) => day.price == null)) return { days: days.length, total: null };
   const total = days.reduce((sum, day) => sum + day.price, 0);
   return { days: days.length, total: Math.round(total * 100) / 100 };
 }

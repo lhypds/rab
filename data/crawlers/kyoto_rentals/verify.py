@@ -13,17 +13,33 @@ from crawl import HERE, address_point
 import requests
 
 
+def map_items(origin):
+    # The map endpoint returns at most 300 items per viewport. Query smaller
+    # viewports just as the client does when the user zooms into Kyoto.
+    mapped = {}
+    boxes = [(34.85, 35.33, 135.55, 135.90)]
+    while boxes:
+        south, north, west, east = boxes.pop()
+        response = requests.get(origin + '/api/items', params=dict(south=south, north=north, west=west, east=east), timeout=10)
+        response.raise_for_status()
+        items = response.json()['items']
+        mapped.update((item['id'], item) for item in items)
+        if len(items) >= 300:
+            if north - south < .00001:
+                raise ValueError('map limit reached at one location')
+            lat, lng = (south + north) / 2, (west + east) / 2
+            boxes.extend((s, n, w, e) for s, n in ((south, lat), (lat, north))
+                         for w, e in ((west, lng), (lng, east)))
+    return mapped
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, default=Path(os.environ.get('RAB_DATA', HERE.parents[1])) / 'users/_public/items')
     parser.add_argument('--api', help='RAB server origin, e.g. http://localhost:3016')
     parser.add_argument('--wards', action='store_true', help='verify every coordinate against the GSI ward')
     args = parser.parse_args()
-    mapped = {}
-    if args.api:
-        r = requests.get(args.api + '/api/items', params=dict(south=34.85, north=35.33, west=135.55, east=135.90), timeout=10)
-        r.raise_for_status()
-        mapped = {i['id']: i for i in r.json()['items']}
+    mapped = map_items(args.api) if args.api else {}
     counts, keys, photo_count = Counter(), set(), 0
     for file in sorted(args.output.glob('*/source.json')):
         source = json.loads(file.read_text())

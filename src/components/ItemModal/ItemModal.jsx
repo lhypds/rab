@@ -112,7 +112,7 @@ function startingPricing(item, calendar) {
       if (day.available && day.price != null && !(day.day in datePrices)) datePrices[day.day] = String(day.price);
     }
   }
-  return { basePrice: rates[0] ? String(rates[0].price) : "", datePrices, slotPrices, extraRates, hourRules };
+  return { basePrice: rates[0]?.price != null ? String(rates[0].price) : "", datePrices, slotPrices, extraRates, hourRules };
 }
 
 // The form's lines for how the owner is reached, from the ways as they are
@@ -962,7 +962,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     hoursOff: byTime ? fields.hoursOff : [],
     openDays,
     dayHours: keptDayHours,
-    price: listPrice(mode, rates),
+    // It may be left without one: priced on request.
+    price: rates.length === 0 ? null : listPrice(mode, rates),
     currency: fields.currency,
     images: fields.images,
     thumb: fields.images[0]?.thumb ?? null,
@@ -1014,7 +1015,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   function fault() {
     const first = itemFault();
     if (first) return first;
-    if (rates.length === 0) return t("item.priceRequired");
     if (byTime && hourRules.some((rule) => !timed(rule) || rule.start >= rule.end)) return t("item.ruleTimesWrong");
     if (byDay && (dayHours.start || dayHours.end) && !(dayHours.start && dayHours.end && dayHours.start < dayHours.end)) {
       return t("item.dayHoursWrong");

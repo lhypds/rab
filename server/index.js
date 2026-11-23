@@ -660,7 +660,10 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // here would be nobody's to answer.
   const mode = body?.shared === true ? "inquiry" : MODES.has(body?.mode) ? body.mode : "day";
   const sent = Array.isArray(body?.rates) && body.rates.length > 0 ? body.rates : [{ price: body?.price }];
-  const parsed = parseRates(mode, sent, PRICE_MAX);
+  // What it costs need not be said: it is then listed as priced on request,
+  // and what is asked for here is asked for without a total.
+  const unpriced = sent.length === 1 && (sent[0]?.price == null || sent[0].price === "");
+  const parsed = unpriced ? { rates: [] } : parseRates(mode, sent, PRICE_MAX);
   if (parsed.error) return { error: parsed.error };
   // The hours it can be had, which only an item booked by the time has.
   const hours = mode === "time" ? parseHours(body?.hours) : { hours: [] };
@@ -711,7 +714,7 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // admin — which is its owner's to say and not whoever wrote it down — and it
       // is booked by asking (see below), there being nobody here to say yes.
       shared: body?.shared === true,
-      price: listPrice(mode, parsed.rates),
+      price: unpriced ? null : listPrice(mode, parsed.rates),
       currency,
       located,
       latitude: located ? Math.round(latitude * 1e6) / 1e6 : 0,
@@ -1123,7 +1126,8 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
     if (price === null) {
       return res.status(400).json({ error: "Pick hours it can be booked for", code: "TIME_UNAVAILABLE" });
     }
-    slots = [{ start: from, end: until, price }];
+    // An item that says no price has hours that cost nothing that is known.
+    slots = [{ start: from, end: until, price: item.price == null ? null : price }];
   }
 
   try {
@@ -1139,15 +1143,15 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
       if (days.some(shut)) return { code: "DAYS_UNAVAILABLE" };
       if (overlapping(item.id, "confirmed", start, end, { slots }).length > 0) return { code: "DAYS_UNAVAILABLE" };
       if (hasOwnOverlap(item.id, req.user.id, start, end, slots)) return { code: "ALREADY_REQUESTED" };
-      const total = bySlot
-        ? slots.reduce((sum, slot) => sum + slot.price, 0)
-        : days.reduce((sum, day) => sum + (overrides.get(day)?.price ?? dayPrice(item, day)), 0);
+      // What it comes to — or null, where any part of it has no price said.
+      const parts = bySlot ? slots.map((slot) => slot.price) : days.map((day) => overrides.get(day)?.price ?? dayPrice(item, day));
+      const total = parts.some((part) => part == null) ? null : parts.reduce((sum, part) => sum + part, 0);
       const created = createBooking({
         itemId: item.id,
         renterId: req.user.id,
         start,
         end,
-        total: Math.round(total * 100) / 100,
+        total: total === null ? null : Math.round(total * 100) / 100,
         currency: item.currency,
         note: text(req.body?.note, NOTE_MAX),
         slots,

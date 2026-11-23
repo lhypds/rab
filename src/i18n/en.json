@@ -140,7 +140,6 @@
     "titleRequired": "Give the item a name",
     "price": "Price",
     "priceOnRequest": "Price on request",
-    "priceRequired": "Set a default price",
     "currency": "Currency",
     "description": "Description",
     "descriptionEmpty": "No description yet.",
