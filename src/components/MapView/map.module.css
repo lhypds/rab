@@ -37,7 +37,7 @@
 .areaName {
   min-height: 26px;
   margin: 0;
-  font-family: var(--display);
+  font-family: var(--sans);
   font-size: 22px;
   font-weight: 700;
   line-height: 1.2;
@@ -59,7 +59,7 @@
 
 .areaWithin span:last-child {
   flex: none;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -206,7 +206,7 @@
   margin-left: auto;
   padding-left: 8px;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -460,7 +460,7 @@
   transform: translateX(-50%);
   border: 1px solid var(--ink);
   background: var(--paper);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   line-height: 1.6;
   white-space: nowrap;
@@ -560,7 +560,7 @@
   align-items: center;
   gap: 3px;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   line-height: 1.2;
   /* A rule under the whole of it rather than the text's own underline, which
@@ -619,7 +619,7 @@
 }
 
 .cardPrice {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
 }
 
@@ -628,7 +628,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 

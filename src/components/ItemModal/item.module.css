@@ -322,7 +322,7 @@
   border-radius: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   line-height: 1;
 }
@@ -371,7 +371,7 @@
   border-radius: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   line-height: 1;
 }
@@ -421,7 +421,7 @@
 }
 
 .weekNav strong {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   font-weight: 400;
 }
@@ -498,7 +498,7 @@
   top: 50%;
   transform: translateY(-50%);
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   line-height: 1;
   pointer-events: none;

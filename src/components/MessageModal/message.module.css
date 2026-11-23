@@ -71,7 +71,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   /* A name is the way through to a page — the other side's to theirs, your own
      to yours — and a name in lo wears no line for it: grey mono over the words
@@ -113,7 +113,7 @@
 .when,
 .read {
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -157,7 +157,7 @@
 
 .count {
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -196,7 +196,7 @@
 }
 
 .eventLine {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
 }
 

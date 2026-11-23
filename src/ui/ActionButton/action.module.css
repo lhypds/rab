@@ -64,7 +64,7 @@
    semibold letter is the one thing in the bar with a heavy stroke. */
 .glyph {
   display: block;
-  font-family: var(--display);
+  font-family: var(--sans);
   font-size: var(--action-glyph);
   font-weight: 400;
   line-height: 1;

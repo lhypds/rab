@@ -72,7 +72,7 @@
    something between the title and the close has two auto margins in it, and
    free space split between them leaves that something floating mid-bar. */
 .title {
-  font-family: var(--display);
+  font-family: var(--sans);
   font-size: 16px;
   font-weight: 600;
   flex: 1;

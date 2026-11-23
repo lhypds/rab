@@ -8,8 +8,8 @@
      right before going on. */
   --danger: #c62020;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --display: "Fira Code", var(--mono);
+  /* The site title alone is set in this face; everything else is --sans. */
+  --display: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --topbar: 48px;
   /* The action button's box and what is drawn inside it (see ui/ActionButton).
      Two sizes: this is the smaller, for a button standing beside a heading; the
@@ -426,7 +426,7 @@ a {
 .section-heading h1 {
   min-width: 0;
   margin: 0;
-  font-family: var(--display);
+  font-family: var(--sans);
   font-size: 18px;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -435,7 +435,7 @@ a {
 .section-heading span {
   flex: none;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
 }
 
@@ -453,7 +453,7 @@ a {
 
 .part-heading h2 {
   margin: 0;
-  font-family: var(--display);
+  font-family: var(--sans);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -461,7 +461,7 @@ a {
 
 .part-heading span {
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -522,7 +522,7 @@ a {
 }
 
 .tab small {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -657,7 +657,7 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   line-height: 12px;
 }
@@ -706,7 +706,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
 }
 
@@ -796,7 +796,7 @@ a {
   flex: none;
   padding: 2px 6px;
   border: 1px solid var(--ink);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   line-height: 1.4;
   white-space: nowrap;
@@ -844,7 +844,7 @@ a {
 }
 
 .field-count {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
 }
 
@@ -867,7 +867,7 @@ a {
 }
 
 .text-input.mono {
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 
 .text-area {

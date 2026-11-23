@@ -23,7 +23,7 @@
   outline: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--select-font, var(--mono));
+  font-family: var(--select-font, var(--sans));
   font-size: 12px;
   line-height: 1;
   text-align: left;
@@ -161,7 +161,7 @@
   outline: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--select-font, var(--mono));
+  font-family: var(--select-font, var(--sans));
   font-size: 12px;
 }
 
@@ -179,7 +179,7 @@
 .empty {
   padding: 8px 8px 8px 18px;
   color: var(--muted);
-  font-family: var(--select-font, var(--mono));
+  font-family: var(--select-font, var(--sans));
   font-size: 12px;
 }
 
@@ -192,7 +192,7 @@
      menu whether or not one of them is the one in force. */
   padding: 6px 8px 6px 18px;
   color: var(--ink);
-  font-family: var(--select-font, var(--mono));
+  font-family: var(--select-font, var(--sans));
   font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;

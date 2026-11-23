@@ -18,7 +18,7 @@ div.sheet {
   flex: none;
   margin: 0 12px 0 auto;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   white-space: nowrap;
   text-underline-offset: 3px;

@@ -24,7 +24,7 @@
 
 .facts dd {
   margin: 0;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
 }
 
