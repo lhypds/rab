@@ -139,7 +139,8 @@
     "price": "价格",
     "priceRequired": "请设置默认价格",
     "currency": "货币",
-    "description": "描述",
+    "description": "说明",
+    "descriptionEmpty": "还没有填写说明。",
     "descriptionPlaceholder": "具体内容、包含什么、需要对方了解的事项",
     "location": "位置",
     "place": "地点名称",
@@ -266,6 +267,7 @@
     },
     "cancelCount": "数量",
     "categoryWithin": "{{name}}（{{kind}}）",
+    "homepage": "主页",
     "contact": "联系方式",
     "contactType": "联系方式类型",
     "contactMessageNote": "通过 rab 的站内信联系",
@@ -300,8 +302,7 @@
     "sharedNote": "这是代别人登记的，任何登录的用户都可以编辑。",
     "inquiryExplainShared": "这是咨询预约，请通过上面的联系方式直接商定。",
     "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。",
-    "report": "报告",
-    "requestDelete": "申请删除"
+    "report": "报告"
   },
   "calendar": {
     "title": "可利用时间",
@@ -513,22 +514,18 @@
     "title": "报告",
     "lead": "“{{item}}”有什么问题？报告会以站内信的形式发送给管理员。",
     "reasons": {
-      "unavailable": "已不可用（通知管理员删除）",
-      "spam": "垃圾信息或广告",
       "inaccurate": "信息错误或有误导性",
-      "prohibited": "违禁或违法",
+      "unavailable": "已不可用（通知管理员删除）",
+      "infringement": "页面侵权（要求管理员删除）",
+      "spam": "垃圾信息或广告",
       "scam": "诈骗",
+      "prohibited": "违禁或违法",
       "offensive": "令人反感的内容",
       "other": "其他"
     },
     "placeholder": "详细说明（可不填）",
     "placeholderOther": "请说明问题",
     "send": "提交",
-    "sent": "报告已发送",
-    "deleteTitle": "申请删除",
-    "deleteLead": "“{{item}}”是代别人登记的，只有管理员可以删除。你的申请会以站内信的形式发送给管理员。",
-    "deletePlaceholder": "为什么要删除？（可不填）",
-    "deleteSend": "发送申请",
-    "deleteSent": "申请已发送"
+    "sent": "报告已发送"
   }
 }

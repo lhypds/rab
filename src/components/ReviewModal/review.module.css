@@ -1,3 +1,9 @@
+/* The sheet a review is written on: a little wider than a sheet usually is.
+   Said twice over, to outweigh the modal's own width whichever is read last. */
+.sheet.sheet {
+  max-width: 480px;
+}
+
 /* A rating as it is read: five stars in the colour of the line they are in. */
 .stars {
   font-family: var(--sans);

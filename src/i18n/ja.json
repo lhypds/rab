@@ -140,6 +140,7 @@
     "priceRequired": "通常料金を設定してください",
     "currency": "通貨",
     "description": "説明",
+    "descriptionEmpty": "説明はまだありません。",
     "descriptionPlaceholder": "内容、含まれるもの、利用する人に伝えたいこと",
     "location": "場所",
     "place": "場所の名前",
@@ -266,6 +267,7 @@
     },
     "cancelCount": "数",
     "categoryWithin": "{{name}}（{{kind}}）",
+    "homepage": "ホームページ",
     "contact": "連絡先",
     "contactType": "連絡先の種類",
     "contactMessageNote": "rab 内のメッセージで受け取ります",
@@ -300,8 +302,7 @@
     "sharedNote": "他人のものとして登録されています。ログインしているユーザーなら誰でも編集できます。",
     "inquiryExplainShared": "問い合わせ予約です。上の連絡先に直接連絡して相談してください。",
     "modeHintShared": "他人のものは問い合わせ予約のみです。下の連絡先に直接連絡してもらいます。",
-    "report": "報告",
-    "requestDelete": "削除を依頼"
+    "report": "報告"
   },
   "calendar": {
     "title": "空き状況",
@@ -513,22 +514,18 @@
     "title": "報告",
     "lead": "「{{item}}」の何が問題ですか？報告はメッセージとして管理者に送られます。",
     "reasons": {
-      "unavailable": "もう利用できない（管理者に削除を依頼）",
-      "spam": "スパム・宣伝",
       "inaccurate": "誤った情報・誤解を招く情報",
-      "prohibited": "禁止されているもの・違法なもの",
+      "unavailable": "もう利用できない（管理者に削除を依頼）",
+      "infringement": "権利侵害（管理者に削除を依頼）",
+      "spam": "スパム・宣伝",
       "scam": "詐欺",
+      "prohibited": "禁止されているもの・違法なもの",
       "offensive": "不快な内容",
       "other": "その他"
     },
     "placeholder": "詳細（任意）",
     "placeholderOther": "問題の内容を書いてください",
     "send": "送信",
-    "sent": "報告を送信しました",
-    "deleteTitle": "削除を依頼",
-    "deleteLead": "「{{item}}」は他人のものとして登録されているため、削除できるのは管理者だけです。依頼はメッセージとして管理者に送られます。",
-    "deletePlaceholder": "削除する理由（任意）",
-    "deleteSend": "依頼を送信",
-    "deleteSent": "依頼を送信しました"
+    "sent": "報告を送信しました"
   }
 }

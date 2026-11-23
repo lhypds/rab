@@ -97,7 +97,7 @@ export default function ReviewModal({ booking, onClose, onDone }) {
   }
 
   return (
-    <Modal isOpen title={renting ? t("review.titleRental") : t("review.title", { name })} onClose={busy ? undefined : onClose}>
+    <Modal isOpen title={renting ? t("review.titleRental") : t("review.title", { name })} onClose={busy ? undefined : onClose} className={styles.sheet}>
       <form onSubmit={submit}>
         <div className="field">
           <p className={styles.lead}>

@@ -350,6 +350,14 @@
   font-size: 12px;
 }
 
+/* The same button as a link: its word in the middle, and not underlined. */
+.ask {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .chosen {
   display: flex;
   flex-wrap: wrap;
@@ -482,6 +490,33 @@
   gap: 4px;
   margin: -6px 0 0;
   font-size: 12px;
+}
+
+/* The item's own page, under its heading as the contacts are under theirs. */
+.homepage {
+  margin: -6px 0 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.homepage a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.homepage a span {
+  min-width: 0;
+}
+
+.homepage svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 
 /* Their heading is said in the page's ordinary type, not the display face a

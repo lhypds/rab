@@ -20,6 +20,13 @@ import { WeekHours } from "../TimeTable/index.js";
 import styles from "./item.module.css";
 
 const TITLE_MAX = 80;
+const HOMEPAGE_MAX = 500;
+// A page's address as the item's page will link to it: "https://" in front of
+// one written without (the server does the same when it is saved).
+const homepageOf = (written) => {
+  const address = written.trim();
+  return !address || /^https?:\/\//i.test(address) ? address : `https://${address}`;
+};
 const DESCRIPTION_MAX = 2000;
 const PLACE_MAX = 120;
 const IMAGES_MAX = 100;
@@ -148,6 +155,8 @@ function startingFields(item, calendar, lang) {
     category: item?.category ?? "",
     title: item?.title ?? "",
     description: item?.description ?? "",
+    // Its own page somewhere else, as its address, where it has one.
+    homepage: item?.homepage ?? "",
     // How it is booked: by the date, or by the date and the time — and, for
     // the second, the hours of the week it can be had.
     mode: item?.shared === true ? "inquiry" : MODES.includes(item?.mode) ? item.mode : "day",
@@ -939,6 +948,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     id: item?.id ?? "preview",
     title: fields.title.trim() || t("item.titlePlaceholder"),
     description: fields.description.trim(),
+    homepage: homepageOf(fields.homepage),
     kind: fields.kind,
     category: fields.category,
     shared: fields.shared,
@@ -1034,6 +1044,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     const body = {
       title: fields.title.trim(),
       description: fields.description.trim(),
+      homepage: fields.homepage.trim(),
       kind: fields.kind,
       category: fields.category,
       shared: fields.shared,
@@ -1355,6 +1366,24 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
             {/* The item's sheet has two columns where there is room: what it
                 is on the left, and where it is on the right. */}
             <div className={styles.column}>
+              {/* Its own page somewhere else, where it has one: shown on the
+                  item's page over how its owner is reached. */}
+              <label className="field">
+                <span className="field-label">{t("item.homepage")}</span>
+                <input
+                  className="text-input"
+                  type="url"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={fields.homepage}
+                  onChange={(event) => set("homepage", event.target.value)}
+                  placeholder="https://"
+                  maxLength={HOMEPAGE_MAX}
+                />
+              </label>
+
               {/* The area it is offered in, which every item has to say: it is
                   what lists it for the people looking there, pin or no pin.
                   Filled in with the town the item is in; changing it, or
@@ -1743,19 +1772,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
               </div>
               )}
 
-              {/* By the time, the dates stand here, under the price, and the
-                  column beside is the hours'. */}
-              {byTime && datesField}
-            </div>
-
-            {/* This sheet has two columns too. By the date: how it is booked
-                and what it costs on the left, the dates it can be had on the
-                right. By the time: the dates go left with the rest, and the
-                right is the hours. */}
-            <div className={styles.column}>
               {/* By the date, the hours of the day it is handed over in — when
-                  it can be picked up and brought back — and then the dates,
-                  which are this column's. Left at --:--, any time will do. */}
+                  it can be picked up and brought back: last on the left, under
+                  what it costs. Left at --:--, any time will do. */}
               {byDay && (
                 <div className="field">
                   <span className="field-label">{t("item.dayHours")}</span>
@@ -1777,6 +1796,18 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   <span className={styles.hint}>{t("item.dayHoursHint")}</span>
                 </div>
               )}
+
+              {/* By the time, the dates stand here, under the price, and the
+                  column beside is the hours'. */}
+              {byTime && datesField}
+            </div>
+
+            {/* This sheet has two columns too. By the date: how it is booked,
+                what it costs and the hours of the day on the left, the dates
+                it can be had on the right. By the time: the dates go left with the rest, and the
+                right is the hours. */}
+            <div className={styles.column}>
+              {/* By the date, the dates are this column's. */}
               {byDay && datesField}
 
               {/* The hours it can be had, where it is booked by the time: under

@@ -490,6 +490,8 @@ function servedItem(item) {
     // address of the page it was read from, and what tells it apart from
     // every other such listing. Null for one written down by hand.
     source: item.source ?? null,
+    // Its own page somewhere else, as its address; empty where it has none.
+    homepage: item.homepage ?? "",
     // How its owner is reached, where it is booked by asking: [{ type, value }].
     contacts: item.contacts ?? [],
     // The rule for days — which days of the week it can be had, null for all —
@@ -626,6 +628,7 @@ function itemFields(item) {
   return {
     title: item.title,
     description: item.description,
+    homepage: item.homepage ?? "",
     kind: item.kind,
     category: item.category,
     mode: item.mode,

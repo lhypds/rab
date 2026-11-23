@@ -112,6 +112,7 @@ listing is changed — a patch, what is left out stays — and answered 200 rath
 Needed besides: `title`, `price`, `currency` (JPY, CNY, USD, EUR), one of `contacts`
 (`phone`, `email` or `address`), and either `region` ({ name, detail, bbox }) or a
 `latitude` and `longitude`, from which the area is found (named in `lang`: en, zh, ja).
+`homepage` is the address of its own page, shown over the contacts.
 `kind` is `item` (a thing), `space` or `service`; `category` is one of the slugs in
 `src/utils/kinds.js`; `priceUnit` is the minutes the price is for (a day where unset);
 `active: false` takes it off the map.

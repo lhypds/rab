@@ -142,6 +142,7 @@
     "priceRequired": "Set a default price",
     "currency": "Currency",
     "description": "Description",
+    "descriptionEmpty": "No description yet.",
     "descriptionPlaceholder": "What it is, what's included, anything people should know",
     "location": "Location",
     "place": "Place name",
@@ -270,6 +271,7 @@
     },
     "cancelCount": "How many",
     "categoryWithin": "{{name}} ({{kind}})",
+    "homepage": "Homepage",
     "contact": "Contact",
     "contactType": "Contact type",
     "contactMessageNote": "By a message here on rab",
@@ -304,8 +306,7 @@
     "sharedNote": "Listed on someone else’s behalf. Anyone signed in can edit it.",
     "inquiryExplainShared": "This is booked by inquiry. Use the contact details above to arrange it.",
     "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
-    "report": "Report",
-    "requestDelete": "Request a delete"
+    "report": "Report"
   },
   "calendar": {
     "title": "Availability",
@@ -524,22 +525,18 @@
     "title": "Report",
     "lead": "What is wrong with “{{item}}”? Your report is sent to the administrator as a message.",
     "reasons": {
-      "unavailable": "No longer available (ask the administrator to delete it)",
-      "spam": "Spam or advertising",
       "inaccurate": "Wrong or misleading information",
-      "prohibited": "Prohibited or illegal",
+      "unavailable": "No longer available (ask the administrator to delete it)",
+      "infringement": "Infringes my rights (ask the administrator to delete it)",
+      "spam": "Spam or advertising",
       "scam": "Scam or fraud",
+      "prohibited": "Prohibited or illegal",
       "offensive": "Offensive content",
       "other": "Something else"
     },
     "placeholder": "Details (optional)",
     "placeholderOther": "Say what is wrong",
     "send": "Submit",
-    "sent": "Report sent",
-    "deleteTitle": "Request a delete",
-    "deleteLead": "“{{item}}” is listed on someone else’s behalf, so only the administrator can delete it. Your request is sent to them as a message.",
-    "deletePlaceholder": "Why should it be deleted? (optional)",
-    "deleteSend": "Send request",
-    "deleteSent": "Request sent"
+    "sent": "Report sent"
   }
 }

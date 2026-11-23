@@ -129,8 +129,8 @@ export default function ItemView({
       setBookmarking(false);
     }
   };
-  // What is being sent to the administrator about the item, on a sheet:
-  // "report", "delete" (a request to delete it), or null.
+  // Whether the sheet a report about the item is sent to the administrator
+  // from is open: "report", or null.
   const [posting, setPosting] = useState(null);
   // How big each photograph really is, by its address, learned as it loads —
   // for the ones whose size was not written down when they were uploaded.
@@ -162,6 +162,9 @@ export default function ItemView({
   const admin = isAdmin(viewer) && !preview;
   const canEdit = mine || admin || (shared && Boolean(viewer) && !preview);
   const contacts = item.contacts ?? [];
+  // Where asking by the way written first goes, or null where that way is not
+  // one that can be pressed (an address).
+  const askHref = contactHref(contacts[0], item.title);
   const states = useMemo(() => dayStates(calendar, bookings), [calendar, bookings]);
   const free = useMemo(() => nextFreeDay(item, calendar), [item, calendar]);
   // The figure at the head of the card: what it costs today, at this hour.
@@ -318,15 +321,9 @@ export default function ItemView({
   // for the whole item: it can be had, or it cannot — which is not asked of
   // somebody else's, since that is its owner's to say. And beside it, at the
   // right, the way to be rid of the item altogether, in red and asked twice.
-  // Somebody else's is not deleted by whoever is reading it: the button asks
-  // the administrator to, on a sheet of its own.
-  const removal = shared && !admin ? (
-    <div className={styles.buttons}>
-      <button type="button" className={`small-button ${styles.danger}`} disabled={preview} onClick={() => setPosting("delete")}>
-        {t("item.requestDelete")}
-      </button>
-    </div>
-  ) : confirming ? (
+  // Somebody else's is not deleted by whoever is reading it, and has no
+  // buttons here: having it deleted is asked of the administrator in a report.
+  const removal = shared && !admin ? null : confirming ? (
     <div className={styles.buttons}>
       <span className={styles.confirm}>{t("item.deleteConfirm")}</span>
       <button type="button" className="small-button" disabled={busy} onClick={() => setConfirming(false)}>
@@ -540,6 +537,25 @@ export default function ItemView({
             </div>
           )}
 
+          {/* Its own page somewhere else, where it has one: the address, which
+              is pressed to go there. Over how its owner is reached. */}
+          {item.homepage && (
+            <>
+              <div className={`${styles.calendarHead} ${styles.contactHead}`}>
+                <h2>{t("item.homepage")}</h2>
+              </div>
+              <p className={styles.homepage}>
+                <a href={item.homepage} target="_blank" rel="noreferrer noopener">
+                  <span>{item.homepage.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</span>
+                  {/* And the mark of a page that opens somewhere else. */}
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />
+                  </svg>
+                </a>
+              </p>
+            </>
+          )}
+
           {/* Booked by asking, the card has no calendar: in its place, how the
               owner is reached — the first way, then the second. A number
               and an email address are pressed to call or to write. */}
@@ -651,7 +667,27 @@ export default function ItemView({
               {formError && <p className="form-message error">{formError}</p>}
             </div>
           ) : inquiry ? (
-            !item.active && <p className={styles.small}>{t("item.inactiveNote")}</p>
+            !item.active ? (
+              <p className={styles.small}>{t("item.inactiveNote")}</p>
+            ) : (
+              // Somebody else's has no request to send: the button where one
+              // would be asks the way written first — a phone number is
+              // called, an email address written to, about the item.
+              shared &&
+              askHref && (
+                <div className={styles.panel}>
+                  {preview ? (
+                    <button type="button" className="primary-button" disabled>
+                      {t("booking.request")}
+                    </button>
+                  ) : (
+                    <a className={`primary-button ${styles.ask}`} href={askHref}>
+                      {t("booking.request")}
+                    </a>
+                  )}
+                </div>
+              )
+            )
           ) : item.active ? (
             <form className={styles.panel} onSubmit={book}>
               <p className={styles.chosen}>
@@ -734,10 +770,9 @@ export default function ItemView({
             <p className={styles.small}>{t("item.inactiveNote")}</p>
           )}
           {/* Whoever may change an item that is not their own — anybody
-              signed in, for somebody else's; the admin, for any — has the
-              way to be rid of it here: asking the admin, or for the admin
-              the same buttons its own account has. */}
-          {!mine && canEdit && (
+              the admin, for any — has the way to be rid of it here: the same
+              buttons its own account has. */}
+          {!mine && canEdit && removal && (
             <div className={styles.panel}>
               {removal}
               {/* Where there is no request form above to say it in. */}
@@ -749,13 +784,13 @@ export default function ItemView({
         <div className={styles.rest}>
           {/* What its owner wrote about it, under a heading and a rule like
               the parts after it. */}
-          {item.description && (
-            <>
-              <div className={`part-heading ${styles.first}`}>
-                <h2>{t("item.description")}</h2>
-              </div>
-              <p className={styles.description}>{item.description}</p>
-            </>
+          <div className={`part-heading ${styles.first}`}>
+            <h2>{t("item.description")}</h2>
+          </div>
+          {item.description ? (
+            <p className={styles.description}>{item.description}</p>
+          ) : (
+            <p className="part-note">{t("item.descriptionEmpty")}</p>
           )}
 
           {/* ---------------------------------------------------- status */}

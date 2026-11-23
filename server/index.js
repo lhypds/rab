@@ -669,6 +669,8 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
     item: {
       title,
       description: text(body?.description, DESCRIPTION_MAX),
+      // Its own page somewhere else, where it has one.
+      homepage: readHomepage(body?.homepage),
       kind,
       category,
       mode,
@@ -978,8 +980,9 @@ app.post("/api/items/:id/delete-request", requireSession, (req, res) => {
 // Saying something is wrong with an item: what kind of thing, and a word
 // about it — which "other" has to have, there being nothing else said.
 // "unavailable" is that the thing is not there to be had any more, which
-// asks the admin to delete it.
-const REPORT_REASONS = new Set(["unavailable", "spam", "inaccurate", "prohibited", "scam", "offensive", "other"]);
+// asks the admin to delete it; "infringement" is that the page uses what is
+// somebody's without their leave, which asks the same.
+const REPORT_REASONS = new Set(["inaccurate", "unavailable", "infringement", "spam", "scam", "prohibited", "offensive", "other"]);
 
 app.post("/api/items/:id/report", requireSession, (req, res) => {
   const item = adminPost(req, res);
@@ -1513,6 +1516,22 @@ function requireKey(req, res, next) {
   const same = crypto.timingSafeEqual(Buffer.from(sessionHash(given)), Buffer.from(sessionHash(key)));
   if (!same) return res.status(401).json({ error: "Wrong API key", code: "KEY_WRONG" });
   next();
+}
+
+// An item's own page somewhere else, as its address: http or https, with
+// "https://" put in front of one written without. Empty where there is none,
+// or where what was written is not an address.
+function readHomepage(value) {
+  const written = typeof value === "string" ? value.trim() : "";
+  if (!written || written.length > SOURCE_MAX) return "";
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(written) ? written : `https://${written}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (!url.hostname.includes(".")) return "";
+    return url.href.slice(0, SOURCE_MAX);
+  } catch {
+    return "";
+  }
 }
 
 const readSource = (value) => (typeof value === "string" ? value.trim().slice(0, SOURCE_MAX) : "");
