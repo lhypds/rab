@@ -221,6 +221,12 @@
   background: var(--soft);
 }
 
+/* The one an item's row is being carried over, and would be left in. */
+.choiceDrop {
+  background: var(--soft);
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+
 /* The items: down a column, then on to the next one beside it — inside a
    frame ruled as the map's is, filling what the first column leaves and never
    narrower than one column of its own. Each row is ruled above by a shadow

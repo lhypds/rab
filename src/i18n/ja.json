@@ -95,6 +95,8 @@
     }
   },
   "map": {
+    "categoryMoved": "「{{name}}」に移動しました",
+    "categoryMoveFailed": "カテゴリを変更できませんでした",
     "allCategories": "すべてのカテゴリ",
     "area": "現在のエリア",
     "areaUnknown": "このあたり",

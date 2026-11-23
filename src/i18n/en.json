@@ -95,6 +95,8 @@
     }
   },
   "map": {
+    "categoryMoved": "Moved to {{name}}",
+    "categoryMoveFailed": "Could not change the category",
     "allCategories": "All categories",
     "area": "Current area",
     "areaUnknown": "Around here",

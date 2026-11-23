@@ -4,11 +4,12 @@ import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as api from "../../api.js";
-import { Link, Select } from "../../ui/index.js";
+import { Link, Select, showToast } from "../../ui/index.js";
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
 import { CATEGORIES, KINDS } from "../../utils/kinds.js";
+import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
   MAPBOX_TOKEN,
@@ -251,6 +252,55 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         a.index - b.index,
     )
     .map(({ option }) => option);
+  // As lists, an item's row can be carried onto a category and left there:
+  // the item is then of that category. Only by an account that may change the
+  // item — its own, somebody else's that was written down (`shared`), or any
+  // at all for the admin — and the server is what says so in the end.
+  const mayMove = (item) => Boolean(user && (item.shared || item.owner === user.username || isAdmin(user)));
+  const carriedRef = useRef(null);
+  const [dropOn, setDropOn] = useState(null);
+  const carry = (item, event) => {
+    if (!event) {
+      carriedRef.current = null;
+      setDropOn(null);
+      return;
+    }
+    carriedRef.current = item;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", item.title);
+    // What follows the pointer is the row's own contents, not the cell it
+    // lies in: the cell is ruled off from the column beside it, and that rule
+    // would be carried along with it.
+    const inside = event.currentTarget.querySelector(".row-copy");
+    if (inside) {
+      const box = inside.getBoundingClientRect();
+      event.dataTransfer.setDragImage(inside, event.clientX - box.left, event.clientY - box.top);
+    }
+  };
+  // A category takes what is carried where it is one — not "all" — and not
+  // the one the item is in already.
+  const takes = (slug) => Boolean(slug && carriedRef.current && carriedRef.current.category !== slug);
+  const drop = async (slug, name) => {
+    const item = carriedRef.current;
+    carriedRef.current = null;
+    setDropOn(null);
+    if (!item || !slug || item.category === slug) return;
+    // A category belongs to a kind, and the item goes over to it where its
+    // own kind has no such category: the kind in force, if that has it.
+    const kinds = KINDS.filter((each) => CATEGORIES[each].includes(slug));
+    const nextKind = kinds.includes(item.kind) ? item.kind : kinds.includes(kind) ? kind : (kinds[0] ?? item.kind);
+    try {
+      const { item: saved } = await api.updateItem(item.id, { category: slug, kind: nextKind });
+      const swap = (list) => list && list.map((each) => (each.id === saved.id ? { ...each, ...saved } : each));
+      setOffered(swap);
+      setItems(swap);
+      setFound(swap);
+      showToast(t("map.categoryMoved", { name }), 2000);
+    } catch (error) {
+      showToast(error?.message || t("map.categoryMoveFailed"), 3000);
+    }
+  };
+
   // A category belongs to a kind: one the newly chosen kind does not have is
   // let go of rather than left filtering everything out.
   const chooseKind = (next) => {
@@ -871,10 +921,27 @@ export default function MapView({ view = "map", query = "", onQuery }) {
           <ul className={styles.choices} aria-label={t("item.category")}>
             {categoriesFound.length === 0 && <li className={styles.choiceNone}>{t("item.categoryNoMatch")}</li>}
             {categoriesFound.map((option) => (
-              <li key={option.value}>
+              <li
+                key={option.value}
+                onDragOver={(event) => {
+                  if (!takes(option.value)) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  if (dropOn !== option.value) setDropOn(option.value);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setDropOn((current) => (current === option.value ? null : current));
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  drop(option.value, option.name);
+                }}
+              >
                 <button
                   type="button"
-                  className={category === option.value ? `${styles.choice} ${styles.choiceChosen}` : styles.choice}
+                  className={[styles.choice, category === option.value && styles.choiceChosen, dropOn === option.value && styles.choiceDrop]
+                    .filter(Boolean)
+                    .join(" ")}
                   aria-pressed={category === option.value}
                   onClick={() => setCategory(option.value)}
                 >
@@ -936,7 +1003,13 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             onWheel={(event) => rowWheel(event, event.currentTarget)}
           >
             {listed.map((item) => (
-              <ItemRow key={item.id} item={item} pin onPress={(event) => pressRow(item, event)} />
+              <ItemRow
+                key={item.id}
+                item={item}
+                pin
+                onPress={(event) => pressRow(item, event)}
+                onDrag={mayMove(item) ? (event) => carry(item, event) : undefined}
+              />
             ))}
           </ul>
         ) : (

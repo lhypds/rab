@@ -95,14 +95,16 @@ STORAGE = 'https://www.kyoto-life.co.jp/container/index.html'
 
 def storage_index():
     index = page(STORAGE)
-    for url in sorted({urljoin(STORAGE, a['href']) for a in index.select('a[href*="container_shop_code="]')}):
-        yield url, None
+    for section in index.select('.search-link.storage .content'):
+        category = 'parking' if section.get_text(strip=True).startswith('バイク駐車場') else 'storage'
+        for link in section.select('a[href*="container_shop_code="]'):
+            yield urljoin(STORAGE, link['href']), category
 
 
-def storage_offer(url, _):
+def storage_offer(url, category):
     facility = page(url)
     title = facility.h1.get_text(strip=True) if facility.h1 else ''
-    if not title or title.startswith('BB') or 'バイク専用' in title:
+    if not title:
         raise ValueError('not a storage unit')
     label = facility.find('dt', string=re.compile(r'^所在地$'))
     street = label.find_next_sibling('dd') if label else None
@@ -111,10 +113,40 @@ def storage_offer(url, _):
     frame = facility.select_one('iframe[src*="maps/embed/v1/place"]')
     coord = re.search(r'[?&]q=([\d.]+),([\d.]+)', frame['src']) if frame else None
     gallery = photos(facility, '.image-thumbnail img[src*="/container/"]', url)
-    return dict(source=url, homepage=url, title='京都ライフ ' + title, category='storage', kind='space',
+    return dict(source=url, homepage=url, title='京都ライフ ' + title, category=category, kind='space',
+                label='バイク駐車場' if category == 'parking' else '貸倉庫',
                 location=address_point(address, coord.groups() if coord else None),
                 photos=[u for u in gallery if '/cp_' not in u], phone=contact.get_text(strip=True) if contact else '',
-                note='電話は京都ライフの貸倉庫お問い合わせ窓口です。')
+                note='電話は京都ライフのストレージ事業部です。')
+
+
+TOOL_STORES = 'https://map.hc-kohnan.com/shop'
+TOOL_SERVICE = 'https://www.hc-kohnan.com/service/stores/rental_tool/'
+
+
+def tool_index():
+    for store in page(TOOL_STORES).select('.store-item[data-district^="京都市"][data-url]'):
+        yield store['data-url'], None
+
+
+@lru_cache
+def tool_photos():
+    return photos(page(TOOL_SERVICE), 'img[alt="電動工具の使用イメージ"], img[alt="コード式ボディ"], img[alt="ドリル・ドライバーのヘッド"]', TOOL_SERVICE)
+
+
+def tool_offer(url, _):
+    shop = page(url)
+    if not shop.find(string=lambda text: text and text.strip() == 'レンタル工具'):
+        raise ValueError('branch does not list tool rental')
+    data = next((r for node in shop.select('script[type="application/ld+json"]')
+                 if isinstance(r := json.loads(node.get_text()), dict) and r.get('@type') == 'LocalBusiness'), None)
+    if not data:
+        raise ValueError('missing branch details')
+    addr, geo = data['address'], data['geo']
+    return dict(source=url, homepage=url, title=data['name'], kind='item', category='tools',
+                location=address_point(addr['addressRegion'] + addr['addressLocality'] + addr['streetAddress'],
+                                       (geo['latitude'], geo['longitude'])), phone=data['telephone'],
+                photos=tool_photos(), note='写真はコーナン公式の貸出工具例です。機種・在庫は店舗にご確認ください。')
 
 
 def run(root, sources):
@@ -132,7 +164,7 @@ def run(root, sources):
             category = group
             try:
                 prior = next((v for (source, cat), v in entries.items()
-                              if source == url and (group == 'city' or cat == group)), None)
+                              if source == url and (group in ('city', 'storage') or cat == group)), None)
                 if prior:
                     status, detail = 'existing', prior
                 elif group == 'parking' and any(i.get('homepage') == url and i['category'] == group for i in known):
@@ -164,12 +196,13 @@ def run(root, sources):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, default=Path(os.environ.get('RAB_DATA', HERE.parents[1])) / 'users/_public/items')
-    parser.add_argument('--source', choices=['all', 'city', 'home', 'parking', 'storage'], default='all')
+    parser.add_argument('--source', choices=['all', 'city', 'home', 'parking', 'storage', 'tools'], default='all')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     with (args.output / '.kyoto-rentals.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         sources = [('home', inn_index, inn_offer), ('parking', parking_index, parking_offer),
-                   ('city', city_candidates, city_offer), ('storage', storage_index, storage_offer)]
+                   ('city', city_candidates, city_offer), ('storage', storage_index, storage_offer),
+                   ('tools', tool_index, tool_offer)]
         results = run(args.output, [s for s in sources if args.source in ('all', s[0])])
         (HERE / f'operators-{args.source}-report.json').write_text(json.dumps(results, ensure_ascii=False, indent=2) + '\n')

@@ -36,7 +36,7 @@ SEARCH = [
     ('service', 'driver', '観光タクシー', r'タクシー|ハイヤー'),
 ]
 CAR_INDEX = 'https://www.2525r.com/kyoto/kyoto/'
-LABEL = {'storage': '貸倉庫', 'guide': 'ガイド', 'teaching': '体験教室', 'studio': 'レンタルスタジオ', 'workspace': 'レンタルオフィス', 'home': '一棟貸し', 'car': 'レンタカー', 'clothing': '着物レンタル', 'bike': 'レンタサイクル', 'parking': '時間貸し駐車場', 'event-space': '貸ホール',
+LABEL = {'tools': 'レンタル工具', 'storage': '貸倉庫', 'guide': 'ガイド', 'teaching': '体験教室', 'studio': 'レンタルスタジオ', 'workspace': 'レンタルオフィス', 'home': '一棟貸し', 'car': 'レンタカー', 'clothing': '着物レンタル', 'bike': 'レンタサイクル', 'parking': '時間貸し駐車場', 'event-space': '貸ホール',
          'meeting-room': '貸会議室', 'driver': '観光タクシー', 'photography': 'プロカメラマン撮影プラン'}
 session = requests.Session()
 session.headers['User-Agent'] = 'RAB-Kyoto-Rental-Directory/1.0'

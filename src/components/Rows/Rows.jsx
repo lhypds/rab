@@ -18,7 +18,11 @@ import UserName, { dotted } from "../UserName/index.js";
 // preventDefault; `onPoint` is told when the pointer comes onto the row (true)
 // and leaves it (false); `chosen` marks the row whose pin is the one picked.
 // Away from a map, `pin` has the row say that the item stands on one.
-export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, chosen = false, pin = false }) {
+//
+// With `onDrag` the row can be picked up and carried — to a category, in the
+// lists (see MapView): it is told when the carrying starts, with the event,
+// and when it ends, with nothing.
+export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, onDrag, chosen = false, pin = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
     priceLine(item, i18n.language, t),
@@ -33,6 +37,9 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
       className={chosen ? "row-item row-chosen" : "row-item"}
       onMouseEnter={onPoint && (() => onPoint(true))}
       onMouseLeave={onPoint && (() => onPoint(false))}
+      draggable={onDrag ? true : undefined}
+      onDragStart={onDrag}
+      onDragEnd={onDrag && (() => onDrag(null))}
     >
       <div className="row">
         {/* `back`: the item's page was come to from a list, and its way back

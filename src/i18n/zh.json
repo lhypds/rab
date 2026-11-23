@@ -95,6 +95,8 @@
     }
   },
   "map": {
+    "categoryMoved": "已移到“{{name}}”",
+    "categoryMoveFailed": "无法更改分类",
     "allCategories": "全部分类",
     "area": "当前地区",
     "areaUnknown": "这一带",
