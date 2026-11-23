@@ -519,10 +519,10 @@ a {
   border-top: 1px solid var(--line);
 }
 
-/* The row whose pin is the one picked on the map beside the list: its name
-   underlined, which is what pressing it again will open. */
-.row-chosen .row-lines strong {
-  text-decoration: underline;
+/* The row whose pin is the one picked on the map beside the list: on the grey
+   a row takes when pointed at, and keeping it once the pointer has gone. */
+.row-chosen {
+  background: var(--soft);
 }
 
 /* Except directly under a part's heading, which is ruled already: a second
