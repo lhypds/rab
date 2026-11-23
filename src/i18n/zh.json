@@ -74,7 +74,17 @@
     "email": "邮箱",
     "emailHint": "账号本身的邮箱，与下面的联系方式无关，不会展示给任何人。",
     "emailSaved": "邮箱已保存",
-    "emailRemoved": "邮箱已移除"
+    "emailRemoved": "邮箱已移除",
+    "birthdate": "出生日期",
+    "birthYear": "年",
+    "birthMonth": "月",
+    "birthDay": "日",
+    "birthYearNone": "没有这个年份",
+    "yearOf": "{{year}}年",
+    "dayOf": "{{day}}日",
+    "birthdateSaved": "出生日期已保存",
+    "birthdateRemoved": "出生日期已删除",
+    "birthdateInvalid": "请输入真实的出生日期"
   },
   "messages": {
     "title": "消息",
@@ -163,6 +173,7 @@
     "uploading": "上传中",
     "publish": "发布",
     "missing": "该项目不存在或已被删除。",
+    "ageRequired": "此物品属于「成人」分类。请在账户中设置出生日期后查看。",
     "share": "分享",
     "bookmark": "收藏",
     "bookmarked": "已收藏",
@@ -476,7 +487,8 @@
     "writing": "写作文案",
     "consulting": "咨询",
     "event-help": "活动帮手",
-    "handyman": "安装杂活"
+    "handyman": "安装杂活",
+    "adult": "成人（18+）"
   },
   "share": {
     "title": "分享",

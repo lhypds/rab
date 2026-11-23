@@ -5,7 +5,7 @@ import { Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
 import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
-import { CATEGORIES, KINDS } from "../../utils/kinds.js";
+import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
 import { dialCodeOf, dialCodes, splitDialCode } from "../../utils/dialing.js";
 import { AREA_TYPES, DEFAULT_VIEW, MAPBOX_TOKEN, areaAt, areaOf, areasAt, geocode, locate, locationPermission, placeName, postcodeOf, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
@@ -1112,7 +1112,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     { value: "", label: withIcon("", t("item.categoryNone")), text: t("item.categoryNone") },
     // `text` is what the dropdown's search reads: the name, and the slug too so
     // the English word finds a row whatever language the names are in.
-    ...CATEGORIES[fields.kind].map((slug) => ({
+    // A grown-up category only for an account old enough for it — or where
+    // the item is in one already, so that editing it does not empty the box.
+    ...categoriesFor(fields.kind, Boolean(user?.adult) || CATEGORIES[fields.kind].includes(fields.category) && !categoriesFor(fields.kind).includes(fields.category)).map((slug) => ({
       value: slug,
       label: withIcon(slug, t(`category.${slug}`)),
       text: `${t(`category.${slug}`)} ${slug}`,

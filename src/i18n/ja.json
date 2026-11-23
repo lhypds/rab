@@ -74,7 +74,17 @@
     "email": "メールアドレス",
     "emailHint": "アカウント自体のメールアドレスです。下の連絡先とは別で、誰にも表示されません。",
     "emailSaved": "メールアドレスを保存しました",
-    "emailRemoved": "メールアドレスを削除しました"
+    "emailRemoved": "メールアドレスを削除しました",
+    "birthdate": "生年月日",
+    "birthYear": "年",
+    "birthMonth": "月",
+    "birthDay": "日",
+    "birthYearNone": "該当する年がありません",
+    "yearOf": "{{year}}年",
+    "dayOf": "{{day}}日",
+    "birthdateSaved": "生年月日を保存しました",
+    "birthdateRemoved": "生年月日を削除しました",
+    "birthdateInvalid": "正しい生年月日を入力してください"
   },
   "messages": {
     "title": "メッセージ",
@@ -163,6 +173,7 @@
     "uploading": "アップロード中",
     "publish": "公開",
     "missing": "このアイテムは存在しないか、削除されました。",
+    "ageRequired": "このアイテムはアダルトのカテゴリーです。表示するにはアカウントで生年月日を設定してください。",
     "share": "共有",
     "bookmark": "ブックマーク",
     "bookmarked": "ブックマーク済み",
@@ -476,7 +487,8 @@
     "writing": "ライティング",
     "consulting": "コンサルティング",
     "event-help": "イベントスタッフ",
-    "handyman": "便利屋"
+    "handyman": "便利屋",
+    "adult": "アダルト（18歳以上）"
   },
   "share": {
     "title": "共有",

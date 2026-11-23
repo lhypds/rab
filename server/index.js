@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import { isAdultCategory } from "../src/utils/kinds.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -70,6 +71,9 @@ const {
   transaction,
   updateItem, PUBLIC_ID, PUBLIC_NAME,
   adoptPublicItems,
+  getBirthdate,
+  isAdult,
+  setBirthdate,
   ADMIN_ID,
   getEmail,
   setEmail,
@@ -272,6 +276,22 @@ function readSession(req, _res, next) {
   next();
 }
 
+// The account as the browser is told about it: who it is, and whether it may
+// be shown the grown-up categories (see kinds.js) — for its lists to offer
+// them. What it may see is decided here, whatever the browser thinks.
+function accountOf(user) {
+  return { ...user, adult: isAdult(user.id) };
+}
+
+// Whether whoever is asking may see an item: anybody may, but an item in a
+// grown-up category only its owner or an account old enough for it.
+function mayView(viewer, item) {
+  if (!isAdultCategory(item.category)) return true;
+  return Boolean(viewer) && (viewer.id === item.ownerId || isAdult(viewer.id));
+}
+
+const AGE_FAULT = { error: "Set your date of birth on your account to see this", code: "AGE_REQUIRED" };
+
 function requireSession(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "Please sign in", code: "LOGIN_REQUIRED" });
   next();
@@ -285,7 +305,7 @@ app.use(express.json({ limit: "256kb" }));
 app.use("/api", readSession);
 
 app.get("/api/session", requireSession, (req, res) => {
-  res.json({ user: req.user, unread: countUnread(req.user.id) });
+  res.json({ user: accountOf(req.user), unread: countUnread(req.user.id) });
 });
 
 // Signing in is asked in two goes, the name and then the password. This is the
@@ -315,7 +335,7 @@ app.post("/api/login", (req, res) => {
   if (!checkPassword(username, String(req.body?.password ?? ""))) {
     return res.status(401).json({ error: "Wrong password", code: "PASSWORD_WRONG" });
   }
-  res.json({ user, token: startSession(user), unread: countUnread(user.id) });
+  res.json({ user: accountOf(user), token: startSession(user), unread: countUnread(user.id) });
 });
 
 app.post("/api/logout", (req, res) => {
@@ -463,12 +483,12 @@ app.post("/api/users", (req, res) => {
   // Without the setting there is no code to bring back.
   if (!ENABLE_EMAIL) {
     const user = createUser(username, password);
-    return res.status(201).json({ user, token: startSession(user), unread: 0 });
+    return res.status(201).json({ user: accountOf(user), token: startSession(user), unread: 0 });
   }
   const wrong = spendCode(email, username, req.body?.code);
   if (wrong) return res.status(wrong.status).json(wrong.fault);
   const user = createUser(username, password, email);
-  res.status(201).json({ user, token: startSession(user), unread: 0 });
+  res.status(201).json({ user: accountOf(user), token: startSession(user), unread: 0 });
 });
 
 // The signed-in account's own address: the one the account is known by, apart
@@ -477,7 +497,7 @@ app.post("/api/users", (req, res) => {
 // one account to an address. `verify` is whether a new one has to be proved
 // with a code mailed to it first, which it does wherever signing up does.
 app.get("/api/account", requireSession, (req, res) => {
-  res.json({ email: getEmail(req.user.id), verify: ENABLE_EMAIL });
+  res.json({ email: getEmail(req.user.id), verify: ENABLE_EMAIL, birthdate: getBirthdate(req.user.id) });
 });
 
 // The address an account is asking to have, checked — or what is wrong with it.
@@ -517,6 +537,22 @@ app.put("/api/account/email", requireSession, (req, res) => {
   res.json({ email: asked.email });
 });
 
+// When the account says it was born: "YYYY-MM-DD", or "" to take it away. It
+// is what lets it see the grown-up categories, and nobody else is shown it.
+const BIRTH_EARLIEST = "1900-01-01";
+app.put("/api/account/birthdate", requireSession, (req, res) => {
+  const wanted = String(req.body?.birthdate ?? "").trim();
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  if (wanted !== "") {
+    const real = /^\d{4}-\d{2}-\d{2}$/.test(wanted) && new Date(`${wanted}T00:00:00Z`).toISOString().slice(0, 10) === wanted;
+    if (!real || wanted < BIRTH_EARLIEST || wanted > today) {
+      return res.status(400).json({ error: "Enter a real date of birth", code: "BIRTHDATE_INVALID" });
+    }
+  }
+  setBirthdate(req.user.id, wanted || null);
+  res.json({ birthdate: getBirthdate(req.user.id), adult: isAdult(req.user.id) });
+});
+
 // Who somebody is: when they joined, how the people they have dealt with rate
 // them and what those people said, and what they have out for rent.
 app.get("/api/users/:username", (req, res) => {
@@ -529,7 +565,7 @@ app.get("/api/users/:username", (req, res) => {
     reviews: getReviewsOf(user.id).slice(0, REVIEWS_SHOWN),
     // Not somebody else's that this account wrote down: those are nobody's
     // by name, and are not listed as this account's.
-    items: getItemsByUser(user.id, { publicOnly: true }).filter((item) => !item.shared).map(publicItem),
+    items: getItemsByUser(user.id, { publicOnly: true }).filter((item) => !item.shared && mayView(req.user, item)).map(publicItem),
   });
 });
 
@@ -784,7 +820,7 @@ app.get("/api/items", (req, res) => {
   if (south === null || north === null || west === null || east === null || south > north) {
     return res.status(400).json({ error: "Invalid bounds" });
   }
-  res.json({ items: getItemsInBox({ south, north, west, east }).map(publicItem) });
+  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(publicItem) });
 });
 
 // The items offered at a spot: every one whose area has it inside, whether or
@@ -802,14 +838,14 @@ app.get("/api/items/at", (req, res) => {
     east: req.query.east == null ? null : parseNumber(req.query.east, -180, 180),
   };
   const whole = Object.values(box).every((edge) => edge !== null) && box.south <= box.north;
-  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).map(publicItem) });
+  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map(publicItem) });
 });
 
 // Items by what they say about themselves, for the box in the top bar.
 app.get("/api/search", (req, res) => {
   const query = text(req.query.q, 60);
   if (query.length < 1) return res.json({ items: [] });
-  res.json({ items: searchItems(query).map(publicItem) });
+  res.json({ items: searchItems(query, 200).filter((item) => mayView(req.user, item)).slice(0, 20).map(publicItem) });
 });
 
 // Which country the request comes from, for where the map opens and where its
@@ -847,6 +883,7 @@ function itemAnswer(item, viewer) {
 app.get("/api/items/:id", (req, res) => {
   const item = getItem(req.params.id);
   if (!item) return res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
+  if (!mayView(req.user, item)) return res.status(403).json(AGE_FAULT);
   res.json(itemAnswer(item, req.user));
 });
 
@@ -886,6 +923,8 @@ app.put("/api/contacts", requireSession, (req, res) => {
 app.post("/api/items", requireSession, (req, res) => {
   const parsed = parseItem(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
+  // Only an account old enough for a grown-up category puts anything in one.
+  if (isAdultCategory(parsed.item.category) && !isAdult(req.user.id)) return res.status(403).json(AGE_FAULT);
   // Somebody else's is put under the public account, in its folder, and is
   // not the account's own from the first: nothing says who wrote it down.
   const ownerId = parsed.item.shared ? PUBLIC_ID : req.user.id;
@@ -910,6 +949,12 @@ function ownItem(req, res) {
   }
   if (item.ownerId !== req.user.id && !item.shared && req.user.id !== ADMIN_ID) {
     res.status(403).json({ error: "That is not your item" });
+    return null;
+  }
+  // Somebody else's in a grown-up category is kept right only by the accounts
+  // that may see it.
+  if (!mayView(req.user, item) && req.user.id !== ADMIN_ID) {
+    res.status(403).json(AGE_FAULT);
     return null;
   }
   return item;
@@ -940,6 +985,9 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
     { regionOptional: !current.region && !("region" in (req.body ?? {})), sharedMayBeOff: current.shared },
   );
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
+  if (isAdultCategory(parsed.item.category) && parsed.item.category !== current.category && !isAdult(req.user.id)) {
+    return res.status(403).json(AGE_FAULT);
+  }
   // Its folder goes where it is kept — the public account's for somebody
   // else's (see updateItem) — and its photographs are put in it.
   const item = updateItem(current.ownerId, current.id, parsed.item);
@@ -1325,7 +1373,7 @@ app.get("/api/mine", requireSession, (req, res) => {
 // The items the signed-in account has kept to come back to (see db.js): the
 // list, and one item put on it or taken off — { on }.
 app.get("/api/bookmarks", requireSession, (req, res) => {
-  res.json({ items: getBookmarkedItems(req.user.id).map(publicItem) });
+  res.json({ items: getBookmarkedItems(req.user.id).filter((item) => mayView(req.user, item)).map(publicItem) });
 });
 
 app.put("/api/items/:id/bookmark", requireSession, (req, res) => {

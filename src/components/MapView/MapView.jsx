@@ -209,7 +209,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // them. The choices are that kind's categories, or every kind's where no
   // kind is chosen ("other" is in all three, and is listed once).
   // "Other" is always the last of them.
-  const categoryChoices = categoriesOf(kind);
+  const categoryChoices = categoriesOf(kind, Boolean(user?.adult));
   // Each one leads with its own mark, the one its pins wear on the map — and
   // the kind's mark where the category has none of its own. `text` is what
   // the search reads, since the label is no longer a plain string.

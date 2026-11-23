@@ -110,6 +110,7 @@ export const getMine = () => request("/api/mine");
 export const getAccount = () => request("/api/account");
 export const sendEmailCode = (email, lang) => send("POST", "/api/account/email/code", { email, lang });
 export const setAccountEmail = (email, code) => send("PUT", "/api/account/email", { email, code });
+export const setBirthdate = (birthdate) => send("PUT", "/api/account/birthdate", { birthdate });
 
 /* -------------------------------------------------------------------- items */
 

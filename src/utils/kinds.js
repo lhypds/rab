@@ -55,9 +55,34 @@ export const CATEGORIES = {
     "consulting",
     "event-help",
     "handyman",
+    "adult",
     "other",
   ],
 };
+
+// Categories only grown-ups are shown: an account that has said when it was
+// born and is ADULT_AGE or older (see the account sheet). The server leaves
+// them out of everything it sends anybody else, and the lists here leave them
+// out of their choices — `adult` is whether whoever is looking may see them.
+export const ADULT_CATEGORIES = ["adult"];
+export const ADULT_AGE = 18;
+
+export const isAdultCategory = (slug) => ADULT_CATEGORIES.includes(slug);
+
+// A kind's categories, without the grown-up ones unless `adult`.
+export function categoriesFor(kind, adult = false) {
+  return (CATEGORIES[kind] ?? []).filter((slug) => adult || !isAdultCategory(slug));
+}
+
+// How old somebody born on `birthdate` ("YYYY-MM-DD") is on `today` (the same
+// form), in whole years; null for a date that is not one.
+export function ageOn(birthdate, today) {
+  const born = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(birthdate ?? ""));
+  const now = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(today ?? ""));
+  if (!born || !now) return null;
+  const age = Number(now[1]) - Number(born[1]);
+  return `${now[2]}${now[3]}` < `${born[2]}${born[3]}` ? age - 1 : age;
+}
 
 // What an item is called by where it is listed among others — in a row, in a
 // pin's card: its category when it has one, and only otherwise its kind.

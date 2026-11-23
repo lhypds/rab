@@ -23,6 +23,16 @@ function lineOf(contact) {
   return { type: "phone", code: split?.code, value: String(split?.value ?? contact.value).replace(/\D/g, "") };
 }
 
+// A date of birth as its three boxes hold it: year, month and day, without
+// the noughts in front — or three empty ones.
+function partsOf(birthdate) {
+  const found = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthdate ?? "");
+  return found ? [found[1], String(Number(found[2])), String(Number(found[3]))] : ["", "", ""];
+}
+
+// How many days a month of a year has.
+const daysIn = (year, month) => new Date(Number(year), Number(month), 0).getDate();
+
 // Your own account, as a sheet over whatever page you were on: who you are
 // here, how you are reached, and the way out.
 //
@@ -32,7 +42,7 @@ function lineOf(contact) {
 // asking starts with (see the item form).
 export default function AccountModal({ isOpen, onClose }) {
   const { t, i18n } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const lang = i18n.language;
   const dialCode = dialCodeOf(useRegion().country);
@@ -55,6 +65,13 @@ export default function AccountModal({ isOpen, onClose }) {
   const [code, setCode] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailError, setEmailError] = useState("");
+  // When the account says it was born, as the date box writes it: what is in
+  // the box, and whether it is being saved.
+  const [birthdate, setBirthdate] = useState("");
+  // The same, in its three boxes: year, month and day, each "" until picked.
+  const [birthParts, setBirthParts] = useState(["", "", ""]);
+  const [birthBusy, setBirthBusy] = useState(false);
+  const [birthError, setBirthError] = useState("");
 
   useEffect(() => {
     if (!isOpen || !user) return undefined;
@@ -67,12 +84,17 @@ export default function AccountModal({ isOpen, onClose }) {
     setCodeFor("");
     setCode("");
     setEmailError("");
+    setBirthdate("");
+    setBirthParts(["", "", ""]);
+    setBirthError("");
     api
       .getAccount()
       .then((answer) => {
         if (cancelled) return;
         setAccount(answer);
         setEmail(answer.email ?? "");
+        setBirthdate(answer.birthdate ?? "");
+        setBirthParts(partsOf(answer.birthdate));
       })
       .catch(() => !cancelled && setAccount({ email: null, verify: false }));
     api
@@ -137,6 +159,59 @@ export default function AccountModal({ isOpen, onClose }) {
       setEmailError(emailFault(requestError));
     } finally {
       setEmailBusy(false);
+    }
+  }
+
+  // A box changed: the date the three come to — "" while any is unpicked —
+  // with a day the month does not have taken back to its last.
+  function pickBirth(index, value) {
+    const next = birthParts.map((part, each) => (each === index ? value : part));
+    if (next[0] && next[1] && next[2]) next[2] = String(Math.min(Number(next[2]), daysIn(next[0], next[1])));
+    setBirthParts(next);
+    setBirthdate(next.every(Boolean) ? `${next[0]}-${next[1].padStart(2, "0")}-${next[2].padStart(2, "0")}` : "");
+    setBirthError("");
+  }
+  const birthYears = useMemo(() => {
+    const now = new Date().getFullYear();
+    return Array.from({ length: now - 1900 + 1 }, (_, back) => String(now - back));
+  }, []);
+  const monthName = useMemo(() => {
+    const format = new Intl.DateTimeFormat(lang, { month: lang.startsWith("en") ? "long" : "numeric" });
+    return (month) => format.format(new Date(2000, month - 1, 1));
+  }, [lang]);
+  const birthOptions = [
+    [{ value: "", label: t("account.birthYear") }, ...birthYears.map((year) => ({ value: year, label: t("account.yearOf", { year }) }))],
+    [{ value: "", label: t("account.birthMonth") }, ...Array.from({ length: 12 }, (_, at) => ({ value: String(at + 1), label: monthName(at + 1) }))],
+    [
+      { value: "", label: t("account.birthDay") },
+      ...Array.from({ length: birthParts[0] && birthParts[1] ? daysIn(birthParts[0], birthParts[1]) : 31 }, (_, at) => ({
+        value: String(at + 1),
+        label: t("account.dayOf", { day: at + 1 }),
+      })),
+    ],
+  ];
+
+  // The date of birth, kept — or taken away, sent empty. Whether the account
+  // may see the grown-up categories comes back with it, for the lists to offer
+  // them from now on.
+  const birthWhole = birthParts.every(Boolean) || birthParts.every((part) => !part);
+  const birthChanged = Boolean(account) && birthWhole && birthdate !== (account.birthdate ?? "");
+  async function saveBirthdate(event) {
+    event.preventDefault();
+    if (birthBusy || !birthChanged) return;
+    setBirthBusy(true);
+    setBirthError("");
+    try {
+      const answer = await api.setBirthdate(birthdate);
+      setAccount({ ...account, birthdate: answer.birthdate });
+      setBirthdate(answer.birthdate ?? "");
+      setBirthParts(partsOf(answer.birthdate));
+      updateUser({ ...user, adult: answer.adult });
+      showToast(t(answer.birthdate ? "account.birthdateSaved" : "account.birthdateRemoved"), 2000);
+    } catch (requestError) {
+      setBirthError(requestError.code === "BIRTHDATE_INVALID" ? t("account.birthdateInvalid") : requestError.message);
+    } finally {
+      setBirthBusy(false);
     }
   }
 
@@ -235,6 +310,32 @@ export default function AccountModal({ isOpen, onClose }) {
           {awaitingCode ? t("auth.codeHint", { email: typedEmail }) : t("account.emailHint")}
         </span>
         {emailError && <p className="form-message error">{emailError}</p>}
+      </form>
+
+      {/* When the account was born: nobody is shown it; it is what opens the
+          grown-up categories to an account old enough for them. */}
+      <form className={styles.contacts} onSubmit={saveBirthdate} autoComplete="off">
+        <span className="field-label">{t("account.birthdate")}</span>
+        <div className={styles.contactRow}>
+          {[t("account.birthYear"), t("account.birthMonth"), t("account.birthDay")].map((name, index) => (
+            <Select
+              key={name}
+              className={styles.small}
+              fit
+              label={name}
+              value={birthParts[index]}
+              onChange={(value) => pickBirth(index, value)}
+              options={birthOptions[index]}
+              {...(index === 0 ? { searchPlaceholder: t("account.birthYear"), emptyLabel: t("account.birthYearNone") } : null)}
+            />
+          ))}
+          {birthChanged && (
+            <button type="submit" className="small-button" disabled={birthBusy}>
+              {t("common.save")}
+            </button>
+          )}
+        </div>
+        {birthError && <p className="form-message error">{birthError}</p>}
       </form>
 
       {/* How the account is reached: as many ways as are added, each a kind

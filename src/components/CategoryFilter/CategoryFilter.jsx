@@ -1,15 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { Select } from "../../ui/index.js";
-import { CATEGORIES, KINDS } from "../../utils/kinds.js";
+import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
+import { useAuth } from "../AuthProvider/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import styles from "./filter.module.css";
 
 // The categories a list can be narrowed to within `kind` — every kind's where
 // there is none ("other" is in all three, and is listed once — last, where it
 // is in every kind's own list: it is what is picked when nothing above it
-// fits).
-export function categoriesOf(kind) {
-  const all = [...new Set((KINDS.includes(kind) ? [kind] : KINDS).flatMap((each) => CATEGORIES[each]))];
+// fits). The grown-up ones are among them only where `adult` (see kinds.js).
+export function categoriesOf(kind, adult = false) {
+  const all = [...new Set((KINDS.includes(kind) ? [kind] : KINDS).flatMap((each) => categoriesFor(each, adult)))];
   return [...all.filter((slug) => slug !== "other"), ...all.filter((slug) => slug === "other")];
 }
 
@@ -29,6 +30,7 @@ export function kindOfCategory(slug) {
 // name.
 export default function CategoryFilter({ kind = null, kindLabel, value, onChange }) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const within = KINDS.includes(kind) ? kind : null;
   const withIcon = (slug, name) => (
     <span className={styles.name}>
@@ -39,7 +41,7 @@ export default function CategoryFilter({ kind = null, kindLabel, value, onChange
   const called = within ? (kindLabel ?? t(`kind.${within}`)) : null;
   const named = (slug, name) =>
     within && (slug === "" || slug === "other") ? t("item.categoryWithin", { name, kind: called }) : name;
-  const options = ["", ...categoriesOf(within)].map((slug) => {
+  const options = ["", ...categoriesOf(within, Boolean(user?.adult))].map((slug) => {
     const name = named(slug, slug ? t(`category.${slug}`, slug) : t("map.allCategories"));
     return { value: slug, label: withIcon(slug, name), text: name };
   });

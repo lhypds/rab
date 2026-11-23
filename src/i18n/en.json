@@ -74,7 +74,17 @@
     "email": "Email",
     "emailHint": "The address of the account itself. It is separate from the contact details below and is not shown to anyone.",
     "emailSaved": "Email saved",
-    "emailRemoved": "Email removed"
+    "emailRemoved": "Email removed",
+    "birthdate": "Date of birth",
+    "birthYear": "Year",
+    "birthMonth": "Month",
+    "birthDay": "Day",
+    "birthYearNone": "No such year",
+    "yearOf": "{{year}}",
+    "dayOf": "{{day}}",
+    "birthdateSaved": "Date of birth saved",
+    "birthdateRemoved": "Date of birth removed",
+    "birthdateInvalid": "Enter a real date of birth"
   },
   "messages": {
     "title": "Messages",
@@ -165,6 +175,7 @@
     "uploading": "Uploading",
     "publish": "Publish",
     "missing": "This item does not exist or has been removed.",
+    "ageRequired": "This item is in the Adult category. Set your date of birth on your account to see it.",
     "share": "Share",
     "bookmark": "Bookmark",
     "bookmarked": "Bookmarked",
@@ -484,7 +495,8 @@
     "writing": "Writing",
     "consulting": "Consulting",
     "event-help": "Event help",
-    "handyman": "Handyman"
+    "handyman": "Handyman",
+    "adult": "Adult (18+)"
   },
   "share": {
     "title": "Share",

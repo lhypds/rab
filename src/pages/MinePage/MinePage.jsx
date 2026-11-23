@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow } from "../../components/index.js";
+import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow, useAuth } from "../../components/index.js";
 import { Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
 import { KINDS } from "../../utils/kinds.js";
 
@@ -22,6 +22,7 @@ export default function MinePage() {
   const [error, setError] = useState("");
   // The filter is in the address, so coming back from an item's page lands on
   // the list that was left.
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const wanted = searchParams.get("show");
@@ -31,7 +32,7 @@ export default function MinePage() {
   // does not have is no choice at all.
   const kind = KINDS.includes(filter) ? filter : null;
   const slugWanted = searchParams.get("category") ?? "";
-  const category = categoriesOf(kind).includes(slugWanted) ? slugWanted : "";
+  const category = categoriesOf(kind, Boolean(user?.adult)).includes(slugWanted) ? slugWanted : "";
   const show = (name, slug, onlyPublished = published) => {
     const query = new URLSearchParams();
     if (name !== "all") query.set("show", name);

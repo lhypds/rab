@@ -34,7 +34,7 @@ export default function ItemPage({ id }) {
         // A page already on screen stays on screen through a request that
         // failed; only the first one has nothing else to show.
         setData((current) => {
-          if (!current) setError(requestError.status === 404 ? t("item.missing") : requestError.message);
+          if (!current) setError(requestError.status === 404 ? t("item.missing") : requestError.code === "AGE_REQUIRED" ? t("item.ageRequired") : requestError.message);
           return current;
         });
       });

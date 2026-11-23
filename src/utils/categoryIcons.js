@@ -62,6 +62,7 @@ const ICONS = {
   writing: ["M6 3h9l4 4v14H6z", "M15 3v4h4", "M9 12h7", "M9 16h7"],
   consulting: ["M3 5h18v11H10l-5 4v-4H3z", "M8 9h8", "M8 12h5"],
   "event-help": ["M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z", "M10 20a2 2 0 0 0 4 0"],
+  adult: [[12, 12, 9], "M7.5 9.5 9 8.5v7", [14.5, 10.2, 1.7], [14.5, 14, 2]],
   handyman: ["M4 4h10l4 4H4z", "M9 8h3v13H9z"],
 };
 

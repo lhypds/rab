@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
+import { ADULT_AGE, ageOn } from "../src/utils/kinds.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -252,6 +253,28 @@ export function getEmail(userId) {
 
 export function setEmail(userId, email) {
   keepAbout(userId, "email", email || null);
+}
+
+// When the account says it was born, "YYYY-MM-DD", or null where it has not
+// said: kept in its user.json, shown to nobody, and asked for only to decide
+// whether it is old enough for the grown-up categories (see kinds.js).
+export function getBirthdate(userId) {
+  const { birthdate } = readRecord(userId, USER_FILE);
+  return typeof birthdate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(birthdate) ? birthdate : null;
+}
+
+export function setBirthdate(userId, birthdate) {
+  keepAbout(userId, "birthdate", birthdate || null);
+}
+
+// Whether the account is old enough to be shown the grown-up categories: it
+// has said when it was born, and that is ADULT_AGE years ago or more today, by
+// the calendar in Japan.
+export function isAdult(userId) {
+  if (userId == null) return false;
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const age = ageOn(getBirthdate(userId), today);
+  return age !== null && age >= ADULT_AGE;
 }
 
 // Whether an address already has an account — other than `exceptId`, the
