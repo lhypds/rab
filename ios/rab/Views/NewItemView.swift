@@ -522,6 +522,11 @@ struct NewLocationView: View {
                 }
         }
         .background(Color(.systemGroupedBackground))
+        // The keyboard must not squeeze the map: were it to, the pin would
+        // slide up with the map's middle and point at some other place than
+        // the one it was put on. The map keeps its size and goes under the
+        // keyboard instead; the fields above it are never covered.
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .navigationTitle("New location")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
