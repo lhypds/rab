@@ -481,6 +481,48 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工具" } }
       }
     },
+    "Drone" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ドローン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无人机" } }
+      }
+    },
+    "Binoculars" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "双眼鏡" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "望远镜" } }
+      }
+    },
+    "Computer" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パソコン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电脑" } }
+      }
+    },
+    "Game console" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ゲーム機" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "游戏机" } }
+      }
+    },
+    "Kitchen appliances" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キッチン家電" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "厨房电器" } }
+      }
+    },
+    "Cleaning appliances" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "掃除家電" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清洁电器" } }
+      }
+    },
+    "Beauty appliances" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "美容家電" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "美容电器" } }
+      }
+    },
     "Camping gear" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンプ用品" } },

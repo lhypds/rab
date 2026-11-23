@@ -7,7 +7,7 @@ import Vision
 /// phone looks at the photo and the name and suggests it (see `suggest`).
 enum Categories {
     static let all: [Kind: [String]] = [
-        .item: ["car", "bike", "camera", "video-camera", "projector", "3d-printer", "audio", "electronics", "tools", "camping", "sports", "clothing", "other"],
+        .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "3d-printer", "audio", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
         .space: ["home", "meeting-room", "studio", "storage", "event-space", "workspace", "parking", "other"],
         .service: [
             "photography", "teaching", "repair", "moving", "cleaning", "design", "guide", "translation", "music", "fitness", "beauty",
@@ -24,6 +24,8 @@ enum Categories {
     private static let names: [String: String] = [
         "car": "Car", "bike": "Bike", "camera": "Camera", "video-camera": "Video camera", "projector": "Projector",
         "3d-printer": "3D printer", "audio": "Audio gear", "electronics": "Electronics", "tools": "Tools",
+        "drone": "Drone", "binoculars": "Binoculars", "computer": "Computer", "game-console": "Game console",
+        "kitchen-appliance": "Kitchen appliances", "cleaning-appliance": "Cleaning appliances", "beauty-appliance": "Beauty appliances",
         "camping": "Camping gear", "sports": "Sports gear", "clothing": "Clothing", "other": "Other",
         "home": "Home", "meeting-room": "Meeting room", "studio": "Studio", "storage": "Storage",
         "event-space": "Event space", "workspace": "Workspace", "parking": "Parking",
@@ -47,7 +49,14 @@ enum Categories {
         "projector": ["projector", "投影", "プロジェクター"],
         "3d-printer": ["printer", "3d", "打印机", "プリンター"],
         "audio": ["speaker", "headphone", "microphone", "amplifier", "guitar", "piano", "drum", "violin", "musical_instrument", "audio", "音响", "耳机", "麦克风", "吉他", "スピーカー", "マイク", "ギター"],
-        "electronics": ["computer", "laptop", "phone", "tablet", "television", "monitor", "console", "keyboard", "drone", "electronics", "电脑", "手机", "平板", "无人机", "パソコン", "ドローン"],
+        "drone": ["drone", "quadcopter", "无人机", "ドローン"],
+        "binoculars": ["binoculars", "telescope", "望远镜", "双眼鏡", "望遠鏡"],
+        "computer": ["computer", "laptop", "电脑", "笔记本", "パソコン", "ノートPC"],
+        "game-console": ["console", "game_controller", "gamepad", "joystick", "游戏机", "ゲーム機"],
+        "electronics": ["phone", "tablet", "television", "monitor", "keyboard", "electronics", "手机", "平板", "电视", "スマホ", "タブレット", "テレビ"],
+        "kitchen-appliance": ["microwave", "oven", "toaster", "blender", "rice_cooker", "coffee_maker", "kettle", "电饭煲", "微波炉", "烤箱", "炊飯器", "電子レンジ", "キッチン家電"],
+        "cleaning-appliance": ["vacuum", "vacuum_cleaner", "吸尘器", "扫地机", "掃除機", "掃除家電"],
+        "beauty-appliance": ["hair_dryer", "hairdryer", "hair dryer", "curling_iron", "吹风机", "卷发棒", "ドライヤー", "ヘアアイロン", "美容家電"],
         "tools": ["tool", "drill", "hammer", "saw", "wrench", "ladder", "screwdriver", "工具", "电钻", "梯子", "ドリル", "はしご"],
         "camping": ["tent", "camping", "sleeping_bag", "backpack", "lantern", "campfire", "帐篷", "露营", "テント", "キャンプ"],
         "sports": ["ball", "ski", "snowboard", "surfboard", "skateboard", "racket", "golf", "kayak", "helmet", "sport", "滑雪", "冲浪", "球拍", "スキー", "サーフ", "ゴルフ"],
