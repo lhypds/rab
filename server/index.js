@@ -41,7 +41,6 @@ const {
   getDays,
   getDaysBetween,
   getItem,
-  getItemBySource,
   getLocations,
   getItemImages,
   getItemReviews,
@@ -78,7 +77,6 @@ const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, storeImage } = awa
 const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
-const { areaAt } = await import("./area.js");
 const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
@@ -607,6 +605,24 @@ function parseRegion(value) {
   if (west === null || south === null || east === null || north === null || south > north) return null;
   const round = (number) => Math.round(number * 1e5) / 1e5;
   return { name, detail: text(value?.detail, REGION_MAX), bbox: [west, south, east, north].map(round) };
+}
+
+const HOMEPAGE_MAX = 500;
+
+// An item's own page somewhere else, as its address: http or https, with
+// "https://" put in front of one written without. Empty where there is none,
+// or where what was written is not an address.
+function readHomepage(value) {
+  const written = typeof value === "string" ? value.trim() : "";
+  if (!written || written.length > HOMEPAGE_MAX) return "";
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(written) ? written : `https://${written}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (!url.hostname.includes(".")) return "";
+    return url.href.slice(0, HOMEPAGE_MAX);
+  } catch {
+    return "";
+  }
 }
 
 // A whole item, as the form sends it. Returns the fields or a sentence about
@@ -1492,108 +1508,6 @@ app.get("/api/images/:name", (req, res) => {
       "X-Content-Type-Options": "nosniff",
     },
   });
-});
-
-/* --------------------------------------------------------------- public API */
-
-// For a crawler: registering things, spaces and services that are out for
-// rent somewhere else — a shop's, a hall's — the way an account writes down
-// somebody else's by hand (`shared`). They are kept under the public account,
-// booked by asking, and say how their owner is reached.
-//
-// Whoever holds the key in .env (RAB_API_KEY) is let in, with no account:
-// `Authorization: Bearer <key>`, or `X-API-Key: <key>`. Without a key set
-// there is no such API. Each listing says where it was read from (`source`,
-// the page's address), which is what tells it apart: sent again, the same
-// listing is changed rather than made twice, and the key reaches only the
-// listings that have a source — none that a person wrote.
-const SOURCE_MAX = 500;
-
-function requireKey(req, res, next) {
-  const key = String(process.env.RAB_API_KEY ?? "").trim();
-  if (!key) return res.status(404).json({ error: "Not found" });
-  const given = String(req.get("x-api-key") ?? sessionToken(req) ?? "");
-  const same = crypto.timingSafeEqual(Buffer.from(sessionHash(given)), Buffer.from(sessionHash(key)));
-  if (!same) return res.status(401).json({ error: "Wrong API key", code: "KEY_WRONG" });
-  next();
-}
-
-// An item's own page somewhere else, as its address: http or https, with
-// "https://" put in front of one written without. Empty where there is none,
-// or where what was written is not an address.
-function readHomepage(value) {
-  const written = typeof value === "string" ? value.trim() : "";
-  if (!written || written.length > SOURCE_MAX) return "";
-  try {
-    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(written) ? written : `https://${written}`);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    if (!url.hostname.includes(".")) return "";
-    return url.href.slice(0, SOURCE_MAX);
-  } catch {
-    return "";
-  }
-}
-
-const readSource = (value) => (typeof value === "string" ? value.trim().slice(0, SOURCE_MAX) : "");
-
-// A photograph for a listing, as its bytes (WebP, JPEG, PNG, GIF or AVIF):
-// the name it is answered with is what the listing's `images` carry.
-app.post(
-  "/api/public/images",
-  requireKey,
-  express.raw({ type: () => true, limit: MAX_IMAGE_BYTES }),
-  async (req, res, next) => {
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ error: "The image is empty" });
-    }
-    try {
-      const stored = await storeImage(PUBLIC_ID, req.body);
-      if (!stored) return res.status(415).json({ error: "Unsupported image format" });
-      res.json(stored);
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-// One listing, made or — where its source is one already — changed. A change
-// is a patch: what is left out stays as it was, so the photographs are not
-// sent again each time the page is read. An area that is not sent is found
-// from the spot (`lang` says which language it is named in).
-app.put("/api/public/items", requireKey, async (req, res) => {
-  const source = readSource(req.body?.source);
-  if (!source) return res.status(400).json({ error: "Say where the listing was read from", code: "SOURCE_REQUIRED" });
-  const current = getItemBySource(source);
-  const sent = { ...req.body };
-  // A bare price is the price: not outweighed by the rules already kept.
-  if (sent.price != null && !Array.isArray(sent.rates)) sent.rates = [{ price: sent.price }];
-  if (!sent.region && !current?.region) {
-    const latitude = sent.latitude == null ? null : parseNumber(sent.latitude, -90, 90);
-    const longitude = sent.longitude == null ? null : parseNumber(sent.longitude, -180, 180);
-    if (latitude !== null && longitude !== null) sent.region = await areaAt(latitude, longitude, sent.lang);
-  }
-  const stored = current ? { ...current, images: getItemImages(current.id) } : {};
-  const parsed = parseItem({ ...stored, ...sent, shared: true }, { sharedMayBeOff: true });
-  if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
-  const fields = { ...parsed.item, source };
-  const item = current ? updateItem(PUBLIC_ID, current.id, fields) : createItem(PUBLIC_ID, fields);
-  keepItemImages(item);
-  res.status(current ? 200 : 201).json({ item: publicItem(item), created: !current });
-});
-
-// The listing read from a page, where there is one — and it taken away, when
-// the page has gone.
-app.get("/api/public/items", requireKey, (req, res) => {
-  const item = getItemBySource(readSource(req.query.source));
-  if (!item) return res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
-  res.json({ item: publicItem(item) });
-});
-
-app.delete("/api/public/items", requireKey, (req, res) => {
-  const item = getItemBySource(readSource(req.query.source ?? req.body?.source));
-  if (!item) return res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
-  removeItem(item);
-  res.status(204).end();
 });
 
 app.use("/api", (req, res) => {

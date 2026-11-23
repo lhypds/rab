@@ -86,37 +86,6 @@ site. A report of an item, and a request to delete one of `_public`'s items, are
 to `_admin` — and only `_admin` deletes those items. It starts with no password, and
 cannot be signed in to until it has one; set one with `./rab user _admin pass <new>` and sign in as `_admin` to read them.
 
-Registering public listings (for a crawler)
---------------------------------------------
-
-Things, spaces and services that are out for rent somewhere else can be registered
-without an account, by whoever holds `RAB_API_KEY` from `.env` (unset, there is no such
-API). They are kept under `_public`, booked by asking, like one written down by hand.
-The key goes in `Authorization: Bearer <key>` or `X-API-Key: <key>`.
-
-    POST   /api/public/images          the bytes of a photo → { name }
-    PUT    /api/public/items           make a listing, or change the one with that `source`
-    GET    /api/public/items?source=   the listing read from that page
-    DELETE /api/public/items?source=   take it away
-
-    curl -X PUT http://localhost:3016/api/public/items \
-      -H "Authorization: Bearer $RAB_API_KEY" -H "Content-Type: application/json" \
-      -d '{"source": "https://example.com/rent/1", "title": "Meeting room", "kind": "space",
-           "category": "meeting-room", "price": 1500, "priceUnit": 60, "currency": "JPY",
-           "latitude": 35.0036, "longitude": 135.7595, "place": "Shijo Karasuma", "lang": "ja",
-           "contacts": [{"type": "phone", "code": "+81", "value": "075-123-4567"}],
-           "images": [{"name": "<name from /api/public/images>"}]}'
-
-`source` (the page it was read from) is what tells a listing apart: sent again, the same
-listing is changed — a patch, what is left out stays — and answered 200 rather than 201.
-Needed besides: `title`, `price`, `currency` (JPY, CNY, USD, EUR), one of `contacts`
-(`phone`, `email` or `address`), and either `region` ({ name, detail, bbox }) or a
-`latitude` and `longitude`, from which the area is found (named in `lang`: en, zh, ja).
-`homepage` is the address of its own page, shown over the contacts.
-`kind` is `item` (a thing), `space` or `service`; `category` is one of the slugs in
-`src/utils/kinds.js`; `priceUnit` is the minutes the price is for (a day where unset);
-`active: false` takes it off the map.
-
 What is kept where: `db.sqlite` holds who is signed in, and nothing else. An account is
 a folder of its own, named after its username, and everything it has is in it:
 

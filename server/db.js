@@ -486,10 +486,6 @@ function servedItem(item) {
     // Whether it is somebody else's, put here by an account that does not
     // have it: anybody signed in may then change it or delete it.
     shared: item.shared === true,
-    // Where a listing registered through the public API was found: the
-    // address of the page it was read from, and what tells it apart from
-    // every other such listing. Null for one written down by hand.
-    source: item.source ?? null,
     // Its own page somewhere else, as its address; empty where it has none.
     homepage: item.homepage ?? "",
     // How its owner is reached, where it is booked by asking: [{ type, value }].
@@ -543,14 +539,6 @@ export function getItem(id) {
 
 // Words typed into the bar at the top: matched anywhere in what an item says
 // about itself, the ones that have them in their name first.
-// The public account's item that was read from a page, by the page's address.
-export function getItemBySource(source) {
-  for (const item of itemsById.values()) {
-    if (!item.deletedAt && item.ownerId === PUBLIC_ID && item.source === source) return servedItem(item);
-  }
-  return null;
-}
-
 export function searchItems(query, limit = 20) {
   // Word by word: every word asked for is somewhere in what the item says
   // about itself, in any order — as the box over the lists reads what is
@@ -676,9 +664,6 @@ export function createItem(userId, item) {
       // sentence after the item has gone.
       deletedAt: null,
       ownerId: userId,
-      // Not one of the form's fields (see itemFields): only the public API
-      // says it, and an edit made in the form leaves it as it is.
-      source: item.source ?? null,
     });
     changedItem(itemsById.get(id));
   });
@@ -690,7 +675,6 @@ export function updateItem(userId, id, item) {
   if (!current || current.ownerId !== userId) return null;
   transaction(() => {
     Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
-    if (item.source !== undefined) current.source = item.source;
     // Said to be somebody else's, it leaves the account's folder for the
     // public account's, and is nobody's from then on.
     if (current.shared && current.ownerId !== PUBLIC_ID) {
