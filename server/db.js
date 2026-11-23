@@ -3,15 +3,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { accountFolders, moveItemDir, nameFolders, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
-import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberItems } from "./migrate.js";
+import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sqlite");
 
 // The database holds who is signed in, and that is all. An account is its
 // folder, data/users/<username>/ (see files.js): the folder's name is its
-// username, and user.json in it says the rest about it — its id, when it was
-// made, its password, its address, how it is reached. What an account has —
+// username, and user.json in it says the rest about it — its id, which is
+// when it was made, its password, its address, how it is reached. What an account has —
 // its items, its bookings, its messages, its photographs — is in the same
 // folder, each item in a folder of its own inside it. All of it is read into
 // memory when the server starts and written back, a file at a time, as it
@@ -33,8 +33,8 @@ db.exec(`
   ) WITHOUT ROWID;
 `);
 
-// What an account keeps about itself, in its folder's user.json: its id, when
-// it was made, its password, its address, how it is reached (see "users" and
+// What an account keeps about itself, in its folder's user.json: its id —
+// when it was made — its password, its address, how it is reached (see "users" and
 // "contacts" below).
 const USER_FILE = "user.json";
 
@@ -44,8 +44,8 @@ const USER_FILE = "user.json";
 //
 // The id is what everything in the folders points at — an item's owner, a
 // booking's renter, the other end of a message, a session. It is the
-// millisecond the account was made, in Unix time, like an item's; an account
-// from when the database numbered them keeps the number it was given.
+// millisecond the account was made, in Unix time, like an item's — so when it
+// was made (`createdAt`) is read off the id, and written nowhere.
 const usersById = new Map();
 const idByName = new Map();
 const nameKey = (username) => String(username ?? "").toLowerCase();
@@ -111,9 +111,14 @@ if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'use
 
 db.exec("CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at)");
 
+// Accounts from when the database numbered them are given the millisecond
+// they were made for an id, once, and what points at them follows (see
+// migrate.js).
+renumberAccounts(db, USER_FILE);
+
 // The accounts, read from the folders: every folder whose user.json has an id
 // is the account of that id, called what the folder is called. A folder
-// without one is nobody's and is left alone.
+// without one is nobody's and is left alone. When it was made is its id.
 usersById.clear();
 idByName.clear();
 for (const { username, record } of accountFolders(USER_FILE)) {
@@ -123,7 +128,7 @@ for (const { username, record } of accountFolders(USER_FILE)) {
     console.warn(`rab: data/users/${username} was not read: its id, ${id}, is also that of ${usersById.get(id).username}`);
     continue;
   }
-  remember({ id, username, createdAt: typeof record.createdAt === "string" ? record.createdAt : new Date(id).toISOString() });
+  remember({ id, username, createdAt: new Date(id).toISOString() });
 }
 
 // A new account's id: the millisecond it is made, in Unix time — the next one
@@ -134,14 +139,15 @@ function newUserId() {
   return stamp;
 }
 
-// An account, made: its folder, with a user.json saying its id, when it was
-// made, and whatever else is said of it (`about`). One whose file could not
+// An account, made: its folder, with a user.json saying its id — which is
+// when it was made — and whatever else is said of it (`about`). One whose file could not
 // be written is not left behind as a name with nothing under it.
 function addUser(username, about = {}) {
-  const user = { id: newUserId(), username, createdAt: new Date().toISOString() };
+  const id = newUserId();
+  const user = { id, username, createdAt: new Date(id).toISOString() };
   remember(user);
   try {
-    writeRecord(user.id, USER_FILE, { id: user.id, createdAt: user.createdAt, ...about });
+    writeRecord(user.id, USER_FILE, { id: user.id, ...about });
   } catch (error) {
     forget(user.id);
     throw error;

@@ -92,8 +92,8 @@ a folder of its own, named after its username, and everything it has is in it:
     data/users/<username>/items/<made>/item.json   one thing they have out for rent, with its calendar's exceptions
     data/users/<username>/items/<made>/<name>      that item's photographs, each named after its own bytes
     data/users/<username>/uploads/                 photographs sent and not yet saved with an item
-    data/users/<username>/user.json                the account itself: its id, when it was made, its password,
-                                                   its email address, how it is reached
+    data/users/<username>/user.json                the account itself: its id (when it was made, in Unix
+                                                   time), its password, its email address, how it is reached
     data/users/<username>/bookings.json            every rental they are one side of (the other side holds the same)
     data/users/<username>/messages.json            their side of every conversation
 

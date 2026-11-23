@@ -8,8 +8,9 @@ import { fileURLToPath } from "node:url";
 //   data/users/<username>/items/<made>/item.json   one thing they have out for rent, calendar included
 //   data/users/<username>/items/<made>/<name>      that item's photographs, beside it
 //   data/users/<username>/uploads/                 photographs sent and not yet an item's (see images.js)
-//   data/users/<username>/user.json                the account itself: its id, when it was made, its
-//                                                  password, its email address, how it is reached
+//   data/users/<username>/user.json                the account itself: its id (when it was made, in
+//                                                  Unix time), its password, its email address, how
+//                                                  it is reached
 //   data/users/<username>/bookings.json            every rental they are one side of
 //   data/users/<username>/messages.json            their side of every conversation
 //   data/users/<username>/bookmarks.json           the items they have kept to come back to

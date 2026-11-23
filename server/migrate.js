@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ITEM_FILE, dataDir, itemDir, itemFolders, readList, userDir, userFolders, writeItem, writeList } from "./files.js";
+import { ITEM_FILE, accountFolders, dataDir, itemDir, itemFolders, readList, userDir, userFolders, usersDir, writeItem, writeList } from "./files.js";
 
 // rab used to keep everything in db.sqlite and every photograph in one folder,
 // data/images/. This moves a database from then into the users' folders (see
@@ -270,4 +270,83 @@ export function renumberItems() {
     );
   }
   console.log(`rab: gave ${renamed.size} items the time they were made as their id`);
+}
+
+/* ---------------------------------------------------------- accounts' ids */
+
+// An account's id is the millisecond it was made, in Unix time, and its
+// user.json says that and not when it was made as well. The accounts from
+// when the database numbered them — 1, 2, 3 — are given the millisecond their
+// user.json says they were made, once, and everything that points at an
+// account by its id follows: each side of a booking, the other end of a line
+// of a conversation, a session. And no user.json goes on saying when.
+//
+// This is done before it is known which folder is whose (see db.js), so the
+// files are read where they lie. The user.json files are written last: a
+// start that fails part-way finds the old ids still in them and does the rest
+// again, what has already changed being left as it is.
+const FIRST_STAMP = 1e12;
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function writeJson(file, value) {
+  const partial = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(partial, `${JSON.stringify(value, null, 2)}\n`);
+  fs.renameSync(partial, file);
+}
+
+export function renumberAccounts(db, userFile) {
+  const accounts = accountFolders(userFile).filter(({ record }) => Number.isSafeInteger(Number(record.id)) && Number(record.id) > 0);
+  if (!accounts.some(({ record }) => Number(record.id) < FIRST_STAMP || "createdAt" in record)) return;
+
+  // The new id of each account that has an old one: when it was made — the
+  // next millisecond that is free, should two have been made in the same one.
+  const taken = new Set(accounts.map(({ record }) => Number(record.id)).filter((id) => id >= FIRST_STAMP));
+  const newIds = new Map();
+  for (const { record } of accounts) {
+    const id = Number(record.id);
+    if (id >= FIRST_STAMP || newIds.has(id)) continue;
+    const made = Date.parse(record.createdAt);
+    let stamp = Number.isFinite(made) && made >= FIRST_STAMP ? made : Date.now();
+    while (taken.has(stamp)) stamp += 1;
+    taken.add(stamp);
+    newIds.set(id, stamp);
+  }
+  const renumbered = (id) => newIds.get(id) ?? id;
+
+  if (newIds.size > 0) {
+    for (const { username } of accounts) {
+      const rewrite = (name, fields) => {
+        const file = path.join(usersDir, username, name);
+        const list = readJson(file);
+        if (!Array.isArray(list)) return;
+        let changed = false;
+        for (const entry of list) {
+          for (const field of fields) {
+            if (!newIds.has(entry?.[field])) continue;
+            entry[field] = newIds.get(entry[field]);
+            changed = true;
+          }
+        }
+        if (changed) writeJson(file, list);
+      };
+      rewrite("bookings.json", ["ownerId", "renterId"]);
+      rewrite("messages.json", ["with"]);
+    }
+    const move = db.prepare("UPDATE sessions SET user_id = ? WHERE user_id = ?");
+    for (const [from, to] of newIds) move.run(to, from);
+  }
+
+  for (const { username, record } of accounts) {
+    const { id, createdAt, ...about } = record;
+    writeJson(path.join(usersDir, username, userFile), { id: renumbered(Number(id)), ...about });
+  }
+  if (newIds.size > 0) console.log(`rab: gave ${newIds.size} accounts the millisecond they were made for an id`);
 }
