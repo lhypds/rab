@@ -28,6 +28,7 @@ import { MapTools, showSelf } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
 import { LIST_EVENT } from "../Header/Header.jsx";
+import { categoriesOf } from "../CategoryFilter/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import FilterBox from "../FilterBox/index.js";
 import ItemPreview from "../ItemPreview/index.js";
@@ -195,7 +196,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // them. The choices are that kind's categories, or every kind's where no
   // kind is chosen ("other" is in all three, and is listed once).
   const [category, setCategory] = useState("");
-  const categoryChoices = [...new Set((kind ? [kind] : KINDS).flatMap((each) => CATEGORIES[each]))];
+  // "Other" is always the last of them.
+  const categoryChoices = categoriesOf(kind);
   // Each one leads with its own mark, the one its pins wear on the map — and
   // the kind's mark where the category has none of its own. `text` is what
   // the search reads, since the label is no longer a plain string.
@@ -226,7 +228,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // And they are set out by how much each has here: the categories with the
   // most offered in this area first — within the kind in force — and the ones
   // with nothing after them, in the order they are always in. "All
-  // categories" stays at the head, being none of them.
+  // categories" stays at the head, being none of them, and "other" at the
+  // foot however much it has.
   const held = new Map();
   let heldAll = 0;
   for (const item of offered ?? []) {
@@ -243,6 +246,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     .sort(
       (a, b) =>
         (a.option.value === "" ? -1 : 0) - (b.option.value === "" ? -1 : 0) ||
+        (a.option.value === "other" ? 1 : 0) - (b.option.value === "other" ? 1 : 0) ||
         (held.get(b.option.value) ?? 0) - (held.get(a.option.value) ?? 0) ||
         a.index - b.index,
     )

@@ -5,9 +5,12 @@ import CategoryIcon from "../CategoryIcon/index.js";
 import styles from "./filter.module.css";
 
 // The categories a list can be narrowed to within `kind` — every kind's where
-// there is none ("other" is in all three, and is listed once).
+// there is none ("other" is in all three, and is listed once — last, where it
+// is in every kind's own list: it is what is picked when nothing above it
+// fits).
 export function categoriesOf(kind) {
-  return [...new Set((KINDS.includes(kind) ? [kind] : KINDS).flatMap((each) => CATEGORIES[each]))];
+  const all = [...new Set((KINDS.includes(kind) ? [kind] : KINDS).flatMap((each) => CATEGORIES[each]))];
+  return [...all.filter((slug) => slug !== "other"), ...all.filter((slug) => slug === "other")];
 }
 
 // The one kind a category belongs to, or null where it is in more than one
