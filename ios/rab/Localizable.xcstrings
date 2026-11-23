@@ -457,10 +457,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "投影机" } }
       }
     },
-    "3D printer" : {
+    "3D printing" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "3Dプリンター" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "3D 打印机" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "3Dプリント" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "3D 打印" } }
       }
     },
     "Audio gear" : {

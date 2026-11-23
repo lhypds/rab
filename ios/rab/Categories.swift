@@ -7,10 +7,10 @@ import Vision
 /// phone looks at the photo and the name and suggests it (see `suggest`).
 enum Categories {
     static let all: [Kind: [String]] = [
-        .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "3d-printer", "audio", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
+        .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "audio", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
         .space: ["home", "meeting-room", "studio", "storage", "event-space", "workspace", "parking", "other"],
         .service: [
-            "photography", "teaching", "repair", "moving", "cleaning", "design", "guide", "translation", "music", "fitness", "beauty",
+            "photography", "teaching", "repair", "moving", "cleaning", "design", "3d-printing", "guide", "translation", "music", "fitness", "beauty",
             "massage", "pet-care", "childcare", "care", "cooking", "driver", "delivery", "gardening", "it-support", "programming",
             "videography", "writing", "consulting", "event-help", "handyman", "other",
         ],
@@ -23,14 +23,14 @@ enum Categories {
 
     private static let names: [String: String] = [
         "car": "Car", "bike": "Bike", "camera": "Camera", "video-camera": "Video camera", "projector": "Projector",
-        "3d-printer": "3D printer", "audio": "Audio gear", "electronics": "Electronics", "tools": "Tools",
+        "audio": "Audio gear", "electronics": "Electronics", "tools": "Tools",
         "drone": "Drone", "binoculars": "Binoculars", "computer": "Computer", "game-console": "Game console",
         "kitchen-appliance": "Kitchen appliances", "cleaning-appliance": "Cleaning appliances", "beauty-appliance": "Beauty appliances",
         "camping": "Camping gear", "sports": "Sports gear", "clothing": "Clothing", "other": "Other",
         "home": "Home", "meeting-room": "Meeting room", "studio": "Studio", "storage": "Storage",
         "event-space": "Event space", "workspace": "Workspace", "parking": "Parking",
         "photography": "Photography", "teaching": "Teaching", "repair": "Repair", "moving": "Moving help",
-        "cleaning": "Cleaning", "design": "Design", "guide": "Guide", "translation": "Translation", "music": "Music",
+        "cleaning": "Cleaning", "design": "Design", "3d-printing": "3D printing", "guide": "Guide", "translation": "Translation", "music": "Music",
         "fitness": "Fitness", "beauty": "Beauty", "massage": "Massage", "pet-care": "Pet care", "childcare": "Childcare",
         "care": "Care", "cooking": "Cooking", "driver": "Driver", "delivery": "Delivery", "gardening": "Gardening",
         "it-support": "IT support", "programming": "Programming", "videography": "Videography", "writing": "Writing",
@@ -47,7 +47,6 @@ enum Categories {
         "camera": ["camera", "lens", "tripod", "相机", "镜头", "カメラ", "レンズ"],
         "video-camera": ["camcorder", "video_camera", "video camera", "摄像机", "ビデオカメラ"],
         "projector": ["projector", "投影", "プロジェクター"],
-        "3d-printer": ["printer", "3d", "打印机", "プリンター"],
         "audio": ["speaker", "headphone", "microphone", "amplifier", "guitar", "piano", "drum", "violin", "musical_instrument", "audio", "音响", "耳机", "麦克风", "吉他", "スピーカー", "マイク", "ギター"],
         "drone": ["drone", "quadcopter", "无人机", "ドローン"],
         "binoculars": ["binoculars", "telescope", "望远镜", "双眼鏡", "望遠鏡"],
@@ -76,6 +75,7 @@ enum Categories {
         "moving": ["moving", "mover", "搬家", "引越"],
         "cleaning": ["cleaning", "cleaner", "清洁", "保洁", "打扫", "掃除", "清掃"],
         "design": ["design", "设计", "デザイン"],
+        "3d-printing": ["3d print", "3d printing", "3d打印", "3d 打印", "3dプリント", "3dプリンター"],
         "guide": ["guide", "tour", "向导", "导游", "ガイド", "案内"],
         "translation": ["translat", "interpret", "翻译", "口译", "翻訳", "通訳"],
         "music": ["music", "band", "dj", "音乐", "演奏", "音楽"],

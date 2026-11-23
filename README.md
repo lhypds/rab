@@ -10,7 +10,7 @@ as a pin, with its main photograph over it and its price under it. The row along
 bottom narrows the pins to things, spaces or services; the search in the corner finds a
 place inside your country, and the plane in the top bar goes anywhere else.
 
-Three kinds of thing can be rented: a **thing** (a car, a camera, a 3D printer), a
+Three kinds of thing can be rented: a **thing** (a car, a camera, a projector), a
 **space** (a home, a meeting room, storage, a music studio) and a **service** (somebody's
 time). Each is booked one of two ways, and priced by rules its owner writes: **by the
 date** — an ordinary day's price, plus rules for some days of the week or some dates — or
