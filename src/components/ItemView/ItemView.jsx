@@ -360,7 +360,8 @@ export default function ItemView({
               <CategoryIcon kind={item.kind} category={item.category} />
               {item.category ? t(`category.${item.category}`, item.category) : t(`kind.${item.kind}`)}
             </span>
-            {item.category && <span>{t(`kind.${item.kind}`)}</span>}
+            {/* One with a category says that and not its kind as well: the
+                category is within the kind, and says more. */}
           </p>
           <h1 className={styles.title}>{item.title}</h1>
           <p className={styles.meta}>
