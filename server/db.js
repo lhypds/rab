@@ -1248,6 +1248,58 @@ export function deleteLocation(userId, id) {
   return true;
 }
 
+/* ------------------------------------------------------------------- pages */
+
+// The pages an account makes of what it has out — "Liu's Music Gear Store": a
+// name, a word about it, one kind, and some of the account's own items of that
+// kind, in the order it put them. A page of things is a store and a page of
+// spaces is a space; both stand at one of the account's locations, a copy of
+// which the page carries, as an item does. A page of services may say where
+// or not. A list in its folder's pages.json, read and written as they are
+// asked for, like the locations. An item deleted since, or of another kind
+// now, is left in the file and left out of what is read.
+const PAGES_FILE = "pages.json";
+export const PAGES_MAX = 50;
+
+export function getPages(userId) {
+  return readList(userId, PAGES_FILE);
+}
+
+// A page as it goes out, with its items as a list shows them: only the
+// published ones where `publicOnly`, as on somebody's own page.
+export function servedPage(userId, page, { publicOnly = false } = {}) {
+  const items = (page.itemIds ?? [])
+    .map((id) => liveItem(id))
+    .filter((item) => item && item.ownerId === userId && (item.kind || "item") === page.kind && (!publicOnly || item.active))
+    .map(servedItem);
+  return { ...page, owner: nameOf(userId), items };
+}
+
+// Kept under the id it came with where it is one of the account's pages,
+// replacing what was there; a new one otherwise. Null where there are as
+// many as an account keeps.
+export function savePage(userId, page) {
+  const list = getPages(userId);
+  const at = page.id ? list.findIndex((each) => each.id === page.id) : -1;
+  if (page.id && at === -1) return null;
+  if (at === -1 && list.length >= PAGES_MAX) return null;
+  const time = now();
+  const id = at === -1 ? crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x") : page.id;
+  const saved = { ...page, id, createdAt: at === -1 ? time : list[at].createdAt, updatedAt: time };
+  if (at === -1) list.push(saved);
+  else list[at] = saved;
+  writeList(userId, PAGES_FILE, list);
+  return saved;
+}
+
+export function deletePage(userId, id) {
+  const list = getPages(userId);
+  const kept = list.filter((each) => each.id !== id);
+  if (kept.length === list.length) return false;
+  writeList(userId, PAGES_FILE, kept);
+  return true;
+}
+
 /* --------------------------------------------------------------- bookmarks */
 
 // The items an account has kept to come back to — other people's, mostly: a

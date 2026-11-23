@@ -567,5 +567,47 @@
     "placeholderOther": "Say what is wrong",
     "send": "Submit",
     "sent": "Report sent"
+  },
+  "page": {
+    "title": "Pages",
+    "new": "New page",
+    "edit": "Edit page",
+    "empty": "No pages yet. Make a store, a space or a page of your services out of what you have posted.",
+    "count_one": "{{count}} item",
+    "count_other": "{{count}} items",
+    "missing": "There is no such page.",
+    "kinds": {
+      "item": "Store",
+      "space": "Space",
+      "service": "Service"
+    },
+    "name": "Name",
+    "namePlaceholder": {
+      "item": "Liu's Music Gear Store",
+      "space": "The rehearsal studio",
+      "service": "Lessons and repairs"
+    },
+    "description": "About it",
+    "locationChoose": "Choose a location",
+    "locationNone": "No location",
+    "locationsEmpty": "No saved locations yet. Add one on your account's sheet (the person in the top bar), then choose it here.",
+    "locationRequired": "Required: a store or a space stands at one of your locations.",
+    "locationOptional": "Optional for services.",
+    "items": "Items on it",
+    "itemsNone": {
+      "item": "You have posted no things yet.",
+      "space": "You have posted no spaces yet.",
+      "service": "You have posted no services yet."
+    },
+    "unpublished": "not published",
+    "remove": "Delete page",
+    "saved": "Page saved",
+    "removed": "Page deleted",
+    "itemsHeading": {
+      "item": "Things",
+      "space": "Spaces",
+      "service": "Services"
+    },
+    "itemsEmpty": "Nothing on this page yet."
   }
 }

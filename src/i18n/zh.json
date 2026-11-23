@@ -556,5 +556,46 @@
     "placeholderOther": "请说明问题",
     "send": "提交",
     "sent": "报告已发送"
+  },
+  "page": {
+    "title": "页面",
+    "new": "新建页面",
+    "edit": "编辑页面",
+    "empty": "还没有页面。用你发布的东西开一个商店、场地或服务页面。",
+    "count_other": "{{count}} 项",
+    "missing": "没有这个页面。",
+    "kinds": {
+      "item": "商店",
+      "space": "场地",
+      "service": "服务"
+    },
+    "name": "名称",
+    "namePlaceholder": {
+      "item": "Liu 的乐器商店",
+      "space": "排练室",
+      "service": "课程与维修"
+    },
+    "description": "介绍",
+    "locationChoose": "选择地点",
+    "locationNone": "不设地点",
+    "locationsEmpty": "还没有保存的地点。先在账户页（顶栏的人像）添加一个，再在这里选择。",
+    "locationRequired": "必填：商店和场地必须关联一个你的地点。",
+    "locationOptional": "服务可以不设地点。",
+    "items": "包含的物品",
+    "itemsNone": {
+      "item": "你还没有发布物品。",
+      "space": "你还没有发布场地。",
+      "service": "你还没有发布服务。"
+    },
+    "unpublished": "未发布",
+    "remove": "删除页面",
+    "saved": "页面已保存",
+    "removed": "页面已删除",
+    "itemsHeading": {
+      "item": "物品",
+      "space": "场地",
+      "service": "服务"
+    },
+    "itemsEmpty": "这个页面还没有内容。"
   }
 }

@@ -29,6 +29,7 @@ const {
   deleteExpiredSessions,
   deleteItem,
   deleteLocation,
+  deletePage,
   deleteSession,
   getBookmarkedItems,
   getBooking,
@@ -43,6 +44,7 @@ const {
   getDaysBetween,
   getItem,
   getLocations,
+  getPages,
   getItemImages,
   getItemReviews,
   getItemsAt,
@@ -60,6 +62,9 @@ const {
   readConversation,
   saveContacts,
   saveLocation,
+  savePage,
+  servedPage,
+  PAGES_MAX,
   saveSession,
   searchItems,
   setBookingStatus,
@@ -566,7 +571,81 @@ app.get("/api/users/:username", (req, res) => {
     // Not somebody else's that this account wrote down: those are nobody's
     // by name, and are not listed as this account's.
     items: getItemsByUser(user.id, { publicOnly: true }).filter((item) => !item.shared && mayView(req.user, item)).map(publicItem),
+    // The pages they made of them, each with how many of its items are shown
+    // and the first one's picture.
+    pages: getPages(user.id).map((page) => {
+      const { items, ...rest } = pageAnswer(user, page, req.user);
+      return { ...rest, count: items.length, thumb: items[0]?.thumb ?? null };
+    }),
   });
+});
+
+/* -------------------------------------------------------------------- pages */
+
+// A page's own name and word about it, as long as they get.
+const PAGE_NAME_MAX = 80;
+const PAGE_ABOUT_MAX = 2000;
+const PAGE_ITEMS_MAX = 200;
+
+// A page as it goes out to whoever is looking: to its owner every item on it,
+// and to anybody else the published ones they may see.
+function pageAnswer(owner, page, viewer) {
+  const own = viewer?.id === owner.id;
+  const { itemIds, ...served } = servedPage(owner.id, page, { publicOnly: !own });
+  return { ...served, items: served.items.filter((item) => own || mayView(viewer, item)).map(publicItem) };
+}
+
+// What the form says about a page, as it is kept, or a fault to answer with.
+// A store and a space stand at one of the account's locations, which the page
+// keeps a copy of; a service may. The copy a page already has (`kept`) stays
+// its own while it is still chosen, though the location has gone since.
+function parsePage(userId, body, kept = null) {
+  const name = text(body?.name, PAGE_NAME_MAX);
+  if (!name) return { fault: "A page needs a name" };
+  const kind = String(body?.kind ?? "");
+  if (!KINDS.has(kind)) return { fault: "A page is of things, spaces or services" };
+  let location = null;
+  if (body?.locationId) {
+    const id = String(body.locationId);
+    const found = getLocations(userId).find((each) => each.id === id) ?? (kept?.location?.id === id ? kept.location : null);
+    if (!found) return { fault: "No such location" };
+    location = { id: found.id, name: found.name, address: found.address ?? "", latitude: found.latitude, longitude: found.longitude, region: found.region ?? null };
+  }
+  if (!location && kind !== "service") return { fault: "A store or a space needs a location" };
+  // Only the account's own items of the page's kind, each once.
+  const own = new Set(getItemsByUser(userId).filter((item) => !item.shared && (item.kind || "item") === kind).map((item) => item.id));
+  const ids = Array.isArray(body?.itemIds) ? body.itemIds.map(String) : [];
+  const itemIds = [...new Set(ids)].filter((id) => own.has(id)).slice(0, PAGE_ITEMS_MAX);
+  return { page: { name, kind, description: text(body?.description, PAGE_ABOUT_MAX), location, itemIds } };
+}
+
+app.get("/api/users/:username/pages/:id", (req, res) => {
+  const user = getUser(normalizeUsername(req.params.username));
+  const page = user && user.id !== PUBLIC_ID ? getPages(user.id).find((each) => each.id === req.params.id) : null;
+  if (!page) return res.status(404).json({ error: "No such page" });
+  res.json({ page: pageAnswer(user, page, req.user) });
+});
+
+app.post("/api/pages", requireSession, (req, res) => {
+  const { page, fault } = parsePage(req.user.id, req.body);
+  if (fault) return res.status(400).json({ error: fault });
+  const saved = savePage(req.user.id, page);
+  if (!saved) return res.status(409).json({ error: `An account keeps at most ${PAGES_MAX} pages`, code: "PAGES_FULL" });
+  res.status(201).json({ page: pageAnswer(req.user, saved, req.user) });
+});
+
+app.patch("/api/pages/:id", requireSession, (req, res) => {
+  const kept = getPages(req.user.id).find((each) => each.id === req.params.id);
+  if (!kept) return res.status(404).json({ error: "No such page" });
+  const { page, fault } = parsePage(req.user.id, req.body, kept);
+  if (fault) return res.status(400).json({ error: fault });
+  const saved = savePage(req.user.id, { ...page, id: req.params.id });
+  res.json({ page: pageAnswer(req.user, saved, req.user) });
+});
+
+app.delete("/api/pages/:id", requireSession, (req, res) => {
+  if (!deletePage(req.user.id, req.params.id)) return res.status(404).json({ error: "No such page" });
+  res.status(204).end();
 });
 
 /* -------------------------------------------------------------------- items */

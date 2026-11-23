@@ -556,5 +556,46 @@
     "placeholderOther": "問題の内容を書いてください",
     "send": "送信",
     "sent": "報告を送信しました"
+  },
+  "page": {
+    "title": "ページ",
+    "new": "新しいページ",
+    "edit": "ページを編集",
+    "empty": "ページはまだありません。投稿したものからストア、スペース、サービスのページを作れます。",
+    "count_other": "{{count}}件",
+    "missing": "そのページはありません。",
+    "kinds": {
+      "item": "ストア",
+      "space": "スペース",
+      "service": "サービス"
+    },
+    "name": "名前",
+    "namePlaceholder": {
+      "item": "Liuの楽器ストア",
+      "space": "リハーサルスタジオ",
+      "service": "レッスンと修理"
+    },
+    "description": "紹介",
+    "locationChoose": "場所を選ぶ",
+    "locationNone": "場所なし",
+    "locationsEmpty": "保存した場所がまだありません。アカウント（上のバーの人のマーク）で追加してから、ここで選んでください。",
+    "locationRequired": "必須：ストアとスペースは自分の場所のどれかに置きます。",
+    "locationOptional": "サービスは場所なしでも構いません。",
+    "items": "載せるもの",
+    "itemsNone": {
+      "item": "モノをまだ投稿していません。",
+      "space": "スペースをまだ投稿していません。",
+      "service": "サービスをまだ投稿していません。"
+    },
+    "unpublished": "非公開",
+    "remove": "ページを削除",
+    "saved": "ページを保存しました",
+    "removed": "ページを削除しました",
+    "itemsHeading": {
+      "item": "モノ",
+      "space": "スペース",
+      "service": "サービス"
+    },
+    "itemsEmpty": "このページにはまだ何もありません。"
   }
 }

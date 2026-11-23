@@ -37,6 +37,13 @@ is messages: one conversation per person, with every booking request, confirmati
 refusal and cancellation arriving in it as a line of its own. "My items" is what you
 have out and who has asked for it; "My rentals" is what you have asked other people for.
 
+On your own page (`/u/<name>`) you can make **pages** of what you have posted: a page of
+things is a store, a page of spaces is a space, a page of services is just that. Each has
+a name, a word about it, and the items of its kind you tick for it; a store and a space
+stand at one of your saved locations, a page of services may or may not. Its address
+(`/u/<name>/p/<id>`) shows the map, the items with their prices, and each is booked on its
+own page.
+
 Modelled on [`lo`](../lo/lo): the same stack, the same look, the same message sheets.
 
 
@@ -65,7 +72,7 @@ Layout
     server/rates.js    pricing rules and hours: by the date, by the date and time
     server/region.js   country of a request, from its address (ipwho.is)
     server/images.js   photo storage, each item's in its own folder
-    src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, AuthPage
+    src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, PagePage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
     src/ui/            Modal, ActionButton, Select, TextArea, Toast, Router — lo's own

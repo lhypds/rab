@@ -1,0 +1,60 @@
+/* The fields one under another, with air between them. */
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* The account's items of the page's kind, one to a line, ticked to be on it. */
+.items {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.items li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.itemLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.itemLine img {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+}
+
+.itemText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemMeta {
+  color: var(--muted);
+}
+
+/* Taking the page off stands apart from saving it, at the far left. */
+.remove {
+  margin-right: auto;
+}
