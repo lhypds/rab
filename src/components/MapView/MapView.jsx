@@ -675,7 +675,10 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const pick = (list, row) => {
     if (!row) return;
     list.dataset.keyed = "";
-    row.querySelector("a")?.focus();
+    // The whole row is brought into view, margins and all — focusing its link
+    // would bring only the link, and leave the row cut by the frame's edge.
+    row.querySelector("a")?.focus({ preventScroll: true });
+    row.scrollIntoView({ block: "nearest", inline: "nearest" });
     if (listing) return;
     const item = listed?.[[...list.children].indexOf(row)];
     if (!item?.located) {
