@@ -6,7 +6,7 @@ import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } fro
 import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
 import { CATEGORIES, KINDS } from "../../utils/kinds.js";
-import { AREA_TYPES, DEFAULT_VIEW, MAPBOX_TOKEN, areaAt, areaOf, geocode, placeName, savedView } from "../../utils/mapbox.js";
+import { AREA_TYPES, DEFAULT_VIEW, MAPBOX_TOKEN, areaAt, areaOf, geocode, locate, locationPermission, placeName, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { openPreview, writePreview } from "../../utils/preview.js";
 import { clockOf, hourPrice, listPrice, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
@@ -389,6 +389,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // Whether the place line is the reader's own words. Until it is, it follows
   // the pin: the name of wherever the map has been dragged to.
   const placeTyped = useRef(false);
+  // Whether the area was picked by hand. Until it is, it is the town the item
+  // is in: the reader's own, or the pin's once there is one.
+  const regionPicked = useRef(false);
   // The account's own places, to put the item at one without finding the spot
   // again; and the name being given to the spot on the map, while it is being
   // saved as one of them.
@@ -407,6 +410,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     setStep("item");
     setUploading(0);
     placeTyped.current = Boolean(item?.place);
+    regionPicked.current = Boolean(item?.region);
     setNaming(null);
     setHoursDay(today());
     api
@@ -482,12 +486,15 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   }
 
   // One of the account's own places: the pin goes to its spot, the line under
-  // the pin is its address, and the item is offered in its area. The address
-  // is the place's own, so it stays put rather than following the pin.
+  // the pin is its address, and the item is offered in its area — the place's
+  // own where it has one, and the town its pin stands in either way (see
+  // below), over any area picked before. The address is the place's own, so it
+  // stays put rather than following the pin.
   function putAt(id) {
     const location = locations.find((each) => each.id === id);
     if (!location) return;
     placeTyped.current = true;
+    regionPicked.current = false;
     setFields((current) => ({
       ...current,
       located: true,
@@ -530,26 +537,37 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     }
   }
 
-  // An item with a pin and no area yet is offered the area its pin stands in:
-  // the answer most people would give, there to be changed. Asked a moment
-  // after the pin stops, and never over an area somebody has picked.
-  const hasRegion = Boolean(fields.region);
+  // Until somebody picks an area, the item is offered in the town it is in:
+  // the one the pin stands in, where it has a pin — asked a moment after the
+  // pin stops, and again wherever it is moved to — and otherwise the one the
+  // reader is in, from where the browser says they are, or failing that from
+  // where the map is looking. The answer most people would give, there to be
+  // changed; and never written over one somebody has picked.
   useEffect(() => {
-    if (!isOpen || !located || hasRegion || !MAPBOX_TOKEN) return undefined;
+    if (!isOpen || !MAPBOX_TOKEN || regionPicked.current) return undefined;
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      areaAt(latitude, longitude, lang, controller.signal)
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      let spot = located ? { latitude, longitude } : null;
+      if (!spot) {
+        const permission = await locationPermission();
+        if (permission !== "denied" && permission !== "unsupported") spot = await locate();
+        spot ??= savedView() ?? currentRegion().center;
+      }
+      if (cancelled || !spot) return;
+      areaAt(spot.latitude, spot.longitude, lang, controller.signal)
         .then((area) => {
           const region = areaOf(area);
-          if (region) setFields((current) => (current.region ? current : { ...current, region }));
+          if (region && !cancelled && !regionPicked.current) setFields((current) => ({ ...current, region }));
         })
         .catch(() => {});
-    }, 500);
+    }, located ? 500 : 0);
     return () => {
+      cancelled = true;
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [isOpen, located, hasRegion, latitude, longitude, lang]);
+  }, [isOpen, located, latitude, longitude, lang]);
 
   // The day pressed on the calendar of an item booked by the time, and the week
   // it is in, Sunday first: the seven dates the timetable shows.
@@ -961,10 +979,18 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 is on the left, and where it is on the right. */}
             <div className={styles.column}>
               {/* The area it is offered in, which every item has to say: it is
-                  what lists it for the people looking there, pin or no pin. */}
+                  what lists it for the people looking there, pin or no pin.
+                  Filled in with the town the item is in; changing it, or
+                  starting to, makes it the reader's own choice. */}
               <div className="field">
                 <span className="field-label">{t("item.region")}</span>
-                <AreaField value={fields.region} onChange={(region) => set("region", region)} />
+                <AreaField
+                  value={fields.region}
+                  onChange={(region) => {
+                    regionPicked.current = true;
+                    set("region", region);
+                  }}
+                />
                 <span className={styles.hint}>{t("item.regionHint")}</span>
               </div>
 

@@ -39,7 +39,18 @@ struct NewItemView: View {
     /// The location it is attached to, if any.
     @State private var locationId: String?
     @State private var choosingLocation = false
+    /// The location was chosen by hand, so where the phone is no longer
+    /// decides it.
+    @State private var locationPicked = false
+    /// The location was chosen by the phone: it is within a block of it.
+    @State private var locationAuto = false
+    /// The area the phone is in. Nil until it has been found, and after that
+    /// where it could not be.
     @State private var region: Region?
+    /// The phone is still being asked where it is.
+    @State private var locating = true
+    /// The phone will not say where it is, and only Settings can change that.
+    @State private var locationDenied = false
 
     @State private var saving = false
     @State private var error: String?
@@ -47,6 +58,12 @@ struct NewItemView: View {
 
     private var shown: UIImage {
         (background == nil ? nil : composed) ?? original
+    }
+
+    /// The area it is offered in: the location's, where it is attached to one
+    /// that knows its own; the phone's otherwise.
+    private var offeredIn: Region? {
+        model.location(locationId)?.region ?? region
     }
 
     var body: some View {
@@ -138,6 +155,40 @@ struct NewItemView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     }
+                } footer: {
+                    if locationAuto, model.location(locationId) != nil {
+                        Text("Chosen for you: you are within 100 m of it.")
+                    }
+                }
+                // The area follows from the location, and stands close under it.
+                .listSectionSpacing(12)
+
+                // Where it is offered: the city the location is in, or the one
+                // the phone is in. Not asked for — found — but shown, so that
+                // what the item will say of itself is no surprise.
+                Section {
+                    LabeledContent("Area") {
+                        if let offeredIn {
+                            Text(verbatim: offeredIn.name)
+                        } else if locating {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(verbatim: "—")
+                        }
+                    }
+                    if locationDenied, offeredIn == nil, let settings = URL(string: UIApplication.openSettingsURLString) {
+                        Link("Open Settings", destination: settings)
+                    }
+                } footer: {
+                    if offeredIn != nil, model.location(locationId)?.region != nil {
+                        Text("The area the location is in.")
+                    } else if offeredIn != nil {
+                        Text("The area you are in. Attach a location to offer it somewhere else.")
+                    } else if locationDenied {
+                        Text("rab needs to know where you are to say which area it is offered in. Allow location in Settings, or attach a location.")
+                    } else if !locating {
+                        Text("rab could not tell which area you are in. Attach a location, or try again.")
+                    }
                 }
 
                 if let error {
@@ -190,7 +241,13 @@ struct NewItemView: View {
                 Text("It is not in your items on rab yet: \(savedOffline ?? ""). You can add it from the item's page.")
             }
             .sheet(isPresented: $choosingLocation) {
-                LocationPicker(selection: $locationId)
+                // A location chosen here is the user's own word, and stays
+                // chosen wherever the phone turns out to be.
+                LocationPicker(selection: Binding(get: { locationId }, set: { chosen in
+                    locationId = chosen
+                    locationPicked = true
+                    locationAuto = false
+                }))
             }
             .task { await removeBackground() }
             .task { await describe() }
@@ -259,15 +316,35 @@ struct NewItemView: View {
         composed = cutOut.over(UIColor(background))
     }
 
-    /// The area it is offered in is where the phone is; nobody is asked. Looked
-    /// up while the form is filled in, so it is there by the time of Save.
+    /// Where the phone is decides two things, looked up while the form is
+    /// filled in so that they are there by the time of Save: the area the item
+    /// is offered in, which is the city the phone is in; and, where the phone
+    /// is within a block of one of the user's own places, the place the item is
+    /// at — unless one has been chosen by hand in the meantime. The places are
+    /// brought up to date first, so that one added on the website counts.
     private func findArea() async {
-        region = await Area.here()
+        defer { locating = false }
+        async let loaded: Void = model.loadLocations()
+        let found = await Area.whereabouts()
+        await loaded
+        region = found.region
+        locationDenied = found.position == nil && Area.denied
+        guard let position = found.position, !locationPicked, locationId == nil else { return }
+        if let near = Area.place(near: position, among: model.locations) {
+            locationId = near.id
+            locationAuto = true
+        }
     }
 
     private func save() {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return error = String(localized: "Give it a name") }
+        // Every item says where it is offered, and the phone's own position is
+        // the only way this form has of knowing: without it, a location that
+        // knows its area has to be attached instead.
+        guard offeredIn != nil else {
+            return error = String(localized: "rab could not tell which area you are in. Allow location and try again.")
+        }
         error = nil
         saving = true
         Task {

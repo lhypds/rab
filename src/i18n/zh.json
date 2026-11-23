@@ -108,7 +108,7 @@
     "regionPlaceholder": "搜索城市或地区",
     "regionChange": "更换",
     "regionRequired": "请选择服务地区",
-    "regionHint": "必填。在地图上看这个地区的人会在列表里看到它，即使没有添加位置。",
+    "regionHint": "必填。默认为你当前所在的城市；添加位置后，默认为该位置所在的城市。在地图上看这个地区的人会在列表里看到它，即使没有添加位置。",
     "perDay": "{{price}}/天",
     "aDay": "每天",
     "newTitle": "发布出租",

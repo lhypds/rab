@@ -21,7 +21,8 @@ the clock. The clock is cut in half hours.
 The plus in the top bar publishes one: kind and category, name, description, up to a
 hundred photographs (compressed in the browser; the first is the main one), the pricing
 rules, a calendar to close the days it cannot be had, the area it is offered in (a town,
-a ward, a prefecture — required), and optionally a pin on the map. Beside the map is the
+a ward, a prefecture — required, and filled in with the city you are in, or the city
+the pin stands in once there is one), and optionally a pin on the map. Beside the map is the
 name of the area in its middle and a list of everything offered there, pin or no pin.
 Preview shows the page all of that comes to before anything is public.
 

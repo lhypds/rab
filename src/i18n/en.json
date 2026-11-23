@@ -110,7 +110,7 @@
     "regionPlaceholder": "Search for a city or region",
     "regionChange": "Change",
     "regionRequired": "Pick the area it is offered in",
-    "regionHint": "Required. Anyone looking at this area on the map sees it in the list, even without a location.",
+    "regionHint": "Required. Filled in with the city you are in, or the location's city once you add one. Anyone looking at this area on the map sees it in the list, even without a location.",
     "perDay": "{{price}}/day",
     "aDay": "a day",
     "newTitle": "Rent something out",

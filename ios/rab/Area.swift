@@ -54,6 +54,11 @@ enum Area {
         return (region(from: placemark), parts.isEmpty ? nil : parts.joined(separator: ", "))
     }
 
+    /// How close to one of the user's places the phone has to be for the place
+    /// to be taken as where a new item is: a hundred metres, the width of a
+    /// block, which is as near as a phone's fix is sure of.
+    static let nearby: CLLocationDistance = 100
+
     /// Where the phone is, where it is allowed to say.
     @MainActor
     static func position() async -> CLLocationCoordinate2D? {
@@ -63,9 +68,49 @@ enum Area {
     /// The area the phone is in, where it is allowed to say.
     @MainActor
     static func here() async -> Region? {
-        guard let location = await LocationOnce().location() else { return nil }
-        guard let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first else { return nil }
-        return region(from: placemark)
+        await whereabouts().region
+    }
+
+    /// Where the phone is and the area that is in, where it is allowed to say:
+    /// the spot alone where the geocoder knows no area, and neither where the
+    /// phone will not say.
+    @MainActor
+    static func whereabouts() async -> (position: CLLocationCoordinate2D?, region: Region?) {
+        guard let location = await LocationOnce().location() else { return (nil, nil) }
+        guard let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first else { return (location.coordinate, nil) }
+        return (location.coordinate, region(from: placemark))
+    }
+
+    /// Whether the phone has been told it may not say where it is: by the
+    /// user, or by a restriction on the phone. Then only Settings can change
+    /// the answer, and asking again does nothing.
+    static var denied: Bool {
+        switch CLLocationManager().authorizationStatus {
+        case .denied, .restricted: true
+        default: false
+        }
+    }
+
+    /// Puts the system's question — may rab know where the phone is — where
+    /// it has not been answered yet, and waits for the answer. Asked when the
+    /// app opens, so that the question is not first met in the middle of a
+    /// form: the area an item is offered in comes from where the phone is.
+    @MainActor
+    static func ask() async {
+        guard CLLocationManager().authorizationStatus == .notDetermined else { return }
+        _ = await LocationOnce().location()
+    }
+
+    /// The nearest of the user's places to a spot, where one is within
+    /// `nearby` of it: the place a thing photographed here is most likely at.
+    static func place(near position: CLLocationCoordinate2D, among locations: [SavedLocation]) -> SavedLocation? {
+        let here = CLLocation(latitude: position.latitude, longitude: position.longitude)
+        let distances = locations.compactMap { location -> (SavedLocation, CLLocationDistance)? in
+            guard let latitude = location.latitude, let longitude = location.longitude else { return nil }
+            return (location, here.distance(from: CLLocation(latitude: latitude, longitude: longitude)))
+        }
+        guard let nearest = distances.min(by: { $0.1 < $1.1 }), nearest.1 <= nearby else { return nil }
+        return nearest.0
     }
 }
 

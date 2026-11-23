@@ -35,13 +35,19 @@ black or any other — or leave the photo as it was taken, which is how it
 starts. Where no subject is found the photo is kept as it is, and the form
 says so.
 
-**Put it in your items.** A name, a day's price and its currency, and the area it
-is offered in — suggested from where the phone is, or typed and looked up. Save
-keeps it on the phone and, with the switch on, publishes it to rab exactly as the
-website's form would: the photograph and a small copy are uploaded, then the
-item carrying their names. It then shows in "My items" on rab and on the map
-there. If publishing fails (no network, say), the item is still saved, and the
-item's own page has a button to add it to rab later.
+**Put it in your items.** Its kind and category, a name and a description — filled
+in from the photo by rab's server, and yours to change — and the location it is
+kept at, one of your own places or none. The area it is offered in is not asked
+for: it is the city the phone is in, or the city the location is in once one is
+attached, and the form shows which. So the app asks for your location as soon as
+you are signed in, and will not put an item in your items without knowing the
+area; where location is refused, the list says so, with the way to Settings. If
+the phone is within 100 m of one of your places when the form opens, that place
+is chosen for you. Save keeps it on the phone and publishes it to rab exactly as
+the website's form would: the photograph and a small copy are uploaded, then the
+item carrying their names. It then shows in "My items" on rab and, with a
+location, on the map there. If publishing fails (no network, say), the item is
+still saved, and the item's own page has a button to add it to rab later.
 
 
 Where the data is

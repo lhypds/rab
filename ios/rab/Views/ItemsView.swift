@@ -18,10 +18,14 @@ private enum Route: Hashable {
 /// only under them — and the camera.
 struct ItemsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var capture: Capture?
     @State private var picked: PhotosPickerItem?
     @State private var signingOut = false
+    /// The phone will not say where it is, which rab needs to say where an
+    /// item is offered: said under the bar until Settings says otherwise.
+    @State private var locationDenied = false
 
     private var listings: [Listing] { model.listings ?? [] }
 
@@ -85,23 +89,40 @@ struct ItemsView: View {
             // Asked each time the list comes on screen.
             .task { await model.loadListings() }
             .task { await model.loadLocations() }
+            // Where the phone is, rab has to know: it is the area a new item is
+            // offered in. So the system's question is put as soon as somebody
+            // is signed in, not first met in the middle of a form — and where
+            // the answer is no, the list says so until Settings says yes.
+            .task {
+                await Area.ask()
+                locationDenied = Area.denied
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Back from Settings, say.
+                if phase == .active { locationDenied = Area.denied }
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
-                RabHeader {
-                    PhotosPicker(selection: $picked, matching: .images) {
-                        Image(systemName: "photo")
-                    }
-                    .accessibilityLabel("Choose a photo")
-                    if CameraPicker.isAvailable {
-                        Button { capture = Capture(image: nil) } label: {
-                            Image(systemName: "camera")
+                VStack(spacing: 0) {
+                    RabHeader {
+                        PhotosPicker(selection: $picked, matching: .images) {
+                            Image(systemName: "photo")
                         }
-                        .accessibilityLabel("Take a photo")
+                        .accessibilityLabel("Choose a photo")
+                        if CameraPicker.isAvailable {
+                            Button { capture = Capture(image: nil) } label: {
+                                Image(systemName: "camera")
+                            }
+                            .accessibilityLabel("Take a photo")
+                        }
+                        Menu {
+                            Text(model.username ?? "")
+                            Button("Sign out", role: .destructive) { signingOut = true }
+                        } label: {
+                            Image(systemName: "person")
+                        }
                     }
-                    Menu {
-                        Text(model.username ?? "")
-                        Button("Sign out", role: .destructive) { signingOut = true }
-                    } label: {
-                        Image(systemName: "person")
+                    if locationDenied {
+                        LocationNotice()
                     }
                 }
             }
@@ -126,6 +147,27 @@ struct ItemsView: View {
                 Text("Your items stay in your folder on this phone.")
             }
         }
+    }
+}
+
+/// What stands under the bar while the phone may not say where it is: why rab
+/// asks, and the way to Settings, which is the only place the answer changes.
+private struct LocationNotice: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("rab needs your location: it is the area a new item is offered in.")
+            Spacer(minLength: 0)
+            if let settings = URL(string: UIApplication.openSettingsURLString) {
+                Link("Open Settings", destination: settings)
+                    .fixedSize()
+            }
+        }
+        .font(.footnote)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(white: 0.96))
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
