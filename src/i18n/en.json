@@ -154,6 +154,8 @@
     "publish": "Publish",
     "missing": "This item does not exist or has been removed.",
     "share": "Share",
+    "bookmark": "Bookmark",
+    "bookmarked": "Bookmarked",
     "freeToday": "Available now",
     "freeFrom": "Free from {{date}}",
     "noDays": "No free days",
@@ -510,6 +512,8 @@
     "title": "Others",
     "empty": "You have not booked anything yet.",
     "rentals": "My Rentals",
+    "bookmarks": "My Bookmarks",
+    "noBookmarks": "Nothing bookmarked yet.",
     "noneShown": "Nothing here."
   },
   "report": {

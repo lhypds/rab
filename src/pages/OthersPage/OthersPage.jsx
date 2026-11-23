@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { BookingRow, CategoryFilter, CategoryIcon, Header, MessageModal, categoriesOf, kindOfCategory } from "../../components/index.js";
+import { BookingRow, CategoryFilter, ItemRow, CategoryIcon, Header, MessageModal, categoriesOf, kindOfCategory } from "../../components/index.js";
 import { Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
 import { KINDS } from "../../utils/kinds.js";
 
@@ -13,10 +13,12 @@ const FILTERS = ["all", "item", "space", "service"];
 const startOf = (booking) => `${booking.start} ${booking.slots?.[0]?.start ?? booking.startTime ?? ""}`;
 
 // What is other people's: what you have asked them for, and what became of
-// each request. What is your own is on /mine.
+// each request — and under that the items you have kept to come back to, your
+// bookmarks. What is your own is on /mine.
 export default function OthersPage() {
   const { t } = useTranslation();
   const [bookings, setBookings] = useState(null);
+  const [bookmarks, setBookmarks] = useState(null);
   const [error, setError] = useState("");
   const [writingTo, setWritingTo] = useState(null);
   // The filter is in the address, so coming back from an item's page lands on
@@ -54,6 +56,10 @@ export default function OthersPage() {
         setError("");
       })
       .catch((requestError) => setError(requestError.message));
+    api
+      .getBookmarks()
+      .then((answer) => setBookmarks(answer.items))
+      .catch((requestError) => setError(requestError.message));
   }, []);
 
   useEffect(load, [load]);
@@ -65,6 +71,9 @@ export default function OthersPage() {
       (booking) => (filter === "all" || booking.itemKind === filter) && (!category || booking.itemCategory === category),
     )
     .sort((a, b) => (startOf(a) < startOf(b) ? 1 : startOf(a) > startOf(b) ? -1 : b.id - a.id));
+  // The bookmarks, narrowed as the rentals are; the one kept last first, which
+  // is how they come.
+  const kept = bookmarks?.filter((item) => (filter === "all" || item.kind === filter) && (!category || item.category === category));
 
   return (
     <div className="page-shell">
@@ -108,6 +117,23 @@ export default function OthersPage() {
           <ul className="row-list">
             {shown.map((booking) => (
               <BookingRow key={booking.id} booking={booking} onChange={load} onMessage={setWritingTo} />
+            ))}
+          </ul>
+        )}
+
+        <div className="part-heading">
+          <h2>{t("others.bookmarks")}</h2>
+          {kept && <span>{kept.length}</span>}
+        </div>
+
+        {!kept ? (
+          !error && <Skeleton rows={3} lines={2} label={t("common.loading")} />
+        ) : kept.length === 0 ? (
+          <p className="empty-state">{t(filter === "all" && !category ? "others.noBookmarks" : "others.noneShown")}</p>
+        ) : (
+          <ul className="row-list">
+            {kept.map((item) => (
+              <ItemRow key={item.id} item={item} showOwner />
             ))}
           </ul>
         )}

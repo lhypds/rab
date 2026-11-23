@@ -29,6 +29,7 @@ const {
   deleteItem,
   deleteLocation,
   deleteSession,
+  getBookmarkedItems,
   getBooking,
   getBookingsByRenter,
   getBookingsForItem,
@@ -53,6 +54,7 @@ const {
   getThreads,
   getUser,
   hasOwnOverlap,
+  isBookmarked,
   overlapping,
   readConversation,
   saveContacts,
@@ -60,6 +62,7 @@ const {
   saveSession,
   searchItems,
   setBookingStatus,
+  setBookmark,
   setCancelRequest,
   setReview,
   setDays,
@@ -787,7 +790,8 @@ function itemAnswer(item, viewer) {
   const from = earliestDay();
   const mine = Boolean(viewer && viewer.id === item.ownerId);
   return {
-    item: { ...publicItem(item), mine },
+    // `bookmarked`: whether whoever is reading has kept it (see bookmarks).
+    item: { ...publicItem(item), mine, bookmarked: Boolean(viewer && isBookmarked(viewer.id, item.id)) },
     // What the people who rented it said of it.
     reviews: getItemReviews(item.id).slice(0, REVIEWS_SHOWN),
     calendar: {
@@ -1273,6 +1277,28 @@ app.get("/api/mine", requireSession, (req, res) => {
     requests: getBookingsForOwner(req.user.id).map((booking) => bookingFor(req.user, booking)),
     bookings: getBookingsByRenter(req.user.id).map((booking) => bookingFor(req.user, booking)),
   });
+});
+
+/* ---------------------------------------------------------------- bookmarks */
+
+// The items the signed-in account has kept to come back to (see db.js): the
+// list, and one item put on it or taken off — { on }.
+app.get("/api/bookmarks", requireSession, (req, res) => {
+  res.json({ items: getBookmarkedItems(req.user.id).map(publicItem) });
+});
+
+app.put("/api/items/:id/bookmark", requireSession, (req, res) => {
+  const item = getItem(req.params.id);
+  if (!item) return res.status(404).json({ error: "No such item", code: "ITEM_NOT_FOUND" });
+  const on = req.body?.on !== false;
+  // An account's own items are on /mine: they are not kept here as well.
+  if (on && item.ownerId === req.user.id) {
+    return res.status(400).json({ error: "This item is your own", code: "OWN_ITEM" });
+  }
+  if (!setBookmark(req.user.id, item.id, on)) {
+    return res.status(409).json({ error: "That is as many bookmarks as an account keeps", code: "BOOKMARKS_FULL" });
+  }
+  res.json({ bookmarked: on });
 });
 
 /* ---------------------------------------------------------------- locations */

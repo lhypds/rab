@@ -152,6 +152,8 @@
     "publish": "公開",
     "missing": "このアイテムは存在しないか、削除されました。",
     "share": "共有",
+    "bookmark": "ブックマーク",
+    "bookmarked": "ブックマーク済み",
     "freeToday": "現在利用可能",
     "freeFrom": "{{date}} から空き",
     "noDays": "空きなし",
@@ -499,6 +501,8 @@
     "title": "他人の",
     "empty": "まだ何も予約していません。",
     "rentals": "私の予約リスト",
+    "bookmarks": "私のブックマーク",
+    "noBookmarks": "まだ何もブックマークしていません。",
     "noneShown": "該当する予約はありません。"
   },
   "report": {

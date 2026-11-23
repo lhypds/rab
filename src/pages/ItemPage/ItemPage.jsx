@@ -116,6 +116,7 @@ export default function ItemPage({ id }) {
             onEdit={() => setEditing("item")}
             onEditAvailability={() => setEditing("availability")}
             onMessage={setWritingTo}
+            onBookmark={(on) => api.setBookmark(item.id, on)}
             onBookingChange={load}
             onSignIn={() => navigate(loginPath())}
             signInPath={loginPath()}

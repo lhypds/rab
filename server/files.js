@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 //                                                  password, its email address, how it is reached
 //   data/users/<username>/bookings.json            every rental they are one side of
 //   data/users/<username>/messages.json            their side of every conversation
+//   data/users/<username>/bookmarks.json           the items they have kept to come back to
 //
 // <made> is when the item was made, in Unix time to the millisecond. It is the
 // item's id — what its address and everything else points at it by — and its

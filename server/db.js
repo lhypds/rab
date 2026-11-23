@@ -1185,6 +1185,39 @@ export function deleteLocation(userId, id) {
   return true;
 }
 
+/* --------------------------------------------------------------- bookmarks */
+
+// The items an account has kept to come back to — other people's, mostly: a
+// list of { itemId, createdAt } in its folder's bookmarks.json, the one kept
+// last first. Read and written as they are asked for, like the locations. An
+// item deleted since is left in the file and left out of what is read.
+const BOOKMARKS_FILE = "bookmarks.json";
+export const BOOKMARKS_MAX = 1000;
+
+export function isBookmarked(userId, itemId) {
+  if (itemsById.get(itemId)?.ownerId === userId) return false;
+  return readList(userId, BOOKMARKS_FILE).some((each) => each.itemId === itemId);
+}
+
+// Kept (`on`) or let go of. False where the list is as long as it gets.
+export function setBookmark(userId, itemId, on) {
+  const list = readList(userId, BOOKMARKS_FILE);
+  const has = list.some((each) => each.itemId === itemId);
+  if (on === has) return true;
+  if (on && list.length >= BOOKMARKS_MAX) return false;
+  writeList(userId, BOOKMARKS_FILE, on ? [{ itemId, createdAt: now() }, ...list] : list.filter((each) => each.itemId !== itemId));
+  return true;
+}
+
+// The items themselves, as a list shows them: the ones still there, and still
+// shown to anybody. An account's own are never among them.
+export function getBookmarkedItems(userId) {
+  return readList(userId, BOOKMARKS_FILE)
+    .map((each) => liveItem(each.itemId))
+    .filter((item) => item && item.active && item.ownerId !== userId)
+    .map(servedItem);
+}
+
 /* ---------------------------------------------------------------- contacts */
 
 // How an account is reached — [{ type, value }], as an item booked by asking

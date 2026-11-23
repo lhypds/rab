@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Modal, Select, TextArea } from "../../ui/index.js";
+import { Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
 import { barePhone, formatCoords, formatPrice, formatUsername, relativeTime, unitName } from "../../utils/format.js";
@@ -74,6 +74,7 @@ export default function ItemView({
   onEdit,
   onEditAvailability,
   onMessage,
+  onBookmark,
   onBookingChange,
   onSignIn,
   signInPath = "/login",
@@ -108,6 +109,26 @@ export default function ItemView({
   const [photo, setPhoto] = useState(0);
   const [zoomed, setZoomed] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Whether the reader has kept the item among their bookmarks: what the page
+  // came saying, and from then on what the button was last pressed to.
+  const [bookmarked, setBookmarked] = useState(item.bookmarked === true);
+  const [bookmarking, setBookmarking] = useState(false);
+  // The page asked for again — signed in since, say — says it afresh.
+  useEffect(() => setBookmarked(item.bookmarked === true), [item.bookmarked]);
+  const toggleBookmark = async () => {
+    if (!viewer) return onSignIn?.();
+    const on = !bookmarked;
+    setBookmarking(true);
+    setBookmarked(on);
+    try {
+      await onBookmark?.(on);
+    } catch (error) {
+      setBookmarked(!on);
+      showToast(error.message, 2400);
+    } finally {
+      setBookmarking(false);
+    }
+  };
   // What is being sent to the administrator about the item, on a sheet:
   // "report", "delete" (a request to delete it), or null.
   const [posting, setPosting] = useState(null);
@@ -438,6 +459,23 @@ export default function ItemView({
               </svg>
               {t("item.share")}
             </button>
+            {/* Keeping it to come back to: it is then on the reader's list of
+                bookmarks (see /others), until the button is pressed again.
+                Not for the account it is under, whose own it is already. */}
+            {!mine && (
+              <button
+                type="button"
+                className="small-button"
+                aria-pressed={bookmarked}
+                onClick={toggleBookmark}
+                disabled={preview || bookmarking}
+              >
+                <svg className={bookmarked ? `${styles.icon} ${styles.iconOn}` : styles.icon} viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 4h12v17l-6-4.5L6 21z" />
+                </svg>
+                {t(bookmarked ? "item.bookmarked" : "item.bookmark")}
+              </button>
+            )}
             {canEdit && (
               <>
                 <button type="button" className="small-button" onClick={onEdit} disabled={preview}>

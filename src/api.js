@@ -128,6 +128,10 @@ export const getItem = (id, options) => request(`/api/items/${name(id)}`, option
 export const createItem = (item) => send("POST", "/api/items", item);
 export const updateItem = (id, item) => send("PATCH", `/api/items/${name(id)}`, item);
 export const deleteItem = (id) => send("DELETE", `/api/items/${name(id)}`);
+// The items the signed-in account has kept to come back to, and one of them
+// kept (`on`) or let go of.
+export const getBookmarks = () => request("/api/bookmarks");
+export const setBookmark = (id, on) => send("PUT", `/api/items/${name(id)}/bookmark`, { on });
 // What is sent to the administrator about an item, each a message in the
 // sender's conversation with them: asking for one listed for somebody else to
 // be deleted, and saying what is wrong with one (`reason` is the kind).

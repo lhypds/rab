@@ -273,6 +273,11 @@
   stroke-linejoin: round;
 }
 
+/* The bookmark's mark, once the item is kept: inked in. */
+.iconOn {
+  fill: currentColor;
+}
+
 .calendarHead {
   display: flex;
   align-items: baseline;
