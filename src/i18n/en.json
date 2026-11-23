@@ -11,10 +11,10 @@
     "back": "Back",
     "backHome": "Back to home",
     "list": "Rent something out",
-    "mine": "My items",
+    "mine": "Mine",
     "account": "Account",
     "signIn": "Sign in",
-    "rentals": "My rentals"
+    "others": "Others"
   },
   "auth": {
     "username": "Username",
@@ -124,7 +124,7 @@
     "titlePlaceholder": "What is it?",
     "titleRequired": "Give the item a name",
     "price": "Price",
-    "priceRequired": "Set a base price",
+    "priceRequired": "Set a default price",
     "currency": "Currency",
     "description": "Description",
     "descriptionPlaceholder": "Condition, what's included, how to pick it up",
@@ -168,8 +168,8 @@
     "availability": "Available dates",
     "closedCount_one": "{{count}} day closed",
     "closedCount_other": "{{count}} days closed",
-    "availabilityHint": "Tick the days of the week it can be had. On the calendar, press a date to close it, or to open one the days above leave out. Press the pencil beside a date's price to give it a base price of its own.",
-    "availabilityHintTime": "Tick the days of the week it can be had. Press the pencil beside a date's price to give it a base price of its own.",
+    "availabilityHint": "Tick the days of the week it can be had. On the calendar, press a date to close it, or to open one the days above leave out. Press the pencil beside a date's price to give it a default price of its own.",
+    "availabilityHintTime": "Tick the days of the week it can be had. Press the pencil beside a date's price to give it a default price of its own.",
     "preview": "Preview",
     "previewTitle": "Preview",
     "previewNote": "This is the booking page people will see. It is a preview: nothing is published until you press Publish in the form.",
@@ -195,7 +195,7 @@
     "hoursClear": "Back to the usual hours",
     "hoursRequired": "Say which hours it can be booked",
     "hoursHint": "What the hours above come to in the week shown; the arrows turn to another week. Drag to paint hours for one date only; drag from a painted spot to erase. Scroll with the column of times on the left.",
-    "unit": "Booking unit",
+    "unit": "Book in steps of",
     "unitMinutes": "{{count}} min",
     "unitHour": "1 hour",
     "unitHint": "The shortest stretch that can be booked, and the step a longer one grows by. Available hours and price time ranges are still set on the half hour.",
@@ -204,14 +204,14 @@
       "day": "Booked by the day, priced per day.",
       "time": "Booked for a day and a stretch of hours."
     },
-    "priceUnit": "Price unit",
-    "basePricing": "Base pricing",
+    "priceUnit": "Price per",
+    "basePricing": "Default pricing",
     "pricingHint": {
       "day": "What an ordinary day costs. To price one date differently, press the pencil beside it on the calendar below.",
-      "time": "The base price, for the stretch of time picked under “Price unit” — which can differ from the booking unit: priced per hour and booked by 15 minutes, a 15-minute booking costs a quarter of it. To price one date differently, press the pencil beside it on the calendar below."
+      "time": "The default price, for the stretch of time picked under “Price per” — which can differ from the booking step: priced per hour and booked by 15 minutes, a 15-minute booking costs a quarter of it. To price one date differently, press the pencil beside it on the calendar below."
     },
-    "datePrice": "Base pricing · {{date}}",
-    "datePriceHint": "Left empty, this date costs the overall base price.",
+    "datePrice": "Default pricing · {{date}}",
+    "datePriceHint": "Left empty, this date costs the overall default price.",
     "datePriceClear": "Clear",
     "datePriceDone": "Done",
     "extraRates_one": "{{count}} earlier price rule is still in force.",
@@ -235,7 +235,8 @@
       "days": "Days",
       "hours": "Hours"
     },
-    "cancelCount": "How many"
+    "cancelCount": "How many",
+    "categoryWithin": "{{name}} ({{kind}})"
   },
   "calendar": {
     "title": "Availability",
@@ -262,7 +263,7 @@
     "hours_one": "{{count}} hour",
     "hours_other": "{{count}} hours",
     "unit": "Prices are per {{unit}}",
-    "bookingUnit": "Booking unit: {{unit}}",
+    "bookingUnit": "Booked in steps of {{unit}}",
     "editPrice": "Set this date's price"
   },
   "booking": {
@@ -297,10 +298,11 @@
     "timeNoMatch": "No such time"
   },
   "mine": {
-    "title": "My items",
-    "requests": "Requests",
-    "requestsEmpty": "Nobody has asked for your items yet.",
-    "itemsEmpty": "You have nothing out for rent. Press + to add something."
+    "title": "Mine",
+    "itemsEmpty": "You have nothing out for rent. Press + to add something.",
+    "noneShown": "Nothing here.",
+    "items": "Items",
+    "skills": "Skills"
   },
   "user": {
     "missing": "There is nobody by that name.",
@@ -406,10 +408,6 @@
     "send": "Share via…",
     "saveQr": "Save QR code"
   },
-  "rentals": {
-    "title": "My rentals",
-    "empty": "You have not booked anything yet."
-  },
   "cancel": {
     "any": "A confirmed booking can be cancelled at any time.",
     "none": "A confirmed booking cannot be cancelled.",
@@ -441,5 +439,11 @@
     "pickStars": "Choose a rating first",
     "titleRental": "Rate this rental",
     "explainRental": "This booking is complete. How was it with {{name}}, and how was the item? Your ratings and comment are shown on their profile and on the item's page."
+  },
+  "others": {
+    "title": "Others",
+    "empty": "You have not booked anything yet.",
+    "rentals": "Rentals",
+    "noneShown": "Nothing here."
   }
 }

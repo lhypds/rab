@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { addDays, addMonths, daysBetween, formatMonth, monthGrid, monthOf, today, weekdayNames } from "../../utils/days.js";
 import { compactPrice, wholePrice } from "../../utils/format.js";
-import { cellsOn, dayPrice, openByRule, slotsClash } from "../../utils/rates.js";
+import { cellsOn, dayPrice, openByRule, priceUnitOf, slotsClash } from "../../utils/rates.js";
 import styles from "./calendar.module.css";
 
 // What is known about every day the calendar reaches, worked out once from the
@@ -98,11 +98,12 @@ export function quote(item, calendar, bookings, selection) {
 }
 
 // The figure on a day's square: what it costs — or, where its hours do not all
-// cost the same, from what to what, the currency's mark written once.
+// cost the same, the least of them and a mark that it goes up from there:
+// "¥30~". A square has no room for both ends.
 function priceLabel(state, currency, locale) {
   const low = compactPrice(state.price, currency, locale);
   if (state.priceMax == null || state.priceMax === state.price) return low;
-  return `${low}–${compactPrice(state.priceMax, currency, locale).replace(/^[^\d]+/, "")}`;
+  return `${low}~`;
 }
 
 // A day's hours as the stretches to be read off it: the pieces that follow
@@ -350,6 +351,18 @@ export default function Calendar({
                       <span>{stretch.taken ? t("calendar.taken") : wholePrice(stretch.price, item.currency, i18n.language)}</span>
                     </span>
                   ))}
+                  {/* And at the foot, what stretch of the clock those prices
+                      are for, written out — there is room here: "* Per 30
+                      minutes". */}
+                  <span className={styles.detailNote}>
+                    *{" "}
+                    {t("item.everyHour", {
+                      unit:
+                        priceUnitOf(item) === 60
+                          ? t("item.unitHour")
+                          : t("calendar.minutes", { count: priceUnitOf(item) }),
+                    })}
+                  </span>
                 </span>
               )}
               {/* What the day costs, or why it cannot be had — and beside it,

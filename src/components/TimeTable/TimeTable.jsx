@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { compactPrice, wholePrice } from "../../utils/format.js";
+import { formatPrice } from "../../utils/format.js";
 import { STEP, clockOf, hoursOf, hoursOfDates, minutesOf, weekOf, withDatesPainted } from "../../utils/rates.js";
 import styles from "./timetable.module.css";
 
@@ -188,15 +189,9 @@ export function DayTimes({ cells, value = null, onChange, currency, today = fals
         >
           {cells.map((cell, index) => {
             const on = value && cell.start >= value.start && cell.start < value.end;
-            // What it costs is written on every piece that can still be had.
+            // What it costs is written on every piece that can still be had,
+            // in full: not shortened and not rounded.
             const priced = !cell.taken;
-            // And under the pointer, the stretch the piece is in said in
-            // full: the pieces either side of it that can be had at its price.
-            const same = (other) => !other.taken && other.price === cell.price;
-            let first = index;
-            let last = index;
-            while (priced && first > 0 && cells[first - 1].end === cells[first].start && same(cells[first - 1])) first -= 1;
-            while (priced && last < cells.length - 1 && cells[last].end === cells[last + 1].start && same(cells[last + 1])) last += 1;
             return (
               <button
                 key={cell.start}
@@ -210,15 +205,7 @@ export function DayTimes({ cells, value = null, onChange, currency, today = fals
                 // keyboard's press, which comes as a click with no pointer.
                 onClick={(event) => event.detail === 0 && press(cell)}
               >
-                {priced && <span className={styles.price}>{compactPrice(cell.price, currency, i18n.language)}</span>}
-                {priced && (
-                  <span className={styles.told} aria-hidden="true">
-                    <span>
-                      {cells[first].start}–{cells[last].end}
-                    </span>
-                    <span>{wholePrice(cell.price, currency, i18n.language)}</span>
-                  </span>
-                )}
+                {priced && <span className={styles.price}>{formatPrice(cell.price, currency, i18n.language)}</span>}
               </button>
             );
           })}
@@ -293,6 +280,18 @@ const OPENS_AT = 8; // the hour the week's timetable is scrolled to when it is f
 // whole stretch { start, end } it is a part of — to be given a price of its
 // own, and a drag from one hands on every cell of that date dragged over;
 // `priceLabel` is what the pencil is called.
+// Where on the screen the sheet about a piece of the week goes: just under
+// the piece, from its day's left edge — from its right edge in the last days
+// of the week, so it does not run off the side. `cellHeight` is how tall a
+// piece is drawn, which goes by the unit the week is cut in.
+function toldPlace(lanes, { day, cell }, cellHeight) {
+  const box = lanes.getBoundingClientRect();
+  const top = box.top + (cell + 1) * cellHeight + 2;
+  return day >= 4
+    ? { top, right: window.innerWidth - box.right + ((6 - day) / 7) * box.width }
+    : { top, left: box.left + (day / 7) * box.width };
+}
+
 export function WeekHours({
   value,
   onChange,
@@ -438,7 +437,9 @@ export function WeekHours({
           </span>
         ))}
       </div>
-      <div ref={scrollRef} className={styles.scroll}>
+      {/* Scrolled, the piece under the pointer is another one: what was said
+          about the last is taken down. */}
+      <div ref={scrollRef} className={styles.scroll} onScroll={() => setOver(null)}>
         <div className={styles.day} style={{ height: PAD * 2 + 24 * WEEK_HOUR }}>
           <div
             ref={lanesRef}
@@ -487,7 +488,7 @@ export function WeekHours({
                                   // A press that starts on it is the start
                                   // of picking what to price, which the
                                   // timetable follows from there (see down).
-                                  <span className={styles.pencil} data-price aria-label={priceLabel} title={priceLabel}>
+                                  <span className={styles.pencil} data-price aria-label={priceLabel}>
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
                                       <path d="M4 20l1-5L16 4l4 4L9 19z" />
                                       <path d="M14 6l4 4" />
@@ -508,20 +509,21 @@ export function WeekHours({
                   })}
               </div>
             ))}
-            {told && (
-              <div
-                className={styles.told}
-                style={{
-                  [over.day >= 4 ? "right" : "left"]: `${((over.day >= 4 ? 6 - over.day : over.day) / 7) * 100}%`,
-                  top: (over.cell + 1) * WEEK_CELL + 2,
-                }}
-              >
-                <span>
-                  {told.start}–{told.end}
-                </span>
-                <span>{told.price}</span>
-              </div>
-            )}
+            {/* Said over everything, not inside the table: the table scrolls
+                and cuts off what hangs out of it, so the sheet is drawn on the
+                page itself, placed where the piece under the pointer is on
+                the screen. */}
+            {told &&
+              lanesRef.current &&
+              createPortal(
+                <div className={`${styles.told} ${styles.toldOver}`} style={toldPlace(lanesRef.current, over, WEEK_CELL)} aria-hidden="true">
+                  <span>
+                    {told.start}–{told.end}
+                  </span>
+                  <span>{told.price}</span>
+                </div>,
+                document.body,
+              )}
             {reach && (
               <div
                 className={reach.pricing ? `${styles.reach} ${styles.reachPrice}` : styles.reach}

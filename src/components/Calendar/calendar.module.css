@@ -185,6 +185,12 @@
   color: var(--muted);
 }
 
+/* The line under them: what stretch of the clock the prices are for. */
+.detail > .detailNote {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
 /* Today: its number in a box, drawn in whatever ink the number is in — so it
    turns over with a chosen day. An outline, which takes no room, so the
    number stands where every other day's does. */

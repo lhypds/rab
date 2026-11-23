@@ -139,8 +139,10 @@
   color: var(--muted);
 }
 
-/* What is under the pointer, said in full: the stretch of hours it is in and
-   what that costs, on a small sheet of its own just under the cell. */
+/* What is under the pointer in the week being painted, said in full: the
+   stretch of hours it is in and what that costs, on a small sheet of its own.
+   (A day's hours on an item's page say nothing under the pointer: each piece
+   has its price written on it.) */
 .told {
   position: absolute;
   z-index: 4;
@@ -157,16 +159,14 @@
   pointer-events: none;
 }
 
-.told > span:last-child {
-  color: var(--muted);
+/* Drawn on the page rather than in the table, over any sheet that is open. */
+.toldOver {
+  position: fixed;
+  z-index: 1100;
 }
 
-/* In a day's half hour it is the half hour's own, shown while the pointer is
-   on it: hung under the half hour, from its left edge. */
-.cell .told {
-  top: calc(100% + 2px);
-  left: 0;
-  display: none;
+.told > span:last-child {
+  color: var(--muted);
 }
 
 /* The time it is now, on a day that is today: a line across the lane in the
@@ -184,10 +184,6 @@
 }
 
 @media (hover: hover) {
-  .cell:hover .told {
-    display: flex;
-  }
-
   .revert:hover {
     color: var(--ink);
   }

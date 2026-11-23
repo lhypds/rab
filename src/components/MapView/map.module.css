@@ -294,10 +294,11 @@
 }
 
 /* The category dropdown, after the kinds and drawn to their size rather than
-   to a form field's. */
+   to a form field's — and in their type, not a field's monospace. */
 .category > button {
   height: 22px;
   padding: 0 6px;
+  font-family: var(--sans);
 }
 
 /* A category in that dropdown: its mark, then its name. */

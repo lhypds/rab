@@ -1,0 +1,21 @@
+/* One more box in the row of tabs, after the last of them. */
+.row {
+  display: flex;
+}
+
+/* Drawn to the tabs' size rather than to a form field's, and in their type:
+   the dropdown is a field's monospace everywhere else, and here it is one
+   more tab. */
+.select > button {
+  height: 24px;
+  padding: 0 6px;
+  font-family: var(--sans);
+}
+
+/* A category in the dropdown: its mark, then its name. */
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: top;
+}

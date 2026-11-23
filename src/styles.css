@@ -481,6 +481,15 @@ a {
   line-height: 1;
 }
 
+/* A mark in front of a tab's word, cut to the type's own height so the box
+   stays the height it is without one. */
+.tab svg {
+  align-self: center;
+  width: 12px;
+  height: 12px;
+  margin-right: -2px;
+}
+
 .tab small {
   font-family: var(--mono);
   font-size: 10px;

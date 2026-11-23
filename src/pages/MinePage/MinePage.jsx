@@ -1,27 +1,60 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { BookingRow, Header, ItemRow, MessageModal } from "../../components/index.js";
+import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow } from "../../components/index.js";
 import { Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
+import { KINDS } from "../../utils/kinds.js";
 
-// What is out for rent, a tab for each kind of it — things, spaces, services —
-// and then the requests for any of it.
-const KINDS = ["item", "space", "service"];
-const TABS = [...KINDS, "requests"];
+// What the list of your items can be narrowed to: one kind of thing, one at
+// a time, and — on or off beside whichever that is — only what is published.
+// "All" is none of that: it is pressed while nothing else is, and pressing it
+// lets go of the rest. The buttons stand in this order.
+const FILTERS = ["all", "published", ...KINDS];
 
-// What you have out for rent, and who has asked for any of it.
+// What is yours: what you have out for rent, in one list. (What you have
+// asked other people for is on /others.) An item
+// somebody is waiting on an answer about stands at the top of its list — the
+// one asked about first, first — and its row says how many are waiting; the
+// answer is given on the item's own page.
 export default function MinePage() {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  // The tab is in the address, so coming back from an item's page lands on
+  // The filter is in the address, so coming back from an item's page lands on
   // the list that was left.
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const asked = searchParams.get("tab");
-  const tab = TABS.includes(asked) ? asked : null;
-  const setTab = (name) => navigate(`/mine?tab=${name}`, { replace: true, scroll: false });
-  const [writingTo, setWritingTo] = useState(null);
+  const wanted = searchParams.get("show");
+  const filter = KINDS.includes(wanted) ? wanted : "all";
+  const published = searchParams.get("published") === "1";
+  // And within it one category, "" for all of them: one the kind in force
+  // does not have is no choice at all.
+  const kind = KINDS.includes(filter) ? filter : null;
+  const slugWanted = searchParams.get("category") ?? "";
+  const category = categoriesOf(kind).includes(slugWanted) ? slugWanted : "";
+  const show = (name, slug, onlyPublished = published) => {
+    const query = new URLSearchParams();
+    if (name !== "all") query.set("show", name);
+    if (onlyPublished) query.set("published", "1");
+    if (slug) query.set("category", slug);
+    navigate(query.size > 0 ? `/mine?${query}` : "/mine", { replace: true, scroll: false });
+  };
+  // All gives up the published switch and the category along with the kind;
+  // a kind leaves both as they are.
+  // And a kind pressed a second time is let go of, which with nothing else
+  // pressed is All again.
+  // Choosing a category chooses the kind it belongs to as well, so the kind's
+  // button is pressed with it; one that is in every kind leaves the kind alone.
+  const chooseCategory = (slug) => show((slug && kindOfCategory(slug)) || filter, slug);
+  const setFilter = (name) =>
+    name === "all"
+      ? show("all", "", false)
+      : // Letting go of a kind lets go of the category chosen within it too.
+        name === filter
+        ? show("all", "", published)
+        : show(name, category, published);
+  const pressed = (name) =>
+    name === "published" ? published : name === "all" ? filter === "all" && !published && !category : filter === name;
 
   const load = useCallback(() => {
     api
@@ -35,15 +68,21 @@ export default function MinePage() {
 
   useEffect(load, [load]);
 
-  // The page opens on the requests where one is waiting on an answer, since
-  // that is the one thing here somebody else is waiting for.
-  const waiting = data?.requests.filter((booking) => booking.status === "pending").length ?? 0;
-  const ofKind = (kind) => data?.items.filter((item) => (item.kind || "item") === kind) ?? [];
-  const counts = { requests: waiting };
-  for (const kind of KINDS) counts[kind] = ofKind(kind).length;
-  // Otherwise on the first kind there is anything of.
-  const shown = tab ?? (waiting > 0 ? "requests" : (KINDS.find((kind) => counts[kind] > 0) ?? "item"));
-  const rows = shown === "requests" ? (data?.requests ?? []) : ofKind(shown);
+  // When each item was first asked for by somebody still waiting: bookings
+  // are numbered as they are made, so the lowest number is the earliest.
+  const asked = new Map();
+  for (const booking of data?.requests ?? []) {
+    if (booking.status !== "pending") continue;
+    asked.set(booking.itemId, Math.min(booking.id, asked.get(booking.itemId) ?? Infinity));
+  }
+  // The ones asked about first, by who has waited longest; the rest after
+  // them, in the order they came in (a sort keeps that where two are equal).
+  const turn = (item) => asked.get(item.id) ?? Number.MAX_SAFE_INTEGER;
+  const fits = (item) =>
+    (filter === "all" || (item.kind || "item") === filter) &&
+    (!published || item.active) &&
+    (!category || item.category === category);
+  const items = (data?.items ?? []).filter(fits).sort((a, b) => turn(a) - turn(b));
 
   return (
     <div className="page-shell">
@@ -53,40 +92,52 @@ export default function MinePage() {
           <h1>{t("mine.title")}</h1>
         </div>
 
-        <div className="tabs" role="tablist">
-          {TABS.map((name) => (
+        {/* What the list below is narrowed to: the kind, and after the last
+            of the kinds the category within it. */}
+        <div className="tabs" role="group">
+          {FILTERS.map((name) => (
             <button
               key={name}
               type="button"
-              role="tab"
-              aria-selected={shown === name}
-              className={shown === name ? "tab active" : "tab"}
-              onClick={() => setTab(name)}
+              aria-pressed={pressed(name)}
+              className={pressed(name) ? "tab active" : "tab"}
+              // Published is a switch of its own, pressed and let go without
+              // touching which kind is chosen.
+              onClick={() => (name === "published" ? show(filter, category, !published) : setFilter(name))}
             >
-              {name === "requests" ? t("mine.requests") : t(`kind.${name}`)}
-              {counts[name] > 0 && <small>{counts[name]}</small>}
+              {/* Each kind leads with its own mark, as on the map. */}
+              {KINDS.includes(name) && <CategoryIcon kind={name} />}
+              {/* What is a service to whoever books it is, to whoever offers
+                  it, a skill of their own. */}
+              {name === "published" ? t("item.published") : name === "service" ? t("mine.skills") : t(`kind.${name}`)}
             </button>
           ))}
+          <CategoryFilter
+            kind={kind}
+            kindLabel={kind === "service" ? t("mine.skills") : undefined}
+            value={category}
+            onChange={chooseCategory}
+          />
+        </div>
+
+        <div className="part-heading">
+          <h2>{t("mine.items")}</h2>
+          {data && <span>{items.length}</span>}
         </div>
 
         {error && <p className="list-error">{error}</p>}
-
-        {!data ? (
-          !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />
-        ) : rows.length === 0 ? (
-          <p className="empty-state">{t(shown === "requests" ? "mine.requestsEmpty" : "mine.itemsEmpty")}</p>
-        ) : (
-          <ul className="row-list">
-            {shown === "requests"
-              ? rows.map((booking) => (
-                  <BookingRow key={booking.id} booking={booking} onChange={load} onMessage={setWritingTo} />
-                ))
-              : rows.map((item) => <ItemRow key={item.id} item={item} showPublished />)}
-          </ul>
-        )}
+        {!data && !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />}
+        {data &&
+          (items.length === 0 ? (
+            <p className="empty-state">{t(filter === "all" && !category && !published ? "mine.itemsEmpty" : "mine.noneShown")}</p>
+          ) : (
+            <ul className="row-list">
+              {items.map((item) => (
+                <ItemRow key={item.id} item={item} showPublished />
+              ))}
+            </ul>
+          ))}
       </main>
-
-      <MessageModal username={writingTo} onClose={() => setWritingTo(null)} />
     </div>
   );
 }

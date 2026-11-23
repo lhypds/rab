@@ -57,7 +57,8 @@ export default function Header({ back = false }) {
               <path d="M5 12h14" />
             </svg>
           </ActionButton>
-          {/* What you have out for rent, and who has asked for it. */}
+          {/* What is yours: what you have out for rent, and who has asked for
+              any of it. */}
           {user && (
             <ActionButton tooltip={t("header.mine")} onClick={() => navigate("/mine")}>
               <svg viewBox="0 0 24 24">
@@ -67,13 +68,15 @@ export default function Header({ back = false }) {
               </svg>
             </ActionButton>
           )}
-          {/* What you have asked other people for. */}
+          {/* What is other people's: what you have asked them for. A key —
+              theirs, handed to you for a while — beside the box that is what
+              you have yourself. */}
           {user && (
-            <ActionButton tooltip={t("header.rentals")} onClick={() => navigate("/rentals")}>
+            <ActionButton tooltip={t("header.others")} onClick={() => navigate("/others")}>
               <svg viewBox="0 0 24 24">
-                <path d="M4 6h16v14H4z" />
-                <path d="M4 10h16" />
-                <path d="M8 3v5M16 3v5" />
+                <circle cx="8" cy="16" r="4" />
+                <path d="m11 13 9-9" />
+                <path d="m16 8 3 3" />
               </svg>
             </ActionButton>
           )}

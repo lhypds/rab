@@ -1435,7 +1435,14 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     priceAt={(day, time) => compactPrice(hourPrice(draft, day, time), fields.currency, lang)}
                     // The same figure written out in full, for when the
                     // pointer asks about a stretch.
-                    fullPriceAt={(day, time) => wholePrice(hourPrice(draft, day, time), fields.currency, lang)}
+                    // Said under the pointer with what stretch of the clock
+                    // it is for: "¥1,500 / 30 min".
+                    fullPriceAt={(day, time) =>
+                      t("item.perHour", {
+                        price: wholePrice(hourPrice(draft, day, time), fields.currency, lang),
+                        unit: unitName(fields.priceUnit, t),
+                      })
+                    }
                     // The pencil after each of those prices asks what that
                     // one cell of that one date costs.
                     // one cell of that one date costs — and is answered for

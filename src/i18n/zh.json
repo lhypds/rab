@@ -11,10 +11,10 @@
     "back": "返回",
     "backHome": "返回首页",
     "list": "发布出租",
-    "mine": "我的项目",
+    "mine": "我的",
     "account": "账号",
     "signIn": "登录",
-    "rentals": "我的租赁"
+    "others": "别人的"
   },
   "auth": {
     "username": "用户名",
@@ -122,7 +122,7 @@
     "titlePlaceholder": "这是什么？",
     "titleRequired": "请填写项目名称",
     "price": "价格",
-    "priceRequired": "请设置基础价格",
+    "priceRequired": "请设置默认价格",
     "currency": "货币",
     "description": "描述",
     "descriptionPlaceholder": "新旧程度、包含什么、如何取还",
@@ -165,8 +165,8 @@
     "ruleRemove": "删除规则",
     "availability": "可预约日期",
     "closedCount_other": "已关闭 {{count}} 天",
-    "availabilityHint": "勾选可预约的星期。在日历上点某一天可以关闭它，或者开放一个上面没勾选的日子。点某一天价格旁边的铅笔，可以给它单独设置基础价格。",
-    "availabilityHintTime": "勾选可预约的星期。点某一天价格旁边的铅笔，可以给它单独设置基础价格。",
+    "availabilityHint": "勾选可预约的星期。在日历上点某一天可以关闭它，或者开放一个上面没勾选的日子。点某一天价格旁边的铅笔，可以给它单独设置默认价格。",
+    "availabilityHintTime": "勾选可预约的星期。点某一天价格旁边的铅笔，可以给它单独设置默认价格。",
     "preview": "预览",
     "previewTitle": "预览",
     "previewNote": "这是别人会看到的预约页面。目前只是预览，在发布窗口里按“发布”之前不会公开。",
@@ -192,7 +192,7 @@
     "hoursClear": "恢复为通常的时间",
     "hoursRequired": "请指定可预约的时间段",
     "hoursHint": "上面的时间规则在所显示这一周的结果；用左右箭头切换到别的周。拖动可只为某一天画出时间；从已画的地方拖动则擦除。用左侧的时间栏滚动。",
-    "unit": "预约单位",
+    "unit": "预约步长",
     "unitMinutes": "{{count}} 分钟",
     "unitHour": "1 小时",
     "unitHint": "可预约的最短时长，更长的预约按这个单位递增。可预约时间段和价格的时间范围仍按半小时设定。",
@@ -201,14 +201,14 @@
       "day": "按天出租，价格按天计算。",
       "time": "选择日期和时间段预约。"
     },
-    "priceUnit": "计价单位",
-    "basePricing": "基础价格",
+    "priceUnit": "价格按",
+    "basePricing": "默认价格",
     "pricingHint": {
       "day": "平时一天的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。",
-      "time": "基础价格，对应“计价单位”里选的时长。它可以和预约单位不同：按每小时定价、按 15 分钟预约时，预约 15 分钟收四分之一的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。"
+      "time": "默认价格，对应“价格按”里选的时长。它可以和预约步长不同：按每小时定价、按 15 分钟预约时，预约 15 分钟收四分之一的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。"
     },
-    "datePrice": "基础价格 · {{date}}",
-    "datePriceHint": "留空则这一天使用总体的基础价格。",
+    "datePrice": "默认价格 · {{date}}",
+    "datePriceHint": "留空则这一天使用总体的默认价格。",
     "datePriceClear": "清除",
     "datePriceDone": "完成",
     "extraRates_other": "还有 {{count}} 条以前的价格规则在生效。",
@@ -231,7 +231,8 @@
       "days": "日",
       "hours": "小时"
     },
-    "cancelCount": "数量"
+    "cancelCount": "数量",
+    "categoryWithin": "{{name}}（{{kind}}）"
   },
   "calendar": {
     "title": "可利用时间",
@@ -255,7 +256,7 @@
     "minutes_other": "{{count}} 分钟",
     "hours_other": "{{count}} 小时",
     "unit": "价格为每 {{unit}}的价格",
-    "bookingUnit": "预约单位：{{unit}}",
+    "bookingUnit": "预约步长：{{unit}}",
     "editPrice": "设置这一天的价格"
   },
   "booking": {
@@ -289,10 +290,11 @@
     "timeNoMatch": "没有这个时间"
   },
   "mine": {
-    "title": "我的项目",
-    "requests": "收到的申请",
-    "requestsEmpty": "还没有人申请你的项目。",
-    "itemsEmpty": "你还没有发布项目。点 + 添加。"
+    "title": "我的",
+    "itemsEmpty": "你还没有发布项目。点 + 添加。",
+    "noneShown": "这里没有项目。",
+    "items": "项目",
+    "skills": "技能"
   },
   "user": {
     "missing": "没有这个用户。",
@@ -398,10 +400,6 @@
     "send": "通过…分享",
     "saveQr": "保存二维码"
   },
-  "rentals": {
-    "title": "我的租赁",
-    "empty": "你还没有预订任何东西。"
-  },
   "cancel": {
     "any": "已确认的预约可以随时取消。",
     "none": "已确认的预约不可取消。",
@@ -430,5 +428,11 @@
     "pickStars": "请先选择评分",
     "titleRental": "评价这次租赁",
     "explainRental": "这次预订已完成。{{name}} 怎么样？租到的东西怎么样？你的评分和评论会显示在对方的个人页面和项目页面上。"
+  },
+  "others": {
+    "title": "别人的",
+    "empty": "你还没有预订任何东西。",
+    "rentals": "租赁",
+    "noneShown": "这里没有租赁。"
   }
 }

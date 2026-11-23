@@ -155,12 +155,17 @@ export default function MapView() {
       {name}
     </span>
   );
+  // Within a kind, the two choices every kind has say which kind's they are:
+  // "All categories (Things)", "Other (Things)".
+  const named = (slug, name) =>
+    kind && (slug === "" || slug === "other") ? t("item.categoryWithin", { name, kind: t(`kind.${kind}`) }) : name;
+  const allName = named("", t("map.allCategories"));
   const categoryOptions = [
-    { value: "", label: withIcon("", t("map.allCategories")), text: t("map.allCategories") },
+    { value: "", label: withIcon("", allName), text: allName },
     ...categoryChoices.map((slug) => ({
       value: slug,
-      label: withIcon(slug, t(`category.${slug}`)),
-      text: `${t(`category.${slug}`)} ${slug}`,
+      label: withIcon(slug, named(slug, t(`category.${slug}`))),
+      text: `${named(slug, t(`category.${slug}`))} ${slug}`,
     })),
   ];
   // A category belongs to a kind: one the newly chosen kind does not have is

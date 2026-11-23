@@ -1,5 +1,5 @@
 import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
-import { AuthPage, HomePage, ItemPage, MinePage, PreviewPage, RentalsPage, UserPage } from "./pages/index.js";
+import { AuthPage, HomePage, ItemPage, MinePage, OthersPage, PreviewPage, UserPage } from "./pages/index.js";
 import { Navigate, useLocation } from "./ui/index.js";
 
 // One segment after a prefix, decoded, or nothing where the path is not that
@@ -37,7 +37,9 @@ function Page() {
   if (pathname === "/login") return <AuthPage />;
   if (pathname === "/mine") return user ? <MinePage /> : <Navigate to="/login?next=/mine" replace />;
   if (pathname === "/preview") return <PreviewPage />;
-  if (pathname === "/rentals") return user ? <RentalsPage /> : <Navigate to="/login?next=/rentals" replace />;
+  if (pathname === "/others") return user ? <OthersPage /> : <Navigate to="/login?next=/others" replace />;
+  // What /others used to be called.
+  if (pathname === "/rentals") return <Navigate to="/others" replace />;
 
   const itemId = segment(pathname, "/i/");
   if (itemId) return <ItemPage key={itemId} id={itemId} />;

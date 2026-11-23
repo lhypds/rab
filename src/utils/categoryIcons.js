@@ -59,12 +59,14 @@ const ICONS = {
 };
 
 // What stands in for a category nobody chose, or the one called "other": the
-// kind itself — a box for a thing, a doorway for a space, a person for a
+// kind itself — a box for a thing, a doorway for a space, people for a
 // service.
 const KIND_ICONS = {
   item: ["M3 8l9-5 9 5v8l-9 5-9-5z", "M3 8l9 5 9-5", "M12 13v8"],
   space: ["M5 21V3h14v18", "M3 21h18", "M10 21v-6h4v6"],
-  service: [[12, 8, 4], "M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"],
+  // People, more than one: somebody in front and another behind their
+  // shoulder — and not the one person the account button in the bar is.
+  service: [[9, 8, 3.5], "M2 21c0-3.6 3.1-6 7-6s7 2.4 7 6", "M15.5 4.7a3.5 3.5 0 0 1 0 6.6", "M18 15.4c2.4.8 4 2.8 4 5.6"],
 };
 
 export function iconParts(kind, category) {

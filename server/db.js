@@ -559,6 +559,9 @@ function servedBooking(booking) {
     renter: nameOf(booking.renterId),
     renterId: booking.renterId,
     itemTitle: item?.title ?? null,
+    // What kind of thing it is a booking of: a thing, a space or a service.
+    itemKind: item?.kind || "item",
+    itemCategory: item?.category ?? null,
     ownerId: booking.ownerId,
     owner: nameOf(booking.ownerId),
     itemThumb: imageUrl(first?.thumb || first?.name),
