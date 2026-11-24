@@ -335,6 +335,11 @@
     display: block;
   }
 
+  /* The page's own gap is all there is between the kinds and the items. */
+  .listing .kindRow {
+    margin-bottom: 0;
+  }
+
   .listing .tiles {
     flex: 1 1 auto;
     flex-wrap: nowrap;
