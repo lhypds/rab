@@ -98,6 +98,12 @@ cannot be signed in to until it has one; set one with `./rab user _admin pass <n
 what a crawler left (`locations.json`, `items/<made>/item.json` and its photographs), at the
 top of a zip or inside one folder of it — and have it merged into `_public`'s:
 
+    ./rab public -f public.zip                       to this machine's server, on its port
+    ./rab public -f public.zip --host rab.gcc3.com   to another (or RAB_HOST)
+
+It signs in as `_admin` with the password it asks for (or `RAB_PASSWORD`), or uses
+`RAB_TOKEN`, a session token of `_admin`'s, if that is set. Without `./rab`, the same is
+
     curl -X POST https://<host>/api/public -H "Authorization: Bearer <token>" --data-binary @public.zip
 
 A place with the same id or the same address as one already kept takes its place; an item
