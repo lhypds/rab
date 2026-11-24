@@ -902,7 +902,15 @@ app.get("/api/items", (req, res) => {
   if (south === null || north === null || west === null || east === null || south > north) {
     return res.status(400).json({ error: "Invalid bounds" });
   }
-  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(publicItem) });
+  // The kind and the category the map is narrowed to, where it is: the cap on
+  // how many come back is then spent on those alone.
+  const kind = text(req.query.kind, 40) || null;
+  const category = text(req.query.category, 60) || null;
+  res.json({
+    items: getItemsInBox({ south, north, west, east }, { kind, category })
+      .filter((item) => mayView(req.user, item))
+      .map(publicItem),
+  });
 });
 
 // The items offered at a spot: every one whose area has it inside, whether or
