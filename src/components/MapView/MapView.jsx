@@ -641,7 +641,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         entry.element.querySelector(`.${styles.glyph}`).innerHTML = iconMarkup(item.kind, item.category);
         entry.mark = mark;
       }
-      setPinPhoto(entry.element, item.thumb);
+      setPinPhoto(entry.element, item.pin ?? item.thumb);
     }
     // `shown` is derived afresh each render; what it is derived from is what
     // is watched.

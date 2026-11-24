@@ -3,7 +3,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { itemDir, itemFolders, userDir, userFolders } from "./files.js";
+import { dataDir, itemDir, itemFolders, userDir, userFolders } from "./files.js";
 
 // Where photographs are kept: beside the item they are of, in the item's own
 // folder, data/users/<username>/items/<item id>/ (see files.js) — one file per picture, named
@@ -169,6 +169,43 @@ export function imageFile(name) {
   const dir = findImage(name);
   if (dir === null) return null;
   return { path: path.join(dir, name), type: IMAGE_TYPES[path.extname(name).slice(1)] };
+}
+
+// The pin's own copy of a picture: the size a pin on the map draws it, twice
+// over for a sharp screen. A map can hold thousands of pins at once, and each
+// one asking for the list's thumbnail is tens of megabytes; this is a kilobyte
+// or two each. Made the first time it is asked for and kept in data/cache/pins,
+// named after the picture it is of — whose bytes never change, so neither do
+// its own. Resolves to the file's path, or null where there is no such picture.
+const PIN_SIZE = 64;
+const pinsDir = path.join(dataDir, "cache", "pins");
+const pinsMaking = new Map();
+
+export async function pinImageFile(name) {
+  const source = imageFile(name);
+  if (!source) return null;
+  const file = path.join(pinsDir, `${path.basename(name, path.extname(name))}.webp`);
+  if (fs.existsSync(file)) return file;
+  if (!pinsMaking.has(file)) {
+    pinsMaking.set(
+      file,
+      (async () => {
+        await fsp.mkdir(pinsDir, { recursive: true });
+        const bytes = await sharp(source.path, { animated: false })
+          .rotate()
+          .resize(PIN_SIZE, PIN_SIZE, { fit: "cover" })
+          .webp({ quality: 70 })
+          .toBuffer();
+        // Written whole under another name first, so a file half written is
+        // never served.
+        const partial = `${file}.${process.pid}.part`;
+        await fsp.writeFile(partial, bytes);
+        await fsp.rename(partial, file);
+        return file;
+      })().finally(() => pinsMaking.delete(file)),
+    );
+  }
+  return pinsMaking.get(file);
 }
 
 // An item's folder that was put there from outside while the server was

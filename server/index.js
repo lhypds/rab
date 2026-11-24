@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import compression from "compression";
 import express from "express";
 import { isAdultCategory } from "../src/utils/kinds.js";
 
@@ -85,7 +86,9 @@ const {
   mergePublic,
   heldPublic,
 } = await import("./db.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, storeImage } = await import("./images.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, pinImageFile, storeImage } = await import(
+  "./images.js"
+);
 const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
@@ -309,6 +312,10 @@ function requireSession(req, res, next) {
 
 const app = express();
 app.set("trust proxy", true);
+// Answers squeezed for the way there: the map's items run to megabytes as
+// written, and a fraction of that compressed. Pictures are compressed already
+// and are left as they are.
+app.use(compression());
 app.use(express.json({ limit: "256kb" }));
 app.use("/api", readSession);
 
@@ -660,6 +667,14 @@ function publicItem(item) {
   return rest;
 }
 
+// An item as the map and the lists beside it get it, thousands at a time:
+// without its photographs, of which a pin and a row draw only the first — as
+// `thumb` and `pin` — and its own page asks for the item whole.
+function listedItem(item) {
+  const { images, ...rest } = publicItem(item);
+  return rest;
+}
+
 function parseNumber(value, min, max) {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
@@ -902,7 +917,7 @@ app.get("/api/items", (req, res) => {
   if (south === null || north === null || west === null || east === null || south > north) {
     return res.status(400).json({ error: "Invalid bounds" });
   }
-  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(publicItem) });
+  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(listedItem) });
 });
 
 // The items offered at a spot: every one whose area has it inside, whether or
@@ -920,7 +935,7 @@ app.get("/api/items/at", (req, res) => {
     east: req.query.east == null ? null : parseNumber(req.query.east, -180, 180),
   };
   const whole = Object.values(box).every((edge) => edge !== null) && box.south <= box.north;
-  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map(publicItem) });
+  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map(listedItem) });
 });
 
 // Items by what they say about themselves, for the box in the top bar.
@@ -1715,6 +1730,23 @@ app.get("/api/images/:name", (req, res) => {
       "X-Content-Type-Options": "nosniff",
     },
   });
+});
+
+// The same picture at the size a pin on the map draws it (see pinImageFile).
+app.get("/api/images/:name/pin", async (req, res, next) => {
+  try {
+    const file = await pinImageFile(req.params.name);
+    if (!file) return res.status(404).json({ error: "No such image" });
+    res.sendFile(file, {
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/api", (req, res) => {
