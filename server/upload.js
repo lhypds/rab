@@ -2,9 +2,10 @@ import { unzipSync } from "fflate";
 import { ITEM_FILE, SOURCE_FILE } from "./files.js";
 import { isStoredName } from "./images.js";
 
-// A public folder sent as one zip: data/users/_public/ as another server has
-// it, or as a crawler left it (see data/crawlers) — locations.json, and
-// items/<made>/ with item.json, source.json and the photographs in each. The
+// A public folder, or a piece of it, sent as a zip: data/users/_public/ as
+// another server has it, or as a crawler left it (see data/crawlers) —
+// locations.json, and items/<made>/ with item.json, source.json and the
+// photographs in each (rab public sends one item to a zip). The
 // folder may be at the top of the zip or inside one folder or more ("public/",
 // "_public/"); where it is, is wherever locations.json or the first item is.
 // Anything else in it is passed over, the Finder's own leavings included.

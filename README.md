@@ -72,7 +72,7 @@ Layout
     server/rates.js    pricing rules and hours: by the date, by the date and time
     server/region.js   country of a request, from its address (ipwho.is)
     server/images.js   photo storage, each item's in its own folder
-    server/upload.js   a public folder sent as a zip, read for merging into `_public`'s
+    server/upload.js   a public folder, or an item of one, sent as a zip, read for merging into `_public`'s
     src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, PagePage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
@@ -94,21 +94,30 @@ site. A report of an item, and a request to delete one of `_public`'s items, are
 to `_admin` — and only `_admin` deletes those items. It starts with no password, and
 cannot be signed in to until it has one; set one with `./rab user _admin pass <new>` and sign in as `_admin` to read them.
 
-`_admin` can also send a whole public folder — `_public`'s folder from another server, or
-what a crawler left (`locations.json`, `items/<made>/item.json` and its photographs), at the
-top of a zip or inside one folder of it — and have it merged into `_public`'s:
+`_admin` can also send a public folder — `_public`'s folder from another server, or
+what a crawler left (`locations.json`, `items/<made>/item.json` and its photographs) — and
+have it merged into `_public`'s. `./rab public` asks the server what it holds already
+(`GET /api/public`: each item's id and `source.json` key, each place's id and address),
+and sends only the places and items it does not have: the places in one zip, then each
+item's folder in a zip of its own, printing each as it goes:
 
-    ./rab public -f public.zip                       to this machine's server, on its port
-    ./rab public -f public.zip --host rab.gcc3.com   to another (or RAB_HOST)
+    ./rab public                                             to this machine's server, on its port
+    ./rab public -u rab.gcc3.com                             to another (or RAB_HOST)
+    ./rab public -f ~/crawled -u rab.gcc3.com                another folder than this source's
 
-It signs in as `_admin` with the password it asks for (or `RAB_PASSWORD`), or uses
-`RAB_TOKEN`, a session token of `_admin`'s, if that is set. Without `./rab`, the same is
+Without `-f` it sends this source's own `data/users/_public` (under `RAB_DATA` where that is
+set). The folder named may be the public folder itself or hold it as its one folder. It signs in
+as `_admin` with the password it asks for (or `RAB_PASSWORD`), or uses `RAB_TOKEN`, a
+session token of `_admin`'s, if that is set. Without `./rab`, the same is
 
-    curl -X POST https://<host>/api/public -H "Authorization: Bearer <token>" --data-binary @public.zip
+    curl https://<host>/api/public -H "Authorization: Bearer <token>"
+    curl -X POST https://<host>/api/public -H "Authorization: Bearer <token>" --data-binary @item.zip
 
-A place with the same id or the same address as one already kept takes its place; an item
-with the same id, or the same `key` in its `source.json`, takes its place and keeps its id;
-everything else is added. The answer says what was added, replaced and passed over.
+A zip sent holds `locations.json`, or one item (`items/<made>/…`), or both; one with more
+items than that is turned away. A place with the same id or the same address as one already
+kept takes its place; an item with the same id, or the same `key` in its `source.json`,
+takes its place and keeps its id; everything else is added. The answer says what was
+added, replaced and passed over.
 
 What is kept where: `db.sqlite` holds who is signed in, and nothing else. An account is
 a folder of its own, named after its username, and everything it has is in it:

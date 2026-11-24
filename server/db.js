@@ -1310,6 +1310,17 @@ export function mergePublic({ locations, items }) {
   return { locations: places, items: things };
 }
 
+// What the public account already holds, for a sender to compare with what it
+// has and send only the rest: each item's id and the crawler's key for it
+// (source.json), deleted ones too, and each place's id and address.
+export function heldPublic() {
+  const items = itemFolders(PUBLIC_ID)
+    .filter((folder) => itemsById.get(folder)?.ownerId === PUBLIC_ID)
+    .map((id) => ({ id, key: readItemSource(PUBLIC_ID, id)?.key ?? null }));
+  const locations = getLocations(PUBLIC_ID).map(({ id, address }) => ({ id, address: address ?? null }));
+  return { items, locations };
+}
+
 /* ------------------------------------------------------------------- pages */
 
 // The pages an account makes of what it has out — "Liu's Music Gear Store": a

@@ -83,6 +83,7 @@ const {
   getEmail,
   setEmail,
   mergePublic,
+  heldPublic,
 } = await import("./db.js");
 const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, storeImage } = await import("./images.js");
 const { mailConfigured, sendMail } = await import("./mail.js");
@@ -1644,20 +1645,28 @@ app.post(
 /* ------------------------------------------------------------ public folder */
 
 // A public folder — data/users/_public/ as another server has it, or as a
-// crawler left it — sent as one zip by whoever looks after the site, and
-// merged into this one's: its places into the public account's locations, its
-// items into the public account's items (see upload.js and mergePublic in
-// db.js), the spot of each among its places as well. What comes back is what was added, put in the stead of what was
-// there, and passed over.
-const PUBLIC_ZIP_MAX = 1024 * 1024 * 1024;
+// crawler left it — sent by whoever looks after the site a piece at a time,
+// and merged into this one's. GET says what is held already, so that only
+// what is not is sent (rab public does that); each POST is one zip with one
+// item in it, or the places (locations.json), or both, merged into the public
+// account's (see upload.js and mergePublic in db.js), the spot of the item
+// among its places as well. What comes back is what was added, put in the
+// stead of what was there, and passed over.
+const PUBLIC_ZIP_MAX = 100 * 1024 * 1024;
+
+function requireAdmin(req, res, next) {
+  if (req.user.id !== ADMIN_ID) return res.status(403).json({ error: "Only the site's own account sends a public folder" });
+  next();
+}
+
+app.get("/api/public", requireSession, requireAdmin, (req, res) => {
+  res.json(heldPublic());
+});
 
 app.post(
   "/api/public",
   requireSession,
-  (req, res, next) => {
-    if (req.user.id !== ADMIN_ID) return res.status(403).json({ error: "Only the site's own account sends a public folder" });
-    next();
-  },
+  requireAdmin,
   express.raw({ type: () => true, limit: PUBLIC_ZIP_MAX }),
   (req, res, next) => {
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
@@ -1665,6 +1674,9 @@ app.post(
     }
     const sent = readPublicZip(req.body);
     if (sent.error) return res.status(400).json({ error: sent.error });
+    if (sent.items.length > 1) {
+      return res.status(400).json({ error: `The zip has ${sent.items.length} items in it; send them one at a time` });
+    }
     try {
       const merged = mergePublic(sent);
       for (const id of [...merged.items.added, ...merged.items.replaced]) {
