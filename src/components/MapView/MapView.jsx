@@ -250,6 +250,29 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     held.set(item.category, (held.get(item.category) ?? 0) + 1);
     heldAll += 1;
   }
+  // The dropdowns' own rows: each with how many of it are offered here after
+  // its name, in grey brackets — not in the closed box, which says only which
+  // is picked — and set out by that number, the most first. "All categories"
+  // stays at the head.
+  const countOf = (slug) => (slug === "" ? heldAll : (held.get(slug) ?? 0));
+  const menuOptions = categoryOptions
+    .map((option, index) => ({ option, index }))
+    .sort(
+      (a, b) =>
+        (a.option.value === "" ? -1 : 0) - (b.option.value === "" ? -1 : 0) ||
+        countOf(b.option.value) - countOf(a.option.value) ||
+        a.index - b.index,
+    )
+    .map(({ option }) => ({
+      ...option,
+      short: option.label,
+      label: (
+        <span className={styles.categoryName}>
+          {option.label}
+          {countOf(option.value) > 0 && <span className={styles.menuCount}>({countOf(option.value)})</span>}
+        </span>
+      ),
+    }));
   const categoriesFound = (
     categoryWords.length
       ? categoryOptions.filter((option) => categoryWords.every((word) => option.text.toLowerCase().includes(word)))
@@ -964,7 +987,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
               label={t("item.category")}
               value={category}
               onChange={setCategory}
-              options={categoryOptions}
+              options={menuOptions}
               searchPlaceholder={t("item.categorySearch")}
               emptyLabel={t("item.categoryNoMatch")}
             />
@@ -1127,7 +1150,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             label={t("item.category")}
             value={category}
             onChange={setCategory}
-            options={categoryOptions}
+            options={menuOptions}
             searchPlaceholder={t("item.categorySearch")}
             emptyLabel={t("item.categoryNoMatch")}
           />

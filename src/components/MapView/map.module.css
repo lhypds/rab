@@ -531,6 +531,11 @@
   vertical-align: top;
 }
 
+/* How many of a category are offered here, after its name in the dropdown. */
+.menuCount {
+  color: var(--muted);
+}
+
 /* How much there is to see here, in the middle of the map's bottom edge. */
 .count {
   position: absolute;
