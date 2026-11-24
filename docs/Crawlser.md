@@ -2,6 +2,8 @@
 
 爬虫从京都府观光目录、市体育设施目录和商家分店目录发现详情页。每次选择来源前，它统计本地各账号中已启用、未删除的条目，按大类和分类从少到多排序。默认每个分类补到 5 条后暂停。有来源可查但搜索结果为空的分类会在后续轮次重试。
 
+舞蹈排练室按使用场地归入「工作室」，单独出租的乐器归入物品的「乐器」。商家明确提供现场音响人员的方案归入服务的「活动协助」。这三类来源均由常驻任务按分类数量调度。
+
 ## 运行
 
 以下命令从项目根目录执行。需要 Python 3.10 或更新版本。新检出的仓库可以先按下节说明恢复脚本。
@@ -134,7 +136,85 @@ def tourism_offer(kind, category, label, url, _):
     return dict(offer, label=label)
 
 
+def studio_index(home, detail):
+    links = {urljoin(home, a['href']) for a in crawl.page(home).select('a[href]')}
+    if detail not in links:
+        raise ValueError('studio rental page no longer listed')
+    yield detail, None
+
+
+def studio_offer(name, access, selector, url, _):
+    doc = crawl.page(url)
+    if 'レンタル' not in doc.title.get_text():
+        raise ValueError('missing studio rental offer')
+    info = doc if access == url else crawl.page(access)
+    frame = info.select_one('iframe[src*="www.google.com/maps/embed"]')
+    if not frame or urlsplit(frame['src']).hostname != 'www.google.com':
+        raise ValueError('missing studio map')
+    marker = re.search(r'"([^"\n]+)",\[(3[45]\.\d+),(13[56]\.\d+)\]', crawl.fetch(frame['src']).decode())
+    if not marker:
+        raise ValueError('no marked studio address')
+    # Read the Japanese facility address rather than the viewport centre.
+    address = json.loads('"' + marker[1] + '"')
+    address = address[address.index('京都府京都市'):]
+    phone = crawl.phone_digits(doc.get_text(' ', strip=True))
+    return dict(source=url, homepage=url, kind='space', category='studio', title=name,
+                label='ダンススタジオレンタル', phone=phone, photos=crawl.photos(doc, selector, url),
+                location=crawl.address_point(address, marker.groups()[1:]))
+
+
+KINKO = 'https://rental.kinkomusic.com/'
+
+
+def kinko_index(category):
+    directory = crawl.page(KINKO)
+    wanted = {'キーボード', 'ドラム'} if category == 'musical-instrument' else {'オペレーター付きPAレンタル'}
+    pages = {a.get_text(strip=True): a['href'] for a in directory.select('a[href]')
+             if a.get_text(strip=True) in wanted and urlsplit(a['href']).hostname == 'rental.kinkomusic.com'}
+    if not pages:
+        raise ValueError('rental catalogue sections not found')
+    yield KINKO if category == 'musical-instrument' else next(iter(pages.values())), pages
+
+
+def kinko_offer(category, url, pages):
+    shop = crawl.page('https://www.kinkomusic.com/').select_one('.shop-item:has(.shop-sub:-soup-contains("Rockstore"))')
+    if not shop or '機材レンタル受付' not in shop.get_text(strip=True):
+        raise ValueError('missing Kyoto rental counter')
+    address = shop.select_one('.shop-address-ja').get_text(' ', strip=True)
+    address = re.search(r'京都市\S+', address)[0]
+    phone = crawl.phone_digits(shop.select_one('.shop-mail').get_text(' ', strip=True))
+    # The official short link redirects to a Google place. Use its place marker.
+    link = shop.select_one('a[href^="https://maps.app.goo.gl/"]')['href']
+    with crawl.session.get(link, stream=True, timeout=(7, 20)) as response:
+        response.raise_for_status()
+        marker = re.search(r'!3d([\d.]+)!4d([\d.]+)', response.url)
+    if not marker:
+        raise ValueError('missing Kyoto rental counter marker')
+    gallery = []
+    for section, detail in pages.items():
+        doc = crawl.page(detail)
+        contents = doc.get_text(' ', strip=True)
+        if phone not in re.sub(r'[- ]', '', contents) or '税込' not in contents:
+            raise ValueError('missing rental terms or contact')
+        if category == 'event-help' and not re.search(r'オペレーター[（(].{1,12}名', contents):
+            raise ValueError('operator not included')
+        products = crawl.photos(doc, 'img[src*="static.wixstatic.com/media/"][alt]', detail)
+        gallery.extend(photo.split('/v1/')[0] for photo in products[:2])
+    instrument = category == 'musical-instrument'
+    return dict(source=url, homepage=url, title='きんこう楽器', kind='item' if instrument else 'service',
+                category=category, label='楽器レンタル' if instrument else '音響オペレーター付きPA',
+                note='取扱い：' + '、'.join(pages) + '。' if instrument else '機材と音響スタッフを含むイベント向けプランです。',
+                phone=phone, photos=gallery, location=crawl.address_point(address, marker.groups()))
+
+
 def sources():
+    for kind, category in [('item', 'musical-instrument'), ('service', 'event-help')]:
+        yield 'きんこう楽器 ' + category, (kind, category), partial(kinko_index, category), partial(kinko_offer, category)
+    for name, home, detail, access, images in [
+        ('STUDIO KFA', 'https://flamenca.jp/', 'rental/', 'access/', 'img[src^="/rental/image/img"]'),
+        ('Lily & Walk', 'https://lilyandwalk.com/', 'rental.html', 'rental.html', 'img[src^="img/studio"]:not([src*="-sp"])'),
+    ]:
+        yield name, ('space', 'studio'), partial(studio_index, home, home + detail), partial(studio_offer, name, home + access, images)
     yield '京都市スポーツ施設', ('space', 'other'), sports_index, sports_offer
     for kind, category, keyword, pattern, label in SEARCHES:
         yield keyword, (kind, category), partial(tourism_index, keyword, pattern), partial(tourism_offer, kind, category, label)

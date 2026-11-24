@@ -7,7 +7,7 @@ import Vision
 /// phone looks at the photo and the name and suggests it (see `suggest`).
 enum Categories {
     static let all: [Kind: [String]] = [
-        .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "audio", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
+        .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "audio", "musical-instrument", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
         .space: ["home", "meeting-room", "studio", "music-studio", "storage", "event-space", "workspace", "parking", "other"],
         .service: [
             "photography", "teaching", "repair", "moving", "cleaning", "design", "3d-printing", "guide", "translation", "music", "fitness", "beauty",
@@ -23,7 +23,7 @@ enum Categories {
 
     private static let names: [String: String] = [
         "car": "Car", "bike": "Bike", "camera": "Camera", "video-camera": "Video camera", "projector": "Projector",
-        "audio": "Audio gear", "electronics": "Electronics", "tools": "Tools",
+        "musical-instrument": "Musical instrument", "audio": "Audio gear", "electronics": "Electronics", "tools": "Tools",
         "drone": "Drone", "binoculars": "Binoculars", "computer": "Computer", "game-console": "Game console",
         "kitchen-appliance": "Kitchen appliances", "cleaning-appliance": "Cleaning appliances", "beauty-appliance": "Beauty appliances",
         "camping": "Camping gear", "sports": "Sports gear", "clothing": "Clothing", "other": "Other",
@@ -47,7 +47,8 @@ enum Categories {
         "camera": ["camera", "lens", "tripod", "相机", "镜头", "カメラ", "レンズ"],
         "video-camera": ["camcorder", "video_camera", "video camera", "摄像机", "ビデオカメラ"],
         "projector": ["projector", "投影", "プロジェクター"],
-        "audio": ["speaker", "headphone", "microphone", "amplifier", "guitar", "piano", "drum", "violin", "musical_instrument", "audio", "音响", "耳机", "麦克风", "吉他", "スピーカー", "マイク", "ギター"],
+        "audio": ["speaker", "headphone", "microphone", "amplifier", "audio", "音响", "耳机", "麦克风", "スピーカー", "マイク"],
+        "musical-instrument": ["guitar", "piano", "drum", "violin", "synthesizer", "musical_instrument", "吉他", "钢琴", "架子鼓", "乐器", "楽器", "ギター", "ピアノ", "ドラム"],
         "drone": ["drone", "quadcopter", "无人机", "ドローン"],
         "binoculars": ["binoculars", "telescope", "望远镜", "双眼鏡", "望遠鏡"],
         "computer": ["computer", "laptop", "电脑", "笔记本", "パソコン", "ノートPC"],

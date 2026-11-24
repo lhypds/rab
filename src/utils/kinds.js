@@ -14,6 +14,7 @@ export const CATEGORIES = {
     "binoculars",
     "projector",
     "audio",
+    "musical-instrument",
     "computer",
     "game-console",
     "electronics",

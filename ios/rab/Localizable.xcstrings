@@ -463,6 +463,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "3D 打印" } }
       }
     },
+    "Musical instrument" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "楽器" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "乐器" } }
+      }
+    },
     "Audio gear" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "音響機材" } },
