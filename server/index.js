@@ -1672,7 +1672,7 @@ app.post(
 // A public folder — data/users/_public/ as another server has it, or as a
 // crawler left it — sent by whoever looks after the site a piece at a time,
 // and merged into this one's. GET says what is held already, so that only
-// what is not is sent (rab public does that); each POST is one zip with one
+// what is not is sent (rab push does that); each POST is one zip with one
 // item in it, or the places (locations.json), or both, merged into the public
 // account's (see upload.js and mergePublic in db.js), the spot of the item
 // among its places as well. What comes back is what was added, put in the

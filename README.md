@@ -96,14 +96,14 @@ cannot be signed in to until it has one; set one with `./rab user _admin pass <n
 
 `_admin` can also send a public folder — `_public`'s folder from another server, or
 what a crawler left (`locations.json`, `items/<made>/item.json` and its photographs) — and
-have it merged into `_public`'s. `./rab public` asks the server what it holds already
+have it merged into `_public`'s. `./rab push` asks the server what it holds already
 (`GET /api/public`: each item's id and `source.json` key, each place's id and address),
 and sends only the places and items it does not have: the places in one zip, then each
 item's folder in a zip of its own, printing each as it goes:
 
-    ./rab public                                             to this machine's server, on its port
-    ./rab public -u rab.gcc3.com                             to another (or RAB_HOST)
-    ./rab public -f ~/crawled -u rab.gcc3.com                another folder than this source's
+    ./rab push                                             to this machine's server, on its port
+    ./rab push -u rab.gcc3.com                             to another (or RAB_HOST)
+    ./rab push -f ~/crawled -u rab.gcc3.com                another folder than this source's
 
 Without `-f` it sends this source's own `data/users/_public` (under `RAB_DATA` where that is
 set). The folder named may be the public folder itself or hold it as its one folder. It signs in
