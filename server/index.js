@@ -82,11 +82,13 @@ const {
   ADMIN_ID,
   getEmail,
   setEmail,
+  mergePublic,
 } = await import("./db.js");
 const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, storeImage } = await import("./images.js");
 const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
+const { readPublicZip } = await import("./upload.js");
 const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
@@ -1633,6 +1635,43 @@ app.post(
       const stored = await storeImage(req.user.id, req.body);
       if (!stored) return res.status(415).json({ error: "Unsupported image format" });
       res.json(stored);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/* ------------------------------------------------------------ public folder */
+
+// A public folder — data/users/_public/ as another server has it, or as a
+// crawler left it — sent as one zip by whoever looks after the site, and
+// merged into this one's: its places into the public account's locations, its
+// items into the public account's items (see upload.js and mergePublic in
+// db.js), the spot of each among its places as well. What comes back is what was added, put in the stead of what was
+// there, and passed over.
+const PUBLIC_ZIP_MAX = 1024 * 1024 * 1024;
+
+app.post(
+  "/api/public",
+  requireSession,
+  (req, res, next) => {
+    if (req.user.id !== ADMIN_ID) return res.status(403).json({ error: "Only the site's own account sends a public folder" });
+    next();
+  },
+  express.raw({ type: () => true, limit: PUBLIC_ZIP_MAX }),
+  (req, res, next) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: "The zip is empty" });
+    }
+    const sent = readPublicZip(req.body);
+    if (sent.error) return res.status(400).json({ error: sent.error });
+    try {
+      const merged = mergePublic(sent);
+      for (const id of [...merged.items.added, ...merged.items.replaced]) {
+        keepImages(PUBLIC_ID, id, getItemImages(id).flatMap((image) => [image.name, image.thumb]));
+        rememberPublicPlace(getItem(id));
+      }
+      res.json(merged);
     } catch (error) {
       next(error);
     }

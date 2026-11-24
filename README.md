@@ -72,6 +72,7 @@ Layout
     server/rates.js    pricing rules and hours: by the date, by the date and time
     server/region.js   country of a request, from its address (ipwho.is)
     server/images.js   photo storage, each item's in its own folder
+    server/upload.js   a public folder sent as a zip, read for merging into `_public`'s
     src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, PagePage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
@@ -92,6 +93,16 @@ which holds the items listed on someone else's behalf, and `_admin`, which looks
 site. A report of an item, and a request to delete one of `_public`'s items, are messages
 to `_admin` — and only `_admin` deletes those items. It starts with no password, and
 cannot be signed in to until it has one; set one with `./rab user _admin pass <new>` and sign in as `_admin` to read them.
+
+`_admin` can also send a whole public folder — `_public`'s folder from another server, or
+what a crawler left (`locations.json`, `items/<made>/item.json` and its photographs), at the
+top of a zip or inside one folder of it — and have it merged into `_public`'s:
+
+    curl -X POST https://<host>/api/public -H "Authorization: Bearer <token>" --data-binary @public.zip
+
+A place with the same id or the same address as one already kept takes its place; an item
+with the same id, or the same `key` in its `source.json`, takes its place and keeps its id;
+everything else is added. The answer says what was added, replaced and passed over.
 
 What is kept where: `db.sqlite` holds who is signed in, and nothing else. An account is
 a folder of its own, named after its username, and everything it has is in it:

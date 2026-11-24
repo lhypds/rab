@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItemSource, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/kinds.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -1221,6 +1221,8 @@ export const LOCATIONS_MAX = 100;
 // which is as many as there are such things.
 const PUBLIC_LOCATIONS_MAX = 5000;
 
+const newLocationId = () => crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x");
+
 export function getLocations(userId) {
   return readList(userId, LOCATIONS_FILE);
 }
@@ -1230,7 +1232,7 @@ export function getLocations(userId) {
 // there replaces what was there.
 export function saveLocation(userId, location) {
   const list = getLocations(userId);
-  const id = location.id || crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x");
+  const id = location.id || newLocationId();
   const at = list.findIndex((each) => each.id === id);
   if (at === -1 && list.length >= (userId === PUBLIC_ID ? PUBLIC_LOCATIONS_MAX : LOCATIONS_MAX)) return null;
   const saved = { ...location, id, createdAt: at === -1 ? now() : list[at].createdAt };
@@ -1246,6 +1248,66 @@ export function deleteLocation(userId, id) {
   if (kept.length === list.length) return false;
   writeList(userId, LOCATIONS_FILE, kept);
   return true;
+}
+
+/* ------------------------------------------------------------ public folder */
+
+// A public folder sent whole by whoever looks after the site (see upload.js) —
+// its locations.json and its items, as { locations, items: [{ folder, item,
+// source, files }] } — merged into the public account's.
+//
+// A place is one already kept where it has the same id or the same address,
+// and is put in its stead under the id it has here; the rest are added, as
+// many as there is room for. An item is one already held where it has the
+// same id, or where the crawler knows it by the same key (source.json): it is
+// put in its stead under the id it has here, and keeps when it was made. The
+// rest are added under the id they came with — except one under an id that is
+// somebody else's item, which is passed over. Each item's photographs are
+// written into its folder; which ones it carries is for the caller to settle
+// (see keepImages).
+export function mergePublic({ locations, items }) {
+  const places = { added: 0, replaced: 0, dropped: 0 };
+  const list = getLocations(PUBLIC_ID);
+  for (const location of locations) {
+    const at = list.findIndex(
+      (each) => (location.id && each.id === location.id) || (location.address && each.address === location.address),
+    );
+    if (at !== -1) {
+      list[at] = { ...location, id: list[at].id, createdAt: list[at].createdAt };
+      places.replaced += 1;
+    } else if (list.length >= PUBLIC_LOCATIONS_MAX) {
+      places.dropped += 1;
+    } else {
+      list.push({ ...location, id: location.id || newLocationId(), createdAt: location.createdAt || now() });
+      places.added += 1;
+    }
+  }
+  if (locations.length) writeList(PUBLIC_ID, LOCATIONS_FILE, list);
+
+  const things = { added: [], replaced: [], skipped: [] };
+  const byKey = new Map();
+  for (const folder of itemFolders(PUBLIC_ID)) {
+    const key = readItemSource(PUBLIC_ID, folder)?.key;
+    if (key && itemsById.get(folder)?.ownerId === PUBLIC_ID) byKey.set(JSON.stringify(key), folder);
+  }
+  for (const { folder, item, source, files } of items) {
+    const held = itemsById.get(folder);
+    if (held && held.ownerId !== PUBLIC_ID) {
+      things.skipped.push(folder);
+      continue;
+    }
+    const key = source?.key ? JSON.stringify(source.key) : null;
+    const id = held || !key || !byKey.has(key) ? folder : byKey.get(key);
+    const existing = itemsById.get(id);
+    const time = now();
+    const kept = { ...item, id, shared: true, createdAt: existing?.createdAt ?? item.createdAt ?? time, updatedAt: time };
+    delete kept.ownerId;
+    writeItemFolder(PUBLIC_ID, kept, source ? { ...files, [SOURCE_FILE]: `${JSON.stringify(source, null, 2)}\n` } : files);
+    itemsById.set(id, { ...perUnit(kept), ownerId: PUBLIC_ID });
+    if (key) byKey.set(key, id);
+    (existing ? things.replaced : things.added).push(id);
+  }
+  return { locations: places, items: things };
 }
 
 /* ------------------------------------------------------------------- pages */

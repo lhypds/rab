@@ -196,6 +196,36 @@ export function writeItem(userId, item) {
   writeJson(path.join(dir, ITEM_FILE), item);
 }
 
+// Where an item came from, as the crawler that wrote it down says
+// (data/crawlers): source.json beside item.json, with the `key` it knows the
+// thing by. Null where there is none, or none that can be read.
+export const SOURCE_FILE = "source.json";
+
+export function readItemSource(userId, folder) {
+  try {
+    const source = JSON.parse(fs.readFileSync(path.join(itemDir(userId, folder), SOURCE_FILE), "utf8"));
+    return source && typeof source === "object" && !Array.isArray(source) ? source : null;
+  } catch {
+    return null;
+  }
+}
+
+// An item's folder written whole from what was sent for it — item.json, and
+// beside it each of `files` ({ name: bytes }) — over whatever of those names
+// was there. A folder that is not there yet is written beside where it goes,
+// under a name no item's folder has, and moved into place, so nothing reading
+// the folders sees half of it.
+export function writeItemFolder(userId, item, files) {
+  const dir = itemDir(userId, item.id);
+  const fresh = !fs.existsSync(dir);
+  const into = fresh ? path.join(itemsDir(userId), `.${item.id}.${process.pid}.tmp`) : dir;
+  if (fresh) fs.rmSync(into, { recursive: true, force: true });
+  fs.mkdirSync(into, { recursive: true });
+  for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(into, name), bytes);
+  writeJson(path.join(into, ITEM_FILE), item);
+  if (fresh) fs.renameSync(into, dir);
+}
+
 // An item's whole folder — the item and its photographs — from one account's
 // items to another's: what is done when an item becomes the public account's.
 export function moveItemDir(fromUserId, toUserId, folder) {
