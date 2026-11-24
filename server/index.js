@@ -1669,7 +1669,9 @@ app.post(
       const merged = mergePublic(sent);
       for (const id of [...merged.items.added, ...merged.items.replaced]) {
         keepImages(PUBLIC_ID, id, getItemImages(id).flatMap((image) => [image.name, image.thumb]));
-        rememberPublicPlace(getItem(id));
+        // One that came deleted is kept as it came, and is nowhere to be put.
+        const item = getItem(id);
+        if (item) rememberPublicPlace(item);
       }
       res.json(merged);
     } catch (error) {
