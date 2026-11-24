@@ -956,6 +956,18 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                 {each ? t(`kind.${each}`) : t("kind.all")}
               </button>
             ))}
+            {/* On a phone the list of categories is put away, and the
+                category is picked from the dropdown the map has instead. */}
+            <Select
+              className={`${styles.category} ${styles.rowCategory}`}
+              fit
+              label={t("item.category")}
+              value={category}
+              onChange={setCategory}
+              options={categoryOptions}
+              searchPlaceholder={t("item.categorySearch")}
+              emptyLabel={t("item.categoryNoMatch")}
+            />
           </div>
         )}
         {/* Over the categories, the box that finds one among them. */}

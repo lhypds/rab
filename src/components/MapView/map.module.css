@@ -1,20 +1,47 @@
 /* The page: the panel that says where the map is looking and what is offered
-   there, and the map. Side by side where there is room; on a phone the map
-   comes first and the panel takes the foot of the screen under it. */
+   there, and the map. Side by side where there is room; on a phone the panel
+   comes apart around the map — the name of the area and the box that narrows
+   the list over it, and the list itself under it. */
 .layout {
   width: 100%;
   height: 100%;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 12px;
 }
 
 .side {
   flex: none;
-  height: 38%;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 759px) {
+  /* The panel's parts stand in the page's own column, so the map can come
+     between them. The gap between them is the page's. */
+  .layout:not(.listing) .side {
+    display: contents;
+  }
+
+  .layout:not(.listing) .sideHead {
+    order: 0;
+    padding-bottom: 0;
+  }
+
+  .layout:not(.listing) .sideFilter {
+    order: 1;
+    margin-bottom: 0;
+  }
+
+  .layout:not(.listing) .frame {
+    order: 2;
+  }
+
+  .layout:not(.listing) .sideList {
+    order: 3;
+    flex: 0 0 32%;
+  }
 }
 
 @media (min-width: 760px) {
@@ -24,7 +51,6 @@
 
   .side {
     width: 300px;
-    height: auto;
   }
 }
 
@@ -279,6 +305,58 @@
 .tilesEmpty {
   flex: 1 0 calc(var(--column) + 26px);
   border: 1px solid var(--ink);
+}
+
+/* The dropdown of categories in the row of kinds: only on a phone, where it
+   stands in for the list of categories. */
+.rowCategory {
+  display: none;
+}
+
+/* On a phone the lists stand one over the other: the name of the area, the
+   box, the kinds and the category, and under them the items in one column
+   that scrolls down. The list of categories is put away. */
+@media (max-width: 759px) {
+  .listing {
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  .listing .side {
+    width: auto;
+  }
+
+  .listing .categoryFilter,
+  .listing .choices {
+    display: none;
+  }
+
+  .listing .rowCategory {
+    display: block;
+  }
+
+  .listing .tiles {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .listing .tiles > li,
+  .listing .tiles > li:first-child {
+    width: auto;
+  }
+
+  /* No columns to rule apart, and the long rule would only lengthen the
+     scroll. */
+  .listing .tiles > li::after {
+    content: none;
+  }
+
+  .listing .tilesEmpty {
+    flex: 1 1 auto;
+  }
 }
 
 /* The map: one frame filling the rest, ruled like every other box here. */
