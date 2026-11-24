@@ -521,6 +521,8 @@ function servedItem(item) {
     images,
     // The first photograph is the main one: what a list row and a pin draw.
     thumb: images[0]?.thumb ?? null,
+    // And the same at the size a pin draws it, which is what the map asks for.
+    pin: images[0] ? `${images[0].thumb}/pin` : null,
     active: item.active === true,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
@@ -1308,6 +1310,17 @@ export function mergePublic({ locations, items }) {
     (existing ? things.replaced : things.added).push(id);
   }
   return { locations: places, items: things };
+}
+
+// What the public account already holds, for a sender to compare with what it
+// has and send only the rest: each item's id and the crawler's key for it
+// (source.json), deleted ones too, and each place's id and address.
+export function heldPublic() {
+  const items = itemFolders(PUBLIC_ID)
+    .filter((folder) => itemsById.get(folder)?.ownerId === PUBLIC_ID)
+    .map((id) => ({ id, key: readItemSource(PUBLIC_ID, id)?.key ?? null }));
+  const locations = getLocations(PUBLIC_ID).map(({ id, address }) => ({ id, address: address ?? null }));
+  return { items, locations };
 }
 
 /* ------------------------------------------------------------------- pages */
