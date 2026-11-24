@@ -973,19 +973,29 @@ app.get("/api/items/:id", (req, res) => {
 // from then on (its locations.json), for the next such item to be put at: the
 // spot, and what it is called — the line written under the pin, or failing
 // that the item's name. A spot that is one of them already is not added twice.
-function rememberPublicPlace(item) {
-  if (!item.shared || !item.located || item.latitude == null || item.longitude == null) return;
+// The places are read once for however many items: there are thousands of
+// each, and reading the file again for every item kept the server from
+// starting for minutes.
+function rememberPublicPlaces(items) {
   const near = (a, b) => Math.abs(a - b) < 1e-5;
-  if (getLocations(PUBLIC_ID).some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) return;
-  saveLocation(PUBLIC_ID, {
-    id: null,
-    name: text(item.place || item.title, LOCATION_NAME_MAX),
-    address: item.place ?? "",
-    latitude: item.latitude,
-    longitude: item.longitude,
-    region: item.region ?? null,
-  });
+  let places = null;
+  for (const item of items) {
+    if (!item.shared || !item.located || item.latitude == null || item.longitude == null) continue;
+    places ??= getLocations(PUBLIC_ID);
+    if (places.some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) continue;
+    const saved = saveLocation(PUBLIC_ID, {
+      id: null,
+      name: text(item.place || item.title, LOCATION_NAME_MAX),
+      address: item.place ?? "",
+      latitude: item.latitude,
+      longitude: item.longitude,
+      region: item.region ?? null,
+    });
+    if (saved) places.push(saved);
+  }
 }
+
+const rememberPublicPlace = (item) => rememberPublicPlaces([item]);
 
 // How the signed-in account is reached, as it wrote it on its account's own
 // sheet: kept in its folder's user.json, and what an item of its own that is
@@ -1481,7 +1491,7 @@ const LOCATION_ID_RE = /^[a-z0-9-]{1,40}$/;
 
 // The spots of the public account's items from before they were kept: each
 // one that is not among its places yet is added, when the server starts.
-for (const item of getItemsByUser(PUBLIC_ID)) rememberPublicPlace({ ...item, located: item.latitude != null });
+rememberPublicPlaces(getItemsByUser(PUBLIC_ID).map((item) => ({ ...item, located: item.latitude != null })));
 
 // The public account has places too (`shared`): the ones somebody else's
 // things are at — a shop, a hall — kept in its folder like any account's, for
