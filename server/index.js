@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import compression from "compression";
 import express from "express";
 import { isAdultCategory } from "../src/utils/kinds.js";
 
@@ -85,7 +86,9 @@ const {
   mergePublic,
   heldPublic,
 } = await import("./db.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, storeImage } = await import("./images.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, pinImageFile, storeImage } = await import(
+  "./images.js"
+);
 const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
@@ -309,6 +312,10 @@ function requireSession(req, res, next) {
 
 const app = express();
 app.set("trust proxy", true);
+// Answers squeezed for the way there: the map's items run to megabytes as
+// written, and a fraction of that compressed. Pictures are compressed already
+// and are left as they are.
+app.use(compression());
 app.use(express.json({ limit: "256kb" }));
 app.use("/api", readSession);
 
@@ -660,6 +667,14 @@ function publicItem(item) {
   return rest;
 }
 
+// An item as the map and the lists beside it get it, thousands at a time:
+// without its photographs, of which a pin and a row draw only the first — as
+// `thumb` and `pin` — and its own page asks for the item whole.
+function listedItem(item) {
+  const { images, ...rest } = publicItem(item);
+  return rest;
+}
+
 function parseNumber(value, min, max) {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
@@ -902,7 +917,7 @@ app.get("/api/items", (req, res) => {
   if (south === null || north === null || west === null || east === null || south > north) {
     return res.status(400).json({ error: "Invalid bounds" });
   }
-  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(publicItem) });
+  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(listedItem) });
 });
 
 // The items offered at a spot: every one whose area has it inside, whether or
@@ -920,7 +935,7 @@ app.get("/api/items/at", (req, res) => {
     east: req.query.east == null ? null : parseNumber(req.query.east, -180, 180),
   };
   const whole = Object.values(box).every((edge) => edge !== null) && box.south <= box.north;
-  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map(publicItem) });
+  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map(listedItem) });
 });
 
 // Items by what they say about themselves, for the box in the top bar.
@@ -973,19 +988,29 @@ app.get("/api/items/:id", (req, res) => {
 // from then on (its locations.json), for the next such item to be put at: the
 // spot, and what it is called — the line written under the pin, or failing
 // that the item's name. A spot that is one of them already is not added twice.
-function rememberPublicPlace(item) {
-  if (!item.shared || !item.located || item.latitude == null || item.longitude == null) return;
+// The places are read once for however many items: there are thousands of
+// each, and reading the file again for every item kept the server from
+// starting for minutes.
+function rememberPublicPlaces(items) {
   const near = (a, b) => Math.abs(a - b) < 1e-5;
-  if (getLocations(PUBLIC_ID).some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) return;
-  saveLocation(PUBLIC_ID, {
-    id: null,
-    name: text(item.place || item.title, LOCATION_NAME_MAX),
-    address: item.place ?? "",
-    latitude: item.latitude,
-    longitude: item.longitude,
-    region: item.region ?? null,
-  });
+  let places = null;
+  for (const item of items) {
+    if (!item.shared || !item.located || item.latitude == null || item.longitude == null) continue;
+    places ??= getLocations(PUBLIC_ID);
+    if (places.some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) continue;
+    const saved = saveLocation(PUBLIC_ID, {
+      id: null,
+      name: text(item.place || item.title, LOCATION_NAME_MAX),
+      address: item.place ?? "",
+      latitude: item.latitude,
+      longitude: item.longitude,
+      region: item.region ?? null,
+    });
+    if (saved) places.push(saved);
+  }
 }
+
+const rememberPublicPlace = (item) => rememberPublicPlaces([item]);
 
 // How the signed-in account is reached, as it wrote it on its account's own
 // sheet: kept in its folder's user.json, and what an item of its own that is
@@ -1481,7 +1506,7 @@ const LOCATION_ID_RE = /^[a-z0-9-]{1,40}$/;
 
 // The spots of the public account's items from before they were kept: each
 // one that is not among its places yet is added, when the server starts.
-for (const item of getItemsByUser(PUBLIC_ID)) rememberPublicPlace({ ...item, located: item.latitude != null });
+rememberPublicPlaces(getItemsByUser(PUBLIC_ID).map((item) => ({ ...item, located: item.latitude != null })));
 
 // The public account has places too (`shared`): the ones somebody else's
 // things are at — a shop, a hall — kept in its folder like any account's, for
@@ -1647,7 +1672,7 @@ app.post(
 // A public folder — data/users/_public/ as another server has it, or as a
 // crawler left it — sent by whoever looks after the site a piece at a time,
 // and merged into this one's. GET says what is held already, so that only
-// what is not is sent (rab public does that); each POST is one zip with one
+// what is not is sent (rab push does that); each POST is one zip with one
 // item in it, or the places (locations.json), or both, merged into the public
 // account's (see upload.js and mergePublic in db.js), the spot of the item
 // among its places as well. What comes back is what was added, put in the
@@ -1705,6 +1730,23 @@ app.get("/api/images/:name", (req, res) => {
       "X-Content-Type-Options": "nosniff",
     },
   });
+});
+
+// The same picture at the size a pin on the map draws it (see pinImageFile).
+app.get("/api/images/:name/pin", async (req, res, next) => {
+  try {
+    const file = await pinImageFile(req.params.name);
+    if (!file) return res.status(404).json({ error: "No such image" });
+    res.sendFile(file, {
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/api", (req, res) => {

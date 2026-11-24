@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 //                                      (`rab user _admin pass <new>` is how the
 //                                      admin account is first given one)
 //   rab user delete <username>         delete an account and everything it has
-//   rab public [-f <folder>] [-u <url>]
+//   rab push [-f <folder>] [-u <url>]
 //                                      send what of a public folder the server
 //                                      at <url> does not have yet, an item at a
 //                                      time, to be merged into _public's
@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 // which holds the folders in memory and would write part of what was deleted
 // back: stop it first.
 //
-// rab public goes through a running server instead — this machine's, on its
+// rab push goes through a running server instead — this machine's, on its
 // port, unless -u <url> (or RAB_HOST) names another — signed in as _admin:
 // with RAB_TOKEN, a session token of _admin's, if there is one, and otherwise
 // with _admin's password, asked for here (or RAB_PASSWORD). It asks the server
@@ -47,7 +47,7 @@ const USAGE = `Usage:
   rab user <username> items          list what an account has out for rent
   rab user <username> pass <new>     set an account's password (${PASSWORD_MIN}–${PASSWORD_MAX} characters)
   rab user delete <username> [--yes] delete an account and everything it has
-  rab public [-f <folder>] [-u <url>]
+  rab push [-f <folder>] [-u <url>]
                                      send the items of a public folder the server does not have
                                      (data/users/_public here, without -f), to the server at <url>
                                      (this machine's, without -u)`;
@@ -157,7 +157,7 @@ function readJson(fs, file) {
 
 const megabytes = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-// rab public [-f <folder>] [-u <url>]
+// rab push [-f <folder>] [-u <url>]
 async function sendPublic(args) {
   let file = null;
   let host = process.env.RAB_HOST || null;
@@ -289,7 +289,7 @@ async function sendPublic(args) {
 
 const args = process.argv.slice(2);
 
-if (args[0] === "public") {
+if (args[0] === "push") {
   await sendPublic(args.slice(1));
   process.exit(0);
 }

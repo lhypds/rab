@@ -521,6 +521,8 @@ function servedItem(item) {
     images,
     // The first photograph is the main one: what a list row and a pin draw.
     thumb: images[0]?.thumb ?? null,
+    // And the same at the size a pin draws it, which is what the map asks for.
+    pin: images[0] ? `${images[0].thumb}/pin` : null,
     active: item.active === true,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
