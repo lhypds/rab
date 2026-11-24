@@ -12,8 +12,7 @@ const ABOUT_MAX = 2000;
 
 // The sheet a page is made and changed on: what it is — a store of things, a
 // space, services — its name, a word about it, where it stands, and which of
-// the account's own items of that kind are on it. A store and a space stand at
-// one of the account's locations (kept on the account's sheet); services may.
+// the account's own items of that kind are on it. Any kind may link to a saved location.
 // `page` is the one being changed, or null for a new one; `onSaved` is told
 // the page as it was kept, and `onDeleted` that it was taken off.
 export default function PageModal({ isOpen, page, onClose, onSaved, onDeleted }) {
@@ -38,6 +37,7 @@ export default function PageModal({ isOpen, page, onClose, onSaved, onDeleted })
     setLocationId(page?.location?.id ?? "");
     setItemIds(page?.items?.map((item) => item.id) ?? []);
     setError("");
+    setItems(null);
     let cancelled = false;
     api
       .getLocations()
@@ -46,21 +46,20 @@ export default function PageModal({ isOpen, page, onClose, onSaved, onDeleted })
     api
       .getMine()
       .then((answer) => !cancelled && setItems((answer.items ?? []).filter((item) => !item.shared)))
-      .catch(() => !cancelled && setItems([]));
+      .catch((error) => !cancelled && setError(error.message));
     return () => {
       cancelled = true;
     };
   }, [isOpen, page]);
 
-  const located = kind !== "service";
   const choices = (items ?? []).filter((item) => (item.kind || "item") === kind);
-  const ready = Boolean(name.trim()) && (!located || Boolean(locationId));
+  const ready = Boolean(name.trim()) && items !== null;
 
   // A location kept on the page that has since gone from the account's list
   // is still the page's own until another is chosen.
   const known = locations?.some((each) => each.id === locationId);
   const options = [
-    { value: "", label: t(located ? "page.locationChoose" : "page.locationNone") },
+    { value: "", label: t("page.locationNone") },
     ...(locationId && locations && !known && page?.location ? [{ value: locationId, label: page.location.name }] : []),
     ...(locations ?? []).map((each) => ({
       value: each.id,
@@ -165,7 +164,7 @@ export default function PageModal({ isOpen, page, onClose, onSaved, onDeleted })
             <span className="field-label">{t("item.location")}</span>
             <Select options={options} value={locationId} onChange={setLocationId} label={t("item.location")} />
             <span className={styles.hint}>
-              {locations?.length === 0 ? t("page.locationsEmpty") : t(located ? "page.locationRequired" : "page.locationOptional")}
+              {locations?.length === 0 ? t("page.locationsEmpty") : t("page.locationOptional")}
             </span>
           </div>
 

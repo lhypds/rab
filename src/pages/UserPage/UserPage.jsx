@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import PageList from "../../components/PageList.jsx";
 import * as api from "../../api.js";
-import { CategoryIcon, Header, ItemRow, MessageModal, PageModal, Rating, dotted, loginPath, useAuth } from "../../components/index.js";
-import { ActionButton, Link, Skeleton, useNavigate } from "../../ui/index.js";
+import { Header, ItemRow, MessageModal, PageModal, Rating, loginPath, useAuth } from "../../components/index.js";
+import { ActionButton, Skeleton, useNavigate } from "../../ui/index.js";
 import { formatDate, formatUsername } from "../../utils/format.js";
 
 // Who somebody is: how the people they have dealt with rate them, the pages
@@ -71,45 +72,7 @@ export default function UserPage({ username }) {
             {/* The pages they made, each the way to itself; and on their own,
                 the way to make another. */}
             {(own || data.pages.length > 0) && (
-              <>
-                <div className="part-heading">
-                  <h2>{t("page.title")}</h2>
-                  {own ? (
-                    <button type="button" className="small-button" onClick={() => setMaking(true)}>
-                      {t("page.new")}
-                    </button>
-                  ) : (
-                    <span>{data.pages.length}</span>
-                  )}
-                </div>
-                {data.pages.length === 0 ? (
-                  <p className="part-note">{t("page.empty")}</p>
-                ) : (
-                  <ul className="row-list">
-                    {data.pages.map((page) => (
-                      <li key={page.id} className="row-item">
-                        <div className="row">
-                          <Link className="row-copy" to={`/u/${encodeURIComponent(data.user.username)}/p/${encodeURIComponent(page.id)}`} state={{ back: true }}>
-                            {page.thumb && <img className="row-thumb" src={page.thumb} alt="" width="40" height="40" loading="lazy" />}
-                            <span className="row-lines">
-                              <strong>{page.name}</strong>
-                              <span className="row-meta">
-                                {dotted([
-                                  <>
-                                    <CategoryIcon kind={page.kind} /> {t(`page.kinds.${page.kind}`)}
-                                  </>,
-                                  t("page.count", { count: page.count }),
-                                  page.location?.address || page.location?.name,
-                                ])}
-                              </span>
-                            </span>
-                          </Link>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
+              <PageList pages={data.pages} username={username} onCreate={own ? () => setMaking(true) : undefined} />
             )}
 
             <div className="part-heading">

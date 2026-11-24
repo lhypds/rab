@@ -111,6 +111,7 @@ export const getPage = (username, id) => request(`/api/users/${name(username)}/p
 export const createPage = (page) => send("POST", "/api/pages", page);
 export const updatePage = (id, page) => send("PATCH", `/api/pages/${name(id)}`, page);
 export const deletePage = (id) => send("DELETE", `/api/pages/${name(id)}`);
+export const addToPage = (id, itemId) => send("POST", `/api/pages/${name(id)}/items`, { itemId });
 // The account's own address — { email, verify } — apart from the ways it says
 // it is reached: `verify` is whether a new one is proved by a code mailed to
 // it, which is then asked for first and sent back with the address.

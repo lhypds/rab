@@ -1,8 +1,18 @@
-/* The fields one under another, with air between them. */
+/* The fields one under another, the same air between each of them — the kind
+   buttons too, which keep no margin of their own here. */
 .fields {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+}
+
+.fields > :global(.tabs) {
+  margin: 0;
+}
+
+/* Saving stands a little apart from the last field. */
+.fields + :global(.modal-actions) {
+  margin-top: 24px;
 }
 
 .hint {

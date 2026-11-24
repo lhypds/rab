@@ -38,7 +38,7 @@ export default function PagePage({ username, id }) {
 
   return (
     <div className="page-shell">
-      <Header back />
+      <Header back listingPage={own ? page : undefined} onPageSaved={setPage} />
       <main className="list-page">
         {error && <p className="empty-state">{error}</p>}
         {!page && !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />}
@@ -46,8 +46,9 @@ export default function PagePage({ username, id }) {
           <>
             <div className="section-heading">
               <h1>{page.name}</h1>
-              <span>
-                <CategoryIcon kind={page.kind} /> {t(`page.kinds.${page.kind}`)}
+              <span className="kind-label">
+                <CategoryIcon kind={page.kind} />
+                {t(`page.kinds.${page.kind}`)}
               </span>
             </div>
             <div className={styles.byline}>

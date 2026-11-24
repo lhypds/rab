@@ -19,7 +19,7 @@ export const LIST_EVENT = "rab:list";
 // And by anything that wants the account's messages opened.
 export const MESSAGES_EVENT = "rab:messages";
 
-export default function Header({ back = false, view, onView, query = "", onQuery }) {
+export default function Header({ back = false, listingPage, onPageSaved, view, onView, query = "", onQuery }) {
   const { t } = useTranslation();
   const { user, unread } = useAuth();
   const navigate = useNavigate();
@@ -137,7 +137,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
               to the map rather than reading it. Shown to everybody — to a
               stranger it is the way in, by way of signing in. */}
           <ActionButton
-            tooltip={t("header.list")}
+            tooltip={listingPage ? t("page.addItem", { name: listingPage.name }) : t("header.list")}
             onClick={() => (user ? setListing(true) : navigate(loginPath()))}
           >
             <svg viewBox="0 0 24 24">
@@ -218,9 +218,11 @@ export default function Header({ back = false, view, onView, query = "", onQuery
       {user && (
         <ItemModal
           isOpen={listing}
+          page={listingPage}
           onClose={() => setListing(false)}
-          onSaved={(item) => {
+          onSaved={(item, savedPage) => {
             setListing(false);
+            if (savedPage) return onPageSaved(savedPage);
             // Straight to the page it now has, which is where its calendar is
             // and what there is to send to somebody.
             navigate(`/i/${item.id}`);

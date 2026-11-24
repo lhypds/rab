@@ -583,10 +583,7 @@ app.get("/api/users/:username", (req, res) => {
     items: getItemsByUser(user.id, { publicOnly: true }).filter((item) => !item.shared && mayView(req.user, item)).map(publicItem),
     // The pages they made of them, each with how many of its items are shown
     // and the first one's picture.
-    pages: getPages(user.id).map((page) => {
-      const { items, ...rest } = pageAnswer(user, page, req.user);
-      return { ...rest, count: items.length, thumb: items[0]?.thumb ?? null };
-    }),
+    pages: pageSummaries(user, req.user),
   });
 });
 
@@ -605,9 +602,20 @@ function pageAnswer(owner, page, viewer) {
   return { ...served, items: served.items.filter((item) => own || mayView(viewer, item)).map(publicItem) };
 }
 
+// A page as a row in a list gets it: how many items it shows, not the items.
+function pageSummary(user, page, viewer) {
+  const { items, ...rest } = pageAnswer(user, page, viewer);
+  // `published`: how many of them are out for anybody to see, which is what
+  // makes the page itself worth visiting.
+  return { ...rest, count: items.length, published: items.filter((item) => item.active).length, thumb: items[0]?.thumb ?? null };
+}
+
+function pageSummaries(user, viewer) {
+  return getPages(user.id).map((page) => pageSummary(user, page, viewer));
+}
+
 // What the form says about a page, as it is kept, or a fault to answer with.
-// A store and a space stand at one of the account's locations, which the page
-// keeps a copy of; a service may. The copy a page already has (`kept`) stays
+// Any page may keep a copy of a saved location. Its existing copy stays
 // its own while it is still chosen, though the location has gone since.
 function parsePage(userId, body, kept = null) {
   const name = text(body?.name, PAGE_NAME_MAX);
@@ -621,7 +629,6 @@ function parsePage(userId, body, kept = null) {
     if (!found) return { fault: "No such location" };
     location = { id: found.id, name: found.name, address: found.address ?? "", latitude: found.latitude, longitude: found.longitude, region: found.region ?? null };
   }
-  if (!location && kind !== "service") return { fault: "A store or a space needs a location" };
   // Only the account's own items of the page's kind, each once.
   const own = new Set(getItemsByUser(userId).filter((item) => !item.shared && (item.kind || "item") === kind).map((item) => item.id));
   const ids = Array.isArray(body?.itemIds) ? body.itemIds.map(String) : [];
@@ -651,6 +658,23 @@ app.patch("/api/pages/:id", requireSession, (req, res) => {
   if (fault) return res.status(400).json({ error: fault });
   const saved = savePage(req.user.id, { ...page, id: req.params.id });
   res.json({ page: pageAnswer(req.user, saved, req.user) });
+});
+
+// One of the account's own items put on one of its pages — dragged onto it in
+// the list of pages — after what is there. `added` is false where it was on
+// the page already. The page answers as a row in the list does.
+app.post("/api/pages/:id/items", requireSession, (req, res) => {
+  const page = getPages(req.user.id).find((each) => each.id === req.params.id);
+  if (!page) return res.status(404).json({ error: "No such page" });
+  const item = getItemsByUser(req.user.id).find((each) => each.id === String(req.body?.itemId ?? ""));
+  if (!item || item.shared || (item.kind || "item") !== page.kind) {
+    return res.status(400).json({ error: "Choose an item of your own matching the page kind" });
+  }
+  const itemIds = servedPage(req.user.id, page).items.map((each) => each.id);
+  if (itemIds.includes(item.id)) return res.json({ added: false, page: pageSummary(req.user, page, req.user) });
+  if (itemIds.length >= PAGE_ITEMS_MAX) return res.status(409).json({ error: "This page is full" });
+  const saved = savePage(req.user.id, { ...page, itemIds: [...itemIds, item.id] });
+  res.json({ added: true, page: pageSummary(req.user, saved, req.user) });
 });
 
 app.delete("/api/pages/:id", requireSession, (req, res) => {
@@ -1035,12 +1059,36 @@ app.post("/api/items", requireSession, (req, res) => {
   // Somebody else's is put under the public account, in its folder, and is
   // not the account's own from the first: nothing says who wrote it down.
   const ownerId = parsed.item.shared ? PUBLIC_ID : req.user.id;
+  let page;
+  let itemIds;
+  if (req.body.pageId != null) {
+    page = getPages(req.user.id).find((entry) => entry.id === req.body.pageId);
+    if (!page) return res.status(404).json({ error: "No such page" });
+    if (parsed.item.shared || page.kind !== parsed.item.kind) {
+      return res.status(400).json({ error: "Choose an item of your own matching the page kind" });
+    }
+    itemIds = servedPage(req.user.id, page).items.map((entry) => entry.id);
+    if (itemIds.length >= PAGE_ITEMS_MAX) return res.status(409).json({ error: "This page is full" });
+  }
   const item = createItem(ownerId, parsed.item);
-  keepItemImages(item);
-  rememberPublicPlace(parsed.item);
-  applyClosed(item, req.body?.closed);
-  applyOpened(item, req.body?.opened);
-  res.status(201).json({ item: { ...publicItem(item), mine: !parsed.item.shared } });
+  let savedPage;
+  try {
+    keepItemImages(item);
+    rememberPublicPlace(parsed.item);
+    applyClosed(item, req.body?.closed);
+    applyOpened(item, req.body?.opened);
+    if (page) {
+      savedPage = savePage(req.user.id, { ...page, itemIds: [...itemIds, item.id] });
+      if (!savedPage) throw new Error("Could not save the page");
+    }
+  } catch (error) {
+    deleteItem(ownerId, item.id);
+    throw error;
+  }
+  res.status(201).json({
+    item: { ...publicItem(item), mine: !parsed.item.shared },
+    ...(savedPage && { page: pageAnswer(req.user, savedPage, req.user) }),
+  });
 });
 
 // The item a request is about, where the account asking may change it: its
@@ -1469,6 +1517,7 @@ app.post("/api/bookings/:id/review", requireSession, (req, res) => {
 // for any of it, and what it has asked for itself.
 app.get("/api/mine", requireSession, (req, res) => {
   res.json({
+    pages: pageSummaries(req.user, req.user),
     items: getItemsByUser(req.user.id).map(publicItem),
     requests: getBookingsForOwner(req.user.id).map((booking) => bookingFor(req.user, booking)),
     bookings: getBookingsByRenter(req.user.id).map((booking) => bookingFor(req.user, booking)),

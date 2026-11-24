@@ -40,12 +40,11 @@ have out and who has asked for it; "My rentals" is what you have asked other peo
 
 ## Profile pages
 
-On your own page (`/u/<name>`) you can make **pages** of what you have posted: a page of
-things is a store, a page of spaces is a space, a page of services is just that. Each has
-a name, a word about it, and the items of its kind you tick for it; a store and a space
-stand at one of your saved locations, a page of services may or may not. Its address
-(`/u/<name>/p/<id>`) shows the map, the items with their prices, and each is booked on its
-own page.
+From Mine or your profile you can create multiple pages. Each collects your things,
+spaces or services and can link to a saved location. Edit a page to select existing
+listings. The plus on your page creates a listing of its kind, starts it at the page's
+location if it has one, and adds it to the collection when you publish. Share the
+page at `/u/<name>/p/<id>`. Visitors can open and book each published listing.
 
 Modelled on [`lo`](../../lo/lo): the same stack, the same look, the same message sheets.
 

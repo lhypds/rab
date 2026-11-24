@@ -554,7 +554,7 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
 // what it costs. An item that exists is opened on one of them (`part`,
 // "item" or "availability") and saved from there; a new one is taken through
 // both, the first and then the second, and published from the second.
-export default function ItemModal({ isOpen, item = null, calendar = null, part = "item", onClose, onSaved }) {
+export default function ItemModal({ isOpen, page, item = null, calendar = null, part = "item", onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const lang = i18n.language;
@@ -620,13 +620,23 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
 
   useEffect(() => {
     if (!isOpen) return;
-    setFields(startingFields(item, calendar, lang));
+    const location = page?.location;
+    const initial = startingFields(item, calendar, lang);
+    if (page) initial.kind = page.kind;
+    if (location) {
+      initial.located = true;
+      initial.latitude = location.latitude;
+      initial.longitude = location.longitude;
+      initial.place = location.address || location.name;
+      initial.region = location.region;
+    }
+    setFields(initial);
     setError("");
     setPricing(null);
     setStep("item");
     setUploading(0);
-    placeTyped.current = Boolean(item?.place);
-    regionPicked.current = Boolean(item?.region);
+    placeTyped.current = Boolean(initial.place);
+    regionPicked.current = Boolean(initial.region);
     setNaming(null);
     setHoursDay(today());
     api
@@ -656,7 +666,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     // of the same item, and starting over at each of those would throw away
     // whatever had been typed since the last.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, item?.id]);
+  }, [isOpen, item?.id, page?.id]);
 
   const set = (name, value) => {
     setFields((current) => ({ ...current, [name]: value }));
@@ -731,8 +741,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       const listing = await api.describePhoto(blob, lang.slice(0, 2));
       setFields((current) => ({
         ...current,
-        kind: KINDS.includes(listing.kind) ? listing.kind : current.kind,
-        category: listing.category ?? "",
+        kind: !page && KINDS.includes(listing.kind) ? listing.kind : current.kind,
+        category: page && listing.kind !== page.kind ? current.category : listing.category ?? "",
         title: (listing.title || current.title).slice(0, TITLE_MAX),
         description: (listing.description || current.description).slice(0, DESCRIPTION_MAX),
       }));
@@ -1049,6 +1059,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       title: fields.title.trim(),
       description: fields.description.trim(),
       homepage: fields.homepage.trim(),
+      ...(page && { pageId: page.id }),
       kind: fields.kind,
       category: fields.category,
       shared: fields.shared,
@@ -1087,7 +1098,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
         ? []
         : (calendar?.days ?? []).filter((day) => day.available && day.price != null && !closed.includes(day.day)).map((day) => day.day);
       if (editing && stale.length > 0) await api.setDays(item.id, { days: stale, available: true, price: null });
-      onSaved?.(data.item);
+      onSaved?.(data.item, data.page);
     } catch (requestError) {
       setError(
         requestError.code === "REGION_REQUIRED"
@@ -1184,7 +1195,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   signed in can change it or delete it. Asked of whoever put
                   it here; somebody else editing it is not asked, since it
                   is not theirs to take. */}
-              {(!editing || (item.mine && !item.shared)) && (
+              {!page && (!editing || (item.mine && !item.shared)) && (
                 <div className="field">
                   <span className="field-label">{t("item.whose")}</span>
                   <div className="tabs" role="group" aria-label={t("item.whose")}>
@@ -1230,7 +1241,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
               <div className="field">
                 <span className="field-label">{t("item.kind")}</span>
                 <div className="tabs" role="group">
-                  {KINDS.map((kind) => (
+                  {(page ? [page.kind] : KINDS).map((kind) => (
                     <button
                       key={kind}
                       type="button"

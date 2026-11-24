@@ -577,6 +577,9 @@
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
     "missing": "There is no such page.",
+    "noneShown": "No pages here.",
+    "added": "Added to “{{name}}”",
+    "alreadyOn": "Already on “{{name}}”",
     "kinds": {
       "item": "Store",
       "space": "Space",
@@ -592,8 +595,8 @@
     "locationChoose": "Choose a location",
     "locationNone": "No location",
     "locationsEmpty": "No saved locations yet. Add one on your account's sheet (the person in the top bar), then choose it here.",
-    "locationRequired": "Required: a store or a space stands at one of your locations.",
-    "locationOptional": "Optional for services.",
+    "locationOptional": "Optional. Choose a saved location for this page.",
+    "addItem": "Add to {{name}}",
     "items": "Items on it",
     "itemsNone": {
       "item": "You have posted no things yet.",

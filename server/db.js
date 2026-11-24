@@ -1328,9 +1328,7 @@ export function heldPublic() {
 // The pages an account makes of what it has out — "Liu's Music Gear Store": a
 // name, a word about it, one kind, and some of the account's own items of that
 // kind, in the order it put them. A page of things is a store and a page of
-// spaces is a space; both stand at one of the account's locations, a copy of
-// which the page carries, as an item does. A page of services may say where
-// or not. A list in its folder's pages.json, read and written as they are
+// spaces is a space; each page may carry a copy of a saved location. A list in its folder's pages.json, read and written as they are
 // asked for, like the locations. An item deleted since, or of another kind
 // now, is left in the file and left out of what is read.
 const PAGES_FILE = "pages.json";

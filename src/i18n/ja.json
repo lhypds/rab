@@ -565,6 +565,9 @@
     "empty": "ページはまだありません。投稿したものからストア、スペース、サービスのページを作れます。",
     "count_other": "{{count}}件",
     "missing": "そのページはありません。",
+    "noneShown": "ここにはページがありません。",
+    "added": "「{{name}}」に追加しました",
+    "alreadyOn": "すでに「{{name}}」にあります",
     "kinds": {
       "item": "ストア",
       "space": "スペース",
@@ -580,8 +583,8 @@
     "locationChoose": "場所を選ぶ",
     "locationNone": "場所なし",
     "locationsEmpty": "保存した場所がまだありません。アカウント（上のバーの人のマーク）で追加してから、ここで選んでください。",
-    "locationRequired": "必須：ストアとスペースは自分の場所のどれかに置きます。",
-    "locationOptional": "サービスは場所なしでも構いません。",
+    "locationOptional": "保存した場所を任意で選べます。",
+    "addItem": "「{{name}}」に追加",
     "items": "載せるもの",
     "itemsNone": {
       "item": "モノをまだ投稿していません。",

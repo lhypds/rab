@@ -397,12 +397,37 @@ a {
   padding: 20px 12px calc(48px + env(safe-area-inset-bottom));
 }
 
-/* The booking page is the one page with two columns of its own to lay out, so
-   it takes more of a wide window than a list does. */
+/* Two-column pages share a wider reading area. */
 .wide-page {
   width: min(100%, 1080px);
   margin: 0 auto;
   padding: 20px 12px calc(48px + env(safe-area-inset-bottom));
+}
+
+.others-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+/* Every column's heading is as tall as a small button, so the rules under
+   them line up whether or not a heading carries one. */
+.others-columns .part-heading {
+  align-items: center;
+  min-height: 24px;
+  box-sizing: content-box;
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .others-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mine-page .others-columns > section > .tabs,
+.others-page > section > .tabs {
+  margin: 12px 0;
 }
 
 /* Said at the head of a preview: that this is not yet anybody's to see. */
@@ -1033,4 +1058,24 @@ a {
 .map-frame .mapboxgl-ctrl-logo,
 .map-frame .mapboxgl-ctrl-attrib {
   display: none;
+}
+
+/* A row that takes what is being dragged over it, while it is over it. */
+.row-item.row-drop {
+  background: var(--soft);
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+
+/* A kind's mark and its word, side by side: the mark is centred on the line
+   rather than sat on the type's baseline, and is as tall as the type is. */
+.kind-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: bottom;
+}
+
+.kind-label svg {
+  width: 1.2em;
+  height: 1.2em;
 }
