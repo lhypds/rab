@@ -34,18 +34,45 @@ enum Area {
         return Region(name: name, detail: detail, bbox: bbox)
     }
 
-    /// The area a typed name means, or nil where the geocoder knows none.
+    /// The language a place is named in: the one the country it is in writes
+    /// it in — Japanese in Japan, Chinese in China — and English everywhere
+    /// else, whatever language the phone is in. The website names places the
+    /// same way (see addressLanguage there).
+    static func locale(for country: String?) -> Locale {
+        Locale(identifier: ["JP": "ja", "CN": "zh-Hans"][country?.uppercased() ?? ""] ?? "en")
+    }
+
+    /// The placemark for a spot, named in its country's language. The country
+    /// is only known once the geocoder has answered, so it is asked in English
+    /// and asked again where the country writes its names otherwise.
+    static func placemark(at location: CLLocation) async -> CLPlacemark? {
+        let english = Locale(identifier: "en")
+        guard let first = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: english).first else { return nil }
+        let own = locale(for: first.isoCountryCode)
+        guard own != english else { return first }
+        return (try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: own).first) ?? first
+    }
+
+    /// The area a typed name means, or nil where the geocoder knows none —
+    /// named, like a spot, in the language of the country it is in.
     static func lookUp(_ text: String) async -> Region? {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty, let placemark = try? await CLGeocoder().geocodeAddressString(query).first else { return nil }
-        return region(from: placemark)
+        let english = Locale(identifier: "en")
+        guard !query.isEmpty,
+              let found = try? await CLGeocoder().geocodeAddressString(query, in: nil, preferredLocale: english).first
+        else { return nil }
+        let own = locale(for: found.isoCountryCode)
+        guard own != english,
+              let named = try? await CLGeocoder().geocodeAddressString(query, in: nil, preferredLocale: own).first
+        else { return region(from: found) }
+        return region(from: named)
     }
 
     /// What a spot on the map comes to: the area around it, and its address as
     /// a line — street, town, prefecture — as far as the geocoder knows them.
     static func describe(latitude: Double, longitude: Double) async -> (region: Region?, address: String?) {
         let spot = CLLocation(latitude: latitude, longitude: longitude)
-        guard let placemark = try? await CLGeocoder().reverseGeocodeLocation(spot).first else { return (nil, nil) }
+        guard let placemark = await placemark(at: spot) else { return (nil, nil) }
         let street = [placemark.subThoroughfare, placemark.thoroughfare].compactMap { $0 }.joined(separator: " ")
         var parts: [String] = []
         for part in [street.isEmpty ? placemark.name : street, placemark.locality, placemark.administrativeArea] {
@@ -77,7 +104,7 @@ enum Area {
     @MainActor
     static func whereabouts() async -> (position: CLLocationCoordinate2D?, region: Region?) {
         guard let location = await LocationOnce().location() else { return (nil, nil) }
-        guard let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first else { return (location.coordinate, nil) }
+        guard let placemark = await placemark(at: location) else { return (location.coordinate, nil) }
         return (location.coordinate, region(from: placemark))
     }
 

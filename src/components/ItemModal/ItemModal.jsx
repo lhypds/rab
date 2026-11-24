@@ -7,7 +7,7 @@ import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords
 import { uploadPhoto } from "../../utils/image.js";
 import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
 import { dialCodeOf, dialCodes, splitDialCode } from "../../utils/dialing.js";
-import { AREA_TYPES, DEFAULT_VIEW, MAPBOX_TOKEN, areaAt, areaOf, areasAt, geocode, locate, locationPermission, placeName, postcodeOf, savedView } from "../../utils/mapbox.js";
+import { AREA_TYPES, DEFAULT_VIEW, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, placeName, postcodeOf, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { openPreview, writePreview } from "../../utils/preview.js";
 import { clockOf, hourPrice, inquiryUnitOf, INQUIRY_UNITS, listPrice, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
@@ -392,9 +392,10 @@ async function whereabouts() {
 // an area is said once, so those are left out of what is listed here — and
 // with them whatever is inside one of them, or has one of them inside it.
 function AreaField({ value, onChange, near = null, taken = [] }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { country } = useRegion();
-  const lang = i18n.language;
+  // Places are named in the language of the country the reader is in.
+  const lang = addressLanguage(country);
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState(null);
   // Whether the search is open, and the areas round the reader that are
@@ -599,7 +600,10 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // else's, which is reached some other way.
   // The code a phone number is given until one is chosen — the reader's own
   // country's — and the codes there are to choose from.
-  const dialCode = dialCodeOf(useRegion().country);
+  const { country } = useRegion();
+  const dialCode = dialCodeOf(country);
+  // The language a place found for the item is named in (see addressLanguage).
+  const placeLang = addressLanguage(country);
   const dialOptions = useMemo(
     () =>
       dialCodes(lang).map(({ code, name }) => ({ value: code, short: code, label: `${code} ${name}`, text: `${code} ${name}` })),
@@ -666,7 +670,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     if (!isOpen || !located || placeTyped.current || !MAPBOX_TOKEN) return undefined;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      placeName(latitude, longitude, lang, controller.signal)
+      placeName(latitude, longitude, placeLang, controller.signal)
         .then((name) => {
           if (name && !placeTyped.current) setFields((current) => ({ ...current, place: name.slice(0, PLACE_MAX) }));
         })
@@ -676,7 +680,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [isOpen, located, latitude, longitude, lang]);
+  }, [isOpen, located, latitude, longitude, placeLang]);
 
   // Every photograph is reduced in the browser before it is sent (see
   // utils/image.js), a few at a time, and lands in the order it was picked.
@@ -847,7 +851,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       const spot = await whereabouts();
       if (cancelled || !spot) return;
       setHere(spot);
-      areaAt(spot.latitude, spot.longitude, lang, controller.signal)
+      areaAt(spot.latitude, spot.longitude, placeLang, controller.signal)
         .then((area) => {
           const region = areaOf(area);
           if (region && !cancelled && !regionPicked.current) setFields((current) => ({ ...current, region }));
@@ -858,7 +862,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       cancelled = true;
       controller.abort();
     };
-  }, [isOpen, lang]);
+  }, [isOpen, placeLang]);
 
   // The day pressed on the calendar of an item booked by the time, and the week
   // it is in, Sunday first: the seven dates the timetable shows.

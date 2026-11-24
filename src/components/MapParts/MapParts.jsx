@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButton } from "../../ui/index.js";
 import mapboxgl from "mapbox-gl";
-import { geocode, onPosition } from "../../utils/mapbox.js";
+import { addressLanguage, geocode, onPosition } from "../../utils/mapbox.js";
 import { loadRegion, useRegion } from "../../utils/region.js";
 import styles from "./parts.module.css";
 
@@ -40,11 +40,12 @@ export function showSelf(map) {
 // `near` is asked for at the moment of searching, so the answers lean towards
 // wherever the map happens to be looking.
 export function MapSearch({ onPick, near }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { country } = useRegion();
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState(null);
-  const lang = i18n.language;
+  // Places are named in the language of the country the reader is in.
+  const lang = addressLanguage(country);
 
   useEffect(() => {
     loadRegion();

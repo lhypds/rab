@@ -12,6 +12,14 @@ export function mapLanguage(lang) {
   return { zh: "zh-Hans", ja: "ja" }[lang] ?? "en";
 }
 
+// The language a spot's address and its area are named in: the one the
+// country the reader is in writes them in — Japanese in Japan, Chinese in
+// China — and English everywhere else, whatever language the page is in.
+// `country` is the two-letter code (see useRegion).
+export function addressLanguage(country) {
+  return { JP: "ja", CN: "zh" }[country] ?? "en";
+}
+
 // The stretch of map the reader was last looking at, for as long as the page
 // lives: coming back from an item's page puts the map where it was left. Not
 // kept across visits — a fresh visit opens on where the reader is, which is the

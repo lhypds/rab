@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { showToast } from "../../ui/index.js";
 import { formatCoords } from "../../utils/format.js";
-import { DEFAULT_VIEW, MAPBOX_TOKEN, areaAt, areaOf, placeName, savedView } from "../../utils/mapbox.js";
-import { currentRegion } from "../../utils/region.js";
+import { DEFAULT_VIEW, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, placeName, savedView } from "../../utils/mapbox.js";
+import { currentRegion, useRegion } from "../../utils/region.js";
 import SpotMap from "../SpotMap/index.js";
 import styles from "./account.module.css";
 
@@ -16,8 +16,9 @@ const ADDRESS_MAX = 120;
 // its spot on the map — or taken off, and a new one added. One is worked on at
 // a time, in place: the row it was, opened into a small form.
 export default function Locations({ isOpen }) {
-  const { t, i18n } = useTranslation();
-  const lang = i18n.language;
+  const { t } = useTranslation();
+  // Addresses are written in the language of the country the reader is in.
+  const lang = addressLanguage(useRegion().country);
   // The places as they are kept, null until they have been read.
   const [locations, setLocations] = useState(null);
   // The one being written: what is kept of it, with `id` null for a new one

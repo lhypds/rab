@@ -13,6 +13,7 @@ import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
   MAPBOX_TOKEN,
+  addressLanguage,
   areaAt,
   MAP_STYLE,
   PIN_PATH,
@@ -564,17 +565,19 @@ export default function MapView({ view = "map", query = "", onQuery }) {
 
   /* --------------------------------------------------------------- the area */
 
-  // What the place the reader stands in is called, in their language.
+  // What the place the reader stands in is called, in the language of the
+  // country they are in (see addressLanguage).
+  const placeLang = addressLanguage(region.country);
   useEffect(() => {
     if (!spot) return undefined;
     const controller = new AbortController();
-    areaAt(spot.latitude, spot.longitude, lang, controller.signal)
+    areaAt(spot.latitude, spot.longitude, placeLang, controller.signal)
       .then((found) => setArea(found ? { name: found.name, locality: found.locality, within: found.within, bbox: found.bbox } : null))
       .catch((error) => {
         if (error?.name !== "AbortError") setArea(null);
       });
     return () => controller.abort();
-  }, [spot, lang]);
+  }, [spot, placeLang]);
 
   // And everything offered there: asked once the area is known, since the
   // items standing inside it are part of the answer.
