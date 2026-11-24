@@ -610,44 +610,14 @@ export function searchItems(query, limit = 20) {
     .map(servedItem);
 }
 
-// The pins inside the window of the map, of the kind and the category in force
-// where one is. No more than `limit` of them, shared out between the
-// categories so that none fills the map: each category is given an equal part,
-// a category with fewer than its part keeps them all, and what it leaves goes
-// to the ones with more. Within a category the newest are the ones kept.
-export function getItemsInBox({ south, north, west, east }, { kind = null, category = null, limit = 2000 } = {}) {
-  const inside = listedItems().filter(
-    (item) =>
-      item.located &&
-      item.latitude >= south &&
-      item.latitude <= north &&
-      between(item.longitude, west, east) &&
-      (!kind || item.kind === kind) &&
-      (!category || item.category === category),
-  );
-  return balanced(inside, limit).map(servedItem);
-}
-
-// At most `limit` of the items, newest first, with each category's share
-// given out smallest category first.
-function balanced(items, limit) {
-  if (items.length <= limit) return items;
-  const byCategory = new Map();
-  for (const item of items) {
-    const key = item.category ?? "";
-    if (!byCategory.has(key)) byCategory.set(key, []);
-    byCategory.get(key).push(item);
-  }
-  const groups = [...byCategory.values()].sort((a, b) => a.length - b.length);
-  const kept = new Set();
-  let left = limit;
-  groups.forEach((group, index) => {
-    const share = Math.floor(left / (groups.length - index));
-    const taken = group.slice(0, share);
-    for (const item of taken) kept.add(item);
-    left -= taken.length;
-  });
-  return items.filter((item) => kept.has(item));
+export function getItemsInBox({ south, north, west, east }, limit = 4000) {
+  return listedItems()
+    .filter(
+      (item) =>
+        item.located && item.latitude >= south && item.latitude <= north && between(item.longitude, west, east),
+    )
+    .slice(0, limit)
+    .map(servedItem);
 }
 
 // The items offered where somebody is looking: the ones with an area — the

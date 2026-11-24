@@ -121,15 +121,8 @@ export const setBirthdate = (birthdate) => send("PUT", "/api/account/birthdate",
 
 /* -------------------------------------------------------------------- items */
 
-// `kind` and `category` narrow it, where given: the server sends a limited
-// number, and spends them on those alone.
-export const getItems = ({ south, north, west, east, kind, category }, options) =>
-  request(
-    `/api/items?south=${south}&north=${north}&west=${west}&east=${east}${
-      kind ? `&kind=${encodeURIComponent(kind)}` : ""
-    }${category ? `&category=${encodeURIComponent(category)}` : ""}`,
-    options,
-  );
+export const getItems = ({ south, north, west, east }, options) =>
+  request(`/api/items?south=${south}&north=${north}&west=${west}&east=${east}`, options);
 // `bbox` is the area the spot is in, as [west, south, east, north], where known.
 export const getItemsAt = ({ latitude, longitude }, bbox, options) =>
   request(

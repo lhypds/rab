@@ -167,9 +167,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const narrow = (nextKind, nextCategory) =>
     navigate(homePath(nextKind, nextCategory), { replace: true, scroll: false, state: window.history.state });
   const setCategory = (slug) => narrow(kind, slug);
-  // The same, for the map's own asking (made once, below), and how it asks.
-  const filterRef = useRef({ kind, category });
-  const askRef = useRef(null);
   // The question about location, while it is being asked: "ask" before the
   // reader has answered, "locating" while the browser does, and afterwards why
   // it came to nothing: "denied", "failed" or "insecure" (see locateFailure).
@@ -453,7 +450,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             north: Math.min(90, bounds.getNorth()),
             west: whole ? -180 : wrap(bounds.getWest()),
             east: whole ? 180 : wrap(bounds.getEast()),
-            ...filterRef.current,
           },
           { signal: controller.signal },
         )
@@ -479,10 +475,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
 
     map.on("load", ask);
     map.on("moveend", settle);
-    // A change of kind or category asks again, once the map has loaded.
-    map.once("load", () => {
-      if (!cancelled) askRef.current = ask;
-    });
     // A move the reader made carries the event that made it; one made by code
     // does not.
     map.on("movestart", (event) => {
@@ -550,7 +542,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
 
     return () => {
       cancelled = true;
-      askRef.current = null;
       stopListening();
       window.clearTimeout(timer);
       window.clearTimeout(leaveRef.current);
@@ -571,18 +562,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   useEffect(() => {
     mapRef.current?.setLanguage?.(mapLanguage(lang));
   }, [lang]);
-
-  // The pins are asked for again when the kind or the category changes: the
-  // server sends only so many, and narrowed, it spends them on these alone.
-  const firstFilterRef = useRef(true);
-  useEffect(() => {
-    filterRef.current = { kind, category };
-    if (firstFilterRef.current) {
-      firstFilterRef.current = false;
-      return;
-    }
-    askRef.current?.();
-  }, [kind, category]);
 
   /* --------------------------------------------------------------- the area */
 
