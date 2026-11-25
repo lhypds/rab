@@ -59,7 +59,9 @@ export default function StoreList({ stores, username, filterable = false, carrie
               onClick={() => press(name)}
             >
               {KINDS.includes(name) && <CategoryIcon kind={name} />}
-              {name === "published" ? t("item.published") : name === "service" ? t("mine.skills") : t(`kind.${name}`)}
+              {/* A page is named for what it collects: a store of things,
+                  a page of spaces, of services. */}
+              {name === "published" ? t("item.published") : name === "all" ? t("kind.all") : t(`store.kinds.${name}`)}
             </button>
           ))}
         </div>
