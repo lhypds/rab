@@ -404,15 +404,20 @@ a {
   padding: 20px 12px calc(48px + env(safe-area-inset-bottom));
 }
 
-/* Two columns side by side only while each is at least as wide as the row of
-   tabs over its items (--column-min, measured in English); narrower than that,
-   one over the other, so the tabs never have to wrap. Mine's row has a
-   Published tab more. */
+/* Two columns side by side, always as wide as each other, while each is at
+   least as wide as the widest row of tabs over either (--column-min, measured
+   in English); one over the other once the page is narrower than that twice
+   over, so the tabs never have to wrap. Mine's items have a Published tab more. */
 .others-columns {
   --column-min: 456px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--column-min)), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 24px;
+}
+
+.others-columns > section {
+  flex: 1 1 0;
+  min-width: min(100%, var(--column-min));
 }
 
 .mine-page .others-columns {
