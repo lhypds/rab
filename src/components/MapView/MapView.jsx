@@ -13,7 +13,6 @@ import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
   MAPBOX_TOKEN,
-  addressLanguage,
   areaAt,
   MAP_STYLE,
   PIN_PATH,
@@ -588,9 +587,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
 
   /* --------------------------------------------------------------- the area */
 
-  // What the place the reader stands in is called, in the language of the
-  // country they are in (see addressLanguage).
-  const placeLang = addressLanguage(region.country);
+  // What the place the reader stands in is called, in the language the page is
+  // in — switching language re-reads it, as it relabels the map.
+  const placeLang = lang;
   useEffect(() => {
     if (!spot) return undefined;
     const controller = new AbortController();
