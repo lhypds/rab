@@ -1,0 +1,93 @@
+/* The ground the pin is put down on. */
+.map {
+  position: relative;
+  height: 240px;
+  border: 1px solid var(--ink);
+  background: var(--soft);
+}
+
+/* The spot's name, laid on the map's bottom edge: a field drawn as the small
+   ruled label the maps here carry, and still a field — it can be typed over. */
+.place {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 3;
+  width: min(280px, calc(100% - 20px));
+  height: 24px;
+  padding: 0 8px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  outline: 0;
+  background: var(--paper);
+  font-size: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+@media (pointer: coarse) {
+  .place {
+    height: 30px;
+    font-size: 16px;
+  }
+}
+
+/* One of the account's places in the dropdown: its name and address, and its
+   coordinates in grey under them. */
+.location {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Grey by being faint rather than by a colour of its own, so that it is still
+   read on the row the pointer is on, which is drawn in reverse. */
+.locationSpot {
+  opacity: 0.55;
+  font-size: 11px;
+}
+
+/* The two things to do with a spot, at the two ends of one line. */
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Naming a spot to keep it: the name, and the two buttons after it. It takes
+   the line up to the button at the far end. */
+.naming {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* As tall as the buttons beside it, which is shorter than a field of the form. */
+.naming :global(.text-input) {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+}
+
+/* Save and Cancel, one width. */
+.naming :global(.small-button) {
+  width: 64px;
+  height: 24px;
+  padding: 0;
+}
+
+.start {
+  align-self: flex-start;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}

@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from "../ui/index.js"
 import { KINDS } from "../utils/kinds.js";
 import CategoryIcon from "./CategoryIcon/index.js";
 import { dotted } from "./UserName/index.js";
+import { pagePath } from "../utils/pages.js";
 
 // What the list of pages can be narrowed to, as the list of items beside it:
 // one kind at a time, and on or off beside it only the public ones — a page
@@ -12,7 +13,7 @@ const FILTERS = ["all", "published", ...KINDS];
 
 // `carried`: an item being dragged from somewhere else on the screen, which
 // a page of its kind takes when it is let go over it (`onDropItem`).
-export default function PageList({ pages, username, onCreate, filterable = false, carried = null, onDropItem }) {
+export default function PageList({ pages, username, filterable = false, carried = null, onDropItem }) {
   const { t } = useTranslation();
   const [dropOn, setDropOn] = useState(null);
   const takes = (page) => Boolean(onDropItem && carried && (carried.kind || "item") === page.kind);
@@ -44,13 +45,7 @@ export default function PageList({ pages, username, onCreate, filterable = false
     <>
       <div className="part-heading">
         <h2>{t("page.title")}</h2>
-        {onCreate ? (
-          <button type="button" className="small-button" onClick={onCreate}>
-            {t("page.new")}
-          </button>
-        ) : (
-          <span>{pages.length}</span>
-        )}
+        <span>{pages.length}</span>
       </div>
       {filterable && (
         <div className="tabs" role="group">
@@ -92,10 +87,10 @@ export default function PageList({ pages, username, onCreate, filterable = false
               }}
             >
               <div className="row">
-                <Link className="row-copy" draggable={false} to={`/u/${encodeURIComponent(username)}/p/${encodeURIComponent(page.id)}`} state={{ back: true }}>
+                <Link className="row-copy" draggable={false} to={pagePath({ owner: username, id: page.id })} state={{ back: true }}>
                   {page.thumb && <img className="row-thumb" src={page.thumb} alt="" width="40" height="40" loading="lazy" />}
                   <span className="row-lines">
-                    <strong>{page.name}</strong>
+                    <strong>{page.title}</strong>
                     <span className="row-meta">
                       {dotted([
                         <span className="kind-label">
@@ -103,7 +98,7 @@ export default function PageList({ pages, username, onCreate, filterable = false
                           {t(`page.kinds.${page.kind}`)}
                         </span>,
                         t("page.count", { count: page.count }),
-                        page.location?.address || page.location?.name,
+                        page.place,
                       ])}
                     </span>
                   </span>

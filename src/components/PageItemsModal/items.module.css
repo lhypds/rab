@@ -1,31 +1,8 @@
-/* The fields one under another, the same air between each of them — the kind
-   buttons too, which keep no margin of their own here. */
-.fields {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.fields > :global(.tabs) {
-  margin: 0;
-}
-
-/* Saving stands a little apart from the last field. */
-.fields + :global(.modal-actions) {
-  margin-top: 24px;
-}
-
-.hint {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 /* The account's items of the page's kind, one to a line, ticked to be on it. */
 .items {
   display: flex;
   flex-direction: column;
-  max-height: 280px;
+  max-height: 60vh;
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -64,7 +41,8 @@
   color: var(--muted);
 }
 
-/* Taking the page off stands apart from saving it, at the far left. */
-.remove {
-  margin-right: auto;
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }

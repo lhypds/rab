@@ -5,9 +5,10 @@ import { Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
 import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
+import PostAsField from "../PostAsField/index.js";
 import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
-import { dialCodeOf, dialCodes, splitDialCode } from "../../utils/dialing.js";
-import { AREA_TYPES, DEFAULT_VIEW, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, placeName, postcodeOf, savedView } from "../../utils/mapbox.js";
+import { dialCodeOf } from "../../utils/dialing.js";
+import { AREA_TYPES, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, postcodeOf, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { openPreview, writePreview } from "../../utils/preview.js";
 import { clockOf, hourPrice, inquiryUnitOf, INQUIRY_UNITS, listPrice, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
@@ -15,7 +16,8 @@ import { currentRegion, useRegion } from "../../utils/region.js";
 import { useAuth } from "../AuthProvider/index.js";
 import Calendar from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
-import SpotMap from "../SpotMap/index.js";
+import ContactFields, { contactLines, keptContacts, noContacts } from "../ContactFields/index.js";
+import LocationField, { PLACE_MAX } from "../LocationField/index.js";
 import { WeekHours } from "../TimeTable/index.js";
 import styles from "./item.module.css";
 
@@ -28,7 +30,6 @@ const homepageOf = (written) => {
   return !address || /^https?:\/\//i.test(address) ? address : `https://${address}`;
 };
 const DESCRIPTION_MAX = 2000;
-const PLACE_MAX = 120;
 const IMAGES_MAX = 100;
 const AREA_SEARCH_MS = 350;
 // How far ahead the calendar reaches, the same year the server keeps.
@@ -40,14 +41,6 @@ const UPLOADS_AT_ONCE = 3;
 const MODES = ["day", "time", "inquiry"];
 // How many areas an item can be offered in besides the first.
 const MORE_REGIONS_MAX = 3;
-// The ways an owner can be reached, for an item booked by asking — and how
-// long what is written for one may be.
-// "message" is a message here on rab: a way with nothing to write for it.
-const CONTACT_TYPES = ["phone", "email", "address", "message"];
-const CONTACT_MAX = 200;
-const CONTACTS_MAX = 5;
-// What a contact's field is, to the keyboard that comes up for it.
-const CONTACT_INPUT = { phone: "tel", email: "email", address: "text" };
 const CANCEL_MODES = ["any", "none", "before"];
 const CANCEL_UNITS = ["days", "hours"];
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
@@ -115,21 +108,6 @@ function startingPricing(item, calendar) {
   return { basePrice: rates[0]?.price != null ? String(rates[0].price) : "", datePrices, slotPrices, extraRates, hourRules };
 }
 
-// The form's lines for how the owner is reached, from the ways as they are
-// kept: a phone number with its hyphens off.
-const contactLines = (contacts) => contacts.slice(0, CONTACTS_MAX).map(contactLine);
-
-// A phone number is its code and its digits. One kept from before a code was
-// asked for has its code read off its front where it was written with one,
-// and otherwise none yet: it is shown with the reader's own country's, and
-// saved with it.
-function contactLine(contact) {
-  if (contact.type === "message") return { type: "message", value: "" };
-  if (contact.type !== "phone") return { type: contact.type, value: contact.value };
-  const split = contact.code ? { code: contact.code, value: contact.value } : splitDialCode(contact.value);
-  return { type: "phone", code: split?.code, value: String(split?.value ?? contact.value).replace(/\D/g, "") };
-}
-
 // The ways the owner is reached that a form starts with, by how the item is
 // booked: asked for, the account's own as its account has them (`own`) or an
 // empty line; by the date or the time, a message here. Somebody else's starts
@@ -140,8 +118,6 @@ function startingContacts(mode, shared, own) {
   return messageOnly();
 }
 
-// The one empty line the form starts with.
-const noContacts = () => [{ type: CONTACT_TYPES[0], value: "" }];
 // And the one way an item booked by the date or the time starts with: a
 // message here.
 const messageOnly = () => [{ type: "message", value: "" }];
@@ -151,6 +127,9 @@ function startingFields(item, calendar, lang) {
     // Whose it is: the account's own, or somebody else's that the account is
     // writing down — which anybody may then change or delete.
     shared: item?.shared === true,
+    // Whether it is a page — a collection of the account's items — rather
+    // than one item (see PostAsField). Everything else is asked the same.
+    page: item?.page === true,
     kind: item?.kind ?? "item",
     category: item?.category ?? "",
     title: item?.title ?? "",
@@ -571,9 +550,6 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
   // Which of the two parts a new item's form is on.
   const [step, setStep] = useState("item");
   const [error, setError] = useState("");
-  // Whether the place line is the reader's own words. Until it is, it follows
-  // the pin: the name of wherever the map has been dragged to.
-  const placeTyped = useRef(false);
   // Whether the area was picked by hand. Until it is, it is the town the
   // reader is in — wherever the item's pin is put.
   const regionPicked = useRef(false);
@@ -588,13 +564,11 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
   // is where somebody else's item is put. Everybody's to choose from and to
   // add to.
   const [publicLocations, setPublicLocations] = useState([]);
-  const [naming, setNaming] = useState(null);
+  // Counted up at each opening, so the location field starts afresh with it.
+  const [opening, setOpening] = useState(0);
   // Whether the nearest public place may still be chosen for the item by
   // itself: until one has been, or the spot has been touched by hand.
   const autoPlace = useRef(true);
-  // Somewhere for the form's map to go to: the place just chosen from the
-  // list. A new object each time, so the same place chosen twice still moves it.
-  const [spotTarget, setSpotTarget] = useState(null);
   // How the account is reached, as it wrote it on its account's sheet: what
   // an item of its own that is booked by asking starts with. Not somebody
   // else's, which is reached some other way.
@@ -604,11 +578,6 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
   const dialCode = dialCodeOf(country);
   // The language a place found for the item is named in (see addressLanguage).
   const placeLang = addressLanguage(country);
-  const dialOptions = useMemo(
-    () =>
-      dialCodes(lang).map(({ code, name }) => ({ value: code, short: code, label: `${code} ${name}`, text: `${code} ${name}` })),
-    [lang],
-  );
   const [ownContacts, setOwnContacts] = useState([]);
   // Whether the ways the owner is reached have been written by hand. Until
   // they are, they are what the way it is booked starts with (see
@@ -635,9 +604,8 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     setPricing(null);
     setStep("item");
     setUploading(0);
-    placeTyped.current = Boolean(initial.place);
+    setOpening((count) => count + 1);
     regionPicked.current = Boolean(initial.region);
-    setNaming(null);
     setHoursDay(today());
     api
       .getLocations()
@@ -645,7 +613,6 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
       .catch(() => setLocations([]));
     autoPlace.current = !item;
     contactsTouched.current = Boolean(item?.contacts?.length);
-    setSpotTarget(null);
     api
       .getLocations({ shared: true })
       .then((answer) => setPublicLocations(answer.locations ?? []))
@@ -673,24 +640,6 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     setError("");
   };
 
-
-  // The pin's place, named a moment after the map stops moving.
-  const { latitude, longitude, located } = fields;
-  useEffect(() => {
-    if (!isOpen || !located || placeTyped.current || !MAPBOX_TOKEN) return undefined;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      placeName(latitude, longitude, placeLang, controller.signal)
-        .then((name) => {
-          if (name && !placeTyped.current) setFields((current) => ({ ...current, place: name.slice(0, PLACE_MAX) }));
-        })
-        .catch(() => {});
-    }, 500);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [isOpen, located, latitude, longitude, placeLang]);
 
   // Every photograph is reduced in the browser before it is sent (see
   // utils/image.js), a few at a time, and lands in the order it was picked.
@@ -753,75 +702,9 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     }
   }
 
-  function addLocation() {
-    autoPlace.current = false;
-    const view = savedView() ?? currentRegion().center ?? DEFAULT_VIEW;
-    setFields((current) => ({ ...current, located: true, latitude: view.latitude, longitude: view.longitude }));
-  }
-
-  // One of the account's own places: the pin goes to its spot and the line
-  // under the pin is its address — the place's own, so it stays put rather
-  // than following the pin. The area the item is offered in is left as it is.
-  function putAt(id) {
-    const location = locations.find((each) => each.id === id);
-    if (!location) return;
-    autoPlace.current = false;
-    placeTyped.current = true;
-    // The map goes there too: with a pin on it already, the pin alone would
-    // move, to somewhere the map is not looking.
-    setSpotTarget({ latitude: location.latitude, longitude: location.longitude });
-    setFields((current) => ({
-      ...current,
-      located: true,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      place: (location.address || location.name).slice(0, PLACE_MAX),
-    }));
-    setError("");
-  }
-
-  // Whether the pin and its address are one of the account's places as it is
-  // kept: chosen from the list and left alone, or just saved. There is nothing
-  // to save then; moving the pin or rewriting the address makes it a new spot.
-  const near = (a, b) => Math.abs(a - b) < 1e-6;
   // The places to choose from: the account's own for its own item, the public
   // account's for somebody else's.
   const locations = fields.shared ? publicLocations : ownLocations;
-  const keptLocation = fields.located
-    ? locations.find(
-        (location) =>
-          near(location.latitude, fields.latitude) &&
-          near(location.longitude, fields.longitude) &&
-          (location.address || location.name).slice(0, PLACE_MAX) === fields.place.trim(),
-      )
-    : null;
-  const kept = Boolean(keptLocation);
-
-  // The spot on the map, kept as one of the account's places under a name.
-  async function saveLocation() {
-    const name = (naming ?? "").trim();
-    if (!name) return;
-    try {
-      const answer = await api.saveLocation({
-        name,
-        address: fields.place.trim(),
-        latitude: fields.latitude,
-        longitude: fields.longitude,
-        region: fields.region,
-        // Somebody else's item is at a public place, kept for everybody.
-        shared: fields.shared,
-      });
-      (fields.shared ? setPublicLocations : setLocations)((current) => [
-        ...current.filter((each) => each.id !== answer.location.id),
-        answer.location,
-      ]);
-      setNaming(null);
-      showToast(t("item.locationSaved"), 2000);
-    } catch (saveError) {
-      setError(saveError.message);
-    }
-  }
-
   // Somebody else's new item is put at the public place nearest the reader,
   // by itself, as soon as it is known where the reader is: the likeliest of
   // them, there to be changed. Once only, and not over a spot put by hand.
@@ -834,7 +717,6 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     const squeeze = Math.cos((here.latitude * Math.PI) / 180);
     const far = (place) => Math.hypot(place.latitude - here.latitude, (place.longitude - here.longitude) * squeeze);
     const nearest = publicLocations.reduce((best, place) => (far(place) < far(best) ? place : best));
-    placeTyped.current = true;
     setFields((current) =>
       current.located
         ? current
@@ -922,25 +804,10 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
   // The hours it is handed over in, as they are kept: both ends or neither.
   const { dayHours } = fields;
   const keptDayHours = byDay && dayHours.start && dayHours.end ? dayHours : null;
-  const contacts = fields.contacts
-    // A phone number is kept as its digits, and shown that way too, with
-    // the code it is dialled with from abroad beside it. A message here has
-    // nothing written for it, and is not a way to reach somebody else.
-    .map((contact) =>
-      contact.type === "phone"
-        ? { type: "phone", code: contact.code ?? dialCode, value: contact.value.replace(/\D/g, "") }
-        : contact.type === "message"
-          ? { type: "message", value: "" }
-          : { type: contact.type, value: contact.value.trim() },
-    )
-    .filter((contact) => (contact.type === "message" ? !fields.shared : contact.value));
-  const setContact = (index, patch) => {
-    contactsTouched.current = true;
-    setFields((current) => ({
-      ...current,
-      contacts: current.contacts.map((contact, each) => (each === index ? { ...contact, ...patch } : contact)),
-    }));
-  };
+  // A phone number is kept as its digits, with the code it is dialled with
+  // from abroad beside it. A message here is not a way to reach somebody
+  // else's.
+  const contacts = keptContacts(fields.contacts, dialCode, { noMessage: fields.shared });
   const rates = cleanRates(fields, byTime);
   // Every hour the item has: the rules, then what was painted for dates.
   const hours = byTime ? [...cleanHourRules(hourRules), ...fields.hourDates] : [];
@@ -966,6 +833,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     kind: fields.kind,
     category: fields.category,
     shared: fields.shared,
+    page: fields.page,
     mode,
     unit: fields.unit,
     priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
@@ -1063,6 +931,8 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
       kind: fields.kind,
       category: fields.category,
       shared: fields.shared,
+      // Said when it is made, and what it is from then on.
+      ...(!editing && { page: fields.page }),
       mode,
       unit: fields.unit,
       priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
@@ -1177,7 +1047,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     <>
       <Modal
         isOpen={isOpen}
-        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t("item.editTitle") : t("item.newTitle")}
+        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t(item.page ? "page.edit" : "item.editTitle") : t("item.newTitle")}
         // Withheld while something is on its way up, so a stray Escape does
         // not drop a form with a photograph half sent.
         onClose={busy ? undefined : onClose}
@@ -1189,13 +1059,33 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
             {shown === "item" && (
             <>
             <div className={styles.column}>
+              {/* Before anything, whether this is one item or a page of
+                  them. A page is asked everything an item is; it is only
+                  kept apart, with the items on it. Not asked of one being
+                  made on a page, which is an item on it. */}
+              {!editing && !page && (
+                <PostAsField
+                  value={fields.page ? "page" : "item"}
+                  onChange={(as) =>
+                    setFields((current) => ({
+                      ...current,
+                      page: as === "page",
+                      // A page is the account's own; somebody else's goes
+                      // back to being booked as the account's own is.
+                      ...(as === "page" && current.shared && { shared: false, mode: "day" }),
+                    }))
+                  }
+                  disabled={busy}
+                  hintClassName={styles.hint}
+                />
+              )}
               {/* First of all, whose it is: the account's own, or somebody
                   else's that the account is writing down — a shop it knows
                   of, say. The second is everybody's to keep right: anybody
                   signed in can change it or delete it. Asked of whoever put
                   it here; somebody else editing it is not asked, since it
                   is not theirs to take. */}
-              {!page && (!editing || (item.mine && !item.shared)) && (
+              {!page && !fields.page && (!editing || (item.mine && !item.shared && !item.page)) && (
                 <div className="field">
                   <span className="field-label">{t("item.whose")}</span>
                   <div className="tabs" role="group" aria-label={t("item.whose")}>
@@ -1456,143 +1346,30 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                 <span className={styles.hint}>{t("item.regionHint")}</span>
               </div>
 
-              <div className="field">
-                <span className="field-label">
-                  {t("item.location")}
-                  {fields.located && <span className="field-count">{formatCoords(fields.latitude, fields.longitude)}</span>}
-                </span>
-                {/* The places to put it at: choosing one puts the pin there.
-                    The account's own for its own item; for somebody else's,
-                    the public ones, which is not at any of the account's.
-                    Always here, so that it is known there is such a list:
-                    with none in it yet, it says so. */}
-                {(
-                  <Select
-                    sans
-                    label={t(fields.shared ? "item.locationChoosePublic" : "item.locationChoose")}
-                    // The place the pin is at, where it is one of them: the box
-                    // says its name until the pin is moved off it.
-                    value={keptLocation?.id ?? ""}
-                    onChange={putAt}
-                    options={[
-                      { value: "", label: t(fields.shared ? "item.locationChoosePublic" : "item.locationChoose") },
-                      // Not a place: choosing it puts the pin nowhere.
-                      ...(locations.length === 0
-                        ? [{ value: "none", label: t(fields.shared ? "item.locationNonePublic" : "item.locationNone") }]
-                        : []),
-                      // Each place on two lines: what it is called and where,
-                      // and under that, in grey, the spot itself.
-                      ...locations.map((location) => {
-                        const line = location.address ? `${location.name} — ${location.address}` : location.name;
-                        return {
-                          value: location.id,
-                          text: line,
-                          // In the closed box, the one line of it.
-                          short: line,
-                          label: (
-                            <span className={styles.location}>
-                              <span>{line}</span>
-                              <span className={styles.locationSpot}>
-                                {formatCoords(location.latitude, location.longitude)}
-                              </span>
-                            </span>
-                          ),
-                        };
-                      }),
-                    ]}
-                  />
-                )}
-                {fields.located ? (
-                  <>
-                    <div className={styles.map}>
-                      <SpotMap
-                        latitude={fields.latitude}
-                        longitude={fields.longitude}
-                        target={spotTarget}
-                        onMove={(spot) => {
-                          // The pin has been put somewhere else, so the name it
-                          // had belongs to where it was: the line under it goes
-                          // back to following the pin, typed over or not.
-                          placeTyped.current = false;
-                          setFields((current) => ({ ...current, ...spot }));
-                        }}
-                      />
-                      {/* What the spot is called, on the map it is a name for:
-                          in the middle of its bottom edge, where the front
-                          page's map says what it is showing. It follows the
-                          pin until somebody types over it. */}
-                      <input
-                        className={styles.place}
-                        value={fields.place}
-                        onChange={(event) => {
-                          placeTyped.current = event.target.value.trim() !== "";
-                          set("place", event.target.value);
-                        }}
-                        placeholder={t("item.placePlaceholder")}
-                        maxLength={PLACE_MAX}
-                        aria-label={t("item.place")}
-                      />
-                    </div>
-                    {/* Under the map: keeping the spot at the left, taking it off
-                        the item at the right. */}
-                    <div className={styles.locationActions}>
-                      {/* The spot kept for next time, under a name of its own —
-                          unless it is one of the places already. The account's
-                          own for its own item; for somebody else's the public
-                          ones, in the public account's folder, by the same
-                          button. The empty span keeps Remove at the right. */}
-                      {kept ? (
-                        <span />
-                      ) : naming === null ? (
-                        <button type="button" className="small-button" onClick={() => setNaming("")}>
-                          {t("item.locationSave")}
-                        </button>
-                      ) : (
-                        <div className={styles.naming}>
-                          <input
-                            className="text-input"
-                            value={naming}
-                            onChange={(event) => setNaming(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter") return;
-                              event.preventDefault();
-                              saveLocation();
-                            }}
-                            placeholder={t("item.locationName")}
-                            maxLength={60}
-                            autoFocus
-                          />
-                          <button type="button" className="small-button" onClick={saveLocation} disabled={!naming.trim()}>
-                            {t("common.save")}
-                          </button>
-                          <button type="button" className="small-button" onClick={() => setNaming(null)}>
-                            {t("common.cancel")}
-                          </button>
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        className="small-button"
-                        onClick={() => {
-                          placeTyped.current = false;
-                          autoPlace.current = false;
-                          setFields((current) => ({ ...current, located: false, place: "" }));
-                        }}
-                      >
-                        {t("item.locationRemove")}
-                      </button>
-                    </div>
-                    <span className={styles.hint}>{t("item.locationHint")}</span>
-                  </>
-                ) : (
-                  <>
-                    <button type="button" className={`small-button ${styles.start}`} onClick={addLocation}>
-                      {t("item.locationAdd")}
-                    </button>
-                    <span className={styles.hint}>{t("item.locationOptional")}</span>
-                  </>
-                )}
-              </div>
+              {/* Where it is: a pin on a map, or one of the places — the
+                  account's own for its own item; for somebody else's, the
+                  public ones. */}
+              <LocationField
+                key={opening}
+                value={fields}
+                onChange={(patch) => {
+                  setFields((current) => ({ ...current, ...patch }));
+                  setError("");
+                }}
+                locations={locations}
+                shared={fields.shared}
+                region={fields.region}
+                onTouched={() => {
+                  autoPlace.current = false;
+                }}
+                onSaved={(location) =>
+                  (fields.shared ? setPublicLocations : setLocations)((current) => [
+                    ...current.filter((each) => each.id !== location.id),
+                    location,
+                  ])
+                }
+                onError={setError}
+              />
             </div>
             </>
             )}
@@ -1995,112 +1772,17 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                   and taken off with the cross beside them, and the ones
                   after move up a place. */}
               {(
-                <div className="field">
-                  <span className="field-label">{t("item.contact")}</span>
-                  {fields.contacts.map((contact, index) => (
-                    <div key={index} className={styles.contact}>
-                      <span className={`field-label ${styles.sub}`}>{t(`item.contactNth.${index}`)}</span>
-                      <div className={styles.contactRow}>
-                        <Select
-                          className={styles.currency}
-                          label={t("item.contactType")}
-                          value={contact.type}
-                          // Turned into a phone number, what is written
-                          // already loses whatever is not a digit.
-                          onChange={(value) =>
-                            setContact(index, {
-                              type: value,
-                              value: value === "message" ? "" : value === "phone" ? contact.value.replace(/\D/g, "") : contact.value,
-                            })
-                          }
-                          // A message here is said once, and not of somebody
-                          // else's, which has no account to send one to.
-                          options={CONTACT_TYPES.filter(
-                            (each) =>
-                              each !== "message" ||
-                              contact.type === "message" ||
-                              (!fields.shared && !fields.contacts.some((other) => other.type === "message")),
-                          ).map((each) => ({ value: each, label: t(`item.contactTypes.${each}`) }))}
-                        />
-                        {/* A phone number's code, chosen in front of it: the
-                            reader's own country's until another is. The box
-                            says the code; the list says whose it is. */}
-                        {contact.type === "phone" && (
-                          <Select
-                            className={styles.currency}
-                            fit
-                            label={t("item.contactCode")}
-                            value={contact.code ?? dialCode}
-                            onChange={(value) => setContact(index, { code: value })}
-                            searchPlaceholder={t("item.contactCodeSearch")}
-                            emptyLabel={t("item.contactCodeNoMatch")}
-                            options={dialOptions}
-                          />
-                        )}
-                        {contact.type === "message" && <span className={styles.contactNote}>{t("item.contactMessageNote")}</span>}
-                        <input
-                          className="text-input"
-                          hidden={contact.type === "message"}
-                          type={CONTACT_INPUT[contact.type] ?? "text"}
-                          value={contact.value}
-                          onChange={(event) => {
-                            // A phone number is typed as digits only: a
-                            // hyphen typed or pasted among them is dropped
-                            // at once, and its code is chosen beside it.
-                            setContact(index, { value: contact.type === "phone" ? event.target.value.replace(/\D/g, "") : event.target.value });
-                            setError("");
-                          }}
-                          maxLength={CONTACT_MAX}
-                          aria-label={`${t(`item.contactNth.${index}`)} · ${t(`item.contactTypes.${contact.type}`)}`}
-                        />
-                        <button
-                          type="button"
-                          className={styles.ruleRemove}
-                          onClick={() => {
-                            contactsTouched.current = true;
-                            setFields((current) => ({ ...current, contacts: current.contacts.filter((_, each) => each !== index) }));
-                          }}
-                          // The last of them cannot be taken off.
-                          disabled={fields.contacts.length <= 1}
-                          aria-label={t("item.contactRemove")}
-                          title={t("item.contactRemove")}
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M6 6l12 12M18 6 6 18" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {fields.contacts.length < CONTACTS_MAX && (
-                    <button
-                      type="button"
-                      className={`small-button ${styles.start}`}
-                      onClick={() => {
-                        contactsTouched.current = true;
-                        setFields((current) => ({
-                          ...current,
-                          // The kind the next one starts as: the first not in
-                          // use yet — a message here not being one for
-                          // somebody else's.
-                          contacts: [
-                            ...current.contacts,
-                            {
-                              type:
-                                CONTACT_TYPES.find(
-                                  (each) => !(each === "message" && current.shared) && !current.contacts.some((contact) => contact.type === each),
-                                ) ?? CONTACT_TYPES[0],
-                              value: "",
-                            },
-                          ],
-                        }));
-                      }}
-                    >
-                      {t("item.contactAdd")}
-                    </button>
-                  )}
+                <ContactFields
+                  contacts={fields.contacts}
+                  noMessage={fields.shared}
+                  onChange={(next) => {
+                    contactsTouched.current = true;
+                    setFields((current) => ({ ...current, contacts: next }));
+                  }}
+                  onInput={() => setError("")}
+                >
                   <span className={styles.hint}>{t("item.contactHint")}</span>
-                </div>
+                </ContactFields>
               )}
             </div>
             </>

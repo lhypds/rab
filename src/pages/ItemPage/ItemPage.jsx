@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Header, ItemModal, ItemView, MessageModal, loginPath, useAuth } from "../../components/index.js";
-import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
+import PageItemsModal from "../../components/PageItemsModal/index.js";
+import { Skeleton, showToast, useLocation, useNavigate, useSearchParams } from "../../ui/index.js";
+import { itemPath } from "../../utils/pages.js";
 import { isAdmin } from "../../utils/admin.js";
 
 // How often an open page asks again where things stand. An item's page is what
@@ -12,6 +14,8 @@ const REFRESH_MS = 30 * 1000;
 
 // An item's own page, and the one thing in rab made to be sent to somebody.
 // This is the half that talks to the server; what is on the page is ItemView's.
+// A page of somebody's items is an item too, opened here at its own address
+// (/u/<owner>/p/<id>), with the items on it under it.
 export default function ItemPage({ id }) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -22,6 +26,8 @@ export default function ItemPage({ id }) {
   // The part of the item's form that is open: "item", "availability", or null.
   const [editing, setEditing] = useState(null);
   const [writingTo, setWritingTo] = useState(null);
+  const [choosing, setChoosing] = useState(false);
+  const { pathname } = useLocation();
 
   const load = useCallback(() => {
     return api
@@ -61,6 +67,16 @@ export default function ItemPage({ id }) {
 
   const item = data?.item ?? null;
 
+  // Opened at an address that is not its own — a page at /i/<id>, or by the
+  // id it had before ids were times — the address is put right, so what is
+  // passed on from here is the one it has now.
+  const path = item ? itemPath(item) : null;
+  useEffect(() => {
+    if (path && decodeURIComponent(pathname).replace(/\/$/, "") !== decodeURIComponent(path)) {
+      navigate(`${path}${window.location.search}`, { replace: true });
+    }
+  }, [path, pathname]);
+
   useEffect(() => {
     if (item) document.title = `${item.title} — rab`;
     return () => {
@@ -83,7 +99,8 @@ export default function ItemPage({ id }) {
 
   return (
     <div className="page-shell">
-      <Header back />
+      {/* On a page of one's own, Post adds an item to it. */}
+      <Header back listingPage={item?.page && item.mine ? item : undefined} onPageSaved={load} />
       <main className="wide-page">
         {!item ? (
           error ? (
@@ -115,6 +132,7 @@ export default function ItemPage({ id }) {
             }}
             onEdit={() => setEditing("item")}
             onEditAvailability={() => setEditing("availability")}
+            onEditItems={() => setChoosing(true)}
             onMessage={setWritingTo}
             onBookmark={(on) => api.setBookmark(item.id, on)}
             onBookingChange={load}
@@ -136,6 +154,17 @@ export default function ItemPage({ id }) {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            load();
+          }}
+        />
+      )}
+      {item?.page && item.mine && (
+        <PageItemsModal
+          isOpen={choosing}
+          page={item}
+          onClose={() => setChoosing(false)}
+          onSaved={() => {
+            setChoosing(false);
             load();
           }}
         />

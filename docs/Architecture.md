@@ -11,7 +11,7 @@ Paths are relative to the repository root.
     server/region.js   country of a request, from its address (ipwho.is)
     server/images.js   photo storage, each item's in its own folder
     server/upload.js   a public folder, or an item of one, sent as a zip, read for merging into `_public`'s
-    src/pages/         HomePage (the map), ItemPage, MinePage, RentalsPage, UserPage, PagePage, AuthPage
+    src/pages/         HomePage (the map), ItemPage (items and pages), MinePage, RentalsPage, UserPage, AuthPage
     src/components/    MapView, ItemView (the booking page), ItemModal (the form),
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
     src/ui/            Modal, ActionButton, Select, TextArea, Toast, Router — lo's own

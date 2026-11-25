@@ -521,6 +521,26 @@
   stroke-width: 2;
 }
 
+/* The pages it is on, one to a line, each pressed to go there. */
+.pageLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.pageLinks a,
+.pageLinks span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
 /* Their heading is said in the page's ordinary type, not the display face a
    heading usually has: it names a few lines of text, not a part of the card. */
 .contactHead h2 {

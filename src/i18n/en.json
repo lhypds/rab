@@ -326,7 +326,8 @@
     "sharedNote": "Listed on someone else’s behalf. Anyone signed in can edit it.",
     "inquiryExplainShared": "This is booked by inquiry. Use the contact details above to arrange it.",
     "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
-    "report": "Report"
+    "report": "Report",
+    "pages": "On pages"
   },
   "calendar": {
     "title": "Availability",
@@ -571,12 +572,10 @@
   },
   "page": {
     "title": "Pages",
-    "new": "New page",
     "edit": "Edit page",
-    "empty": "No pages yet. Make a store, a space or a page of your services out of what you have posted.",
+    "empty": "No pages yet. Make a store, a space or a page of your services with Post (+), choosing Page.",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
-    "missing": "There is no such page.",
     "noneShown": "No pages here.",
     "added": "Added to “{{name}}”",
     "alreadyOn": "Already on “{{name}}”",
@@ -585,33 +584,27 @@
       "space": "Space",
       "service": "Service"
     },
-    "name": "Name",
-    "namePlaceholder": {
-      "item": "Liu's Music Gear Store",
-      "space": "The rehearsal studio",
-      "service": "Lessons and repairs"
-    },
-    "description": "About it",
-    "locationChoose": "Choose a location",
-    "locationNone": "No location",
-    "locationsEmpty": "No saved locations yet. Add one on your account's sheet (the person in the top bar), then choose it here.",
-    "locationOptional": "Optional. Choose a saved location for this page.",
     "addItem": "Add to {{name}}",
-    "items": "Items on it",
     "itemsNone": {
       "item": "You have posted no things yet.",
       "space": "You have posted no spaces yet.",
       "service": "You have posted no services yet."
     },
     "unpublished": "not published",
-    "remove": "Delete page",
     "saved": "Page saved",
-    "removed": "Page deleted",
     "itemsHeading": {
       "item": "Things",
       "space": "Spaces",
       "service": "Services"
     },
-    "itemsEmpty": "Nothing on this page yet."
+    "itemsEmpty": "Nothing on this page yet.",
+    "editItems": "Edit items"
+  },
+  "post": {
+    "as": "Post as",
+    "item": "Item",
+    "page": "Page",
+    "itemHint": "One thing, space or service to rent out, with its own photos, price and calendar.",
+    "pageHint": "A collection of items: a store, a space or your services. Filled in like an item — photos, price, location, availability — and kept as a page; add the items you have posted to it after saving."
   }
 }

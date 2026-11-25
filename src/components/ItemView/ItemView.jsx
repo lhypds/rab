@@ -11,7 +11,8 @@ import { DAY_UNIT, cellsOn, clockOf, dayPrice as ruledDayPrice, inquiryUnitOf, m
 import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
-import { BookingRow } from "../Rows/index.js";
+import { BookingRow, ItemRow } from "../Rows/index.js";
+import { itemPath } from "../../utils/pages.js";
 import { isAdmin } from "../../utils/admin.js";
 import ReportModal from "../ReportModal/index.js";
 import ShareModal from "../ShareModal/index.js";
@@ -73,6 +74,8 @@ export default function ItemView({
   onDelete,
   onEdit,
   onEditAvailability,
+  // On a page of its owner's: the sheet for which items are on it.
+  onEditItems,
   onMessage,
   onBookmark,
   onBookingChange,
@@ -208,7 +211,7 @@ export default function ItemView({
     !bySlot && Boolean(selection) && (!startTime || !endTime || (selection.start === selection.end && startTime >= endTime));
   const ready = bySlot ? chosenSlots.length > 0 : Boolean(price) && !timesWrong;
   const total = bySlot ? slotTotal : price?.total;
-  const url = `${window.location.origin}/i/${item.id}`;
+  const url = `${window.location.origin}${itemPath(item)}`;
 
   function select(next) {
     setSelection(next);
@@ -357,6 +360,8 @@ export default function ItemView({
       <div className={styles.columns}>
         <header className={styles.head}>
           <p className={styles.tags}>
+            {/* A page says so first: a collection of its owner's items. */}
+            {item.page && <span>{t(`page.kinds.${item.kind}`)}</span>}
             <span>
               <CategoryIcon kind={item.kind} category={item.category} />
               {item.category ? t(`category.${item.category}`, item.category) : t(`kind.${item.kind}`)}
@@ -490,6 +495,12 @@ export default function ItemView({
                 <button type="button" className="small-button" onClick={onEditAvailability} disabled={preview}>
                   {t("item.availabilityTitle")}
                 </button>
+                {/* Which of its owner's items are on a page. */}
+                {item.page && mine && onEditItems && (
+                  <button type="button" className="small-button" onClick={onEditItems} disabled={preview}>
+                    {t("page.editItems")}
+                  </button>
+                )}
               </>
             )}
             {/* Writing to its owner — where it has one by name. */}
@@ -559,6 +570,33 @@ export default function ItemView({
                   </svg>
                 </a>
               </p>
+            </>
+          )}
+
+          {/* The pages its owner put it on — a store, a space — each the way
+              to that page, where the rest of what they have is. */}
+          {item.pages?.length > 0 && (
+            <>
+              <div className={`${styles.calendarHead} ${styles.contactHead}`}>
+                <h2>{t("item.pages")}</h2>
+              </div>
+              <ul className={styles.pageLinks}>
+                {item.pages.map((page) => (
+                  <li key={page.id}>
+                    {preview ? (
+                      <span>
+                        <CategoryIcon kind={page.kind} />
+                        {page.name}
+                      </span>
+                    ) : (
+                      <Link to={`/u/${encodeURIComponent(page.owner)}/p/${encodeURIComponent(page.id)}`}>
+                        <CategoryIcon kind={page.kind} />
+                        {page.name}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </>
           )}
 
@@ -797,6 +835,26 @@ export default function ItemView({
             <p className={styles.description}>{item.description}</p>
           ) : (
             <p className="part-note">{t("item.descriptionEmpty")}</p>
+          )}
+
+          {/* ------------------------------------------ the items on it */}
+          {/* A page: the items its owner put on it, in their order. */}
+          {item.page && !preview && (
+            <>
+              <div className="part-heading">
+                <h2>{t(`page.itemsHeading.${item.kind}`)}</h2>
+                <span>{item.items?.length ?? 0}</span>
+              </div>
+              {(item.items ?? []).length === 0 ? (
+                <p className="part-note">{t("page.itemsEmpty")}</p>
+              ) : (
+                <ul className="row-list">
+                  {item.items.map((each) => (
+                    <ItemRow key={each.id} item={each} showPublished={mine} />
+                  ))}
+                </ul>
+              )}
+            </>
           )}
 
           {/* ---------------------------------------------------- status */}

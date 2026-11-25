@@ -3,7 +3,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { dataDir, itemDir, itemFolders, userDir, userFolders } from "./files.js";
+import { dataDir, itemDir, itemFolders, pageDir, pageFolders, userDir, userFolders } from "./files.js";
 
 // Where photographs are kept: beside the item they are of, in the item's own
 // folder, data/users/<username>/items/<item id>/ (see files.js) — one file per picture, named
@@ -35,7 +35,11 @@ function survey() {
   for (const userId of userFolders()) {
     const uploads = uploadsDir(userId);
     waiting.add(uploads);
-    for (const dir of [uploads, ...itemFolders(userId).map((folder) => itemDir(userId, folder))]) {
+    const kept = [
+      ...itemFolders(userId).map((folder) => itemDir(userId, folder)),
+      ...pageFolders(userId).map((folder) => pageDir(userId, folder)),
+    ];
+    for (const dir of [uploads, ...kept]) {
       let names;
       try {
         names = fs.readdirSync(dir);
@@ -229,7 +233,16 @@ export function noteItemImages(userId, itemId) {
 // keeps each item's folder whole by itself. A picture the item has stopped
 // carrying is removed from its folder.
 export function keepImages(userId, itemId, names) {
-  const dir = itemDir(userId, itemId);
+  keepImagesIn(itemDir(userId, itemId), names);
+}
+
+// The same for one of an account's pages, whose photographs are kept beside
+// its page.json in its own folder (see files.js).
+export function keepPageImages(userId, pageId, names) {
+  keepImagesIn(pageDir(userId, pageId), names);
+}
+
+function keepImagesIn(dir, names) {
   const carried = new Set(names.filter(isStoredName));
   fs.mkdirSync(dir, { recursive: true });
   for (const name of carried) {

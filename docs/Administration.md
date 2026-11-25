@@ -31,7 +31,28 @@ item's folder in a zip of its own, printing each as it goes:
 Without `-f` it sends this source's own `data/users/_public` (under `RAB_DATA` where that is
 set). The folder named may be the public folder itself or hold it as its one folder. It signs in
 as `_admin` with the password it asks for (or `RAB_PASSWORD`), or uses `RAB_TOKEN`, a
-session token of `_admin`'s, if that is set. Without `./rab`, the same is
+session token of `_admin`'s, if that is set.
+
+The server and the password can be kept in `.env`, so that nothing needs to be typed:
+
+    RAB_HOST=rab.gcc3.com          where push, pull and mirror go (-u goes before it)
+    RAB_PASSWORD=<password>        _admin's password there (./rab user _admin pass <password> on the server)
+
+Two more go the same way, with the same `-f` and `-u`:
+
+    ./rab pull                     fetch what the server's _public has and the folder does not
+    ./rab mirror                   push, then delete on the server what the folder does not have
+
+`pull` adds the server's missing places to the folder's `locations.json` and writes each missing
+item's folder (`GET /api/public/locations`, `GET /api/public/items/<id>`, a zip). A folder that is
+not there yet is made. `mirror` sends what `push` sends, then deletes outright on the server each
+item and place that the folder has under neither the same id, nor the same key or address
+(`DELETE /api/public/items/<id>`, `DELETE /api/public/locations/<id>`); open bookings on an item
+are cancelled first. It says how many it will delete and asks for `yes`; `--yes` skips the
+question, and without a terminal it is required. Note that the server adds each new item's
+spot to `_public`'s places, so a mirror from a folder whose `locations.json` lacks them deletes them.
+
+Without `./rab`, pushing is
 
     curl https://<host>/api/public -H "Authorization: Bearer <token>"
     curl -X POST https://<host>/api/public -H "Authorization: Bearer <token>" --data-binary @item.zip

@@ -30,7 +30,6 @@ const {
   deleteExpiredSessions,
   deleteItem,
   deleteLocation,
-  deletePage,
   deleteSession,
   getBookmarkedItems,
   getBooking,
@@ -45,7 +44,11 @@ const {
   getDaysBetween,
   getItem,
   getLocations,
+  findPage,
   getPages,
+  pageItems,
+  pagesWith,
+  setPageItems,
   getItemImages,
   getItemReviews,
   getItemsAt,
@@ -63,8 +66,6 @@ const {
   readConversation,
   saveContacts,
   saveLocation,
-  savePage,
-  servedPage,
   PAGES_MAX,
   saveSession,
   searchItems,
@@ -85,8 +86,11 @@ const {
   setEmail,
   mergePublic,
   heldPublic,
+  purgePublicItem,
+  publicLocations,
 } = await import("./db.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, noteItemImages, pinImageFile, storeImage } = await import(
+const { itemDir } = await import("./files.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepPageImages, noteItemImages, pinImageFile, storeImage } = await import(
   "./images.js"
 );
 const { mailConfigured, sendMail } = await import("./mail.js");
@@ -589,97 +593,74 @@ app.get("/api/users/:username", (req, res) => {
 
 /* -------------------------------------------------------------------- pages */
 
-// A page's own name and word about it, as long as they get.
-const PAGE_NAME_MAX = 80;
-const PAGE_ABOUT_MAX = 2000;
+// A page is an item (see db.js): made, changed, booked and deleted by the
+// item routes, with `page: true` when it is made. What is its own is which of
+// the account's items are on it.
 const PAGE_ITEMS_MAX = 200;
 
-// A page as it goes out to whoever is looking: to its owner every item on it,
-// and to anybody else the published ones they may see.
-function pageAnswer(owner, page, viewer) {
-  const own = viewer?.id === owner.id;
-  const { itemIds, ...served } = servedPage(owner.id, page, { publicOnly: !own });
-  return { ...served, items: served.items.filter((item) => own || mayView(viewer, item)).map(publicItem) };
+// The items on a page, as whoever is looking may see them: its owner every
+// one, anybody else the published ones they may see.
+function itemsOnPage(page, viewer) {
+  const own = viewer?.id === page.ownerId;
+  return pageItems(page, { publicOnly: !own })
+    .filter((item) => own || mayView(viewer, item))
+    .map(publicItem);
 }
 
 // A page as a row in a list gets it: how many items it shows, not the items.
-function pageSummary(user, page, viewer) {
-  const { items, ...rest } = pageAnswer(user, page, viewer);
-  // `published`: how many of them are out for anybody to see, which is what
-  // makes the page itself worth visiting.
-  return { ...rest, count: items.length, published: items.filter((item) => item.active).length, thumb: items[0]?.thumb ?? null };
+function pageSummary(page, viewer) {
+  const items = itemsOnPage(page, viewer);
+  return {
+    ...publicItem(page),
+    count: items.length,
+    // How many of them are out for anybody to see.
+    published: items.filter((item) => item.active).length,
+    // Its row wears its own first photograph, or else its first item's.
+    thumb: page.thumb ?? items[0]?.thumb ?? null,
+  };
 }
 
+// An account's pages, as a list gets them: to anybody but its owner only the
+// published ones they may see.
 function pageSummaries(user, viewer) {
-  return getPages(user.id).map((page) => pageSummary(user, page, viewer));
+  const own = viewer?.id === user.id;
+  return getPages(user.id)
+    .filter((page) => own || (page.active && mayView(viewer, page)))
+    .map((page) => pageSummary(page, viewer));
 }
 
-// What the form says about a page, as it is kept, or a fault to answer with.
-// Any page may keep a copy of a saved location. Its existing copy stays
-// its own while it is still chosen, though the location has gone since.
-function parsePage(userId, body, kept = null) {
-  const name = text(body?.name, PAGE_NAME_MAX);
-  if (!name) return { fault: "A page needs a name" };
-  const kind = String(body?.kind ?? "");
-  if (!KINDS.has(kind)) return { fault: "A page is of things, spaces or services" };
-  let location = null;
-  if (body?.locationId) {
-    const id = String(body.locationId);
-    const found = getLocations(userId).find((each) => each.id === id) ?? (kept?.location?.id === id ? kept.location : null);
-    if (!found) return { fault: "No such location" };
-    location = { id: found.id, name: found.name, address: found.address ?? "", latitude: found.latitude, longitude: found.longitude, region: found.region ?? null };
-  }
-  // Only the account's own items of the page's kind, each once.
+// Of the ids sent for a page's items, the account's own items of the page's
+// kind, each once, in the order sent.
+function pageItemIds(userId, kind, ids) {
   const own = new Set(getItemsByUser(userId).filter((item) => !item.shared && (item.kind || "item") === kind).map((item) => item.id));
-  const ids = Array.isArray(body?.itemIds) ? body.itemIds.map(String) : [];
-  const itemIds = [...new Set(ids)].filter((id) => own.has(id)).slice(0, PAGE_ITEMS_MAX);
-  return { page: { name, kind, description: text(body?.description, PAGE_ABOUT_MAX), location, itemIds } };
+  return [...new Set(ids.map(String))].filter((id) => own.has(id)).slice(0, PAGE_ITEMS_MAX);
 }
 
-app.get("/api/users/:username/pages/:id", (req, res) => {
-  const user = getUser(normalizeUsername(req.params.username));
-  const page = user && user.id !== PUBLIC_ID ? getPages(user.id).find((each) => each.id === req.params.id) : null;
+// Which of the account's items are on one of its pages, and in what order:
+// the whole list, as the sheet for it sends it.
+app.put("/api/pages/:id/items", requireSession, (req, res) => {
+  const page = findPage(req.user.id, req.params.id);
   if (!page) return res.status(404).json({ error: "No such page" });
-  res.json({ page: pageAnswer(user, page, req.user) });
-});
-
-app.post("/api/pages", requireSession, (req, res) => {
-  const { page, fault } = parsePage(req.user.id, req.body);
-  if (fault) return res.status(400).json({ error: fault });
-  const saved = savePage(req.user.id, page);
-  if (!saved) return res.status(409).json({ error: `An account keeps at most ${PAGES_MAX} pages`, code: "PAGES_FULL" });
-  res.status(201).json({ page: pageAnswer(req.user, saved, req.user) });
-});
-
-app.patch("/api/pages/:id", requireSession, (req, res) => {
-  const kept = getPages(req.user.id).find((each) => each.id === req.params.id);
-  if (!kept) return res.status(404).json({ error: "No such page" });
-  const { page, fault } = parsePage(req.user.id, req.body, kept);
-  if (fault) return res.status(400).json({ error: fault });
-  const saved = savePage(req.user.id, { ...page, id: req.params.id });
-  res.json({ page: pageAnswer(req.user, saved, req.user) });
+  if (!Array.isArray(req.body?.itemIds)) return res.status(400).json({ error: "Send the items as a list" });
+  const saved = setPageItems(req.user.id, page.id, pageItemIds(req.user.id, page.kind, req.body.itemIds));
+  res.json({ page: { ...publicItem(saved), items: itemsOnPage(saved, req.user) } });
 });
 
 // One of the account's own items put on one of its pages — dragged onto it in
 // the list of pages — after what is there. `added` is false where it was on
 // the page already. The page answers as a row in the list does.
 app.post("/api/pages/:id/items", requireSession, (req, res) => {
-  const page = getPages(req.user.id).find((each) => each.id === req.params.id);
+  const page = findPage(req.user.id, req.params.id);
   if (!page) return res.status(404).json({ error: "No such page" });
   const item = getItemsByUser(req.user.id).find((each) => each.id === String(req.body?.itemId ?? ""));
   if (!item || item.shared || (item.kind || "item") !== page.kind) {
     return res.status(400).json({ error: "Choose an item of your own matching the page kind" });
   }
-  const itemIds = servedPage(req.user.id, page).items.map((each) => each.id);
-  if (itemIds.includes(item.id)) return res.json({ added: false, page: pageSummary(req.user, page, req.user) });
+  const itemIds = pageItems(page).map((each) => each.id);
+  if (itemIds.includes(item.id)) return res.json({ added: false, page: pageSummary(page, req.user) });
   if (itemIds.length >= PAGE_ITEMS_MAX) return res.status(409).json({ error: "This page is full" });
-  const saved = savePage(req.user.id, { ...page, itemIds: [...itemIds, item.id] });
-  res.json({ added: true, page: pageSummary(req.user, saved, req.user) });
-});
-
-app.delete("/api/pages/:id", requireSession, (req, res) => {
-  if (!deletePage(req.user.id, req.params.id)) return res.status(404).json({ error: "No such page" });
-  res.status(204).end();
+  const saved = setPageItems(req.user.id, page.id, [...itemIds, item.id]);
+  res.json({ added: true, page: pageSummary(saved, req.user) });
 });
 
 /* -------------------------------------------------------------------- items */
@@ -734,7 +715,10 @@ function parseImages(value) {
 // An item's photographs belong in the item's own folder, whoever uploaded
 // them: taken there once the item is saved and has a folder to take them to.
 function keepItemImages(item) {
-  keepImages(item.ownerId, item.id, getItemImages(item.id).flatMap((image) => [image.name, image.thumb]));
+  const names = getItemImages(item.id).flatMap((image) => [image.name, image.thumb]);
+  // A page's are in its folder under pages/ (see files.js).
+  if (item.page) keepPageImages(item.ownerId, item.id, names);
+  else keepImages(item.ownerId, item.id, names);
 }
 
 // An area, as the form sends it: what it is called, the line saying where that
@@ -882,7 +866,10 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // signed in may change it. It cannot be switched off — except by the
       // admin — which is its owner's to say and not whoever wrote it down — and it
       // is booked by asking (see below), there being nobody here to say yes.
-      shared: body?.shared === true,
+      shared: body?.shared === true && body?.page !== true,
+      // Whether it is a page: a collection of the account's items (see
+      // pages). Said when it is made, and what it is from then on.
+      page: body?.page === true,
       price: unpriced ? null : listPrice(mode, parsed.rates),
       currency,
       located,
@@ -978,12 +965,23 @@ app.get("/api/region", async (req, res) => {
 // An item's page: the item, its calendar, and — to the two people a rental is
 // between — where things stand. A stranger sees which days are taken; the
 // renter also sees their own requests; the owner sees all of them.
+// The pages its owner put an item on, as the way to each from the item's own
+// page: a name, its kind, and whose it is. Somebody else's item is on nobody's.
+function pagesOf(item) {
+  if (!item.owner || item.shared || item.page || item.ownerId === PUBLIC_ID) return [];
+  return pagesWith(item).map((page) => ({ id: page.id, name: page.title, kind: page.kind, owner: item.owner }));
+}
+
 function itemAnswer(item, viewer) {
   const from = earliestDay();
   const mine = Boolean(viewer && viewer.id === item.ownerId);
   return {
     // `bookmarked`: whether whoever is reading has kept it (see bookmarks).
-    item: { ...publicItem(item), mine, bookmarked: Boolean(viewer && isBookmarked(viewer.id, item.id)) },
+    item: { ...publicItem(item), mine, bookmarked: Boolean(viewer && isBookmarked(viewer.id, item.id)),
+      pages: pagesOf(item),
+      // On a page, the items on it.
+      ...(item.page ? { items: itemsOnPage(item, viewer) } : null),
+    },
     // What the people who rented it said of it.
     reviews: getItemReviews(item.id).slice(0, REVIEWS_SHOWN),
     calendar: {
@@ -1059,15 +1057,20 @@ app.post("/api/items", requireSession, (req, res) => {
   // Somebody else's is put under the public account, in its folder, and is
   // not the account's own from the first: nothing says who wrote it down.
   const ownerId = parsed.item.shared ? PUBLIC_ID : req.user.id;
+  // A page is an account's own, and only so many of them.
+  if (parsed.item.page && getPages(req.user.id).length >= PAGES_MAX) {
+    return res.status(409).json({ error: `An account keeps at most ${PAGES_MAX} pages`, code: "PAGES_FULL" });
+  }
+  // Made on one of the account's pages, it is put on it, after what is there.
   let page;
   let itemIds;
   if (req.body.pageId != null) {
-    page = getPages(req.user.id).find((entry) => entry.id === req.body.pageId);
+    page = findPage(req.user.id, req.body.pageId);
     if (!page) return res.status(404).json({ error: "No such page" });
-    if (parsed.item.shared || page.kind !== parsed.item.kind) {
+    if (parsed.item.shared || parsed.item.page || page.kind !== parsed.item.kind) {
       return res.status(400).json({ error: "Choose an item of your own matching the page kind" });
     }
-    itemIds = servedPage(req.user.id, page).items.map((entry) => entry.id);
+    itemIds = pageItems(page).map((entry) => entry.id);
     if (itemIds.length >= PAGE_ITEMS_MAX) return res.status(409).json({ error: "This page is full" });
   }
   const item = createItem(ownerId, parsed.item);
@@ -1078,7 +1081,7 @@ app.post("/api/items", requireSession, (req, res) => {
     applyClosed(item, req.body?.closed);
     applyOpened(item, req.body?.opened);
     if (page) {
-      savedPage = savePage(req.user.id, { ...page, itemIds: [...itemIds, item.id] });
+      savedPage = setPageItems(req.user.id, page.id, [...itemIds, item.id]);
       if (!savedPage) throw new Error("Could not save the page");
     }
   } catch (error) {
@@ -1087,7 +1090,7 @@ app.post("/api/items", requireSession, (req, res) => {
   }
   res.status(201).json({
     item: { ...publicItem(item), mine: !parsed.item.shared },
-    ...(savedPage && { page: pageAnswer(req.user, savedPage, req.user) }),
+    ...(savedPage && { page: { ...publicItem(savedPage), items: itemsOnPage(savedPage, req.user) } }),
   });
 });
 
@@ -1766,6 +1769,45 @@ app.post(
   },
 );
 
+// The other way round, for rab pull: the places whole, and one item's folder
+// as a zip — item.json, source.json and its photographs, as POST takes them.
+app.get("/api/public/locations", requireSession, requireAdmin, (req, res) => {
+  res.json(publicLocations());
+});
+
+app.get("/api/public/items/:id", requireSession, requireAdmin, async (req, res, next) => {
+  const held = heldPublic().items.some((each) => each.id === req.params.id);
+  if (!held) return res.status(404).json({ error: "_public has no such item" });
+  try {
+    const { zipSync } = await import("fflate");
+    const dir = itemDir(PUBLIC_ID, req.params.id);
+    const files = {};
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || entry.name.startsWith(".")) continue;
+      const bytes = fs.readFileSync(path.join(dir, entry.name));
+      files[`items/${req.params.id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
+    }
+    res.type("application/zip").send(Buffer.from(zipSync(files)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// And for rab mirror, what the source it is mirrored from does not have,
+// taken away outright: an item's folder, the open bookings on it cancelled
+// first as when any item is deleted; a place off the list.
+app.delete("/api/public/items/:id", requireSession, requireAdmin, (req, res) => {
+  const live = getItem(req.params.id);
+  if (live && live.ownerId === PUBLIC_ID) removeItem(live);
+  if (!purgePublicItem(req.params.id)) return res.status(404).json({ error: "_public has no such item" });
+  res.status(204).end();
+});
+
+app.delete("/api/public/locations/:id", requireSession, requireAdmin, (req, res) => {
+  if (!deleteLocation(PUBLIC_ID, req.params.id)) return res.status(404).json({ error: "_public has no such place" });
+  res.status(204).end();
+});
+
 // Public, because what they are pictures of is: an item's page is the thing
 // that gets shared, and a plain <img> has nowhere to put a session.
 app.get("/api/images/:name", (req, res) => {
@@ -1826,7 +1868,7 @@ function sharePage(html, req, item) {
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    `<meta property="og:url" content="${escapeHtml(`${origin}/i/${item.id}`)}" />`,
+    `<meta property="og:url" content="${escapeHtml(item.page && item.owner ? `${origin}/u/${encodeURIComponent(item.owner)}/p/${item.id}` : `${origin}/i/${item.id}`)}" />`,
     item.images[0] ? `<meta property="og:image" content="${escapeHtml(origin + item.images[0].src)}" />` : "",
     `<meta name="twitter:card" content="${item.images[0] ? "summary_large_image" : "summary"}" />`,
   ];
@@ -1838,7 +1880,8 @@ if (isProduction) {
   app.use(express.static(dist, { index: false }));
   app.use((req, res, next) => {
     if (req.method !== "GET") return next();
-    const shared = /^\/i\/([a-z0-9]{1,32})\/?$/.exec(req.path);
+    // An item at /i/<id>, or a page at its owner's /u/<name>/p/<id>.
+    const shared = /^\/i\/([a-z0-9]{1,32})\/?$/.exec(req.path) ?? /^\/u\/[^/]+\/p\/([a-z0-9]{1,32})\/?$/i.exec(req.path);
     const item = shared ? getItem(shared[1]) : null;
     if (!item) return res.sendFile(indexPath);
     fs.readFile(indexPath, "utf8", (error, html) => {

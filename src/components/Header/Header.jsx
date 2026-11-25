@@ -8,6 +8,7 @@ import ItemModal from "../ItemModal/index.js";
 import LanguageSwitcher from "../LanguageSwitcher/index.js";
 import MessagesModal from "../MessagesModal/index.js";
 import TravelModal from "../TravelModal/index.js";
+import { pagePath } from "../../utils/pages.js";
 
 // The bar on every page. `back` swaps the wordmark for the way back, on the
 // pages that are somewhere you went to rather than where you start: back to the
@@ -35,13 +36,14 @@ export default function Header({ back = false, listingPage, onPageSaved, view, o
   const [messagesWith, setMessagesWith] = useState(() => window.history.state?.messages ?? null);
   const [messagesOpen, setMessagesOpen] = useState(() => Boolean(window.history.state?.messages));
   const [listing, setListing] = useState(false);
+  const post = () => (user ? setListing(true) : navigate(loginPath()));
   const [travelOpen, setTravelOpen] = useState(false);
 
   // The form for putting something out is opened from the bar, and from
   // wherever else on the page asks for it (see LIST_EVENT): an area with
   // nothing in it does. A stranger is sent to sign in first, as from the bar.
   useEffect(() => {
-    const open = () => (user ? setListing(true) : navigate(loginPath()));
+    const open = post;
     const read = () => (user ? setMessagesOpen(true) : navigate(loginPath()));
     window.addEventListener(LIST_EVENT, open);
     window.addEventListener(MESSAGES_EVENT, read);
@@ -137,8 +139,8 @@ export default function Header({ back = false, listingPage, onPageSaved, view, o
               to the map rather than reading it. Shown to everybody — to a
               stranger it is the way in, by way of signing in. */}
           <ActionButton
-            tooltip={listingPage ? t("page.addItem", { name: listingPage.name }) : t("header.list")}
-            onClick={() => (user ? setListing(true) : navigate(loginPath()))}
+            tooltip={listingPage ? t("page.addItem", { name: listingPage.title }) : t("header.list")}
+            onClick={post}
           >
             <svg viewBox="0 0 24 24">
               <path d="M12 5v14" />
@@ -224,8 +226,9 @@ export default function Header({ back = false, listingPage, onPageSaved, view, o
             setListing(false);
             if (savedPage) return onPageSaved(savedPage);
             // Straight to the page it now has, which is where its calendar is
-            // and what there is to send to somebody.
-            navigate(`/i/${item.id}`);
+            // and what there is to send to somebody — a page's at its own
+            // address under its owner's.
+            navigate(item.page ? pagePath(item) : `/i/${item.id}`);
           }}
         />
       )}

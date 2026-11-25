@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageList from "../../components/PageList.jsx";
 import * as api from "../../api.js";
-import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow, PageModal, useAuth } from "../../components/index.js";
+import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow, useAuth } from "../../components/index.js";
 import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
 import { KINDS } from "../../utils/kinds.js";
 
@@ -19,7 +19,6 @@ const FILTERS = ["all", "published", ...KINDS];
 // answer is given on the item's own page.
 export default function MinePage() {
   const { t } = useTranslation();
-  const [making, setMaking] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   // The filter is in the address, so coming back from an item's page lands on
@@ -87,7 +86,7 @@ export default function MinePage() {
     try {
       const answer = await api.addToPage(page.id, item.id);
       setData((current) => current && { ...current, pages: current.pages.map((each) => (each.id === page.id ? { ...each, ...answer.page } : each)) });
-      showToast(t(answer.added ? "page.added" : "page.alreadyOn", { name: page.name }), 2000);
+      showToast(t(answer.added ? "page.added" : "page.alreadyOn", { name: page.title }), 2000);
     } catch (addError) {
       showToast(addError.message, 3000);
     }
@@ -122,7 +121,7 @@ export default function MinePage() {
             after the pages. */}
         <div className="others-columns">
           <section>
-            {data && <PageList pages={data.pages} username={user.username} onCreate={() => setMaking(true)} filterable carried={carried} onDropItem={putOnPage} />}
+            {data && <PageList pages={data.pages} username={user.username} filterable carried={carried} onDropItem={putOnPage} />}
           </section>
 
           <section>
@@ -174,11 +173,6 @@ export default function MinePage() {
           </section>
         </div>
       </main>
-      <PageModal
-        isOpen={making}
-        onClose={() => setMaking(false)}
-        onSaved={(page) => navigate(`/u/${encodeURIComponent(page.owner)}/p/${encodeURIComponent(page.id)}`, { state: { back: true } })}
-      />
     </div>
   );
 }

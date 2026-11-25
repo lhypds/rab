@@ -14,7 +14,10 @@ import { fileURLToPath } from "node:url";
 //   data/users/<username>/bookings.json            every rental they are one side of
 //   data/users/<username>/messages.json            their side of every conversation
 //   data/users/<username>/bookmarks.json           the items they have kept to come back to
-//   data/users/<username>/pages.json               the pages they made of their items: a store, a space
+//   data/users/<username>/pages/<made>/page.json   one page they made of their items: a store, a space —
+//                                                  an item like any other (`page: true`) with the ids
+//                                                  of the items on it, kept apart from the items
+//   data/users/<username>/pages/<made>/<name>      that page's photographs, beside it
 //
 // <made> is when the item was made, in Unix time to the millisecond. It is the
 // item's id — what its address and everything else points at it by — and its
@@ -181,19 +184,35 @@ export function readItem(userId, folder) {
 
 // Every item an account has. A folder with no item.json in it is not an item
 // and is passed over; one that cannot be read is an error, as with a list.
+// The account's pages among them: each an item like any other, kept in its
+// own folder under pages/ rather than items/ (see the pages below).
 export function readItems(userId) {
   const items = [];
   for (const folder of itemFolders(userId)) {
     const item = readItem(userId, folder);
     if (item) items.push(item);
   }
+  for (const folder of pageFolders(userId)) {
+    const page = readPage(userId, folder);
+    if (page && isItemPage(page)) items.push({ ...page, page: true });
+  }
   return items;
 }
 
+// An item's folder: under pages/ for a page, under items/ for anything else.
+export const folderOf = (userId, item) => (item.page ? pageDir(userId, item.id) : itemDir(userId, item.id));
+
 export function writeItem(userId, item) {
-  const dir = itemDir(userId, item.id);
+  const dir = folderOf(userId, item);
   fs.mkdirSync(dir, { recursive: true });
-  writeJson(path.join(dir, ITEM_FILE), item);
+  const file = path.join(dir, item.page ? PAGE_FILE : ITEM_FILE);
+  // A page from before pages were items is written over as the item it is
+  // now; what it was is kept beside it, out of the way, the first time.
+  if (item.page && !fs.existsSync(`${file}.moved`)) {
+    const old = readJsonObject(file);
+    if (old && !isItemPage(old)) fs.copyFileSync(file, `${file}.moved`);
+  }
+  writeJson(file, item);
 }
 
 // Where an item came from, as the crawler that wrote it down says
@@ -226,6 +245,12 @@ export function writeItemFolder(userId, item, files) {
   if (fresh) fs.renameSync(into, dir);
 }
 
+// An item's whole folder, gone: a public item taken away outright (rab
+// mirror), not the soft delete that leaves the folder with deletedAt in it.
+export function removeItemDir(userId, folder) {
+  fs.rmSync(itemDir(userId, folder), { recursive: true, force: true });
+}
+
 // An item's whole folder — the item and its photographs — from one account's
 // items to another's: what is done when an item becomes the public account's.
 export function moveItemDir(fromUserId, toUserId, folder) {
@@ -240,6 +265,115 @@ export function moveItemDir(fromUserId, toUserId, folder) {
     fs.renameSync(from, to);
   }
 }
+
+/* ------------------------------------------------------------------- pages */
+
+// Every page has a folder of its own in its owner's pages/, named after the
+// page's id — the millisecond it was made, in Unix time, as an item's is — in
+// which page.json is the page, as item.json is an item in items/. A page is an
+// item (see db.js), written as one with `page: true`; it is only kept apart.
+// Before that its page.json was of a shape of its own — a name, a location,
+// no price — which the server makes an item of when it starts (see
+// readOldPages), keeping what it was as page.json.moved.
+export const PAGE_FILE = "page.json";
+
+// Whether a page.json is a page as it is kept now: an item.
+const isItemPage = (page) => page.page === true;
+// Where an account's pages were all kept, in one list, before they had folders.
+const OLD_PAGES_FILE = "pages.json";
+const PAGE_ID_RE = /^[1-9]\d*$/;
+
+export const pagesDir = (userId) => path.join(userDir(userId), "pages");
+
+export function pageDir(userId, folder) {
+  const name = String(folder ?? "");
+  if (!ITEM_FOLDER_RE.test(name)) throw new Error(`not a page's folder: ${name}`);
+  return path.join(pagesDir(userId), name);
+}
+
+export function pageFolders(userId) {
+  try {
+    return fs
+      .readdirSync(pagesDir(userId), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && ITEM_FOLDER_RE.test(entry.name))
+      .map((entry) => entry.name);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+// What one JSON file holds, where it is an object; null where the file is not
+// there. One that is there and cannot be read is an error.
+function readJsonObject(file) {
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+  const value = JSON.parse(text);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${file} is not an object`);
+  return value;
+}
+
+function readPage(userId, folder) {
+  const page = readJsonObject(path.join(pageDir(userId, folder), PAGE_FILE));
+  return page ? { ...page, id: folder } : null;
+}
+
+// Pages from before they were kept as items are, put the way they are now,
+// once. The one list an account had is given a folder for each page in it,
+// and kept beside them as pages.json.moved. A page whose id was drawn at
+// random is given the millisecond it was made for its id and its folder's
+// name, and still says what it was called then (`was`), so a link to it from
+// then still finds it.
+export function movePagesIntoFolders(userId) {
+  const old = path.join(userDir(userId), OLD_PAGES_FILE);
+  if (fs.existsSync(old)) {
+    for (const page of readList(userId, OLD_PAGES_FILE)) {
+      if (!page?.id || !ITEM_FOLDER_RE.test(String(page.id))) continue;
+      if (!fs.existsSync(path.join(pageDir(userId, page.id), PAGE_FILE))) writePage(userId, page);
+    }
+    fs.renameSync(old, `${old}.moved`);
+  }
+  const taken = new Set(pageFolders(userId));
+  for (const folder of [...taken]) {
+    if (PAGE_ID_RE.test(folder)) continue;
+    const page = readPage(userId, folder);
+    if (!page) continue;
+    let stamp = Date.parse(page.createdAt);
+    if (!Number.isFinite(stamp)) stamp = Date.now();
+    while (taken.has(String(stamp))) stamp += 1;
+    const id = String(stamp);
+    taken.add(id);
+    fs.renameSync(pageDir(userId, folder), pageDir(userId, id));
+    writePage(userId, { ...page, id, was: page.was ?? folder });
+  }
+}
+
+// The pages an account has that are still of the old shape and not yet an
+// item: what the server makes items of when it starts (see db.js).
+export function readOldPages(userId) {
+  movePagesIntoFolders(userId);
+  return pageFolders(userId)
+    .map((folder) => readPage(userId, folder))
+    .filter((page) => page && !isItemPage(page));
+}
+
+// A page's folder given another name: what an old page whose id is already an
+// item's is moved to.
+export function movePageDir(userId, from, to) {
+  fs.renameSync(pageDir(userId, from), pageDir(userId, to));
+}
+
+function writePage(userId, page) {
+  const dir = pageDir(userId, page.id);
+  fs.mkdirSync(dir, { recursive: true });
+  writeJson(path.join(dir, PAGE_FILE), page);
+}
+
 
 /* ------------------------------------------------------------------- lists */
 

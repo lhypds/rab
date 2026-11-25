@@ -18,6 +18,11 @@ import { fileURLToPath } from "node:url";
 //                                      time, to be merged into _public's
 //                                      (/api/public); without -f, this source's
 //                                      own data/users/_public
+//   rab pull [-f <folder>] [-u <url>]  bring what the server's _public has
+//                                      that the folder does not, here
+//   rab mirror [-f <folder>] [-u <url>] [--yes]
+//                                      push, and delete on the server what of
+//                                      its _public the folder does not have
 //
 // The user commands read and write the same data/users/ and db.sqlite the
 // server does (and the same .env says where those are). Listing is safe at any
@@ -25,10 +30,11 @@ import { fileURLToPath } from "node:url";
 // which holds the folders in memory and would write part of what was deleted
 // back: stop it first.
 //
-// rab push goes through a running server instead — this machine's, on its
-// port, unless -u <url> (or RAB_HOST) names another — signed in as _admin:
-// with RAB_TOKEN, a session token of _admin's, if there is one, and otherwise
-// with _admin's password, asked for here (or RAB_PASSWORD). It asks the server
+// rab push, pull and mirror go through a running server instead — this
+// machine's, on its port, unless -u <url> (or RAB_HOST, in .env, say) names
+// another — signed in as _admin: with RAB_TOKEN, a session token of _admin's,
+// if there is one, and otherwise with _admin's password, RAB_PASSWORD (in
+// .env, say), or asked for here. It asks the server
 // what it holds, and sends only the places and items it does not: the places
 // in one zip, then each item's folder in a zip of its own.
 
@@ -50,7 +56,11 @@ const USAGE = `Usage:
   rab push [-f <folder>] [-u <url>]
                                      send the items of a public folder the server does not have
                                      (data/users/_public here, without -f), to the server at <url>
-                                     (this machine's, without -u)`;
+                                     (this machine's, without -u, or RAB_HOST)
+  rab pull [-f <folder>] [-u <url>]  fetch the items and places the server has and the folder does not
+  rab mirror [-f <folder>] [-u <url>] [--yes]
+                                     push, then delete on the server what the folder does not have
+                                     (asks first, unless --yes)`;
 
 function fail(message) {
   console.error(message);
@@ -157,43 +167,62 @@ function readJson(fs, file) {
 
 const megabytes = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-// rab push [-f <folder>] [-u <url>]
-async function sendPublic(args) {
+// What push, pull and mirror are given: -f <folder>, -u <url>, and --yes
+// (mirror's, to delete without asking). The server is RAB_HOST where -u is not
+// given, and this machine's own where neither is; the folder is this source's
+// own _public where -f is not.
+function remoteArgs(args) {
   let file = null;
   let host = process.env.RAB_HOST || null;
+  let yes = false;
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "-f" || arg === "--file") file = args[++i];
     else if (arg.startsWith("--file=")) file = arg.slice("--file=".length);
     else if (arg === "-u" || arg === "--url" || arg === "--host") host = args[++i];
     else if (/^--(url|host)=/.test(arg)) host = arg.slice(arg.indexOf("=") + 1);
+    else if (arg === "-y" || arg === "--yes") yes = true;
     else if (!arg.startsWith("-") && !file) file = arg;
     else fail(USAGE);
   }
-  // Without a folder named, this source's own _public folder (where the
-  // server keeps it: RAB_DATA, as in files.js, or data/).
+  // Where the server keeps it: RAB_DATA, as in files.js, or data/.
   if (!file) file = path.join(process.env.RAB_DATA || path.join(root, "data"), "users", "_public");
   if (!host) host = `http://127.0.0.1:${Number(process.env.PORT) || 3016}`;
   if (!/^https?:\/\//i.test(host)) host = `https://${host}`;
-  host = host.replace(/\/+$/, "");
+  return { file, host: host.replace(/\/+$/, ""), yes };
+}
 
-  const fs = await import("node:fs");
-  const { zipSync } = await import("fflate");
-  const folder = publicFolder(fs, path.resolve(file));
-
-  // What is here: the places, and each item folder with an item.json in it,
-  // with the key the crawler knows it by.
-  const locations = (() => {
-    const list = readJson(fs, path.join(folder, "locations.json"));
-    return Array.isArray(list) ? list.filter((each) => each && typeof each === "object" && !Array.isArray(each)) : [];
-  })();
+// What is here: the places, and each item folder with an item.json in it,
+// with the key the crawler knows it by.
+function localPublic(fs, folder) {
+  const list = readJson(fs, path.join(folder, "locations.json"));
+  const locations = Array.isArray(list) ? list.filter((each) => each && typeof each === "object" && !Array.isArray(each)) : [];
   const itemsDir = path.join(folder, "items");
   const items = (fs.existsSync(itemsDir) ? fs.readdirSync(itemsDir, { withFileTypes: true }) : [])
     .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name) && fs.existsSync(path.join(itemsDir, entry.name, "item.json")))
     .map((entry) => ({ id: entry.name, key: readJson(fs, path.join(itemsDir, entry.name, "source.json"))?.key ?? null }))
     .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-  console.log(`${folder}: ${items.length} items, ${locations.length} places`);
+  return { locations, items, itemsDir };
+}
 
+// Which of `items` and `places` the other side does not have — by id, by the
+// crawler's key, by address — `other` being { items, locations } as GET
+// /api/public gives them, or as localPublic does.
+function missingFrom(other, { items, locations }) {
+  const ids = new Set(other.items.map((each) => each.id));
+  const keys = new Set(other.items.filter((each) => each.key).map((each) => JSON.stringify(each.key)));
+  const placeIds = new Set(other.locations.map((each) => each.id));
+  const addresses = new Set(other.locations.filter((each) => each.address).map((each) => each.address));
+  return {
+    items: items.filter((each) => !ids.has(each.id) && !(each.key && keys.has(JSON.stringify(each.key)))),
+    locations: locations.filter((each) => !placeIds.has(each.id) && !(each.address && addresses.has(each.address))),
+  };
+}
+
+// Signed in to the server as _admin for one command, and out again after,
+// unless the token was given — that one is whoever gave it's to keep. The
+// password is RAB_PASSWORD (in .env, say), or asked for here.
+async function adminSession(host) {
   const request = async (url, options) => {
     try {
       return await fetch(`${host}${url}`, options);
@@ -201,9 +230,6 @@ async function sendPublic(args) {
       throw new Error(`Cannot reach ${host}: ${error.cause?.code ?? error.message}`);
     }
   };
-
-  // Signed in for this one upload, and out again after, unless the token was
-  // given — that one is whoever gave it's to keep.
   let token = process.env.RAB_TOKEN || null;
   const signedIn = !token;
   if (!token) {
@@ -226,71 +252,201 @@ async function sendPublic(args) {
     }
   }
   const auth = { Authorization: `Bearer ${token}` };
-  const send = async (zip) =>
-    answerOf(await request("/api/public", { method: "POST", headers: { ...auth, "Content-Type": "application/zip" }, body: zip }));
-
-  let failed = 0;
-  try {
-    // What the server has, by id, by address and by the crawler's key; what
-    // here is none of those is what is sent.
+  const held = async () => {
     const asked = await request("/api/public", { headers: auth });
     // A server from before GET /api/public answers it with the 404 of any
     // path it does not know.
     if (asked.status === 404) throw new Error(`${host} does not say what it holds (GET /api/public): its server is older than this rab; update it first`);
-    const held = await answerOf(asked);
-    const heldItemIds = new Set(held.items.map((each) => each.id));
-    const heldKeys = new Set(held.items.filter((each) => each.key).map((each) => JSON.stringify(each.key)));
-    const heldPlaceIds = new Set(held.locations.map((each) => each.id));
-    const heldAddresses = new Set(held.locations.filter((each) => each.address).map((each) => each.address));
-    const newPlaces = locations.filter((each) => !heldPlaceIds.has(each.id) && !(each.address && heldAddresses.has(each.address)));
-    const newItems = items.filter((each) => !heldItemIds.has(each.id) && !(each.key && heldKeys.has(JSON.stringify(each.key))));
-    console.log(`${host} has ${held.items.length} items, ${held.locations.length} places`);
-    console.log(`To send: ${newItems.length} items, ${newPlaces.length} places`);
+    return answerOf(asked);
+  };
+  const close = async () => {
+    if (signedIn) await fetch(`${host}/api/logout`, { method: "POST", headers: auth }).catch(() => {});
+  };
+  return { request, auth, held, close };
+}
 
-    if (newPlaces.length) {
-      const zip = zipSync({ "locations.json": new TextEncoder().encode(JSON.stringify(newPlaces)) });
-      const merged = await send(zip);
+// The places, then each item's folder in a zip of its own: what push and
+// mirror send. The number that failed.
+async function sendMissing(fs, session, itemsDir, send) {
+  const { zipSync } = await import("fflate");
+  const post = async (zip) =>
+    answerOf(await session.request("/api/public", { method: "POST", headers: { ...session.auth, "Content-Type": "application/zip" }, body: zip }));
+  let failed = 0;
+  if (send.locations.length) {
+    try {
+      const merged = await post(zipSync({ "locations.json": new TextEncoder().encode(JSON.stringify(send.locations)) }));
       const places = merged.locations;
       console.log(`Places: ${places.added} added, ${places.replaced} replaced, ${places.dropped} left out (the list is full)`);
+    } catch (error) {
+      failed += 1;
+      console.log(`Places failed: ${error.message}`);
+    }
+  }
+  const counts = { added: 0, replaced: 0, skipped: 0 };
+  for (const [index, { id }] of send.items.entries()) {
+    const at = `[${index + 1}/${send.items.length}] ${id}`;
+    try {
+      // The item's folder as it is, item.json, source.json and the
+      // photographs; the photographs stored as they are, being compressed.
+      const dir = path.join(itemsDir, id);
+      const files = {};
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isFile() || entry.name.startsWith(".")) continue;
+        const bytes = fs.readFileSync(path.join(dir, entry.name));
+        files[`items/${id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
+      }
+      const zip = zipSync(files);
+      const merged = await post(zip);
+      const how = merged.items.added.length ? "added" : merged.items.replaced.length ? "replaced" : "skipped";
+      counts[how] += 1;
+      console.log(`${at} ${how === "skipped" ? "passed over (another account's item has that id)" : how} (${megabytes(zip.length)})`);
+    } catch (error) {
+      failed += 1;
+      console.log(`${at} failed: ${error.message}`);
+    }
+  }
+  if (send.items.length) console.log(`Items sent: ${counts.added} added, ${counts.replaced} replaced, ${counts.skipped} passed over, ${failed} failed`);
+  return failed;
+}
+
+// rab push / rab mirror [-f <folder>] [-u <url>]: what the server does not
+// have, sent; and for mirror, what it has that is not here, deleted there, so
+// that its _public is this folder's.
+async function sendPublic(args, { mirror = false } = {}) {
+  const { file, host, yes } = remoteArgs(args);
+  const fs = await import("node:fs");
+  const folder = publicFolder(fs, path.resolve(file));
+  const here = localPublic(fs, folder);
+  console.log(`${folder}: ${here.items.length} items, ${here.locations.length} places`);
+
+  const session = await adminSession(host);
+  let failed = 0;
+  try {
+    const held = await session.held();
+    console.log(`${host} has ${held.items.length} items, ${held.locations.length} places`);
+    const send = missingFrom(held, here);
+    console.log(`To send: ${send.items.length} items, ${send.locations.length} places`);
+    const drop = mirror ? missingFrom(here, held) : { items: [], locations: [] };
+    if (mirror) console.log(`To delete on ${host}: ${drop.items.length} items, ${drop.locations.length} places`);
+
+    const deleting = drop.items.length + drop.locations.length;
+    if (deleting && !yes) {
+      if (!process.stdin.isTTY) throw new Error("Deleting on the server is not done without --yes when nobody is there to ask.");
+      const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await prompt.question(`This deletes ${drop.items.length} items and ${drop.locations.length} places on ${host} for good. Type yes to go on: `);
+      prompt.close();
+      if (answer.trim() !== "yes") throw new Error("Nothing was sent or deleted.");
     }
 
-    const counts = { added: 0, replaced: 0, skipped: 0 };
-    for (const [index, { id }] of newItems.entries()) {
-      const at = `[${index + 1}/${newItems.length}] ${id}`;
-      try {
-        // The item's folder as it is, item.json, source.json and the
-        // photographs; the photographs stored as they are, being compressed.
-        const dir = path.join(itemsDir, id);
-        const files = {};
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          if (!entry.isFile() || entry.name.startsWith(".")) continue;
-          const bytes = fs.readFileSync(path.join(dir, entry.name));
-          files[`items/${id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
+    failed += await sendMissing(fs, session, here.itemsDir, send);
+
+    if (deleting) {
+      let deleted = 0;
+      const remove = async (what, id) => {
+        try {
+          await answerOf(await session.request(`/api/public/${what}/${encodeURIComponent(id)}`, { method: "DELETE", headers: session.auth }));
+          deleted += 1;
+        } catch (error) {
+          failed += 1;
+          console.log(`Deleting ${what === "items" ? "item" : "place"} ${id} failed: ${error.message}`);
         }
-        const zip = zipSync(files);
-        const merged = await send(zip);
-        const how = merged.items.added.length ? "added" : merged.items.replaced.length ? "replaced" : "skipped";
-        counts[how] += 1;
-        console.log(`${at} ${how === "skipped" ? "passed over (another account's item has that id)" : how} (${megabytes(zip.length)})`);
+      };
+      for (const { id } of drop.items) await remove("items", id);
+      for (const { id } of drop.locations) await remove("locations", id);
+      console.log(`Deleted on ${host}: ${deleted} of ${deleting}`);
+    }
+  } catch (error) {
+    console.error(error.message);
+    failed += 1;
+  } finally {
+    await session.close();
+  }
+  if (failed) process.exit(1);
+}
+
+// rab pull [-f <folder>] [-u <url>]: what the server's _public has that this
+// folder does not, brought here — the places added to locations.json, each
+// item's folder written beside the others (and moved into place whole, the
+// way a crawler does, for a server running on this folder to take in).
+async function receivePublic(args) {
+  const { file, host } = remoteArgs(args);
+  const fs = await import("node:fs");
+  const { unzipSync } = await import("fflate");
+  const named = path.resolve(file);
+  // A folder that is not there yet is made: pulling into it is how it starts.
+  if (!fs.existsSync(named)) fs.mkdirSync(named, { recursive: true });
+  const folder = fs.existsSync(path.join(named, "locations.json")) || fs.existsSync(path.join(named, "items")) || fs.readdirSync(named).length === 0
+    ? named
+    : publicFolder(fs, named);
+  const here = localPublic(fs, folder);
+  console.log(`${folder}: ${here.items.length} items, ${here.locations.length} places`);
+
+  const session = await adminSession(host);
+  let failed = 0;
+  try {
+    const held = await session.held();
+    console.log(`${host} has ${held.items.length} items, ${held.locations.length} places`);
+    const take = missingFrom(here, held);
+    console.log(`To fetch: ${take.items.length} items, ${take.locations.length} places`);
+
+    if (take.locations.length) {
+      const all = await answerOf(await session.request("/api/public/locations", { headers: session.auth }));
+      const wanted = new Set(take.locations.map((each) => each.id));
+      const added = all.filter((each) => wanted.has(each.id));
+      const file = path.join(folder, "locations.json");
+      const partial = `${file}.${process.pid}.tmp`;
+      fs.writeFileSync(partial, `${JSON.stringify([...here.locations, ...added], null, 2)}\n`);
+      fs.renameSync(partial, file);
+      console.log(`Places: ${added.length} added`);
+    }
+
+    let fetched = 0;
+    for (const [index, { id }] of take.items.entries()) {
+      const at = `[${index + 1}/${take.items.length}] ${id}`;
+      try {
+        const response = await session.request(`/api/public/items/${encodeURIComponent(id)}`, { headers: session.auth });
+        if (!response.ok) await answerOf(response);
+        const zip = new Uint8Array(await response.arrayBuffer());
+        const entries = unzipSync(zip);
+        const into = path.join(here.itemsDir, `.${id}.${process.pid}.tmp`);
+        fs.rmSync(into, { recursive: true, force: true });
+        fs.mkdirSync(into, { recursive: true });
+        for (const [name, bytes] of Object.entries(entries)) {
+          const match = name.match(/^items\/(\d+)\/([^/]+)$/);
+          if (!match || match[1] !== id || match[2].startsWith(".")) continue;
+          fs.writeFileSync(path.join(into, match[2]), bytes);
+        }
+        if (!fs.existsSync(path.join(into, "item.json"))) {
+          fs.rmSync(into, { recursive: true, force: true });
+          throw new Error("the zip has no item.json in it");
+        }
+        fs.renameSync(into, path.join(here.itemsDir, id));
+        fetched += 1;
+        console.log(`${at} fetched (${megabytes(zip.length)})`);
       } catch (error) {
         failed += 1;
         console.log(`${at} failed: ${error.message}`);
       }
     }
-    console.log(`Items: ${counts.added} added, ${counts.replaced} replaced, ${counts.skipped} passed over, ${failed} failed`);
+    if (take.items.length) console.log(`Items: ${fetched} fetched, ${failed} failed`);
   } catch (error) {
     console.error(error.message);
     failed += 1;
   } finally {
-    if (signedIn) await fetch(`${host}/api/logout`, { method: "POST", headers: auth }).catch(() => {});
+    await session.close();
   }
   if (failed) process.exit(1);
 }
 
 const args = process.argv.slice(2);
 
-if (args[0] === "push") {
-  await sendPublic(args.slice(1));
+if (args[0] === "push" || args[0] === "mirror") {
+  await sendPublic(args.slice(1), { mirror: args[0] === "mirror" });
+  process.exit(0);
+}
+
+if (args[0] === "pull") {
+  await receivePublic(args.slice(1));
   process.exit(0);
 }
 

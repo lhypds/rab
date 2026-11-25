@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageList from "../../components/PageList.jsx";
 import * as api from "../../api.js";
-import { Header, ItemRow, MessageModal, PageModal, Rating, loginPath, useAuth } from "../../components/index.js";
+import { Header, ItemRow, MessageModal, Rating, loginPath, useAuth } from "../../components/index.js";
 import { ActionButton, Skeleton, useNavigate } from "../../ui/index.js";
 import { formatDate, formatUsername } from "../../utils/format.js";
 
 // Who somebody is: how the people they have dealt with rate them, the pages
 // they made of their items — a store, a space, their services — what they
 // have out for rent, what was said about them, and the way to write to them.
-// Their own page is where a new page is made.
+// A new page is made from the bar's Post, as a new item is.
 export default function UserPage({ username }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -17,7 +17,6 @@ export default function UserPage({ username }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [writing, setWriting] = useState(false);
-  const [making, setMaking] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +71,7 @@ export default function UserPage({ username }) {
             {/* The pages they made, each the way to itself; and on their own,
                 the way to make another. */}
             {(own || data.pages.length > 0) && (
-              <PageList pages={data.pages} username={username} onCreate={own ? () => setMaking(true) : undefined} />
+              <PageList pages={data.pages} username={username} />
             )}
 
             <div className="part-heading">
@@ -93,14 +92,6 @@ export default function UserPage({ username }) {
       </main>
 
       <MessageModal username={writing ? data?.user.username : null} onClose={() => setWriting(false)} />
-      {own && (
-        <PageModal
-          isOpen={making}
-          page={null}
-          onClose={() => setMaking(false)}
-          onSaved={(page) => navigate(`/u/${encodeURIComponent(page.owner)}/p/${encodeURIComponent(page.id)}`)}
-        />
-      )}
     </div>
   );
 }

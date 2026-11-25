@@ -11,7 +11,6 @@ export { default as Loading } from "./Loading/index.js";
 export { default as MapView } from "./MapView/index.js";
 export { default as MessageModal } from "./MessageModal/index.js";
 export { default as MessagesModal } from "./MessagesModal/index.js";
-export { default as PageModal } from "./PageModal/index.js";
 export { default as ReviewModal, Rating, ReviewPrompt, Stars } from "./ReviewModal/index.js";
 export { BookingRow, ItemRow } from "./Rows/index.js";
 export { default as UserName, dotted } from "./UserName/index.js";

@@ -30,15 +30,20 @@ export function isBookingLine(message) {
   return BOOKING_KINDS.includes(message?.kind) || ADMIN_KINDS.includes(message?.kind);
 }
 
-// The item such a line leads to, where there still is one.
-export function lineItemId(message) {
-  return message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
+// Where such a line leads, where it is still there: the item's page, or the
+// page reported.
+export function linePath(message) {
+  const itemId = message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
+  if (itemId) return `/i/${itemId}`;
+  const page = message.page;
+  if (page && !page.gone && page.owner) return `/u/${encodeURIComponent(page.owner)}/p/${encodeURIComponent(page.id)}`;
+  return null;
 }
 
 export function bookingLine(message, t, locale) {
   if (ADMIN_KINDS.includes(message.kind)) {
     return t(`messages.event.${message.kind}`, {
-      item: message.item?.title ?? t("messages.event.gone"),
+      item: message.item?.title ?? message.page?.name ?? t("messages.event.gone"),
       reason: message.reason ? t(`report.reasons.${message.reason}`, message.reason) : "",
     });
   }
@@ -86,7 +91,12 @@ export function canCancel(booking, now = new Date()) {
 // booking is what each side is asked to rate the other for.
 export function bookingEnded(booking, now = new Date()) {
   if (booking.status !== "confirmed") return false;
-  const time = booking.slots?.length ? booking.slots.map((slot) => slot.end).sort().at(-1) : booking.endTime || "24:00";
+  const time = booking.slots?.length
+    ? booking.slots
+        .map((slot) => slot.end)
+        .sort()
+        .at(-1)
+    : booking.endTime || "24:00";
   const [hours, minutes] = time.split(":").map(Number);
   const ends = new Date(`${booking.end}T00:00:00`).getTime() + (hours * 60 + minutes) * 60_000;
   return now.getTime() >= ends;

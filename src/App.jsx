@@ -1,5 +1,5 @@
 import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
-import { AuthPage, HomePage, ItemPage, MinePage, OthersPage, PagePage, PreviewPage, UserPage } from "./pages/index.js";
+import { AuthPage, HomePage, ItemPage, MinePage, OthersPage, PreviewPage, UserPage } from "./pages/index.js";
 import { Navigate, useLocation } from "./ui/index.js";
 import { homeFilter } from "./utils/kinds.js";
 
@@ -47,12 +47,13 @@ function Page() {
   const itemId = segment(pathname, "/i/");
   if (itemId) return <ItemPage key={itemId} id={itemId} />;
 
-  // /u/<name>/p/<id> is one of the pages somebody made of their items.
+  // /u/<name>/p/<id> is one of the pages somebody made of their items: an
+  // item like any other (see server/db.js), at an address of its own.
   const page = /^\/u\/([^/]+)\/p\/([^/]+)\/?$/.exec(pathname);
   if (page) {
     try {
-      const [owner, id] = [decodeURIComponent(page[1]).normalize("NFKC").toLowerCase(), decodeURIComponent(page[2])];
-      return <PagePage key={`${owner}/${id}`} username={owner} id={id} />;
+      const id = decodeURIComponent(page[2]);
+      return <ItemPage key={id} id={id} />;
     } catch {
       return <Navigate to="/" replace />;
     }

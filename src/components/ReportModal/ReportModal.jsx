@@ -13,7 +13,8 @@ import styles from "./report.module.css";
 const REASONS = ["inaccurate", "unavailable", "infringement", "spam", "scam", "prohibited", "offensive", "other"];
 const NOTE_MAX = 500;
 
-// The sheet a report about one item is sent to the administrator from: what
+// The sheet a report about one item — a page among them — is sent to the
+// administrator from: what
 // is wrong with it, picked from a list, and a word about it. `mode` is
 // "report" for the sheet to be open, null for it to be closed. It goes as a
 // message, into the reader's own conversation with the administrator, where

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItemSource, readItems, readList, readRecord, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItemSource, readItems, readList, movePageDir, movePagesIntoFolders, readOldPages, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/kinds.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -368,9 +368,25 @@ function load() {
   bookingsById.clear();
   messagesByUser.clear();
   for (const userId of userFolders()) {
+    // An account's pages from when they were one list, given their folders.
+    movePagesIntoFolders(userId);
     for (const item of readItems(userId)) {
       itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
       if (item.was) idByOldId.set(String(item.was), item.id);
+    }
+    // Its pages from before pages were items, made items, and written so.
+    for (const old of readOldPages(userId)) {
+      let id = old.id;
+      if (itemsById.has(id)) {
+        let stamp = Number(id) || Date.now();
+        while (itemsById.has(String(stamp))) stamp += 1;
+        movePageDir(userId, id, String(stamp));
+        id = String(stamp);
+      }
+      const page = pageFromOld({ ...old, id }, userId);
+      itemsById.set(id, page);
+      if (page.was) idByOldId.set(String(page.was), id);
+      changedItem(page);
     }
     // Both sides hold the booking; should the two ever differ, the one changed
     // last is the one that is right.
@@ -394,6 +410,57 @@ function load() {
   for (const lines of messagesByUser.values()) {
     for (const line of lines) lastMessageId = Math.max(lastMessageId, line.id);
   }
+}
+
+// A page as it was kept before pages were items — a name, a word about it,
+// one kind, a copy of a saved location, how its owner is reached, its
+// photographs and the ids of its items — as the item it is now: priced on
+// request, booked by asking where it says how its owner is reached and by the
+// day where not, in the currency of its owner's newest item.
+function pageFromOld(old, userId) {
+  const location = old.location ?? null;
+  const contacts = Array.isArray(old.contacts) ? old.contacts : [];
+  const currency =
+    [...itemsById.values()]
+      .filter((item) => item.ownerId === userId && !item.page && item.currency)
+      .reduce((newest, item) => (!newest || item.createdAt > newest.createdAt ? item : newest), null)?.currency ?? "USD";
+  return {
+    id: old.id,
+    ...(old.was ? { was: old.was } : null),
+    page: true,
+    itemIds: Array.isArray(old.itemIds) ? old.itemIds.map(String) : [],
+    title: old.name ?? "",
+    description: old.description ?? "",
+    homepage: "",
+    kind: old.kind || "item",
+    category: "",
+    mode: contacts.length > 0 ? "inquiry" : "day",
+    rates: [],
+    hours: [],
+    unit: 30,
+    priceUnit: contacts.length > 0 ? 1440 : 30,
+    cancel: { mode: "any" },
+    contacts,
+    shared: false,
+    openDays: null,
+    dayHours: null,
+    hoursOff: [],
+    price: null,
+    currency,
+    located: Boolean(location),
+    latitude: location?.latitude ?? 0,
+    longitude: location?.longitude ?? 0,
+    place: location ? location.address || location.name || null : null,
+    region: location?.region ?? null,
+    moreRegions: [],
+    images: Array.isArray(old.images) ? old.images : [],
+    active: true,
+    days: [],
+    createdAt: old.createdAt ?? now(),
+    updatedAt: old.updatedAt ?? old.createdAt ?? now(),
+    deletedAt: null,
+    ownerId: userId,
+  };
 }
 
 // The public account's items that were put in its folder while the server was
@@ -506,6 +573,8 @@ function servedItem(item) {
   const located = item.located === true;
   return {
     id: item.id,
+    // Whether it is a page: a collection of the owner's items (see pages).
+    page: item.page === true,
     title: item.title,
     description: item.description,
     price: item.price,
@@ -649,8 +718,10 @@ export function getItemsAt(latitude, longitude, box = null, limit = 4000) {
     .map(servedItem);
 }
 
+// An account's items — not its pages, which are items too but listed apart
+// (see getPages) — newest first.
 export function getItemsByUser(userId, { publicOnly = false } = {}) {
-  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt).sort(newestFirst);
+  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt && !item.page).sort(newestFirst);
   if (publicOnly) return items.filter((item) => item.active).map(servedItem);
   const bookings = [...bookingsById.values()];
   return items.map((item) => ({
@@ -708,6 +779,10 @@ export function createItem(userId, item) {
     itemsById.set(id, {
       id,
       ...itemFields(item),
+      // A page is an item with the ids of other items of the account's on it,
+      // in the order it put them; it is kept under pages/ (see files.js). What
+      // an item is, it stays.
+      ...(item.page ? { page: true, itemIds: [] } : null),
       // Off is an item not on the map: one taken down without being deleted,
       // or one made that way to be finished and published later (the phone's
       // are). Its page still opens for whoever holds the link, and nothing can
@@ -733,6 +808,8 @@ export function updateItem(userId, id, item) {
   if (!current || current.ownerId !== userId) return null;
   transaction(() => {
     Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
+    // A page is the account's own, and stays so.
+    if (current.page) current.shared = false;
     // Said to be somebody else's, it leaves the account's folder for the
     // public account's, and is nobody's from then on.
     if (current.shared && current.ownerId !== PUBLIC_ID) {
@@ -1070,6 +1147,11 @@ export const getRating = (userId) => ratingOf(getReviewsOf(userId));
 //
 // `read` is whether the one it was sent to has read it, on both copies: it is
 // what the receiver's unread count goes by and what the sender is shown.
+function pageOfLine({ ownerId, id }) {
+  const page = nameOf(ownerId) ? findPage(ownerId, id) : null;
+  return { owner: nameOf(ownerId), id: page?.id ?? id, name: page?.title ?? null, gone: !page };
+}
+
 function servedMessage(line) {
   if (!line) return null;
   const booking = line.bookingId ? bookingsById.get(line.bookingId) : null;
@@ -1088,6 +1170,8 @@ function servedMessage(line) {
           gone: !itemsById.get(line.itemId) || Boolean(itemsById.get(line.itemId).deletedAt),
         }
       : null,
+    // And the page one is about: its name, and `gone` once it is deleted.
+    page: line.page ? pageOfLine(line.page) : null,
     reason: line.reason ?? null,
     booking: booking
       ? {
@@ -1161,7 +1245,7 @@ export function readConversation(userId, otherId) {
   });
 }
 
-export function createMessage(fromId, toId, body, { kind = "text", bookingId = null, itemId = null, reason = null } = {}) {
+export function createMessage(fromId, toId, body, { kind = "text", bookingId = null, itemId = null, page = null, reason = null } = {}) {
   // The clock, so a number is never handed out twice even after both ends have
   // deleted the lines that carried the highest ones.
   lastMessageId = Math.max(Date.now(), lastMessageId + 1);
@@ -1171,6 +1255,8 @@ export function createMessage(fromId, toId, body, { kind = "text", bookingId = n
     kind,
     bookingId,
     ...(itemId ? { itemId } : null),
+    // Or the page it is about, as whose it is and its id.
+    ...(page ? { page: { ownerId: page.ownerId, id: page.id } } : null),
     ...(reason ? { reason } : null),
     time: now(),
     read: false,
@@ -1323,54 +1409,85 @@ export function heldPublic() {
   return { items, locations };
 }
 
+// One of the public account's items taken away outright — its folder and all
+// — for the public folder to be the same as the one it is mirrored from (rab
+// mirror). Bookings made of it stay, as of an item there no longer is; the
+// caller cancels the open ones first. False where it is not _public's.
+export function purgePublicItem(id) {
+  const item = itemsById.get(id);
+  if (!item || item.ownerId !== PUBLIC_ID) return false;
+  itemsById.delete(id);
+  unsavedItems.delete(id);
+  removeItemDir(PUBLIC_ID, id);
+  return true;
+}
+
+// The public account's places, whole, for another source to take a copy of
+// (rab pull).
+export function publicLocations() {
+  return getLocations(PUBLIC_ID);
+}
+
 /* ------------------------------------------------------------------- pages */
 
-// The pages an account makes of what it has out — "Liu's Music Gear Store": a
-// name, a word about it, one kind, and some of the account's own items of that
-// kind, in the order it put them. A page of things is a store and a page of
-// spaces is a space; each page may carry a copy of a saved location. A list in its folder's pages.json, read and written as they are
-// asked for, like the locations. An item deleted since, or of another kind
-// now, is left in the file and left out of what is read.
-const PAGES_FILE = "pages.json";
+// The pages an account makes of what it has out — "Liu's Music Gear Store".
+// A page is an item like any other — its photographs, its price, where it is,
+// when it can be had, booked as one is — with `page: true` and, in
+// `itemIds`, some of the account's own items of its kind, in the order it put
+// them: a page of things is a store, a page of spaces a space. It is kept in a
+// folder of its own under its owner's pages/ rather than items/ (see
+// files.js). An item deleted since, or of another kind now, is left in the
+// list and left out of what is read.
 export const PAGES_MAX = 50;
 
+// The account's pages, the one made first first, as items go out.
 export function getPages(userId) {
-  return readList(userId, PAGES_FILE);
-}
-
-// A page as it goes out, with its items as a list shows them: only the
-// published ones where `publicOnly`, as on somebody's own page.
-export function servedPage(userId, page, { publicOnly = false } = {}) {
-  const items = (page.itemIds ?? [])
-    .map((id) => liveItem(id))
-    .filter((item) => item && item.ownerId === userId && (item.kind || "item") === page.kind && (!publicOnly || item.active))
+  return [...itemsById.values()]
+    .filter((item) => item.page && item.ownerId === userId && !item.deletedAt)
+    .sort((a, b) => Number(a.id) - Number(b.id))
     .map(servedItem);
-  return { ...page, owner: nameOf(userId), items };
 }
 
-// Kept under the id it came with where it is one of the account's pages,
-// replacing what was there; a new one otherwise. Null where there are as
-// many as an account keeps.
-export function savePage(userId, page) {
-  const list = getPages(userId);
-  const at = page.id ? list.findIndex((each) => each.id === page.id) : -1;
-  if (page.id && at === -1) return null;
-  if (at === -1 && list.length >= PAGES_MAX) return null;
-  const time = now();
-  const id = at === -1 ? crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x") : page.id;
-  const saved = { ...page, id, createdAt: at === -1 ? time : list[at].createdAt, updatedAt: time };
-  if (at === -1) list.push(saved);
-  else list[at] = saved;
-  writeList(userId, PAGES_FILE, list);
-  return saved;
+// The items on a page, as a list shows them: only the published ones where
+// `publicOnly`, as for somebody else looking at it.
+export function pageItems(page, { publicOnly = false } = {}) {
+  const kept = itemsById.get(page.id);
+  if (!kept?.page) return [];
+  return (kept.itemIds ?? [])
+    .map((id) => liveItem(id))
+    .filter(
+      (item) =>
+        item && !item.page && item.ownerId === kept.ownerId && (item.kind || "item") === kept.kind && (!publicOnly || item.active),
+    )
+    .map(servedItem);
 }
 
-export function deletePage(userId, id) {
-  const list = getPages(userId);
-  const kept = list.filter((each) => each.id !== id);
-  if (kept.length === list.length) return false;
-  writeList(userId, PAGES_FILE, kept);
-  return true;
+// The ids of the items on one of the account's pages, as they now are. Null
+// where it has no such page.
+export function setPageItems(userId, id, itemIds) {
+  const page = liveItem(id);
+  if (!page?.page || page.ownerId !== userId) return null;
+  transaction(() => {
+    page.itemIds = itemIds.map(String);
+    page.updatedAt = now();
+    changedItem(page);
+  });
+  return getItem(page.id);
+}
+
+// One of an account's pages by its id — or the id it had before ids were
+// times, so a link from then still finds it. Null where it has no such page.
+export function findPage(userId, id) {
+  const page = liveItem(String(id ?? ""));
+  return page?.page && page.ownerId === userId ? servedItem(page) : null;
+}
+
+// The pages an item is on, of its owner's.
+export function pagesWith(item) {
+  return [...itemsById.values()]
+    .filter((page) => page.page && !page.deletedAt && page.ownerId === item.ownerId && (page.itemIds ?? []).includes(item.id))
+    .filter((page) => page.kind === (item.kind || "item"))
+    .map(servedItem);
 }
 
 /* --------------------------------------------------------------- bookmarks */

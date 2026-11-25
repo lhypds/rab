@@ -104,14 +104,11 @@ export const createUser = (username, password, email, code) =>
 export const logout = () => send("POST", "/api/logout").finally(dropSession);
 export const getUser = (username) => request(`/api/users/${name(username)}`);
 export const getMine = () => request("/api/mine");
-// The pages somebody made of their items — a store, a space, their services
-// — one of them read, and the signed-in account's own made, changed and
-// taken off. `locationId` is one of its locations; `itemIds` its own items.
-export const getPage = (username, id) => request(`/api/users/${name(username)}/pages/${name(id)}`);
-export const createPage = (page) => send("POST", "/api/pages", page);
-export const updatePage = (id, page) => send("PATCH", `/api/pages/${name(id)}`, page);
-export const deletePage = (id) => send("DELETE", `/api/pages/${name(id)}`);
+// The pages somebody made of their items — a store, a space, their services.
+// A page is an item (made, read, changed and deleted as one, with `page:
+// true`); what is its own is which of the account's items are on it.
 export const addToPage = (id, itemId) => send("POST", `/api/pages/${name(id)}/items`, { itemId });
+export const setPageItems = (id, itemIds) => send("PUT", `/api/pages/${name(id)}/items`, { itemIds });
 // The account's own address — { email, verify } — apart from the ways it says
 // it is reached: `verify` is whether a new one is proved by a code mailed to
 // it, which is then asked for first and sent back with the address.

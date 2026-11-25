@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Link, Modal, Skeleton, TextArea } from "../../ui/index.js";
-import { bookingLine, isBookingLine, lineItemId } from "../../utils/bookings.js";
+import { bookingLine, isBookingLine, linePath } from "../../utils/bookings.js";
 import { formatUsername, relativeTime } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
 import UserName from "../UserName/index.js";
@@ -192,7 +192,7 @@ export function MessageThread({ username, onLeave }) {
             {messages.map((message) => {
               const who = message.mine ? me : username;
               const event = isBookingLine(message);
-              const about = event ? lineItemId(message) : null;
+              const about = event ? linePath(message) : null;
               return (
                 <li key={message.id} className={message.mine ? `${styles.line} ${styles.mine}` : styles.line}>
                   {who && <UserName name={who} className={styles.who} state={BACK} onClick={onLeave} />}
@@ -203,7 +203,7 @@ export function MessageThread({ username, onLeave }) {
                     about ? (
                       <Link
                         className={`${styles.bubble} ${styles.event}`}
-                        to={`/i/${about}`}
+                        to={about}
             state={BACK}
                         onClick={onLeave}
                       >
