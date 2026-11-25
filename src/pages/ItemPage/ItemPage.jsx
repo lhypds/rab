@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Header, ItemModal, ItemView, MessageModal, loginPath, useAuth } from "../../components/index.js";
-import PageItemsModal from "../../components/PageItemsModal/index.js";
+import StoreItemsModal from "../../components/StoreItemsModal/index.js";
 import { Skeleton, showToast, useLocation, useNavigate, useSearchParams } from "../../ui/index.js";
-import { itemPath } from "../../utils/pages.js";
+import { itemPath } from "../../utils/stores.js";
 import { isAdmin } from "../../utils/admin.js";
 
 // How often an open page asks again where things stand. An item's page is what
@@ -99,8 +99,8 @@ export default function ItemPage({ id }) {
 
   return (
     <div className="page-shell">
-      {/* On a page of one's own, Post adds an item to it. */}
-      <Header back listingPage={item?.page && item.mine ? item : undefined} onPageSaved={load} />
+      {/* On a page of one's own, Publish adds an item to it. */}
+      <Header back listingStore={item?.store && item.mine ? item : undefined} onStoreSaved={load} />
       <main className="wide-page">
         {!item ? (
           error ? (
@@ -158,10 +158,10 @@ export default function ItemPage({ id }) {
           }}
         />
       )}
-      {item?.page && item.mine && (
-        <PageItemsModal
+      {item?.store && item.mine && (
+        <StoreItemsModal
           isOpen={choosing}
-          page={item}
+          store={item}
           onClose={() => setChoosing(false)}
           onSaved={() => {
             setChoosing(false);

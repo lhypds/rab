@@ -31,19 +31,19 @@ export function isBookingLine(message) {
 }
 
 // Where such a line leads, where it is still there: the item's page, or the
-// page reported.
+// store reported.
 export function linePath(message) {
   const itemId = message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
   if (itemId) return `/i/${itemId}`;
-  const page = message.page;
-  if (page && !page.gone && page.owner) return `/u/${encodeURIComponent(page.owner)}/p/${encodeURIComponent(page.id)}`;
+  const store = message.store;
+  if (store && !store.gone && store.owner) return `/u/${encodeURIComponent(store.owner)}/p/${encodeURIComponent(store.id)}`;
   return null;
 }
 
 export function bookingLine(message, t, locale) {
   if (ADMIN_KINDS.includes(message.kind)) {
     return t(`messages.event.${message.kind}`, {
-      item: message.item?.title ?? message.page?.name ?? t("messages.event.gone"),
+      item: message.item?.title ?? message.store?.name ?? t("messages.event.gone"),
       reason: message.reason ? t(`report.reasons.${message.reason}`, message.reason) : "",
     });
   }

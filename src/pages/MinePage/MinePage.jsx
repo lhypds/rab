@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import PageList from "../../components/PageList.jsx";
+import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
 import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow, useAuth } from "../../components/index.js";
 import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
@@ -70,8 +70,8 @@ export default function MinePage() {
 
   useEffect(load, [load]);
 
-  // An item of yours dragged from the list on the right onto a page of its
-  // kind on the left is put on that page.
+  // An item of yours dragged from the list on the right onto one of your pages
+  // on the left is put on that page: a page takes items of any kind.
   const [carried, setCarried] = useState(null);
   const carry = (item, event) => {
     if (!event) return setCarried(null);
@@ -79,14 +79,14 @@ export default function MinePage() {
     event.dataTransfer.setData("text/plain", item.title);
     setCarried(item);
   };
-  const putOnPage = async (page) => {
+  const putOnStore = async (store) => {
     const item = carried;
     setCarried(null);
     if (!item) return;
     try {
-      const answer = await api.addToPage(page.id, item.id);
-      setData((current) => current && { ...current, pages: current.pages.map((each) => (each.id === page.id ? { ...each, ...answer.page } : each)) });
-      showToast(t(answer.added ? "page.added" : "page.alreadyOn", { name: page.title }), 2000);
+      const answer = await api.addToStore(store.id, item.id);
+      setData((current) => current && { ...current, stores: current.stores.map((each) => (each.id === store.id ? { ...each, ...answer.store } : each)) });
+      showToast(t(answer.added ? "store.added" : "store.alreadyOn", { name: store.title }), 2000);
     } catch (addError) {
       showToast(addError.message, 3000);
     }
@@ -121,7 +121,7 @@ export default function MinePage() {
             after the pages. */}
         <div className="others-columns">
           <section>
-            {data && <PageList pages={data.pages} username={user.username} filterable carried={carried} onDropItem={putOnPage} />}
+            {data && <StoreList stores={data.stores} username={user.username} filterable carried={carried} onDropItem={putOnStore} />}
           </section>
 
           <section>

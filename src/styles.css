@@ -404,10 +404,19 @@ a {
   padding: 20px 12px calc(48px + env(safe-area-inset-bottom));
 }
 
+/* Two columns side by side only while each is at least as wide as the row of
+   tabs over its items (--column-min, measured in English); narrower than that,
+   one over the other, so the tabs never have to wrap. Mine's row has a
+   Published tab more. */
 .others-columns {
+  --column-min: 456px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--column-min)), 1fr));
   gap: 24px;
+}
+
+.mine-page .others-columns {
+  --column-min: 508px;
 }
 
 /* Every column's heading is as tall as a small button, so the rules under
@@ -419,13 +428,8 @@ a {
   margin-top: 0;
 }
 
-@media (max-width: 640px) {
-  .others-columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .mine-page .others-columns > section > .tabs,
+.user-page .others-columns > section > .tabs,
 .others-page > section > .tabs {
   margin: 12px 0;
 }
@@ -726,6 +730,12 @@ a {
 
 /* Somebody's rating under their name — the stars, the mean and how many — and
    at the right of the same line the way to write to them. */
+/* On a profile, the room between the rating and the columns under it, which
+   start without a margin of their own (see .others-columns .part-heading). */
+.user-page .user-rating {
+  margin-bottom: 24px;
+}
+
 .user-rating {
   display: flex;
   align-items: center;

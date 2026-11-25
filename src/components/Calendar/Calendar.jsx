@@ -351,12 +351,15 @@ export default function Calendar({
                       <span>
                         {stretch.start}–{stretch.end}
                       </span>
-                      <span>{stretch.taken ? t("calendar.taken") : wholePrice(stretch.price, item.currency, i18n.language)}</span>
+                      {(stretch.taken || stretch.price != null) && (
+                        <span>{stretch.taken ? t("calendar.taken") : wholePrice(stretch.price, item.currency, i18n.language)}</span>
+                      )}
                     </span>
                   ))}
                   {/* And at the foot, what stretch of the clock those prices
                       are for, written out — there is room here: "* Per 30
-                      minutes". */}
+                      minutes". Not where no price is said. */}
+                  {state.slots.some((slot) => slot.price != null) && (
                   <span className={styles.detailNote}>
                     *{" "}
                     {t("item.everyHour", {
@@ -366,6 +369,7 @@ export default function Calendar({
                           : t("calendar.minutes", { count: priceUnitOf(item) }),
                     })}
                   </span>
+                  )}
                 </span>
               )}
               {/* What the day costs, or why it cannot be had — and beside it,

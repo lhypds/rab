@@ -5,7 +5,8 @@ import { Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
 import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
-import PostAsField from "../PostAsField/index.js";
+import PublishAsField from "../PublishAsField/index.js";
+import StoreField from "../StoreField/index.js";
 import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
 import { dialCodeOf } from "../../utils/dialing.js";
 import { AREA_TYPES, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, postcodeOf, savedView } from "../../utils/mapbox.js";
@@ -127,9 +128,9 @@ function startingFields(item, calendar, lang) {
     // Whose it is: the account's own, or somebody else's that the account is
     // writing down — which anybody may then change or delete.
     shared: item?.shared === true,
-    // Whether it is a page — a collection of the account's items — rather
-    // than one item (see PostAsField). Everything else is asked the same.
-    page: item?.page === true,
+    // Whether it is a store — a collection of the account's items — rather
+    // than one item (see PublishAsField). Everything else is asked the same.
+    store: item?.store === true,
     kind: item?.kind ?? "item",
     category: item?.category ?? "",
     title: item?.title ?? "",
@@ -533,7 +534,7 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
 // what it costs. An item that exists is opened on one of them (`part`,
 // "item" or "availability") and saved from there; a new one is taken through
 // both, the first and then the second, and published from the second.
-export default function ItemModal({ isOpen, page, item = null, calendar = null, part = "item", onClose, onSaved }) {
+export default function ItemModal({ isOpen, store, item = null, calendar = null, part = "item", onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const lang = i18n.language;
@@ -586,12 +587,16 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
   const fileRef = useRef(null);
   const editing = Boolean(item);
   const names = useMemo(() => weekdayNames(lang), [lang]);
+  // The page a new item goes on, picked on the sheet: null for none. Not asked
+  // of a page, nor of an item made from a page's own sheet, which goes on that
+  // page.
+  const [storeChoice, setStoreChoice] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const location = page?.location;
+    const location = store?.location;
     const initial = startingFields(item, calendar, lang);
-    if (page) initial.kind = page.kind;
+    setStoreChoice(null);
     if (location) {
       initial.located = true;
       initial.latitude = location.latitude;
@@ -633,7 +638,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     // of the same item, and starting over at each of those would throw away
     // whatever had been typed since the last.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, item?.id, page?.id]);
+  }, [isOpen, item?.id, store?.id]);
 
   const set = (name, value) => {
     setFields((current) => ({ ...current, [name]: value }));
@@ -690,8 +695,8 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
       const listing = await api.describePhoto(blob, lang.slice(0, 2));
       setFields((current) => ({
         ...current,
-        kind: !page && KINDS.includes(listing.kind) ? listing.kind : current.kind,
-        category: page && listing.kind !== page.kind ? current.category : listing.category ?? "",
+        kind: KINDS.includes(listing.kind) ? listing.kind : current.kind,
+        category: listing.category ?? "",
         title: (listing.title || current.title).slice(0, TITLE_MAX),
         description: (listing.description || current.description).slice(0, DESCRIPTION_MAX),
       }));
@@ -808,7 +813,9 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
   // from abroad beside it. A message here is not a way to reach somebody
   // else's.
   const contacts = keptContacts(fields.contacts, dialCode, { noMessage: fields.shared });
-  const rates = cleanRates(fields, byTime);
+  // A page is a collection of items, each with its own prices: it has none.
+  const priced = !fields.store;
+  const rates = priced ? cleanRates(fields, byTime) : [];
   // Every hour the item has: the rules, then what was painted for dates.
   const hours = byTime ? [...cleanHourRules(hourRules), ...fields.hourDates] : [];
   const openDays = fields.openDays.length === 7 ? null : fields.openDays;
@@ -833,7 +840,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     kind: fields.kind,
     category: fields.category,
     shared: fields.shared,
-    page: fields.page,
+    store: fields.store,
     mode,
     unit: fields.unit,
     priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
@@ -927,12 +934,12 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
       title: fields.title.trim(),
       description: fields.description.trim(),
       homepage: fields.homepage.trim(),
-      ...(page && { pageId: page.id }),
+      ...(store ? { storeId: store.id } : !editing && !fields.store && storeChoice ? { storeId: storeChoice } : null),
       kind: fields.kind,
       category: fields.category,
       shared: fields.shared,
       // Said when it is made, and what it is from then on.
-      ...(!editing && { page: fields.page }),
+      ...(!editing && { store: fields.store }),
       mode,
       unit: fields.unit,
       priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
@@ -968,7 +975,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
         ? []
         : (calendar?.days ?? []).filter((day) => day.available && day.price != null && !closed.includes(day.day)).map((day) => day.day);
       if (editing && stale.length > 0) await api.setDays(item.id, { days: stale, available: true, price: null });
-      onSaved?.(data.item, data.page);
+      onSaved?.(data.item, data.store);
     } catch (requestError) {
       setError(
         requestError.code === "REGION_REQUIRED"
@@ -1033,7 +1040,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                   // timetable shows is turned to beside the timetable itself.
                   onToggle={byTime ? undefined : toggleDay}
                   // The pencil beside a date's price asks what its own base price is.
-                  onOpen={(day) => setPricing({ day, price: fields.datePrices[day] ?? "" })}
+                  onOpen={priced ? (day) => setPricing({ day, price: fields.datePrices[day] ?? "" }) : undefined}
                 />
                 <span className={styles.hint}>{t(byTime ? "item.availabilityHintTime" : "item.availabilityHint")}</span>
               </div>
@@ -1047,7 +1054,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
     <>
       <Modal
         isOpen={isOpen}
-        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t(item.page ? "page.edit" : "item.editTitle") : t("item.newTitle")}
+        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t(item.store ? "store.edit" : "item.editTitle") : t("item.newTitle")}
         // Withheld while something is on its way up, so a stray Escape does
         // not drop a form with a photograph half sent.
         onClose={busy ? undefined : onClose}
@@ -1059,33 +1066,15 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
             {shown === "item" && (
             <>
             <div className={styles.column}>
-              {/* Before anything, whether this is one item or a page of
-                  them. A page is asked everything an item is; it is only
-                  kept apart, with the items on it. Not asked of one being
-                  made on a page, which is an item on it. */}
-              {!editing && !page && (
-                <PostAsField
-                  value={fields.page ? "page" : "item"}
-                  onChange={(as) =>
-                    setFields((current) => ({
-                      ...current,
-                      page: as === "page",
-                      // A page is the account's own; somebody else's goes
-                      // back to being booked as the account's own is.
-                      ...(as === "page" && current.shared && { shared: false, mode: "day" }),
-                    }))
-                  }
-                  disabled={busy}
-                  hintClassName={styles.hint}
-                />
-              )}
               {/* First of all, whose it is: the account's own, or somebody
                   else's that the account is writing down — a shop it knows
                   of, say. The second is everybody's to keep right: anybody
-                  signed in can change it or delete it. Asked of whoever put
-                  it here; somebody else editing it is not asked, since it
-                  is not theirs to take. */}
-              {!page && !fields.page && (!editing || (item.mine && !item.shared && !item.page)) && (
+                  signed in can change it or delete it. Either of the two, an
+                  item or a page, may be either. Asked of whoever put it here;
+                  somebody else editing it is not asked, since it is not
+                  theirs to take, and nor is an item made on one of the
+                  account's pages, which is its own. */}
+              {!store && (!editing || (item.mine && !item.shared && !item.default)) && (
                 <div className="field">
                   <span className="field-label">{t("item.whose")}</span>
                   <div className="tabs" role="group" aria-label={t("item.whose")}>
@@ -1114,6 +1103,8 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                               : written.length > 0
                                 ? written
                                 : noContacts();
+                            // The page picked was one for the other side.
+                            setStoreChoice(null);
                             return { ...current, shared: each, mode, contacts };
                           })
                         }
@@ -1125,13 +1116,34 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                   <span className={styles.hint}>{t(fields.shared ? "item.whoseOthersHint" : "item.whoseMineHint")}</span>
                 </div>
               )}
+              {/* Then whether this is one item or a store of them. A store
+                  is asked everything an item is; it is only kept apart,
+                  with the items on it. Not asked of one being made on a
+                  store, which is an item on it. */}
+              {!editing && !store && (
+                <PublishAsField
+                  value={fields.store ? "store" : "item"}
+                  onChange={(as) =>
+                    setFields((current) => ({
+                      ...current,
+                      store: as === "store",
+                    }))
+                  }
+                  disabled={busy}
+                  hintClassName={styles.hint}
+                />
+              )}
+              {/* And for an item, which page it goes on. */}
+              {!editing && !store && !fields.store && (
+                <StoreField shared={fields.shared} value={storeChoice} onChange={setStoreChoice} disabled={busy} hintClassName={styles.hint} />
+              )}
               {/* Which kind of thing it is, before anything else is said of it:
                   the one question whose answer is known before a photograph
                   is taken. */}
               <div className="field">
                 <span className="field-label">{t("item.kind")}</span>
                 <div className="tabs" role="group">
-                  {(page ? [page.kind] : KINDS).map((kind) => (
+                  {KINDS.map((kind) => (
                     <button
                       key={kind}
                       type="button"
@@ -1141,11 +1153,15 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                     >
                       {/* One's own time is a skill one has; somebody else's
                           is a service they give. The kind kept is the same. */}
-                      {t(kind === "service" && !fields.shared ? "kind.skill" : `kind.${kind}`)}
+                      {/* A store is named for what it collects: a store of
+                          things, a page of spaces, of services. An item of
+                          the third kind is somebody's time: a service, or a
+                          skill one has — "Service (Skill)". */}
+                      {t(fields.store ? `store.kinds.${kind}` : `kind.one.${kind}`)}
                     </button>
                   ))}
                 </div>
-                <span className={styles.hint}>{t(`kind.${fields.kind}Hint`)}</span>
+                <span className={styles.hint}>{t(fields.store ? `store.kindHints.${fields.kind}` : `kind.${fields.kind}Hint`)}</span>
               </div>
 
               {/* Then the photographs: they are what is taken before anything
@@ -1441,6 +1457,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                 </div>
               )}
 
+              {priced && (
               <div className="field">
                 <span className="field-label">{t("item.pricing")}</span>
                 <div className={styles.modeRow}>
@@ -1523,6 +1540,7 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                 )}
                 <span className={styles.hint}>{t(`item.pricingHint.${mode}`)}</span>
               </div>
+              )}
               {/* The rule for calling a booking off, once the owner has said
                   yes to it: any time, never, or until so many days before it
                   starts — and for the last, how many. */}
@@ -1736,16 +1754,19 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                     // What each stretch costs, written on it: the price in
                     // force on that date when the stretch starts — the
                     // date's own base price where it has one.
-                    priceAt={(day, time) => compactPrice(hourPrice(draft, day, time), fields.currency, lang)}
+                    priceAt={priced ? (day, time) => compactPrice(hourPrice(draft, day, time), fields.currency, lang) : undefined}
                     // The same figure written out in full, for when the
                     // pointer asks about a stretch.
                     // Said under the pointer with what stretch of the clock
                     // it is for: "¥1,500 / 30 min".
-                    fullPriceAt={(day, time) =>
-                      t("item.perHour", {
-                        price: wholePrice(hourPrice(draft, day, time), fields.currency, lang),
-                        unit: unitName(fields.priceUnit, t),
-                      })
+                    fullPriceAt={
+                      priced
+                        ? (day, time) =>
+                            t("item.perHour", {
+                              price: wholePrice(hourPrice(draft, day, time), fields.currency, lang),
+                              unit: unitName(fields.priceUnit, t),
+                            })
+                        : undefined
                     }
                     // The pencil after each of those prices asks what that
                     // one cell of that one date costs.
@@ -1753,10 +1774,14 @@ export default function ItemModal({ isOpen, page, item = null, calendar = null, 
                     // a stretch of the date, which starts out as that cell
                     // and can be drawn out as far as the stretch of hours the
                     // cell is in reaches (`from` to `until`), and no further.
-                    onPrice={(day, start, end, run) => {
-                      const own = fields.slotPrices.find((slot) => slot.day === day && slot.start <= start && slot.end >= end);
-                      setPricing({ day, start, end, from: run.start, until: run.end, price: own?.price ?? "" });
-                    }}
+                    onPrice={
+                      priced
+                        ? (day, start, end, run) => {
+                            const own = fields.slotPrices.find((slot) => slot.day === day && slot.start <= start && slot.end >= end);
+                            setPricing({ day, start, end, from: run.start, until: run.end, price: own?.price ?? "" });
+                          }
+                        : undefined
+                    }
                     priceLabel={t("item.slotPriceEdit")}
                   />
                   <span className={styles.hint}>{t("item.hoursHint")}</span>

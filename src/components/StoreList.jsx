@@ -4,33 +4,34 @@ import { Link, useNavigate, useLocation, useSearchParams } from "../ui/index.js"
 import { KINDS } from "../utils/kinds.js";
 import CategoryIcon from "./CategoryIcon/index.js";
 import { dotted } from "./UserName/index.js";
-import { pagePath } from "../utils/pages.js";
+import { storePath } from "../utils/stores.js";
 
-// What the list of pages can be narrowed to, as the list of items beside it:
-// one kind at a time, and on or off beside it only the public ones — a page
+// What the list of stores can be narrowed to, as the list of items beside it:
+// one kind at a time, and on or off beside it only the public ones — a store
 // with at least one published item on it. "All" is none of that.
 const FILTERS = ["all", "published", ...KINDS];
 
 // `carried`: an item being dragged from somewhere else on the screen, which
-// a page of its kind takes when it is let go over it (`onDropItem`).
-export default function PageList({ pages, username, filterable = false, carried = null, onDropItem }) {
+// any store takes when it is let go over it (`onDropItem`).
+export default function StoreList({ stores, username, filterable = false, carried = null, onDropItem }) {
   const { t } = useTranslation();
   const [dropOn, setDropOn] = useState(null);
-  const takes = (page) => Boolean(onDropItem && carried && (carried.kind || "item") === page.kind);
+  // A store takes an item of any kind.
+  const takes = (store) => Boolean(onDropItem && carried);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   // The filter is in the address, under names of its own so the items' filter
   // in the same address is left alone.
-  const wanted = searchParams.get("pages");
+  const wanted = searchParams.get("stores");
   const filter = filterable && KINDS.includes(wanted) ? wanted : "all";
-  const published = filterable && searchParams.get("pagesPublished") === "1";
+  const published = filterable && searchParams.get("storesPublished") === "1";
   const show = (name, onlyPublished) => {
     const query = new URLSearchParams(searchParams);
-    if (name === "all") query.delete("pages");
-    else query.set("pages", name);
-    if (onlyPublished) query.set("pagesPublished", "1");
-    else query.delete("pagesPublished");
+    if (name === "all") query.delete("stores");
+    else query.set("stores", name);
+    if (onlyPublished) query.set("storesPublished", "1");
+    else query.delete("storesPublished");
     navigate(query.size > 0 ? `${pathname}?${query}` : pathname, { replace: true, scroll: false });
   };
   // As with items: All lets go of everything, a kind pressed again is let go
@@ -39,13 +40,13 @@ export default function PageList({ pages, username, filterable = false, carried 
     name === "all" ? show("all", false) : name === "published" ? show(filter, !published) : show(name === filter ? "all" : name, published);
   const pressed = (name) => (name === "published" ? published : name === "all" ? filter === "all" && !published : filter === name);
 
-  const shown = pages.filter((page) => (filter === "all" || page.kind === filter) && (!published || page.published > 0));
+  const shown = stores.filter((store) => (filter === "all" || store.kind === filter) && (!published || store.published > 0));
 
   return (
     <>
       <div className="part-heading">
-        <h2>{t("page.title")}</h2>
-        <span>{pages.length}</span>
+        <h2>{t("store.title")}</h2>
+        <span>{stores.length}</span>
       </div>
       {filterable && (
         <div className="tabs" role="group">
@@ -64,41 +65,43 @@ export default function PageList({ pages, username, filterable = false, carried 
         </div>
       )}
       {shown.length === 0 ? (
-        <p className="empty-state">{t(pages.length === 0 ? "page.empty" : "page.noneShown")}</p>
+        <p className="empty-state">{t(stores.length === 0 ? "store.empty" : "store.noneShown")}</p>
       ) : (
         <ul className="row-list">
-          {shown.map((page) => (
+          {shown.map((store) => (
             <li
-              key={page.id}
-              className={dropOn === page.id && takes(page) ? "row-item row-drop" : "row-item"}
+              key={store.id}
+              className={dropOn === store.id && takes(store) ? "row-item row-drop" : "row-item"}
               onDragOver={(event) => {
-                if (!takes(page)) return;
+                if (!takes(store)) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = "copy";
-                if (dropOn !== page.id) setDropOn(page.id);
+                if (dropOn !== store.id) setDropOn(store.id);
               }}
               onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) setDropOn((current) => (current === page.id ? null : current));
+                if (!event.currentTarget.contains(event.relatedTarget)) setDropOn((current) => (current === store.id ? null : current));
               }}
               onDrop={(event) => {
                 event.preventDefault();
                 setDropOn(null);
-                if (takes(page)) onDropItem(page);
+                if (takes(store)) onDropItem(store);
               }}
             >
               <div className="row">
-                <Link className="row-copy" draggable={false} to={pagePath({ owner: username, id: page.id })} state={{ back: true }}>
-                  {page.thumb && <img className="row-thumb" src={page.thumb} alt="" width="40" height="40" loading="lazy" />}
+                <Link className="row-copy" draggable={false} to={storePath({ owner: username, id: store.id })} state={{ back: true }}>
+                  {store.thumb && <img className="row-thumb" src={store.thumb} alt="" width="40" height="40" loading="lazy" />}
                   <span className="row-lines">
-                    <strong>{page.title}</strong>
+                    <strong>{store.title}</strong>
                     <span className="row-meta">
                       {dotted([
                         <span className="kind-label">
-                          <CategoryIcon kind={page.kind} />
-                          {t(`page.kinds.${page.kind}`)}
+                          <CategoryIcon kind={store.kind} />
+                          {t(`store.kinds.${store.kind}`)}
                         </span>,
-                        t("page.count", { count: page.count }),
-                        page.place,
+                        // The default store, which every account has.
+                        store.default && t("store.default"),
+                        t("store.count", { count: store.count }),
+                        store.place,
                       ])}
                     </span>
                   </span>

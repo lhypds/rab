@@ -5,11 +5,11 @@ import { Checkbox, Modal, showToast } from "../../ui/index.js";
 import { priceLine } from "../../utils/format.js";
 import styles from "./items.module.css";
 
-// The sheet the items on a page are chosen on, apart from the one the page
-// itself is changed on: the account's own items of the page's kind, one to a
+// The sheet the items on a store are chosen on, apart from the one the store
+// itself is changed on: the account's own items, of any kind, one to a
 // line, ticked to be on it — in the order they were ticked. `onSaved` is told
-// the page as it was kept.
-export default function PageItemsModal({ isOpen, page, onClose, onSaved }) {
+// the store as it was kept.
+export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const [itemIds, setItemIds] = useState([]);
   // The account's items, null until they have been read.
@@ -17,10 +17,10 @@ export default function PageItemsModal({ isOpen, page, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Each opening starts from the page as it is.
+  // Each opening starts from the store as it is.
   useEffect(() => {
-    if (!isOpen || !page) return undefined;
-    setItemIds(page.items.map((item) => item.id));
+    if (!isOpen || !store) return undefined;
+    setItemIds(store.items.map((item) => item.id));
     setError("");
     setItems(null);
     let cancelled = false;
@@ -31,10 +31,11 @@ export default function PageItemsModal({ isOpen, page, onClose, onSaved }) {
     return () => {
       cancelled = true;
     };
-  }, [isOpen, page?.id]);
+  }, [isOpen, store?.id]);
 
-  if (!page) return null;
-  const choices = (items ?? []).filter((item) => (item.kind || "item") === page.kind);
+  if (!store) return null;
+  // A store takes the account's items of every kind.
+  const choices = items ?? [];
 
   function toggle(id, on) {
     setItemIds((current) => (on ? [...current, id] : current.filter((each) => each !== id)));
@@ -45,14 +46,14 @@ export default function PageItemsModal({ isOpen, page, onClose, onSaved }) {
     if (busy || items === null) return;
     setBusy(true);
     setError("");
-    const ofKind = new Set(choices.map((item) => item.id));
+    const offered = new Set(choices.map((item) => item.id));
     try {
-      const answer = await api.setPageItems(
-        page.id,
-        itemIds.filter((id) => ofKind.has(id)),
+      const answer = await api.setStoreItems(
+        store.id,
+        itemIds.filter((id) => offered.has(id)),
       );
-      showToast(t("page.saved"), 2000);
-      onSaved(answer.page);
+      showToast(t("store.saved"), 2000);
+      onSaved(answer.store);
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -61,16 +62,16 @@ export default function PageItemsModal({ isOpen, page, onClose, onSaved }) {
   }
 
   return (
-    <Modal isOpen={isOpen} title={t("page.editItems")} onClose={busy ? undefined : onClose}>
+    <Modal isOpen={isOpen} title={t("store.editItems")} onClose={busy ? undefined : onClose}>
       <form onSubmit={submit} autoComplete="off">
         <div className="field">
           <span className="field-label">
-            {t(`page.itemsHeading.${page.kind}`)}
+            {t("store.itemsHeading")}
             <span className="field-count">
               {choices.filter((item) => itemIds.includes(item.id)).length}/{choices.length}
             </span>
           </span>
-          {items && choices.length === 0 && <span className={styles.hint}>{t(`page.itemsNone.${page.kind}`)}</span>}
+          {items && choices.length === 0 && <span className={styles.hint}>{t("store.itemsNone")}</span>}
           {choices.length > 0 && (
             <ul className={styles.items}>
               {choices.map((item) => (
@@ -83,7 +84,7 @@ export default function PageItemsModal({ isOpen, page, onClose, onSaved }) {
                         <span className={styles.itemMeta}>
                           {" · "}
                           {priceLine(item, i18n.language, t)}
-                          {!item.active && ` · ${t("page.unpublished")}`}
+                          {!item.active && ` · ${t("store.unpublished")}`}
                         </span>
                       </span>
                     </span>

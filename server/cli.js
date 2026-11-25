@@ -141,9 +141,12 @@ async function answerOf(response) {
 }
 
 // The public folder in what was named: the folder itself where locations.json
-// or items/ is in it, or the one folder inside it that has them ("_public/").
+// items/ or stores/ is in it, or the one folder inside it that has them
+// ("_public/").
+const isPublicFolder = (fs, at) => ["locations.json", "items", "stores"].some((name) => fs.existsSync(path.join(at, name)));
+
 function publicFolder(fs, dir) {
-  const isOne = (at) => fs.existsSync(path.join(at, "locations.json")) || fs.existsSync(path.join(at, "items"));
+  const isOne = (at) => isPublicFolder(fs, at);
   let entries;
   try {
     if (!fs.statSync(dir).isDirectory()) fail(`${dir} is not a folder`);
@@ -154,7 +157,7 @@ function publicFolder(fs, dir) {
   if (isOne(dir)) return dir;
   const inside = entries.filter((entry) => entry.isDirectory() && isOne(path.join(dir, entry.name)));
   if (inside.length === 1) return path.join(dir, inside[0].name);
-  fail(`There is no locations.json and no items/ in ${dir}`);
+  fail(`There is no locations.json, no items/ and no stores/ in ${dir}`);
 }
 
 function readJson(fs, file) {
@@ -192,17 +195,22 @@ function remoteArgs(args) {
   return { file, host: host.replace(/\/+$/, ""), yes };
 }
 
-// What is here: the places, and each item folder with an item.json in it,
-// with the key the crawler knows it by.
+// What is here: the places, and each item folder with an item.json in it —
+// and each store folder (stores/) with a store.json in it — with the key the
+// crawler knows it by and the folder it is in (`under`: "items" or "stores").
 function localPublic(fs, folder) {
   const list = readJson(fs, path.join(folder, "locations.json"));
   const locations = Array.isArray(list) ? list.filter((each) => each && typeof each === "object" && !Array.isArray(each)) : [];
-  const itemsDir = path.join(folder, "items");
-  const items = (fs.existsSync(itemsDir) ? fs.readdirSync(itemsDir, { withFileTypes: true }) : [])
-    .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name) && fs.existsSync(path.join(itemsDir, entry.name, "item.json")))
-    .map((entry) => ({ id: entry.name, key: readJson(fs, path.join(itemsDir, entry.name, "source.json"))?.key ?? null }))
-    .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-  return { locations, items, itemsDir };
+  const items = [];
+  for (const [under, file] of [["items", "item.json"], ["stores", "store.json"]]) {
+    const dir = path.join(folder, under);
+    for (const entry of fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : []) {
+      if (!entry.isDirectory() || !/^\d+$/.test(entry.name) || !fs.existsSync(path.join(dir, entry.name, file))) continue;
+      items.push({ id: entry.name, under, key: readJson(fs, path.join(dir, entry.name, "source.json"))?.key ?? null });
+    }
+  }
+  items.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+  return { locations, items };
 }
 
 // Which of `items` and `places` the other side does not have — by id, by the
@@ -267,7 +275,7 @@ async function adminSession(host) {
 
 // The places, then each item's folder in a zip of its own: what push and
 // mirror send. The number that failed.
-async function sendMissing(fs, session, itemsDir, send) {
+async function sendMissing(fs, session, folder, send) {
   const { zipSync } = await import("fflate");
   const post = async (zip) =>
     answerOf(await session.request("/api/public", { method: "POST", headers: { ...session.auth, "Content-Type": "application/zip" }, body: zip }));
@@ -283,17 +291,18 @@ async function sendMissing(fs, session, itemsDir, send) {
     }
   }
   const counts = { added: 0, replaced: 0, skipped: 0 };
-  for (const [index, { id }] of send.items.entries()) {
+  for (const [index, { id, under }] of send.items.entries()) {
     const at = `[${index + 1}/${send.items.length}] ${id}`;
     try {
-      // The item's folder as it is, item.json, source.json and the
-      // photographs; the photographs stored as they are, being compressed.
-      const dir = path.join(itemsDir, id);
+      // The item's folder as it is, item.json (store.json for a store),
+      // source.json and the photographs; the photographs stored as they are,
+      // being compressed.
+      const dir = path.join(folder, under, id);
       const files = {};
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         if (!entry.isFile() || entry.name.startsWith(".")) continue;
         const bytes = fs.readFileSync(path.join(dir, entry.name));
-        files[`items/${id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
+        files[`${under}/${id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
       }
       const zip = zipSync(files);
       const merged = await post(zip);
@@ -338,7 +347,7 @@ async function sendPublic(args, { mirror = false } = {}) {
       if (answer.trim() !== "yes") throw new Error("Nothing was sent or deleted.");
     }
 
-    failed += await sendMissing(fs, session, here.itemsDir, send);
+    failed += await sendMissing(fs, session, folder, send);
 
     if (deleting) {
       let deleted = 0;
@@ -375,7 +384,7 @@ async function receivePublic(args) {
   const named = path.resolve(file);
   // A folder that is not there yet is made: pulling into it is how it starts.
   if (!fs.existsSync(named)) fs.mkdirSync(named, { recursive: true });
-  const folder = fs.existsSync(path.join(named, "locations.json")) || fs.existsSync(path.join(named, "items")) || fs.readdirSync(named).length === 0
+  const folder = isPublicFolder(fs, named) || fs.readdirSync(named).length === 0
     ? named
     : publicFolder(fs, named);
   const here = localPublic(fs, folder);
@@ -408,19 +417,25 @@ async function receivePublic(args) {
         if (!response.ok) await answerOf(response);
         const zip = new Uint8Array(await response.arrayBuffer());
         const entries = unzipSync(zip);
-        const into = path.join(here.itemsDir, `.${id}.${process.pid}.tmp`);
+        // A store comes as stores/<id>/store.json and goes in stores/; an
+        // item in items/.
+        const under = Object.keys(entries).some((name) => name === `stores/${id}/store.json`) ? "stores" : "items";
+        const file = under === "stores" ? "store.json" : "item.json";
+        const dir = path.join(folder, under);
+        fs.mkdirSync(dir, { recursive: true });
+        const into = path.join(dir, `.${id}.${process.pid}.tmp`);
         fs.rmSync(into, { recursive: true, force: true });
         fs.mkdirSync(into, { recursive: true });
         for (const [name, bytes] of Object.entries(entries)) {
-          const match = name.match(/^items\/(\d+)\/([^/]+)$/);
-          if (!match || match[1] !== id || match[2].startsWith(".")) continue;
-          fs.writeFileSync(path.join(into, match[2]), bytes);
+          const match = name.match(/^(items|stores)\/(\d+)\/([^/]+)$/);
+          if (!match || match[1] !== under || match[2] !== id || match[3].startsWith(".")) continue;
+          fs.writeFileSync(path.join(into, match[3]), bytes);
         }
-        if (!fs.existsSync(path.join(into, "item.json"))) {
+        if (!fs.existsSync(path.join(into, file))) {
           fs.rmSync(into, { recursive: true, force: true });
-          throw new Error("the zip has no item.json in it");
+          throw new Error(`the zip has no ${file} in it`);
         }
-        fs.renameSync(into, path.join(here.itemsDir, id));
+        fs.renameSync(into, path.join(dir, id));
         fetched += 1;
         console.log(`${at} fetched (${megabytes(zip.length)})`);
       } catch (error) {

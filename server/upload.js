@@ -1,11 +1,14 @@
 import { unzipSync } from "fflate";
-import { ITEM_FILE, SOURCE_FILE } from "./files.js";
+import { ITEM_FILE, SOURCE_FILE, STORE_FILE } from "./files.js";
 import { isStoredName } from "./images.js";
 
 // A public folder, or a piece of it, sent as a zip: data/users/_public/ as
 // another server has it, or as a crawler left it (see data/crawlers) —
 // locations.json, and items/<made>/ with item.json, source.json and the
-// photographs in each (rab push sends one item to a zip). The
+// photographs in each — or stores/<made>/ with store.json in place of
+// item.json, for a store (pages/<made>/ with page.json, from a sender from
+// before stores were called so, is taken as one) (rab push sends one item to
+// a zip). The
 // folder may be at the top of the zip or inside one folder or more ("public/",
 // "_public/"); where it is, is wherever locations.json or the first item is.
 // Anything else in it is passed over, the Finder's own leavings included.
@@ -14,8 +17,8 @@ import { isStoredName } from "./images.js";
 // [{ folder, item, source, files }] }, `files` being the photographs by name.
 // Or { error } for a zip that cannot be read or has nothing of the kind in it.
 
-const ITEM_ENTRY_RE = /^items\/(\d+)\/([^/]+)$/;
-const ROOT_RE = /^(.*?)(?:locations\.json|items\/\d+\/item\.json)$/;
+const ITEM_ENTRY_RE = /^(items|stores|pages)\/(\d+)\/([^/]+)$/;
+const ROOT_RE = /^(.*?)(?:locations\.json|items\/\d+\/item\.json|stores\/\d+\/store\.json|pages\/\d+\/page\.json)$/;
 
 function skipped(name) {
   return name.endsWith("/") || name.split("/").some((part) => part === "__MACOSX" || part.startsWith("._"));
@@ -44,7 +47,7 @@ export function readPublicZip(buffer) {
     .map((name) => name.match(ROOT_RE)?.[1])
     .filter((root) => root !== undefined)
     .sort((a, b) => a.length - b.length);
-  if (!roots.length) return { error: "There is no locations.json and no items/<id>/item.json in the zip" };
+  if (!roots.length) return { error: "There is no locations.json, no items/<id>/item.json and no stores/<id>/store.json in the zip" };
   const root = roots[0];
 
   try {
@@ -61,13 +64,15 @@ export function readPublicZip(buffer) {
       }
       const match = inside.match(ITEM_ENTRY_RE);
       if (!match) continue;
-      const [, folder, file] = match;
+      const [, under, folder, file] = match;
       if (!byFolder.has(folder)) byFolder.set(folder, { folder, item: null, source: null, files: {} });
       const entry = byFolder.get(folder);
-      if (file === ITEM_FILE) {
+      const isStore = under !== "items";
+      if (file === (under === "items" ? ITEM_FILE : under === "stores" ? STORE_FILE : "page.json")) {
         const item = json(bytes, name);
         if (!isRecord(item)) throw new Error(`${name} is not an item`);
-        entry.item = item;
+        const { page, ...rest } = item;
+        entry.item = isStore ? { ...rest, store: true } : item;
       } else if (file === SOURCE_FILE) {
         const source = json(bytes, name);
         if (isRecord(source)) entry.source = source;

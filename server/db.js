@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, itemFolders, moveItemDir, nameFolders, readItem, readItemSource, readItems, readList, movePageDir, movePagesIntoFolders, readOldPages, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/kinds.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -240,7 +240,10 @@ export function getUserById(id) {
 // `email` is the address the account was opened with, or null for one made
 // where none is asked for.
 export function createUser(username, password, email = null) {
-  return { ...addUser(username, { password: String(password), ...(email ? { email } : null) }) };
+  const user = { ...addUser(username, { password: String(password), ...(email ? { email } : null) }) };
+  // Every account starts with its default store (see stores).
+  transaction(() => makeDefaultStore(user.id));
+  return user;
 }
 
 // The account's own address — the one it signs up with or sets on its sheet,
@@ -368,25 +371,26 @@ function load() {
   bookingsById.clear();
   messagesByUser.clear();
   for (const userId of userFolders()) {
-    // An account's pages from when they were one list, given their folders.
-    movePagesIntoFolders(userId);
+    // An account's stores from when they were pages, in pages/ or in one
+    // list, moved to stores/.
+    moveOldStores(userId);
     for (const item of readItems(userId)) {
       itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
       if (item.was) idByOldId.set(String(item.was), item.id);
     }
-    // Its pages from before pages were items, made items, and written so.
-    for (const old of readOldPages(userId)) {
+    // Its stores from before stores were items, made items, and written so.
+    for (const old of readOldStores(userId)) {
       let id = old.id;
       if (itemsById.has(id)) {
         let stamp = Number(id) || Date.now();
         while (itemsById.has(String(stamp))) stamp += 1;
-        movePageDir(userId, id, String(stamp));
+        moveStoreDir(userId, id, String(stamp));
         id = String(stamp);
       }
-      const page = pageFromOld({ ...old, id }, userId);
-      itemsById.set(id, page);
-      if (page.was) idByOldId.set(String(page.was), id);
-      changedItem(page);
+      const store = storeFromOld({ ...old, id }, userId);
+      itemsById.set(id, store);
+      if (store.was) idByOldId.set(String(store.was), id);
+      changedItem(store);
     }
     // Both sides hold the booking; should the two ever differ, the one changed
     // last is the one that is right.
@@ -412,22 +416,22 @@ function load() {
   }
 }
 
-// A page as it was kept before pages were items — a name, a word about it,
+// A store as it was kept before stores were items — a name, a word about it,
 // one kind, a copy of a saved location, how its owner is reached, its
 // photographs and the ids of its items — as the item it is now: priced on
 // request, booked by asking where it says how its owner is reached and by the
 // day where not, in the currency of its owner's newest item.
-function pageFromOld(old, userId) {
+function storeFromOld(old, userId) {
   const location = old.location ?? null;
   const contacts = Array.isArray(old.contacts) ? old.contacts : [];
   const currency =
     [...itemsById.values()]
-      .filter((item) => item.ownerId === userId && !item.page && item.currency)
+      .filter((item) => item.ownerId === userId && !item.store && item.currency)
       .reduce((newest, item) => (!newest || item.createdAt > newest.createdAt ? item : newest), null)?.currency ?? "USD";
   return {
     id: old.id,
     ...(old.was ? { was: old.was } : null),
-    page: true,
+    store: true,
     itemIds: Array.isArray(old.itemIds) ? old.itemIds.map(String) : [],
     title: old.name ?? "",
     description: old.description ?? "",
@@ -471,11 +475,11 @@ function pageFromOld(old, userId) {
 // is left for the next time round.
 export function adoptPublicItems() {
   const adopted = [];
-  for (const folder of itemFolders(PUBLIC_ID)) {
+  for (const { folder } of allItemFolders(PUBLIC_ID)) {
     if (itemsById.has(folder)) continue;
     let item;
     try {
-      item = readItem(PUBLIC_ID, folder);
+      item = readAnyItem(PUBLIC_ID, folder);
     } catch {
       continue;
     }
@@ -549,6 +553,8 @@ export function transaction(work) {
 }
 
 load();
+// An account from before every account had a default store is given one.
+ensureDefaultStores();
 // Whatever load() moved is written where it now belongs.
 save();
 
@@ -573,8 +579,11 @@ function servedItem(item) {
   const located = item.located === true;
   return {
     id: item.id,
-    // Whether it is a page: a collection of the owner's items (see pages).
-    page: item.page === true,
+    // Whether it is a store: a collection of the owner's items (see stores).
+    store: item.store === true,
+    // Whether it is the account's default store: the one it has from the
+    // first, listed first among its pages on its profile (see defaultStore).
+    default: item.default === true,
     title: item.title,
     description: item.description,
     price: item.price,
@@ -718,10 +727,10 @@ export function getItemsAt(latitude, longitude, box = null, limit = 4000) {
     .map(servedItem);
 }
 
-// An account's items — not its pages, which are items too but listed apart
-// (see getPages) — newest first.
+// An account's items — not its stores, which are items too but listed apart
+// (see getStores) — newest first.
 export function getItemsByUser(userId, { publicOnly = false } = {}) {
-  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt && !item.page).sort(newestFirst);
+  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt && !item.store).sort(newestFirst);
   if (publicOnly) return items.filter((item) => item.active).map(servedItem);
   const bookings = [...bookingsById.values()];
   return items.map((item) => ({
@@ -779,10 +788,10 @@ export function createItem(userId, item) {
     itemsById.set(id, {
       id,
       ...itemFields(item),
-      // A page is an item with the ids of other items of the account's on it,
-      // in the order it put them; it is kept under pages/ (see files.js). What
+      // A store is an item with the ids of other items of the account's on it,
+      // in the order it put them; it is kept under stores/ (see files.js). What
       // an item is, it stays.
-      ...(item.page ? { page: true, itemIds: [] } : null),
+      ...(item.store ? { store: true, itemIds: [] } : null),
       // Off is an item not on the map: one taken down without being deleted,
       // or one made that way to be finished and published later (the phone's
       // are). Its page still opens for whoever holds the link, and nothing can
@@ -808,8 +817,8 @@ export function updateItem(userId, id, item) {
   if (!current || current.ownerId !== userId) return null;
   transaction(() => {
     Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
-    // A page is the account's own, and stays so.
-    if (current.page) current.shared = false;
+    // The default store is its account's from the first, and stays so.
+    if (current.default) current.shared = false;
     // Said to be somebody else's, it leaves the account's folder for the
     // public account's, and is nobody's from then on.
     if (current.shared && current.ownerId !== PUBLIC_ID) {
@@ -1147,9 +1156,9 @@ export const getRating = (userId) => ratingOf(getReviewsOf(userId));
 //
 // `read` is whether the one it was sent to has read it, on both copies: it is
 // what the receiver's unread count goes by and what the sender is shown.
-function pageOfLine({ ownerId, id }) {
-  const page = nameOf(ownerId) ? findPage(ownerId, id) : null;
-  return { owner: nameOf(ownerId), id: page?.id ?? id, name: page?.title ?? null, gone: !page };
+function storeOfLine({ ownerId, id }) {
+  const store = nameOf(ownerId) ? findStore(ownerId, id) : null;
+  return { owner: nameOf(ownerId), id: store?.id ?? id, name: store?.title ?? null, gone: !store };
 }
 
 function servedMessage(line) {
@@ -1170,8 +1179,9 @@ function servedMessage(line) {
           gone: !itemsById.get(line.itemId) || Boolean(itemsById.get(line.itemId).deletedAt),
         }
       : null,
-    // And the page one is about: its name, and `gone` once it is deleted.
-    page: line.page ? pageOfLine(line.page) : null,
+    // And the store one is about: its name, and `gone` once it is deleted.
+    // (A line from before stores were called so says `page`.)
+    store: (line.store ?? line.page) ? storeOfLine(line.store ?? line.page) : null,
     reason: line.reason ?? null,
     booking: booking
       ? {
@@ -1245,7 +1255,7 @@ export function readConversation(userId, otherId) {
   });
 }
 
-export function createMessage(fromId, toId, body, { kind = "text", bookingId = null, itemId = null, page = null, reason = null } = {}) {
+export function createMessage(fromId, toId, body, { kind = "text", bookingId = null, itemId = null, store = null, reason = null } = {}) {
   // The clock, so a number is never handed out twice even after both ends have
   // deleted the lines that carried the highest ones.
   lastMessageId = Math.max(Date.now(), lastMessageId + 1);
@@ -1255,8 +1265,8 @@ export function createMessage(fromId, toId, body, { kind = "text", bookingId = n
     kind,
     bookingId,
     ...(itemId ? { itemId } : null),
-    // Or the page it is about, as whose it is and its id.
-    ...(page ? { page: { ownerId: page.ownerId, id: page.id } } : null),
+    // Or the store it is about, as whose it is and its id.
+    ...(store ? { store: { ownerId: store.ownerId, id: store.id } } : null),
     ...(reason ? { reason } : null),
     time: now(),
     read: false,
@@ -1374,7 +1384,7 @@ export function mergePublic({ locations, items }) {
 
   const things = { added: [], replaced: [], skipped: [] };
   const byKey = new Map();
-  for (const folder of itemFolders(PUBLIC_ID)) {
+  for (const { folder } of allItemFolders(PUBLIC_ID)) {
     const key = readItemSource(PUBLIC_ID, folder)?.key;
     if (key && itemsById.get(folder)?.ownerId === PUBLIC_ID) byKey.set(JSON.stringify(key), folder);
   }
@@ -1390,6 +1400,11 @@ export function mergePublic({ locations, items }) {
     const time = now();
     const kept = { ...item, id, shared: true, createdAt: existing?.createdAt ?? item.createdAt ?? time, updatedAt: time };
     delete kept.ownerId;
+    delete kept.page;
+    // A store (stores/<id>/store.json in the zip) is kept under stores/, with the
+    // ids of its items — none, where it came without.
+    if (kept.store === true) kept.itemIds = Array.isArray(kept.itemIds) ? kept.itemIds.map(String) : [];
+    else delete kept.store;
     writeItemFolder(PUBLIC_ID, kept, source ? { ...files, [SOURCE_FILE]: `${JSON.stringify(source, null, 2)}\n` } : files);
     itemsById.set(id, { ...perUnit(kept), ownerId: PUBLIC_ID });
     if (key) byKey.set(key, id);
@@ -1402,9 +1417,9 @@ export function mergePublic({ locations, items }) {
 // has and send only the rest: each item's id and the crawler's key for it
 // (source.json), deleted ones too, and each place's id and address.
 export function heldPublic() {
-  const items = itemFolders(PUBLIC_ID)
-    .filter((folder) => itemsById.get(folder)?.ownerId === PUBLIC_ID)
-    .map((id) => ({ id, key: readItemSource(PUBLIC_ID, id)?.key ?? null }));
+  const items = allItemFolders(PUBLIC_ID)
+    .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID)
+    .map(({ folder: id, store }) => ({ id, store, key: readItemSource(PUBLIC_ID, id)?.key ?? null }));
   const locations = getLocations(PUBLIC_ID).map(({ id, address }) => ({ id, address: address ?? null }));
   return { items, locations };
 }
@@ -1428,65 +1443,134 @@ export function publicLocations() {
   return getLocations(PUBLIC_ID);
 }
 
-/* ------------------------------------------------------------------- pages */
+/* ------------------------------------------------------------------- stores */
 
-// The pages an account makes of what it has out — "Liu's Music Gear Store".
-// A page is an item like any other — its photographs, its price, where it is,
-// when it can be had, booked as one is — with `page: true` and, in
+// The stores an account makes of what it has out — "Liu's Music Gear Store".
+// A store is an item like any other — its photographs, its price, where it is,
+// when it can be had, booked as one is — with `store: true` and, in
 // `itemIds`, some of the account's own items of its kind, in the order it put
-// them: a page of things is a store, a page of spaces a space. It is kept in a
-// folder of its own under its owner's pages/ rather than items/ (see
+// them: the site calls it a page — a store of things, a page of spaces, a
+// page of services — and everything behind it calls it a store. It is kept in a
+// folder of its own under its owner's stores/ rather than items/ (see
 // files.js). An item deleted since, or of another kind now, is left in the
 // list and left out of what is read.
-export const PAGES_MAX = 50;
+export const STORES_MAX = 50;
 
-// The account's pages, the one made first first, as items go out.
-export function getPages(userId) {
+// Every account has one store from the first — its default store, made with
+// the account and named after it, and listed first among its pages on its
+// profile: a store like any other, photographs, price, calendar and all,
+// that is not deleted and not made somebody else's. An item goes on it only
+// where the account picks it, as with any store. An account from before there
+// were default stores is given one when the server starts, with every item it
+// then had on it, the newest first.
+function defaultStoreItem(userId) {
+  for (const item of itemsById.values()) {
+    if (item.default && item.store && item.ownerId === userId && !item.deletedAt) return item;
+  }
+  return null;
+}
+
+export function defaultStore(userId) {
+  return servedItem(defaultStoreItem(userId));
+}
+
+function makeDefaultStore(userId) {
+  if (defaultStoreItem(userId)) return;
+  const username = usersById.get(userId)?.username ?? "";
+  const itemIds = [...itemsById.values()]
+    .filter((item) => item.ownerId === userId && !item.store && !item.shared && !item.deletedAt)
+    // Newest first (as newestFirst, which is not defined yet when this runs at
+    // start).
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+    .map((item) => item.id);
+  const store = storeFromOld({ id: newItemId(now()), name: username, kind: "item", contacts: getContacts(userId), itemIds }, userId);
+  store.default = true;
+  itemsById.set(store.id, store);
+  changedItem(store);
+}
+
+function ensureDefaultStores() {
+  transaction(() => {
+    for (const userId of usersById.keys()) {
+      if (userId !== PUBLIC_ID && userId !== ADMIN_ID) makeDefaultStore(userId);
+    }
+  });
+}
+
+// Somebody else's stores — the public account's — whose title or place has
+// all of `query` in it, as a list to choose from: the published ones, at most
+// `limit`, the ones with it in the title first.
+export function findSharedStores(query, limit = 20) {
+  const words = String(query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const found = [];
+  for (const item of itemsById.values()) {
+    if (!item.store || item.ownerId !== PUBLIC_ID || item.deletedAt || !item.active) continue;
+    const title = String(item.title ?? "").toLowerCase();
+    const text = `${title} ${String(item.place ?? "").toLowerCase()}`;
+    if (!words.every((word) => text.includes(word))) continue;
+    found.push({ item, inTitle: words.every((word) => title.includes(word)) });
+  }
+  return found
+    .sort((a, b) => Number(b.inTitle) - Number(a.inTitle) || String(a.item.title).localeCompare(String(b.item.title)))
+    .slice(0, limit)
+    .map(({ item }) => servedItem(item));
+}
+
+// One of the public account's stores by its id, for an item of somebody
+// else's to be put on. Null where there is none such.
+export function findSharedStore(id) {
+  const store = liveItem(String(id ?? ""));
+  return store?.store && store.ownerId === PUBLIC_ID ? servedItem(store) : null;
+}
+
+// The account's stores, the one made first first, as items go out.
+export function getStores(userId) {
   return [...itemsById.values()]
-    .filter((item) => item.page && item.ownerId === userId && !item.deletedAt)
-    .sort((a, b) => Number(a.id) - Number(b.id))
+    .filter((item) => item.store && item.ownerId === userId && !item.deletedAt)
+    // The default store first, then the rest as they were made.
+    .sort((a, b) => Number(b.default === true) - Number(a.default === true) || Number(a.id) - Number(b.id))
     .map(servedItem);
 }
 
-// The items on a page, as a list shows them: only the published ones where
+// The items on a store, as a list shows them: only the published ones where
 // `publicOnly`, as for somebody else looking at it.
-export function pageItems(page, { publicOnly = false } = {}) {
-  const kept = itemsById.get(page.id);
-  if (!kept?.page) return [];
+export function storeItems(store, { publicOnly = false } = {}) {
+  const kept = itemsById.get(store.id);
+  if (!kept?.store) return [];
   return (kept.itemIds ?? [])
     .map((id) => liveItem(id))
     .filter(
       (item) =>
-        item && !item.page && item.ownerId === kept.ownerId && (item.kind || "item") === kept.kind && (!publicOnly || item.active),
+        item && !item.store && item.ownerId === kept.ownerId && (!publicOnly || item.active),
     )
     .map(servedItem);
 }
 
-// The ids of the items on one of the account's pages, as they now are. Null
-// where it has no such page.
-export function setPageItems(userId, id, itemIds) {
-  const page = liveItem(id);
-  if (!page?.page || page.ownerId !== userId) return null;
+// The ids of the items on one of the account's stores, as they now are. Null
+// where it has no such store.
+export function setStoreItems(userId, id, itemIds) {
+  const store = liveItem(id);
+  if (!store?.store || store.ownerId !== userId) return null;
   transaction(() => {
-    page.itemIds = itemIds.map(String);
-    page.updatedAt = now();
-    changedItem(page);
+    store.itemIds = itemIds.map(String);
+    store.updatedAt = now();
+    changedItem(store);
   });
-  return getItem(page.id);
+  return getItem(store.id);
 }
 
-// One of an account's pages by its id — or the id it had before ids were
-// times, so a link from then still finds it. Null where it has no such page.
-export function findPage(userId, id) {
-  const page = liveItem(String(id ?? ""));
-  return page?.page && page.ownerId === userId ? servedItem(page) : null;
+// One of an account's stores by its id — or the id it had before ids were
+// times, so a link from then still finds it. Null where it has no such store.
+export function findStore(userId, id) {
+  const store = liveItem(String(id ?? ""));
+  return store?.store && store.ownerId === userId ? servedItem(store) : null;
 }
 
-// The pages an item is on, of its owner's.
-export function pagesWith(item) {
+// The stores an item is on, of its owner's.
+export function storesWith(item) {
   return [...itemsById.values()]
-    .filter((page) => page.page && !page.deletedAt && page.ownerId === item.ownerId && (page.itemIds ?? []).includes(item.id))
-    .filter((page) => page.kind === (item.kind || "item"))
+    .filter((store) => store.store && !store.deletedAt && store.ownerId === item.ownerId && (store.itemIds ?? []).includes(item.id))
     .map(servedItem);
 }
 

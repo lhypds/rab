@@ -522,7 +522,7 @@
 }
 
 /* The pages it is on, one to a line, each pressed to go there. */
-.pageLinks {
+.storeLinks {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -533,8 +533,8 @@
   overflow-wrap: anywhere;
 }
 
-.pageLinks a,
-.pageLinks span {
+.storeLinks a,
+.storeLinks span {
   display: inline-flex;
   align-items: center;
   gap: 6px;

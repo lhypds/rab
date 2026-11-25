@@ -12,7 +12,7 @@ import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
 import { BookingRow, ItemRow } from "../Rows/index.js";
-import { itemPath } from "../../utils/pages.js";
+import { itemPath } from "../../utils/stores.js";
 import { isAdmin } from "../../utils/admin.js";
 import ReportModal from "../ReportModal/index.js";
 import ShareModal from "../ShareModal/index.js";
@@ -349,9 +349,12 @@ export default function ItemView({
           {item.active ? t("calendar.close") : t("calendar.open")}
         </button>
       )}
-      <button type="button" className={`small-button ${styles.danger}`} disabled={busy || preview} onClick={() => setConfirming(true)}>
-        {t("item.delete")}
-      </button>
+      {/* The default store, which every account has, is not deleted. */}
+      {!item.default && (
+        <button type="button" className={`small-button ${styles.danger}`} disabled={busy || preview} onClick={() => setConfirming(true)}>
+          {t("item.delete")}
+        </button>
+      )}
     </div>
   );
 
@@ -361,7 +364,7 @@ export default function ItemView({
         <header className={styles.head}>
           <p className={styles.tags}>
             {/* A page says so first: a collection of its owner's items. */}
-            {item.page && <span>{t(`page.kinds.${item.kind}`)}</span>}
+            {item.store && <span>{t(`store.kinds.${item.kind}`)}</span>}
             <span>
               <CategoryIcon kind={item.kind} category={item.category} />
               {item.category ? t(`category.${item.category}`, item.category) : t(`kind.${item.kind}`)}
@@ -496,9 +499,9 @@ export default function ItemView({
                   {t("item.availabilityTitle")}
                 </button>
                 {/* Which of its owner's items are on a page. */}
-                {item.page && mine && onEditItems && (
+                {item.store && mine && onEditItems && (
                   <button type="button" className="small-button" onClick={onEditItems} disabled={preview}>
-                    {t("page.editItems")}
+                    {t("store.editItems")}
                   </button>
                 )}
               </>
@@ -575,23 +578,23 @@ export default function ItemView({
 
           {/* The pages its owner put it on — a store, a space — each the way
               to that page, where the rest of what they have is. */}
-          {item.pages?.length > 0 && (
+          {item.stores?.length > 0 && (
             <>
               <div className={`${styles.calendarHead} ${styles.contactHead}`}>
-                <h2>{t("item.pages")}</h2>
+                <h2>{t("item.stores")}</h2>
               </div>
-              <ul className={styles.pageLinks}>
-                {item.pages.map((page) => (
-                  <li key={page.id}>
+              <ul className={styles.storeLinks}>
+                {item.stores.map((store) => (
+                  <li key={store.id}>
                     {preview ? (
                       <span>
-                        <CategoryIcon kind={page.kind} />
-                        {page.name}
+                        <CategoryIcon kind={store.kind} />
+                        {store.name}
                       </span>
                     ) : (
-                      <Link to={`/u/${encodeURIComponent(page.owner)}/p/${encodeURIComponent(page.id)}`}>
-                        <CategoryIcon kind={page.kind} />
-                        {page.name}
+                      <Link to={itemPath({ ...store, store: true })}>
+                        <CategoryIcon kind={store.kind} />
+                        {store.name}
                       </Link>
                     )}
                   </li>
@@ -839,14 +842,14 @@ export default function ItemView({
 
           {/* ------------------------------------------ the items on it */}
           {/* A page: the items its owner put on it, in their order. */}
-          {item.page && !preview && (
+          {item.store && !preview && (
             <>
               <div className="part-heading">
-                <h2>{t(`page.itemsHeading.${item.kind}`)}</h2>
+                <h2>{t("store.itemsHeading")}</h2>
                 <span>{item.items?.length ?? 0}</span>
               </div>
               {(item.items ?? []).length === 0 ? (
-                <p className="part-note">{t("page.itemsEmpty")}</p>
+                <p className="part-note">{t("store.itemsEmpty")}</p>
               ) : (
                 <ul className="row-list">
                   {item.items.map((each) => (

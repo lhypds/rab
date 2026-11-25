@@ -10,7 +10,7 @@
   "header": {
     "back": "Back",
     "backHome": "Back to home",
-    "list": "Post",
+    "list": "Publish",
     "mine": "Mine",
     "account": "User",
     "signIn": "Sign in",
@@ -123,15 +123,15 @@
     "noToken": "The map needs a Mapbox token: set VITE_MAPBOX_TOKEN in .env.",
     "search": "Search a place",
     "searchEmpty": "No place by that name",
-    "areaEmpty": "Nothing is posted in this area yet.",
-    "areaEmptyAsk": "Be the first to post something.",
+    "areaEmpty": "Nothing is listed in this area yet.",
+    "areaEmptyAsk": "Be the first to publish something.",
     "searchFailed": "Search is unavailable",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "locate": "My location",
     "locateFailed": "Could not find your location",
     "failed": "Could not load items",
-    "empty": "Nothing posted here yet",
+    "empty": "Nothing listed here yet",
     "count_one": "{{count}} item here",
     "count_other": "{{count}} items here",
     "open": "View",
@@ -147,7 +147,7 @@
     "regionHint": "Required. Filled in with the city you are in. Anyone looking at this area on the map sees it in the list, even without a location.",
     "perDay": "{{price}}/day",
     "aDay": "a day",
-    "newTitle": "Post",
+    "newTitle": "Publish",
     "editTitle": "Edit item",
     "photos": "Photos",
     "photoAdd": "Add a photo",
@@ -327,7 +327,7 @@
     "inquiryExplainShared": "This is booked by inquiry. Use the contact details above to arrange it.",
     "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
     "report": "Report",
-    "pages": "On pages"
+    "stores": "On pages"
   },
   "calendar": {
     "title": "Availability",
@@ -392,7 +392,7 @@
   },
   "mine": {
     "title": "Mine",
-    "itemsEmpty": "You have nothing posted. Press + to post something.",
+    "itemsEmpty": "You have nothing listed. Press + to publish something.",
     "noneShown": "Nothing here.",
     "items": "Items",
     "skills": "Skills"
@@ -400,8 +400,9 @@
   "user": {
     "missing": "There is nobody by that name.",
     "joined": "joined {{date}}",
-    "items": "Posts",
-    "itemsEmpty": "Nothing posted.",
+    "items": "Items",
+    "noneShown": "Nothing here.",
+    "itemsEmpty": "Nothing listed.",
     "reviews": "Reviews",
     "reviewsEmpty": "No reviews yet.",
     "asOwner": "as owner",
@@ -418,7 +419,7 @@
     "home": "Back to my location"
   },
   "gate": {
-    "body": "rab shows what is posted around you. Allow location so the map can open where you are.",
+    "body": "rab shows what is listed around you. Allow location so the map can open where you are.",
     "enable": "Allow location",
     "locating": "Locating",
     "retry": "Try again",
@@ -440,6 +441,11 @@
     "space": "Spaces",
     "service": "Services",
     "skill": "Skills",
+    "one": {
+      "item": "Thing",
+      "space": "Space",
+      "service": "Service (Skill)"
+    },
     "itemHint": "Something you own: a car, a camera, a projector, a bike.",
     "spaceHint": "A place: a home, a meeting room, storage, a music studio.",
     "serviceHint": "Your time: photography, lessons, repairs, a guide."
@@ -570,10 +576,10 @@
     "send": "Submit",
     "sent": "Report sent"
   },
-  "page": {
+  "store": {
     "title": "Pages",
     "edit": "Edit page",
-    "empty": "No pages yet. Make a store, a space or a page of your services with Post (+), choosing Page.",
+    "empty": "No pages yet. Make a store, a space or a page of your services with Publish (+), choosing Page.",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
     "noneShown": "No pages here.",
@@ -581,30 +587,34 @@
     "alreadyOn": "Already on “{{name}}”",
     "kinds": {
       "item": "Store",
-      "space": "Space",
-      "service": "Service"
-    },
-    "addItem": "Add to {{name}}",
-    "itemsNone": {
-      "item": "You have posted no things yet.",
-      "space": "You have posted no spaces yet.",
-      "service": "You have posted no services yet."
-    },
-    "unpublished": "not published",
-    "saved": "Page saved",
-    "itemsHeading": {
-      "item": "Things",
       "space": "Spaces",
       "service": "Services"
     },
+    "kindHints": {
+      "item": "A store of the things you rent out: cars, cameras, bikes.",
+      "space": "A place with spaces to rent: rooms, parking spaces, storage units.",
+      "service": "The services you offer, together: lessons, treatments, repairs."
+    },
+    "addItem": "Add to {{name}}",
+    "itemsNone": "You have published nothing yet.",
+    "unpublished": "not published",
+    "saved": "Page saved",
+    "itemsHeading": "Items",
     "itemsEmpty": "Nothing on this page yet.",
-    "editItems": "Edit items"
+    "editItems": "Edit items",
+    "default": "Default"
   },
-  "post": {
-    "as": "Post as",
+  "publish": {
+    "as": "Publish as",
     "item": "Item",
-    "page": "Page",
+    "store": "Page",
     "itemHint": "One thing, space or service to rent out, with its own photos, price and calendar.",
-    "pageHint": "A collection of items: a store, a space or your services. Filled in like an item — photos, price, location, availability — and kept as a page; add the items you have posted to it after saving."
+    "storeHint": "Optional: which of your pages it goes on — your default page or another. Without a choice it is on none.",
+    "storeLabel": "Page",
+    "storeNoneOption": "No page",
+    "storeHintShared": "Optional: put it on one of someone else's pages, found by name or place.",
+    "storeSearch": "Search pages by name or place",
+    "storeNone": "No pages found",
+    "storeClear": "Remove"
   }
 }

@@ -1,0 +1,59 @@
+/* The public pages found by what was typed, one to a line, the one taken
+   marked: the same lines as the sheet that ticks items onto a page. */
+.found {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.found li {
+  border-bottom: 1px solid var(--line);
+}
+
+.found button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.found button[aria-pressed="true"] {
+  font-weight: 700;
+}
+
+.found img {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+}
+
+.found span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
