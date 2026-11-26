@@ -59,6 +59,8 @@ export function unitName(unit, t) {
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
 // today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
+  // A page (a store) has no price of its own: each item on it has its own.
+  if (item.store) return "";
   // One that says no price is asked about, however it is booked.
   const now = priceNow(item);
   if (now == null) return t("item.priceOnRequest");

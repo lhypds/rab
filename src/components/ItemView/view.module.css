@@ -182,6 +182,15 @@
   overflow-wrap: anywhere;
 }
 
+/* The few words for what it is, under the name. */
+.what {
+  margin: 4px 0 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 /* The item's rating, under who has it and where. */
 .rating {
   margin: 8px 0 0;

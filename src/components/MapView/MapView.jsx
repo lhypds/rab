@@ -1151,11 +1151,12 @@ export default function MapView({ view = "map", query = "", onQuery }) {
               <Link className={styles.cardBody} to={`/i/${open.id}`}>
                 {open.thumb && <img className={styles.cardPhoto} src={open.thumb} alt="" />}
                 <strong className={styles.cardTitle}>{open.title}</strong>
+                {open.what && <span className={styles.cardMeta}>{open.what}</span>}
                 {/* What its owner wrote about it, as lo's Wikipedia bubble gives
                     an article's lead: the first three lines, the rest being what
                     the page is for. */}
                 {open.description && <span className={styles.cardLead}>{open.description}</span>}
-                <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>
+                {!open.store && <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>}
                 <span className={styles.cardMeta}>
                   {dotted([sortLabel(open, t), open.place, open.owner && <UserName name={open.owner} inside />])}
                 </span>

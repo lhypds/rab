@@ -1,1 +1,1 @@
-export { Link, Navigate, RouterProvider, useLocation, useNavigate, useSearchParams } from "./Router.jsx";
+export { canGoBack, Link, Navigate, RouterProvider, useLocation, useNavigate, useSearchParams } from "./Router.jsx";

@@ -88,7 +88,9 @@ export function ageOn(birthdate, today) {
 // What an item is called by where it is listed among others — in a row, in a
 // pin's card: its category, or "Item" for one with none.
 export function sortLabel(item, t) {
-  return item.category ? t(`category.${item.category}`, item.category) : t("item.uncategorized");
+  if (item.category) return t(`category.${item.category}`, item.category);
+  // A page with no category of its own is called what it is.
+  return item.store ? t("store.one") : t("item.uncategorized");
 }
 
 // The home page's address for a category ("" for all of them): /, /c/camera.

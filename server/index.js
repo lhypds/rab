@@ -48,6 +48,8 @@ const {
   findSharedStore,
   findSharedStores,
   getStores,
+  defaultStore,
+  keepItemsOnStores,
   storeItems,
   storesWith,
   setStoreItems,
@@ -99,7 +101,7 @@ const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
-const { OpenAI, canDescribe, describeImage } = await import("./describe.js");
+const { OpenAI, canDescribe, classifyListing, describeImage } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -644,7 +646,11 @@ app.put("/api/stores/:id/items", requireSession, (req, res) => {
   const store = findStore(req.user.id, req.params.id);
   if (!store) return res.status(404).json({ error: "No such store" });
   if (!Array.isArray(req.body?.itemIds)) return res.status(400).json({ error: "Send the items as a list" });
-  const saved = setStoreItems(req.user.id, store.id, storeItemIds(req.user.id, req.body.itemIds));
+  setStoreItems(req.user.id, store.id, storeItemIds(req.user.id, req.body.itemIds));
+  // An item taken off the last store it was on goes back on the default one
+  // — which is this one, where it is the default store being edited.
+  keepItemsOnStores(req.user.id);
+  const saved = findStore(req.user.id, store.id);
   res.json({ store: { ...publicItem(saved), items: itemsInStore(saved, req.user) } });
 });
 
@@ -771,10 +777,20 @@ function parseRegion(value) {
 }
 
 const HOMEPAGE_MAX = 500;
+// How many links an item keeps, and how long its few words for what it is.
+const LINKS_MAX = 10;
+const WHAT_MAX = 40;
 
 // An item's own page somewhere else, as its address: http or https, with
 // "https://" put in front of one written without. Empty where there is none,
 // or where what was written is not an address.
+// Its links, as the form sends them — or the one homepage from before there
+// could be several: the good ones, each once, a few at most.
+function readLinks(body) {
+  const sent = Array.isArray(body?.links) ? body.links : body?.homepage ? [body.homepage] : [];
+  return [...new Set(sent.map(readHomepage).filter(Boolean))].slice(0, LINKS_MAX);
+}
+
 function readHomepage(value) {
   const written = typeof value === "string" ? value.trim() : "";
   if (!written || written.length > HOMEPAGE_MAX) return "";
@@ -849,9 +865,11 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   return {
     item: {
       title,
+      // A few words for what it is, kept apart from its name.
+      what: text(body?.what, WHAT_MAX).trim(),
       description: text(body?.description, DESCRIPTION_MAX),
-      // Its own page somewhere else, where it has one.
-      homepage: readHomepage(body?.homepage),
+      // Its own pages somewhere else, where it has any.
+      links: readLinks(body),
       category,
       mode,
       rates: parsed.rates,
@@ -1059,48 +1077,55 @@ app.put("/api/contacts", requireSession, (req, res) => {
 });
 
 app.post("/api/items", requireSession, (req, res) => {
-  const parsed = parseItem(req.body);
+  // Only one's own is added: nothing is written down for somebody else.
+  const parsed = parseItem({ ...req.body, shared: false });
   if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
   // Only an account old enough for a grown-up category puts anything in one.
   if (isAdultCategory(parsed.item.category) && !isAdult(req.user.id)) return res.status(403).json(AGE_FAULT);
-  // Somebody else's is put under the public account, in its folder, and is
-  // not the account's own from the first: nothing says who wrote it down.
-  const ownerId = parsed.item.shared ? PUBLIC_ID : req.user.id;
-  // An account keeps only so many stores of its own; somebody else's, like
-  // any item written down for somebody else, is the public account's.
-  if (parsed.item.store && !parsed.item.shared && getStores(req.user.id).length >= STORES_MAX) {
+  const ownerId = req.user.id;
+  // An account keeps only so many stores.
+  if (parsed.item.store && getStores(ownerId).length >= STORES_MAX) {
     return res.status(409).json({ error: `An account keeps at most ${STORES_MAX} stores`, code: "STORES_FULL" });
   }
-  // An item goes on the store chosen, after what is there — one of the
-  // account's own (its default store among them) for its own item, one of the
-  // public account's for somebody else's — or on none, where none is chosen.
-  // A store is put on none.
-  let store = null;
-  let itemIds;
-  if (!parsed.item.store && req.body.storeId != null) {
-    store = parsed.item.shared ? findSharedStore(req.body.storeId) : findStore(req.user.id, req.body.storeId);
-    if (!store) return res.status(404).json({ error: "No such store" });
-    itemIds = storeItems(store).map((entry) => entry.id);
-    if (itemIds.length >= STORE_ITEMS_MAX) return res.status(409).json({ error: "This store is full" });
+  // An item goes on every one of the account's stores chosen (`storeIds`, or
+  // the one `storeId` from before several could be), after what is there on
+  // each — and on the default store where none is chosen: every item is on at
+  // least one. A store is put on none.
+  const stores = [];
+  if (!parsed.item.store) {
+    const ids = Array.isArray(req.body?.storeIds) ? req.body.storeIds : req.body?.storeId != null ? [req.body.storeId] : [];
+    for (const id of new Set(ids.map(String))) {
+      const store = findStore(ownerId, id);
+      if (!store) return res.status(404).json({ error: "No such store" });
+      const itemIds = storeItems(store).map((entry) => entry.id);
+      if (itemIds.length >= STORE_ITEMS_MAX) return res.status(409).json({ error: "This store is full" });
+      stores.push({ store, itemIds });
+    }
+    if (stores.length === 0) {
+      const store = defaultStore(ownerId);
+      if (store) stores.push({ store, itemIds: storeItems(store).map((entry) => entry.id) });
+    }
   }
   const item = createItem(ownerId, parsed.item);
-  let savedStore;
+  const saved = [];
   try {
     keepItemImages(item);
-    rememberPublicPlace(parsed.item);
     applyClosed(item, req.body?.closed);
     applyOpened(item, req.body?.opened);
-    if (store) {
-      savedStore = setStoreItems(ownerId, store.id, [...itemIds, item.id]);
+    for (const { store, itemIds } of stores) {
+      const savedStore = setStoreItems(ownerId, store.id, [...itemIds, item.id]);
       if (!savedStore) throw new Error("Could not save the store");
+      saved.push(savedStore);
     }
   } catch (error) {
     deleteItem(ownerId, item.id);
     throw error;
   }
   res.status(201).json({
-    item: { ...publicItem(item), mine: !parsed.item.shared },
-    ...(savedStore && { store: { ...publicItem(savedStore), items: itemsInStore(savedStore, req.user) } }),
+    item: { ...publicItem(item), mine: true },
+    stores: saved.map((store) => ({ ...publicItem(store), items: itemsInStore(store, req.user) })),
+    // The first of them, as one was answered before several could be chosen.
+    ...(saved[0] && { store: { ...publicItem(saved[0]), items: itemsInStore(saved[0], req.user) } }),
   });
 });
 
@@ -1140,14 +1165,14 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
   // An item from before areas were asked for has none, and is not made to
   // find one just to be switched off: it is asked for when the form sends one.
   // Somebody else's stays somebody else's: it is under the public account,
-  // and no account can take it for its own. An account's own can be said to
-  // be somebody else's, once, and is then moved there (see updateItem).
+  // and no account can take it for its own. An account's own stays its own:
+  // only one's own is added now, and nothing is handed over afterwards.
   // Nor is somebody else's switched off or on by whoever is reading it: that
   // is the admin's alone, and stays as it is through anybody else's change.
   const admin = req.user.id === ADMIN_ID;
   const sent = current.shared
     ? { ...req.body, shared: true, active: admin && "active" in (req.body ?? {}) ? req.body.active : current.active }
-    : req.body;
+    : { ...req.body, shared: false };
   const parsed = parseItem(
     { ...stored, ...sent },
     { regionOptional: !current.region && !("region" in (req.body ?? {})), sharedMayBeOff: current.shared },
@@ -1692,27 +1717,56 @@ app.post(
       if (!listing) return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
       res.json(listing);
     } catch (error) {
-      // Most specific first: what the caller can do about it differs.
-      if (error instanceof OpenAI.AuthenticationError || error instanceof OpenAI.PermissionDeniedError) {
-        console.error("rab: the OpenAI key was refused:", error.message);
-        return res.status(503).json({ error: "This server's key to describe photos with was refused", code: "DESCRIBE_UNAVAILABLE" });
-      }
-      if (error instanceof OpenAI.RateLimitError) {
-        return res.status(429).json({ error: "Too many photos at once. Try again in a moment", code: "DESCRIBE_BUSY" });
-      }
-      if (error instanceof OpenAI.NotFoundError) {
-        // The model named in RAB_DESCRIBE_MODEL is not one this key can use.
-        console.error("rab: the model to describe photos with was not found:", error.message);
-        return res.status(503).json({ error: "This server's model to describe photos with was not found", code: "DESCRIBE_UNAVAILABLE" });
-      }
-      if (error instanceof OpenAI.BadRequestError) {
-        return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
-      }
-      console.error("rab: describing a photo failed:", error instanceof OpenAI.APIError ? `${error.status} ${error.message}` : error);
-      res.status(502).json({ error: "The photo could not be described just now", code: "DESCRIBE_FAILED" });
+      describeFault(error, res, "describing a photo");
     }
   },
 );
+
+// What went wrong asking the model, said to the form (see describe.js) —
+// most specific first: what the caller can do about it differs.
+function describeFault(error, res, doing) {
+  if (error instanceof OpenAI.AuthenticationError || error instanceof OpenAI.PermissionDeniedError) {
+    console.error("rab: the OpenAI key was refused:", error.message);
+    return res.status(503).json({ error: "This server's key to describe photos with was refused", code: "DESCRIBE_UNAVAILABLE" });
+  }
+  if (error instanceof OpenAI.RateLimitError) {
+    return res.status(429).json({ error: "Too many at once. Try again in a moment", code: "DESCRIBE_BUSY" });
+  }
+  if (error instanceof OpenAI.NotFoundError) {
+    // The model named in RAB_DESCRIBE_MODEL is not one this key can use.
+    console.error("rab: the model to describe photos with was not found:", error.message);
+    return res.status(503).json({ error: "This server's model to describe photos with was not found", code: "DESCRIBE_UNAVAILABLE" });
+  }
+  if (error instanceof OpenAI.BadRequestError) {
+    return res.status(422).json({ error: "It could not be described", code: "DESCRIBE_FAILED" });
+  }
+  console.error(`rab: ${doing} failed:`, error instanceof OpenAI.APIError ? `${error.status} ${error.message}` : error);
+  res.status(502).json({ error: "It could not be described just now", code: "DESCRIBE_FAILED" });
+}
+
+// Which category a listing is in, for the button beside it on the form: from
+// its name, its few words for what it is, its description and its main
+// photograph — sent as the name of a photo this server stored (see
+// classifyListing). Nothing is kept.
+app.post("/api/classify", requireSession, async (req, res) => {
+  if (!canDescribe()) {
+    return res.status(503).json({ error: "This server has no key to describe photos with", code: "DESCRIBE_UNAVAILABLE" });
+  }
+  const name = String(req.body?.image ?? "").split("/").pop();
+  const file = name ? imageFile(name) : null;
+  try {
+    const category = await classifyListing({
+      title: text(req.body?.title, TITLE_MAX),
+      what: text(req.body?.what, WHAT_MAX),
+      description: text(req.body?.description, DESCRIPTION_MAX),
+      image: file ? await fs.promises.readFile(file.path) : null,
+    });
+    if (!category) return res.status(422).json({ error: "Write a name or add a photo first", code: "DESCRIBE_FAILED" });
+    res.json({ category });
+  } catch (error) {
+    describeFault(error, res, "classifying a listing");
+  }
+});
 
 app.post(
   "/api/images",

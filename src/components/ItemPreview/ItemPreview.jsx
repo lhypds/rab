@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { Link, Modal, Skeleton, showToast, useNavigate } from "../../ui/index.js";
+import { Modal, Skeleton, showToast, useNavigate } from "../../ui/index.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
 import ItemView from "../ItemView/index.js";
 import MessageModal from "../MessageModal/index.js";
@@ -76,10 +76,10 @@ export default function ItemPreview({ id, onClose, onGone }) {
         className={styles.sheet}
         title={item?.title ?? ""}
         header={
-          <Link className={styles.open} to={page} state={{ back: true }}>
+          <a className={styles.open} href={page} target="_blank" rel="noopener">
             {t("map.open")}
             <span aria-hidden="true"> ↗</span>
-          </Link>
+          </a>
         }
       >
         {/* As wide as the item's own page is and no wider, in the middle of

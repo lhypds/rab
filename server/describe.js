@@ -87,4 +87,52 @@ export async function describeImage(buffer, language) {
   };
 }
 
+// Which category a listing is in, from what it already says — its name, its
+// few words for what it is, its description — and its main photograph, where
+// it has one: the button beside the category on the form. Only the category
+// is answered; nothing written is changed.
+const CATEGORY = {
+  type: "object",
+  properties: { category: { type: "string", enum: CATEGORIES } },
+  required: ["category"],
+  additionalProperties: false,
+};
+
+const CLASSIFY = `rab is a marketplace where people rent out what they have: things, places, and somebody's time and skill. A listing is also sometimes a page — a shop or a business that collects several listings.
+
+Every listing has one of these categories: ${CATEGORIES.join(", ")}.
+
+You are given what a listing says about itself and, where there is one, its main photograph. Answer with the one category that fits it best, exactly as written above; "other" where none fits. Do not stretch a category to cover something it is not.`;
+
+// The category, or null where the model would not give one. `image` is the
+// photograph's bytes, or null.
+export async function classifyListing({ title, what, description, image }) {
+  const mediaType = image ? MEDIA_TYPES.find(([, matches]) => matches(image))?.[0] : null;
+  const said = [title && `Name: ${title}`, what && `What it is: ${what}`, description && `Description: ${description}`].filter(Boolean).join("\n");
+  if (!said && !mediaType) return null;
+  client ??= new OpenAI();
+  const completion = await client.chat.completions.create({
+    model: MODEL,
+    response_format: { type: "json_schema", json_schema: { name: "category", strict: true, schema: CATEGORY } },
+    messages: [
+      { role: "system", content: CLASSIFY },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: said || "This listing says nothing about itself yet: go by the photograph." },
+          ...(mediaType ? [{ type: "image_url", image_url: { url: `data:${mediaType};base64,${image.toString("base64")}` } }] : []),
+        ],
+      },
+    ],
+  });
+  const message = completion.choices[0]?.message;
+  if (!message || message.refusal || !message.content) return null;
+  try {
+    const answer = JSON.parse(message.content);
+    return CATEGORIES.includes(answer?.category) ? answer.category : "other";
+  } catch {
+    return null;
+  }
+}
+
 export { OpenAI };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { Modal, Select, TextArea, showToast } from "../../ui/index.js";
+import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
 import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
@@ -23,7 +23,10 @@ import { WeekHours } from "../TimeTable/index.js";
 import styles from "./item.module.css";
 
 const TITLE_MAX = 80;
+// A few words for what it is, apart from its name: kept short.
+const WHAT_MAX = 40;
 const HOMEPAGE_MAX = 500;
+const LINKS_MAX = 10;
 // A page's address as the item's page will link to it: "https://" in front of
 // one written without (the server does the same when it is saved).
 const homepageOf = (written) => {
@@ -133,9 +136,10 @@ function startingFields(item, calendar, lang) {
     store: item?.store === true,
     category: item?.category ?? "",
     title: item?.title ?? "",
+    what: item?.what ?? "",
     description: item?.description ?? "",
-    // Its own page somewhere else, as its address, where it has one.
-    homepage: item?.homepage ?? "",
+    // Its own pages somewhere else, as addresses: one empty line to start.
+    links: item?.links?.length > 0 ? item.links : [""],
     // How it is booked: by the date, or by the date and the time — and, for
     // the second, the hours of the week it can be had.
     mode: item?.shared === true ? "inquiry" : MODES.includes(item?.mode) ? item.mode : "day",
@@ -541,6 +545,8 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const [uploading, setUploading] = useState(0);
   // Whether the form is being filled in from the main photograph.
   const [generating, setGenerating] = useState(false);
+  // Whether the category is being chosen by the model just now.
+  const [classifying, setClassifying] = useState(false);
   const [saving, setSaving] = useState(false);
   // The rule whose particular dates are being picked, in the sheet that holds
   // a calendar for it — or null.
@@ -586,16 +592,16 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const fileRef = useRef(null);
   const editing = Boolean(item);
   const names = useMemo(() => weekdayNames(lang), [lang]);
-  // The page a new item goes on, picked on the sheet: null for none. Not asked
-  // of a page, nor of an item made from a page's own sheet, which goes on that
-  // page.
-  const [storeChoice, setStoreChoice] = useState(null);
+  // The pages a new item goes on, ticked on the sheet: none ticked puts it on
+  // the account's default page. Not asked of a page, nor of an item made from
+  // a page's own sheet, which goes on that page.
+  const [storeChoices, setStoreChoices] = useState([]);
 
   useEffect(() => {
     if (!isOpen) return;
     const location = store?.location;
     const initial = startingFields(item, calendar, lang);
-    setStoreChoice(null);
+    setStoreChoices([]);
     if (location) {
       initial.located = true;
       initial.latitude = location.latitude;
@@ -702,6 +708,28 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
       setError(t(describeError.code === "DESCRIBE_UNAVAILABLE" ? "item.generateUnavailable" : describeError.code === "DESCRIBE_BUSY" ? "item.generateBusy" : "item.generateFailed"));
     } finally {
       setGenerating(false);
+    }
+  }
+
+  // The category chosen by the model from what the form says so far — its
+  // name, its few words, its description — and its main photo. Only the
+  // category changes.
+  async function classify() {
+    if (classifying) return;
+    setError("");
+    setClassifying(true);
+    try {
+      const answer = await api.classifyItem({
+        title: fields.title.trim(),
+        what: fields.what.trim(),
+        description: fields.description.trim(),
+        image: fields.images[0]?.thumb ?? fields.images[0]?.src ?? null,
+      });
+      if (answer.category) set("category", answer.category);
+    } catch (classifyError) {
+      setError(t(classifyError.code === "DESCRIBE_UNAVAILABLE" ? "item.generateUnavailable" : classifyError.code === "DESCRIBE_BUSY" ? "item.generateBusy" : "item.classifyFailed"));
+    } finally {
+      setClassifying(false);
     }
   }
 
@@ -834,7 +862,8 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     id: item?.id ?? "preview",
     title: fields.title.trim() || t("item.titlePlaceholder"),
     description: fields.description.trim(),
-    homepage: homepageOf(fields.homepage),
+    what: fields.what.trim(),
+    links: fields.links.map(homepageOf).filter(Boolean),
     category: fields.category,
     shared: fields.shared,
     store: fields.store,
@@ -930,8 +959,9 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     const body = {
       title: fields.title.trim(),
       description: fields.description.trim(),
-      homepage: fields.homepage.trim(),
-      ...(store ? { storeId: store.id } : !editing && !fields.store && storeChoice ? { storeId: storeChoice } : null),
+      what: fields.what.trim(),
+      links: fields.links.map((link) => link.trim()).filter(Boolean),
+      ...(store ? { storeIds: [store.id] } : !editing && !fields.store ? { storeIds: storeChoices } : null),
       category: fields.category,
       shared: fields.shared,
       // Said when it is made, and what it is from then on.
@@ -1062,57 +1092,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
             {shown === "item" && (
             <>
             <div className={styles.column}>
-              {/* First of all, whose it is: the account's own, or somebody
-                  else's that the account is writing down — a shop it knows
-                  of, say. The second is everybody's to keep right: anybody
-                  signed in can change it or delete it. Either of the two, an
-                  item or a page, may be either. Asked of whoever put it here;
-                  somebody else editing it is not asked, since it is not
-                  theirs to take, and nor is an item made on one of the
-                  account's pages, which is its own. */}
-              {!store && (!editing || (item.mine && !item.shared && !item.default)) && (
-                <div className="field">
-                  <span className="field-label">{t("item.whose")}</span>
-                  <div className="tabs" role="group" aria-label={t("item.whose")}>
-                    {[false, true].map((each) => (
-                      <button
-                        key={String(each)}
-                        type="button"
-                        className={fields.shared === each ? "tab active" : "tab"}
-                        aria-pressed={fields.shared === each}
-                        // Somebody else's is booked by asking and no
-                        // other way: nobody here could answer a request.
-                        // The account's own starts by the date again. And
-                        // how the account itself is reached is not how
-                        // somebody else is: it goes from the one and comes
-                        // back to the other, unless something else was
-                        // written over it.
-                        onClick={() =>
-                          setFields((current) => {
-                            if (current.shared === each) return current;
-                            const mode = each ? "inquiry" : "day";
-                            // Written by hand, they stay — but for a message
-                            // here, which somebody else's cannot be sent.
-                            const written = each ? current.contacts.filter((contact) => contact.type !== "message") : current.contacts;
-                            const contacts = !contactsTouched.current
-                              ? startingContacts(mode, each, ownContacts)
-                              : written.length > 0
-                                ? written
-                                : noContacts();
-                            // The page picked was one for the other side.
-                            setStoreChoice(null);
-                            return { ...current, shared: each, mode, contacts };
-                          })
-                        }
-                      >
-                        {t(each ? "item.whoseOthers" : "item.whoseMine")}
-                      </button>
-                    ))}
-                  </div>
-                  <span className={styles.hint}>{t(fields.shared ? "item.whoseOthersHint" : "item.whoseMineHint")}</span>
-                </div>
-              )}
-              {/* Then whether this is one item or a store of them. A store
+              {/* First, whether this is one item or a store of them. A store
                   is asked everything an item is; it is only kept apart,
                   with the items on it. Not asked of one being made on a
                   store, which is an item on it. */}
@@ -1129,9 +1109,9 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                   hintClassName={styles.hint}
                 />
               )}
-              {/* And for an item, which page it goes on. */}
+              {/* And for an item, which pages it goes on. */}
               {!editing && !store && !fields.store && (
-                <StoreField shared={fields.shared} value={storeChoice} onChange={setStoreChoice} disabled={busy} hintClassName={styles.hint} />
+                <StoreField value={storeChoices} onChange={setStoreChoices} disabled={busy} hintClassName={styles.hint} />
               )}
               {/* Then the photographs: they are what is taken before anything
                   is written. */}
@@ -1212,29 +1192,61 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 <span className={styles.hint}>{t("item.generateHint")}</span>
               </div>
 
-              <div className="field">
-                <span className="field-label">{t("item.category")}</span>
-                <Select
-                  sans
-                  label={t("item.category")}
-                  value={fields.category}
-                  onChange={(value) => set("category", value)}
-                  options={categories}
-                  searchPlaceholder={t("item.categorySearch")}
-                  emptyLabel={t("item.categoryNoMatch")}
-                />
-              </div>
-
               <label className="field">
                 <span className="field-label">{t("item.title")}</span>
                 <input
                   className="text-input"
                   value={fields.title}
                   onChange={(event) => set("title", event.target.value)}
-                  placeholder={t("item.titlePlaceholder")}
                   maxLength={TITLE_MAX}
                 />
               </label>
+
+              {/* Under its name, a few words for what it is — "Film camera",
+                  "Hair salon" — kept apart from the name. */}
+              <label className="field">
+                <span className="field-label">
+                  {t("item.what")}
+                  <span className="field-count">
+                    {fields.what.length}/{WHAT_MAX}
+                  </span>
+                </span>
+                <input className="text-input" value={fields.what} onChange={(event) => set("what", event.target.value)} maxLength={WHAT_MAX} />
+                <span className={styles.hint}>{t("item.whatHint")}</span>
+              </label>
+
+              {/* Under them, its category — and beside it the button that
+                  has it chosen from what is written above and the main
+                  photo, as Recognize does from the photo alone. */}
+              <div className="field">
+                <span className="field-label">{t("item.category")}</span>
+                <div className={styles.categoryRow}>
+                  <Select
+                    sans
+                    className={styles.categorySelect}
+                    label={t("item.category")}
+                    value={fields.category}
+                    onChange={(value) => set("category", value)}
+                    options={categories}
+                    searchPlaceholder={t("item.categorySearch")}
+                    emptyLabel={t("item.categoryNoMatch")}
+                  />
+                  {/* The brain, as liveboard's Generate button draws it. */}
+                  <ActionButton
+                    tooltip={t("item.classify")}
+                    tooltipRight
+                    onClick={classify}
+                    disabled={classifying || uploading > 0 || (!fields.title.trim() && !fields.what.trim() && !fields.description.trim() && fields.images.length === 0)}
+                    aria-busy={classifying}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 4.5A4.5 4.5 0 0 0 4 7.3 4 4 0 0 0 3.2 14 4.6 4.6 0 0 0 12 19.5" />
+                      <path d="M12 4.5A4.5 4.5 0 0 1 20 7.3 4 4 0 0 1 20.8 14 4.6 4.6 0 0 1 12 19.5" />
+                      <path d="M12 4.5v15" />
+                    </svg>
+                  </ActionButton>
+                </div>
+              </div>
 
               <label className="field">
                 <span className="field-label">
@@ -1258,23 +1270,45 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
             {/* The item's sheet has two columns where there is room: what it
                 is on the left, and where it is on the right. */}
             <div className={styles.column}>
-              {/* Its own page somewhere else, where it has one: shown on the
-                  item's page over how its owner is reached. */}
-              <label className="field">
-                <span className="field-label">{t("item.homepage")}</span>
-                <input
-                  className="text-input"
-                  type="url"
-                  inputMode="url"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={fields.homepage}
-                  onChange={(event) => set("homepage", event.target.value)}
-                  placeholder="https://"
-                  maxLength={HOMEPAGE_MAX}
-                />
-              </label>
+              {/* Its own pages somewhere else, where it has any: shown on
+                  its page over how its owner is reached. One line each, more
+                  added with the button under them. */}
+              <div className="field">
+                <span className="field-label">{t("item.links")}</span>
+                {fields.links.map((link, index) => (
+                  <div key={index} className={styles.linkRow}>
+                    <input
+                      className="text-input"
+                      type="url"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={link}
+                      onChange={(event) => set("links", fields.links.map((each, at) => (at === index ? event.target.value : each)))}
+                      placeholder="https://"
+                      maxLength={HOMEPAGE_MAX}
+                      aria-label={`${t("item.links")} ${index + 1}`}
+                    />
+                    <button
+                      type="button"
+                      className={styles.linkRemove}
+                      onClick={() => set("links", fields.links.length > 1 ? fields.links.filter((_, at) => at !== index) : [""])}
+                      aria-label={t("item.linkRemove")}
+                      title={t("item.linkRemove")}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6 6 18" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                {fields.links.length < LINKS_MAX && (
+                  <button type="button" className={`small-button ${styles.start}`} onClick={() => set("links", [...fields.links, ""])}>
+                    {t("item.linkAdd")}
+                  </button>
+                )}
+              </div>
 
               {/* The area it is offered in, which every item has to say: it is
                   what lists it for the people looking there, pin or no pin.
@@ -1513,7 +1547,8 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
               {/* The rule for calling a booking off, once the owner has said
                   yes to it: any time, never, or until so many days before it
                   starts — and for the last, how many. */}
-              {!inquiry && (
+              {/* A page is not booked itself: it has no such rule. */}
+              {!inquiry && !fields.store && (
               <div className="field">
                 <span className="field-label">{t("item.cancelRule")}</span>
                 <div className="tabs" role="group" aria-label={t("item.cancelRule")}>
@@ -1768,6 +1803,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
               {(
                 <ContactFields
                   contacts={fields.contacts}
+                  saved={ownContacts}
                   noMessage={fields.shared}
                   onChange={(next) => {
                     contactsTouched.current = true;

@@ -62,8 +62,11 @@ export function keptContacts(lines, dialCode, { noMessage = false } = {}) {
 // cannot be taken off. `onChange` is given the lines as they now are. Where
 // `noMessage`, a message here is not one of the ways: somebody else's item
 // has no account to send one to.
+// `saved` are the account's own ways of being reached (see the account sheet),
+// as form lines: any one of them not on the form yet is picked from the list
+// under the fields, and taken in place of an empty line or after the rest.
 // Anything given as `children` is said under them, as a hint.
-export default function ContactFields({ contacts, onChange, noMessage = false, onInput, children }) {
+export default function ContactFields({ contacts, onChange, saved = [], noMessage = false, onInput, children }) {
   const { t, i18n } = useTranslation();
   const { country } = useRegion();
   const dialCode = dialCodeOf(country);
@@ -77,6 +80,19 @@ export default function ContactFields({ contacts, onChange, noMessage = false, o
       })),
     [i18n.language],
   );
+  const same = (a, b) => a.type === b.type && (a.type === "message" || (a.value === b.value && (a.type !== "phone" || (a.code ?? dialCode) === (b.code ?? dialCode))));
+  const pickable = saved.filter((line) => !(noMessage && line.type === "message") && !contacts.some((contact) => same(contact, line)));
+  const describe = (line) =>
+    line.type === "message"
+      ? t("item.contactMessageNote")
+      : `${t(`item.contactTypes.${line.type}`)} · ${line.type === "phone" ? `${line.code ?? dialCode} ${line.value}` : line.value}`;
+  const pick = (index) => {
+    const line = pickable[Number(index)];
+    if (!line) return;
+    const empty = contacts.findIndex((contact) => contact.type !== "message" && !contact.value.trim());
+    onChange(empty >= 0 ? contacts.map((contact, at) => (at === empty ? { ...line } : contact)) : [...contacts, { ...line }]);
+    onInput?.();
+  };
   const setContact = (index, patch) => onChange(contacts.map((contact, each) => (each === index ? { ...contact, ...patch } : contact)));
 
   return (
@@ -174,6 +190,19 @@ export default function ContactFields({ contacts, onChange, noMessage = false, o
         >
           {t("item.contactAdd")}
         </button>
+      )}
+      {/* Or one of the account's own, picked from a list. */}
+      {pickable.length > 0 && (contacts.length < CONTACTS_MAX || contacts.some((contact) => contact.type !== "message" && !contact.value.trim())) && (
+        <Select
+          className={styles.add}
+          label={t("item.contactPick")}
+          value=""
+          onChange={pick}
+          options={[
+            { value: "", label: t("item.contactPick") },
+            ...pickable.map((line, index) => ({ value: String(index), label: describe(line) })),
+          ]}
+        />
       )}
       {children}
     </div>

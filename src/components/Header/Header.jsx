@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActionButton, Link, useNavigate } from "../../ui/index.js";
+import { ActionButton, canGoBack, Link, useNavigate } from "../../ui/index.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
 import AccountModal from "../AccountModal/index.js";
 import FilterBox from "../FilterBox/index.js";
@@ -24,7 +24,8 @@ export default function Header({ back = false, listingStore, onStoreSaved, view,
   const { t } = useTranslation();
   const { user, unread } = useAuth();
   const navigate = useNavigate();
-  const fromList = back && window.history.state?.back === true;
+  // Never a step back off the site: from anywhere else it is home.
+  const fromList = back && canGoBack();
   // The sheets opened from here and nowhere else, so the bar holds them open
   // itself.
   const [accountOpen, setAccountOpen] = useState(false);

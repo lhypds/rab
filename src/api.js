@@ -157,6 +157,10 @@ export const describePhoto = (blob, lang) =>
     headers: { "Content-Type": blob.type || "application/octet-stream" },
     timeoutMs: 90 * 1000,
   });
+// Which category a listing is in, from what it says and its main photo (the
+// address of one this server stored): { category } (see server/describe.js).
+export const classifyItem = ({ title, what, description, image }) =>
+  send("POST", "/api/classify", { title, what, description, image }, { timeoutMs: 90 * 1000 });
 // The signed-in account's own places, to put an item at.
 // `shared` asks for the public account's instead: the places somebody else's
 // things are at, which anybody signed in may choose from and add to.

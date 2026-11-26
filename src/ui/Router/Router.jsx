@@ -6,6 +6,23 @@ function currentLocation() {
   return { pathname: window.location.pathname, search: window.location.search };
 }
 
+// Whether this tab has taken a step inside the site since the page was loaded.
+let steppedInside = false;
+
+// Whether a step back stays on this site: an entry says it has one behind it
+// (its state's `back`), and that entry was put there by this site — pushed since
+// the page loaded, or the page itself was opened from this site. Anything else
+// (opened from another site, a bookmark, a typed address) has no step back here.
+export function canGoBack() {
+  if (window.history.state?.back !== true) return false;
+  if (steppedInside) return true;
+  try {
+    return Boolean(document.referrer) && new URL(document.referrer).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export function RouterProvider({ children }) {
   const [location, setLocation] = useState(currentLocation);
 
@@ -27,6 +44,7 @@ export function RouterProvider({ children }) {
     // rather than to a place — whether there is a step back from here, and what
     // was standing open before it was taken (see utils/back.js).
     window.history[options.replace ? "replaceState" : "pushState"](options.state ?? {}, "", next);
+    if (!options.replace) steppedInside = true;
     setLocation(currentLocation());
     if (options.scroll !== false) window.scrollTo(0, 0);
   }, []);

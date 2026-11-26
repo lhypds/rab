@@ -438,7 +438,8 @@ function storeFromOld(old, userId) {
     itemIds: Array.isArray(old.itemIds) ? old.itemIds.map(String) : [],
     title: old.name ?? "",
     description: old.description ?? "",
-    homepage: "",
+    what: "",
+    links: [],
     category: "",
     mode: contacts.length > 0 ? "inquiry" : "day",
     rates: [],
@@ -555,7 +556,8 @@ export function transaction(work) {
 }
 
 load();
-// An account from before every account had a default store is given one.
+// An account from before every account had a default store is given one,
+// and every item on no store is put on it.
 ensureDefaultStores();
 // Whatever load() moved is written where it now belongs.
 save();
@@ -587,6 +589,8 @@ function servedItem(item) {
     // first, listed first among its pages on its profile (see defaultStore).
     default: item.default === true,
     title: item.title,
+    // A few words for what it is, apart from its name; empty where not said.
+    what: item.what ?? "",
     description: item.description,
     price: item.price,
     currency: item.currency,
@@ -623,8 +627,9 @@ function servedItem(item) {
     // Whether it is somebody else's, put here by an account that does not
     // have it: anybody signed in may then change it or delete it.
     shared: item.shared === true,
-    // Its own page somewhere else, as its address; empty where it has none.
-    homepage: item.homepage ?? "",
+    // Its own pages somewhere else, as addresses; one from before there could
+    // be several has the one it had, as `homepage`.
+    links: item.links ?? (item.homepage ? [item.homepage] : []),
     // How its owner is reached, where it is booked by asking: [{ type, value }].
     contacts: item.contacts ?? [],
     // The rule for days — which days of the week it can be had, null for all —
@@ -652,9 +657,48 @@ function servedItem(item) {
   };
 }
 
-// The items anybody may be shown, newest first.
+// What the home page shows — the map, the lists beside it and the search in
+// its bar: stores (pages) only, never the items on them. Only the published
+// ones, newest first, each placed where it says it is — or, where it says
+// nothing, where the published items on it are (see placedStore).
 function listedItems() {
-  return [...itemsById.values()].filter((item) => !item.deletedAt && item.active).sort(newestFirst);
+  return [...itemsById.values()]
+    .filter((item) => item.store && !item.deletedAt && item.active)
+    .map(placedStore)
+    .filter(Boolean)
+    .sort(newestFirst);
+}
+
+// A store as the home page places it: its own pin, areas and photographs
+// where it has them, and otherwise those of the published items on it — the
+// pin of the first that has one, the areas of all of them, the first photo.
+// Null where it has neither a place of its own nor anything published on it
+// — an account's default store before anything is added, say.
+function placedStore(store) {
+  const items = (store.itemIds ?? [])
+    .map((id) => itemsById.get(String(id)))
+    .filter((item) => item && !item.deletedAt && item.active && !item.store && item.ownerId === store.ownerId);
+  if (items.length === 0) return store.located || store.region ? store : null;
+  const placed = { ...store };
+  if (!store.located) {
+    const pinned = items.find((item) => item.located);
+    if (pinned) Object.assign(placed, { located: true, latitude: pinned.latitude, longitude: pinned.longitude, place: store.place || pinned.place });
+  }
+  if (!store.region) {
+    const seen = new Map();
+    for (const item of items) {
+      for (const region of [item.region, ...(item.moreRegions ?? [])]) {
+        if (region?.bbox) seen.set(`${region.name}|${region.bbox.join()}`, region);
+      }
+    }
+    const [first = null, ...rest] = seen.values();
+    Object.assign(placed, { region: first, moreRegions: rest });
+  }
+  if (!(store.images?.length > 0)) {
+    const shown = items.find((item) => item.images?.length > 0);
+    if (shown) placed.images = [shown.images[0]];
+  }
+  return placed;
 }
 
 // Whether a longitude is between two edges, where a box that crosses the
@@ -683,7 +727,7 @@ export function searchItems(query, limit = 20) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const all = (text) => words.every((word) => text.includes(word));
   const said = (item) =>
-    [item.title, item.description, item.place, item.category, item.owner].filter(Boolean).join(" ").toLowerCase();
+    [item.title, item.what, item.description, item.place, item.category, nameOf(item.ownerId)].filter(Boolean).join(" ").toLowerCase();
   const has = (value) => all(String(value ?? "").toLowerCase());
   const found = listedItems().filter((item) => all(said(item)));
   return [...found.filter((item) => has(item.title)), ...found.filter((item) => !has(item.title))]
@@ -754,8 +798,11 @@ function newItemId(time) {
 function itemFields(item) {
   return {
     title: item.title,
+    // A few words for what it is, kept apart from its name: "Film camera".
+    what: item.what ?? "",
     description: item.description,
-    homepage: item.homepage ?? "",
+    // Its own pages somewhere else, as addresses, the first first.
+    links: item.links ?? [],
     category: item.category,
     mode: item.mode,
     rates: item.rates,
@@ -817,6 +864,8 @@ export function updateItem(userId, id, item) {
   if (!current || current.ownerId !== userId) return null;
   transaction(() => {
     Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
+    // The one link from before there could be several is among `links` now.
+    delete current.homepage;
     // The default store is its account's from the first, and stays so.
     if (current.default) current.shared = false;
     // Said to be somebody else's, it leaves the account's folder for the
@@ -844,6 +893,8 @@ export function deleteItem(userId, id) {
     current.deletedAt = now();
     current.active = false;
     changedItem(current);
+    // A store gone, the items that were on it alone go on the default one.
+    if (current.store) keepItemsOnStores(userId);
   });
   return true;
 }
@@ -1456,10 +1507,11 @@ export const STORES_MAX = 50;
 // Every account has one store from the first — its default store, made with
 // the account and named after it, and listed first among its pages on its
 // profile: a store like any other, photographs, price, calendar and all,
-// that is not deleted and not made somebody else's. An item goes on it only
-// where the account picks it, as with any store. An account from before there
-// were default stores is given one when the server starts, with every item it
-// then had on it, the newest first.
+// that is not deleted and not made somebody else's. An item goes on it where
+// the account picks no other store for it, and whenever it is left on none
+// (see keepItemsOnStores). An account from before there were default stores
+// is given one when the server starts, with every item it then had on it, the
+// newest first.
 function defaultStoreItem(userId) {
   for (const item of itemsById.values()) {
     if (item.default && item.store && item.ownerId === userId && !item.deletedAt) return item;
@@ -1489,8 +1541,33 @@ function makeDefaultStore(userId) {
 function ensureDefaultStores() {
   transaction(() => {
     for (const userId of usersById.keys()) {
-      if (userId !== PUBLIC_ID && userId !== ADMIN_ID) makeDefaultStore(userId);
+      if (userId !== PUBLIC_ID && userId !== ADMIN_ID) {
+        makeDefaultStore(userId);
+        keepItemsOnStores(userId);
+      }
     }
+  });
+}
+
+// Every item of an account's is on at least one of its stores: one on none —
+// taken off the last store it was on, or left on none when that store was
+// deleted — is put on the account's default store, after what is there.
+export function keepItemsOnStores(userId) {
+  const store = defaultStoreItem(userId);
+  if (!store) return;
+  const on = new Set();
+  for (const each of itemsById.values()) {
+    if (each.store && !each.deletedAt && each.ownerId === userId) for (const id of each.itemIds ?? []) on.add(String(id));
+  }
+  const loose = [...itemsById.values()]
+    .filter((item) => item.ownerId === userId && !item.store && !item.deletedAt && !on.has(item.id))
+    .sort((a, b) => Number(a.id) - Number(b.id))
+    .map((item) => item.id);
+  if (loose.length === 0) return;
+  transaction(() => {
+    store.itemIds = [...(store.itemIds ?? []), ...loose];
+    store.updatedAt = now();
+    changedItem(store);
   });
 }
 

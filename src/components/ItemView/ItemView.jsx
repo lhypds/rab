@@ -363,17 +363,17 @@ export default function ItemView({
     <article className={styles.page}>
       <div className={styles.columns}>
         <header className={styles.head}>
-          <p className={styles.tags}>
-            {/* A page says so first: a collection of its owner's items. */}
-            {item.store && <span>{t("store.one")}</span>}
-            {(item.category || !item.store) && (
+          {(item.category || !item.store) && (
+            <p className={styles.tags}>
               <span>
                 <CategoryIcon category={item.category} />
                 {sortLabel(item, t)}
               </span>
-            )}
-          </p>
+            </p>
+          )}
           <h1 className={styles.title}>{item.title}</h1>
+          {/* A few words for what it is, under its name. */}
+          {item.what && <p className={styles.what}>{item.what}</p>}
           <p className={styles.meta}>
             {/* Whose account it is under — not said of somebody else's,
                 which is nobody's by name. */}
@@ -444,6 +444,9 @@ export default function ItemView({
 
         {/* ------------------------------------------------- the booking card */}
         <aside className={styles.card} ref={cardRef}>
+          {/* A page has no price of its own — each item on it has its own —
+              nor a way it is booked to say up here. */}
+          {!item.store && (
           <p className={styles.price}>
             <strong>{priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>
             {!priceOnRequest && (
@@ -459,6 +462,7 @@ export default function ItemView({
               {status}
             </span>
           </p>
+          )}
 
           {/* Getting the page in front of people is half of what it is for, so
               the way to do it is the first control on the card and the one
@@ -558,22 +562,24 @@ export default function ItemView({
             </div>
           )}
 
-          {/* Its own page somewhere else, where it has one: the address, which
-              is pressed to go there. Over how its owner is reached. */}
-          {item.homepage && (
+          {/* Its own pages somewhere else, where it has any: each address,
+              pressed to go there. Over how its owner is reached. */}
+          {item.links?.length > 0 && (
             <>
               <div className={`${styles.calendarHead} ${styles.contactHead}`}>
-                <h2>{t("item.homepage")}</h2>
+                <h2>{t("item.links")}</h2>
               </div>
-              <p className={styles.homepage}>
-                <a href={item.homepage} target="_blank" rel="noreferrer noopener">
-                  <span>{item.homepage.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</span>
-                  {/* And the mark of a page that opens somewhere else. */}
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />
-                  </svg>
-                </a>
-              </p>
+              {item.links.map((link) => (
+                <p key={link} className={styles.homepage}>
+                  <a href={link} target="_blank" rel="noreferrer noopener">
+                    <span>{link.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</span>
+                    {/* And the mark of a page that opens somewhere else. */}
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />
+                    </svg>
+                  </a>
+                </p>
+              ))}
             </>
           )}
 
@@ -661,7 +667,8 @@ export default function ItemView({
           <>
           <div className={styles.calendarHead}>
             <h2>{t("calendar.title")}</h2>
-            <span>{mine ? t("calendar.yours") : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
+            {/* What the figures on the squares are, which a page has none of. */}
+            <span>{mine ? t("calendar.yours") : item.store ? null : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
           </div>
           <Calendar
             item={item}

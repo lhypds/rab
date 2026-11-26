@@ -27,6 +27,8 @@ import UserName, { dotted } from "../UserName/index.js";
 export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, onDrag, chosen = false, pin = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
+    // A few words for what it is, where it says.
+    item.what,
     priceLine(item, i18n.language, t),
     sortLabel(item, t),
     // Its rating, once somebody has rated it.
