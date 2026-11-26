@@ -20,18 +20,34 @@ export function addressLanguage(country) {
   return { JP: "ja", CN: "zh" }[country] ?? "en";
 }
 
-// The stretch of map the reader was last looking at, for as long as the page
-// lives: coming back from an item's page puts the map where it was left. Not
-// kept across visits — a fresh visit opens on where the reader is, which is the
+// The stretch of map the reader was last looking at — its centre and zoom —
+// for as long as the tab lives: coming back from an item's page, or reloading
+// the page, puts the map where it was left. Kept in the tab's session, so not
+// across visits — a fresh visit opens on where the reader is, which is the
 // better answer by the time they have gone and come back.
-let lastView = null;
+const VIEW_KEY = "rab:view";
+let lastView;
 
 export function savedView() {
+  if (lastView === undefined) {
+    lastView = null;
+    try {
+      const kept = JSON.parse(sessionStorage.getItem(VIEW_KEY));
+      if (kept && [kept.latitude, kept.longitude, kept.zoom].every(Number.isFinite)) lastView = kept;
+    } catch {
+      // Nothing kept, or nowhere to keep it: the map opens as on a fresh visit.
+    }
+  }
   return lastView;
 }
 
 export function saveView(view) {
   lastView = view;
+  try {
+    sessionStorage.setItem(VIEW_KEY, JSON.stringify(view));
+  } catch {
+    // Kept for this page only, which is the worst this costs.
+  }
 }
 
 // Whether the reader has said yes to being located here before, kept across

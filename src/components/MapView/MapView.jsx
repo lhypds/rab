@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
@@ -60,6 +60,42 @@ function inView(view, item) {
   return west <= east
     ? item.longitude >= west && item.longitude <= east
     : item.longitude >= west || item.longitude <= east;
+}
+
+// How much ground past the window keeps its pins on the map, as a share of the
+// window's width and height on each side. Only those are attached: the map
+// moves every attached pin on every frame of a drag, and the items held reach
+// far past the window (see FETCH_MARGIN), so attaching all of them makes a
+// drag stutter. A little past the edge, so a pin and the photograph above it
+// are there before they slide in.
+const PIN_MARGIN = 0.25;
+
+// Attaches the pins near the window and takes the rest off the map. Their
+// elements are kept, photographs loaded and all, for when they come back.
+function cullPins(map, markers) {
+  if (!map || markers.size === 0) return;
+  const bounds = map.getBounds();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const padX = (east - west) * PIN_MARGIN;
+  const padY = (north - south) * PIN_MARGIN;
+  const top = north + padY;
+  const bottom = south - padY;
+  const whole = east - west + padX * 2 >= 360;
+  const left = wrapLongitude(west - padX);
+  const right = wrapLongitude(east + padX);
+  for (const entry of markers.values()) {
+    const { latitude, longitude } = entry.item;
+    const near =
+      latitude >= bottom &&
+      latitude <= top &&
+      (whole || (left <= right ? longitude >= left && longitude <= right : longitude >= left || longitude <= right));
+    if (near && !entry.attached) entry.marker.addTo(map);
+    else if (!near && entry.attached) entry.marker.remove();
+    entry.attached = near;
+  }
 }
 
 // How far above the spot a bubble sits: the pin's own height (25.2px) and a
@@ -130,6 +166,44 @@ function setPinPhoto(element, src) {
 
 // The map the site opens on: everything out for rent in the window being
 // looked at, each standing where it is picked up.
+// What the bubble holds: the node React draws its card into, wrapped in one
+// that sorts out the presses on it now that it stands on the map's ground
+// (see where the popup is added), where the map hears them too. A press is
+// not the map's — it would put the bubble away as a press on bare ground —
+// and a drag that started on the card and moved the map is not a press on
+// the link it ended over.
+function bubbleNode(content) {
+  const wrapper = document.createElement("div");
+  wrapper.append(content);
+  let from = null;
+  wrapper.addEventListener("pointerdown", (event) => {
+    from = { x: event.clientX, y: event.clientY };
+  });
+  wrapper.addEventListener(
+    "click",
+    (event) => {
+      const moved = from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > 4;
+      from = null;
+      if (!moved) return;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    true,
+  );
+  wrapper.addEventListener("click", (event) => event.stopPropagation());
+  return wrapper;
+}
+
+// A row of the list beside the map, drawn again only when its item or
+// whether it is chosen changes — so choosing another item redraws two rows,
+// not thousands. What it does when pressed or pointed at is left out of the
+// comparison: those look up what to do when they are called (see sideList),
+// so the ones it was first given still do the right thing.
+const SideRow = memo(
+  ItemRow,
+  (before, after) => before.item === after.item && before.chosen === after.chosen && before.pin === after.pin,
+);
+
 // The way an item's owner is reached first, as a small drawing beside the
 // word that asks for it: a telephone, a letter, or a message here on rab.
 // Nothing for an address, or where no way is said.
@@ -400,10 +474,17 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       controller.abort();
     };
   }, [sought]);
-  const here = offered ?? (sought && found ? [] : null);
-  const pool =
-    here && sought && found ? [...here, ...found.filter((item) => !here.some((each) => each.id === item.id))] : here;
-  const listed = pool && (filtering ? pool.filter(passes) : pool);
+  // Worked out again only when what it comes from changes — not when the map
+  // is moved, or its pins arrive — so the list drawn from it (see sideList)
+  // can be kept as it is meanwhile.
+  const listed = useMemo(() => {
+    const here = offered ?? (sought && found ? [] : null);
+    const pool =
+      here && sought && found ? [...here, ...found.filter((item) => !here.some((each) => each.id === item.id))] : here;
+    return pool && (filtering ? pool.filter(passes) : pool);
+    // `passes` and `filtering` are derived afresh each render from these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offered, found, sought, category, query, t]);
   // The one whose bubble is up: the pin that was pressed. Resting the pointer
   // on a pin only lights it; the bubble waits for a press.
   const open = shown.find((item) => item.id === selectedId) ?? null;
@@ -542,10 +623,16 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       saveView({ latitude: center.lat, longitude: center.lng, zoom: map.getZoom() });
     }
 
+    // The style comes with fog, which nobody sees on a map that never tilts —
+    // but while it is there the map works out how far into it each pin
+    // stands, every one of them, after every move. Taken off whenever the
+    // style is (re)loaded.
+    map.on("style.load", () => map.setFog(null));
     map.on("load", () => {
       look();
       ask();
     });
+    map.on("move", () => cullPins(map, markersRef.current));
     map.on("moveend", settle);
     // A move the reader made carries the event that made it; one made by code
     // does not.
@@ -710,12 +797,12 @@ export default function MapView({ view = "map", query = "", onQuery }) {
           event.stopPropagation();
           setSelectedId((current) => (current === item.id ? null : item.id));
         });
-        const marker = new mapboxgl.Marker({ element, anchor: "bottom" })
-          .setLngLat([item.longitude, item.latitude])
-          .addTo(map);
-        entry = { marker, element };
+        // Attached by cullPins below, and only while it is near the window.
+        const marker = new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat([item.longitude, item.latitude]);
+        entry = { marker, element, attached: false };
         markers.set(item.id, entry);
       }
+      entry.item = item;
       entry.marker.setLngLat([item.longitude, item.latitude]);
       entry.element.setAttribute("aria-label", item.title);
       // What category it is, said in the pin's head. Written only when it
@@ -727,6 +814,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       }
       setPinPhoto(entry.element, item.pin ?? item.thumb);
     }
+    cullPins(map, markers);
     // `shown` is derived afresh each render; what it is derived from is what
     // is watched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1099,8 +1187,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   };
 
   // The bubble over the pin being looked at. One popup, moved rather than remade; what
-  // is in it is drawn by React through the portal below.
-  useEffect(() => {
+  // is in it is drawn by React through the portal below. Put up before the
+  // page is painted, so it comes in the same frame as the press.
+  useLayoutEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (!open) {
@@ -1120,9 +1209,15 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         // was — the same picture, opened out — rather than above it.
         offset: POPUP_OFFSET,
         maxWidth: "none",
-      }).setDOMContent(popupNode);
+      }).setDOMContent(bubbleNode(popupNode));
     }
     popupRef.current.setLngLat([open.longitude, open.latitude]).addTo(map);
+    // The map puts its bubbles beside the ground rather than on it, where a
+    // drag that starts on one moves nothing. Set on the ground with the pins,
+    // a drag over the bubble moves the map as a drag over a pin does. Made
+    // afresh at every addTo, so moved at every one.
+    const element = popupRef.current.getElement();
+    if (element && element.parentNode !== map.getCanvasContainer()) map.getCanvasContainer().append(element);
   }, [open, popupNode]);
 
   /* -------------------------------------------------------------- the tools */
@@ -1157,6 +1252,42 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     }
     setGate(null);
   }
+
+  // The list beside the map, drawn again only when what is listed or the item
+  // chosen changes. Every move of the map ends by redrawing the page (the
+  // count in the corner), and a fetch of pins does too; redrawing thousands
+  // of rows each time is the stutter felt when the map is caught mid-glide
+  // and dragged again. What the rows do is looked up when they do it, so a
+  // list kept from an earlier drawing still does what this one would.
+  const latest = useRef(null);
+  latest.current = { pressRow, rowKeys, unkey };
+  // The row of the item chosen is marked a moment after the bubble is up,
+  // not with it: a pin pressed puts its bubble up at once, and the list
+  // catches up behind it.
+  const listChosenId = useDeferredValue(selectedId);
+  const sideList = useMemo(
+    () =>
+      listed?.length > 0 && (
+        <ul
+          ref={sideRows}
+          className="row-list"
+          onKeyDown={(event) => latest.current.rowKeys(event)}
+          onMouseMove={(event) => latest.current.unkey(event)}
+        >
+          {listed.map((item) => (
+            <SideRow
+              key={item.id}
+              item={item}
+              pin
+              chosen={item.id === listChosenId}
+              onPress={(event) => latest.current.pressRow(item, event)}
+              onPoint={item.located ? (on) => setPointedId((current) => (on ? item.id : current === item.id ? null : current)) : undefined}
+            />
+          ))}
+        </ul>
+      ),
+    [listed, listChosenId],
+  );
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -1271,20 +1402,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                 </button>
               </div>
             ))}
-          {listed?.length > 0 && (
-            <ul ref={sideRows} className="row-list" onKeyDown={rowKeys} onMouseMove={unkey}>
-              {listed.map((item) => (
-                <ItemRow
-                  key={item.id}
-                  item={item}
-                  pin
-                  chosen={item.id === selectedId}
-                  onPress={(event) => pressRow(item, event)}
-                  onPoint={item.located ? (on) => setPointedId((current) => (on ? item.id : current === item.id ? null : current)) : undefined}
-                />
-              ))}
-            </ul>
-          )}
+          {sideList}
         </div>
       </aside>
 
@@ -1396,8 +1514,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             <div className={styles.card}>
               {/* What it is, and the way to its page: everything above the two
                   buttons is one link. */}
-              <Link className={styles.cardBody} to={`/i/${open.id}`}>
-                {open.thumb && <img className={styles.cardPhoto} src={open.thumb} alt="" />}
+              <Link className={styles.cardBody} to={`/i/${open.id}`} draggable={false}>
+                {open.thumb && <img className={styles.cardPhoto} src={open.thumb} alt="" draggable={false} />}
                 <strong className={styles.cardTitle}>{open.title}</strong>
                 {open.what && <span className={styles.cardMeta}>{open.what}</span>}
                 {/* What its owner wrote about it, as lo's Wikipedia bubble gives
@@ -1415,7 +1533,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                   calendar. Nobody
                   asks to rent their own, so on those there is only the one. */}
               <span className={styles.cardActions}>
-                <Link className={styles.cardLink} to={`/i/${open.id}`}>
+                <Link className={styles.cardLink} to={`/i/${open.id}`} draggable={false}>
                   {t("map.open")}
                 </Link>
                 {open.owner !== user?.username &&
@@ -1426,12 +1544,12 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                   // Beside the word, the way its owner said first, drawn:
                   // a telephone, a letter, a message here.
                   (open.mode === "inquiry" && contactHref(open.contacts?.[0], open.title) ? (
-                    <a className={styles.cardLink} href={contactHref(open.contacts[0], open.title)}>
+                    <a className={styles.cardLink} href={contactHref(open.contacts[0], open.title)} draggable={false}>
                       {t("map.request")}
                       <ContactIcon type={open.contacts[0].type} />
                     </a>
                   ) : (
-                    <Link className={styles.cardLink} to={`/i/${open.id}?book=1`}>
+                    <Link className={styles.cardLink} to={`/i/${open.id}?book=1`} draggable={false}>
                       {t("map.request")}
                       <ContactIcon type={open.contacts?.[0]?.type} />
                     </Link>

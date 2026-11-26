@@ -610,6 +610,17 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Nothing in the bubble is picked up or selected by a press that slips: the
+     photograph and the links would otherwise be dragged off as a ghost, and
+     the words marked blue. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+.card :is(a, img) {
+  -webkit-user-drag: none;
 }
 
 .cardBody {
@@ -652,11 +663,13 @@
    colour and about its height. */
 .cardIcon {
   flex: none;
-  width: 11px;
-  height: 11px;
+  width: 8px;
+  height: 8px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  /* Thicker in its own units as it is drawn smaller, so the line still
+     reads at this size. */
+  stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -676,6 +689,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+  line-height: 1.2;
+}
+
+/* The few words for what it is, set close under the name they go with: the
+   column's gap taken back, and the line no taller than the type. */
+.cardTitle + .cardMeta {
+  margin-top: -2px;
+  line-height: 1.2;
 }
 
 /* The lead of the item's description, set as lo sets the lead paragraph in a
@@ -720,10 +741,5 @@
   .cardLink:hover {
     color: var(--ink);
     text-decoration: none;
-  }
-
-  .cardBody:hover .cardTitle {
-    text-decoration: underline;
-    text-underline-offset: 2px;
   }
 }
