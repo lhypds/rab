@@ -296,15 +296,20 @@ a {
 
 /* The pair that says how the home page is read: joined, the one in force
    turned over. */
-.topbar-view {
+/* A pair of buttons side by side, the one in force turned over: the top
+   bar's map or lists, and the publish sheet's item or spot. */
+.topbar-view,
+.button-pair {
   display: inline-flex;
 }
 
-.topbar-view > * + * {
+.topbar-view > * + *,
+.button-pair > * + * {
   margin-left: -1px;
 }
 
-.topbar-view [aria-pressed="true"] {
+.topbar-view [aria-pressed="true"],
+.button-pair [aria-pressed="true"] {
   background: var(--ink);
   color: var(--paper);
 }
@@ -565,58 +570,52 @@ a {
   color: var(--paper);
 }
 
-/* A switch between two words, one on each side of it: the one it is at in
-   ink, the other grey. */
-.switch-field {
-  display: inline-flex;
+/* A field's label with its control after it on the same line. */
+.field-inline {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.switch-word {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
+.field-inline .field-label {
+  margin: 0;
+}
+
+/* Lines saying what each choice is, kept together under the control: one
+   straight after the other, with a little room above them. */
+.field-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 4px;
+}
+
+/* One of a pair: its mark, then its word, in a box with a black rule. */
+.pair-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
 }
 
-.switch-word.active {
-  color: var(--ink);
-}
-
-.switch {
-  position: relative;
+.pair-button svg {
   flex: none;
-  width: 32px;
-  height: 16px;
-  padding: 0;
-  border: 1px solid var(--ink);
-  border-radius: 0;
-  background: var(--paper);
-  cursor: pointer;
-}
-
-.switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  background: var(--ink);
-  transition: transform 0.15s ease;
-}
-
-.switch[aria-checked="true"] .switch-knob {
-  transform: translateX(16px);
-}
-
-.switch:disabled,
-.switch-word:disabled {
-  opacity: 0.5;
-  cursor: default;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ------------------------------------------------------------------ rows -- */
@@ -693,6 +692,24 @@ a {
   font-family: var(--sans);
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* A store's count over its pin: one column, both centred in it, closer
+   together than the side's usual gap. */
+.row-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.row-marker:empty {
+  display: none;
+}
+
+.row-marker .row-count {
+  font-size: 10px;
+  text-align: center;
 }
 
 .row-copy::after {

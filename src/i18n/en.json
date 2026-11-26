@@ -118,8 +118,7 @@
     "allCategories": "All categories",
     "area": "Current area",
     "areaUnknown": "Around here",
-    "areaCount_one": "{{count}} item",
-    "areaCount_other": "{{count}} items",
+    "areaTotals": "{{items}} items · {{spots}} spots",
     "title": "Map",
     "noToken": "The map needs a Mapbox token: set VITE_MAPBOX_TOKEN in .env.",
     "search": "Search a place",
@@ -193,7 +192,7 @@
     "openMaps": "Open in Maps",
     "category": "Category",
     "categoryNone": "No category",
-    "categoryStoreHint": "The page's main category. When it holds items of several categories, you can choose \"No category\".",
+    "categoryStoreHint": "The spot's main category. When it holds items of several categories, you can choose \"No category\".",
     "uncategorized": "Item",
     "categorySearch": "Search categories",
     "categoryNoMatch": "No matching category",
@@ -336,7 +335,7 @@
     "inquiryExplainShared": "Use the contact details above to arrange it.",
     "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
     "report": "Report",
-    "stores": "On pages"
+    "stores": "At spots"
   },
   "calendar": {
     "minDuration": "at least {{duration}}",
@@ -576,30 +575,31 @@
     "sent": "Report sent"
   },
   "store": {
-    "title": "Pages",
-    "one": "Page",
-    "edit": "Edit page",
-    "empty": "No pages yet. Make one with Publish (+), choosing Page.",
+    "title": "Spots",
+    "one": "Spot",
+    "edit": "Edit spot",
+    "empty": "No spots yet. Make one with Publish (+), choosing Spot.",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
-    "noneShown": "No pages here.",
+    "noneShown": "No spots here.",
     "added": "Added to “{{name}}”",
     "alreadyOn": "Already on “{{name}}”",
     "itemsNone": "You have published nothing yet.",
     "unpublished": "not published",
-    "saved": "Page saved",
+    "saved": "Spot saved",
     "itemsHeading": "Items",
-    "itemsEmpty": "Nothing on this page yet.",
+    "itemsEmpty": "Nothing at this spot yet.",
     "editItems": "Edit items",
     "default": "Default"
   },
   "publish": {
     "as": "Add a",
     "item": "Item",
-    "store": "Page",
+    "store": "Spot",
     "itemHint": "One thing, space or service to rent out, with its own photos, price and calendar.",
-    "pageHint": "A page is a collection of several items. Use it as the home page of a shop or a service.",
-    "storeHint": "Tick one or more of your pages. Your default page, named after you, is ticked to start with, and at least one stays ticked.",
-    "storeLabel": "Add to page"
+    "pageHint": "A spot is a collection of several items, and need not be a real place. Use it as the home of a shop, a venue or a service.",
+    "colon": ": ",
+    "storeHint": "Tick one or more of your spots. Your default spot, named after you, is ticked to start with, and at least one stays ticked.",
+    "storeLabel": "Add to spot"
   }
 }

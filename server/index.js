@@ -1205,7 +1205,7 @@ app.delete("/api/items/:id", requireSession, (req, res) => {
   }
   // The default store is the account's from the first, and goes only with the
   // account.
-  if (item.default) return res.status(400).json({ error: "The default page cannot be deleted", code: "DEFAULT_STORE" });
+  if (item.default) return res.status(400).json({ error: "The default spot cannot be deleted", code: "DEFAULT_STORE" });
   removeItem(item);
   res.status(204).end();
 });

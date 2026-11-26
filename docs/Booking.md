@@ -38,13 +38,13 @@ is messages: one conversation per person, with every booking request, confirmati
 refusal and cancellation arriving in it as a line of its own. "My items" is what you
 have out and who has asked for it; "My rentals" is what you have asked other people for.
 
-## Profile pages
+## Spots
 
-From Mine or your profile you can create multiple pages. Each collects any of your
-items and can link to a saved location. Edit a page to select existing listings. The
-plus on your page creates a listing, starts it at the page's
+From Mine or your profile you can create multiple spots. Each collects any of your
+items and can link to a saved location. Edit a spot to select existing listings. The
+plus on your spot creates a listing, starts it at the spot's
 location if it has one, and adds it to the collection when you publish. Share the
-page at `/u/<name>/p/<id>`. Visitors can open and book each published listing.
+spot at `/u/<name>/p/<id>`. Visitors can open and book each published listing.
 
 Modelled on [`lo`](../../lo/lo): the same stack, the same look, the same message sheets.
 

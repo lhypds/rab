@@ -118,7 +118,7 @@
     "allCategories": "すべてのカテゴリ",
     "area": "現在のエリア",
     "areaUnknown": "このあたり",
-    "areaCount_other": "{{count}}件",
+    "areaTotals": "{{items}} 件 · {{spots}} スポット",
     "title": "地図",
     "noToken": "地図には Mapbox トークンが必要です。.env に VITE_MAPBOX_TOKEN を設定してください。",
     "search": "場所を検索",
@@ -191,7 +191,7 @@
     "openMaps": "マップで開く",
     "category": "カテゴリ",
     "categoryNone": "カテゴリなし",
-    "categoryStoreHint": "ページの主なカテゴリ。複数のカテゴリの項目を含む場合は「カテゴリなし」を選べます。",
+    "categoryStoreHint": "スポットの主なカテゴリ。複数のカテゴリの項目を含む場合は「カテゴリなし」を選べます。",
     "uncategorized": "アイテム",
     "categorySearch": "カテゴリを検索",
     "categoryNoMatch": "該当するカテゴリがありません",
@@ -332,7 +332,7 @@
     "inquiryExplainShared": "上の連絡先に直接連絡して相談してください。",
     "modeHintShared": "他人のものは問い合わせ予約のみです。下の連絡先に直接連絡してもらいます。",
     "report": "報告",
-    "stores": "掲載ページ"
+    "stores": "掲載スポット"
   },
   "calendar": {
     "minDuration": "最短 {{duration}}",
@@ -565,29 +565,30 @@
     "sent": "報告を送信しました"
   },
   "store": {
-    "title": "ページ",
-    "one": "ページ",
-    "edit": "ページを編集",
-    "empty": "ページはまだありません。「掲載する」（+）で「ページ」を選ぶと作れます。",
+    "title": "スポット",
+    "one": "スポット",
+    "edit": "スポットを編集",
+    "empty": "スポットはまだありません。「掲載する」（+）で「スポット」を選ぶと作れます。",
     "count_other": "{{count}}件",
-    "noneShown": "ここにはページがありません。",
+    "noneShown": "ここにはスポットがありません。",
     "added": "「{{name}}」に追加しました",
     "alreadyOn": "すでに「{{name}}」にあります",
     "itemsNone": "まだ何も掲載していません。",
     "unpublished": "非公開",
-    "saved": "ページを保存しました",
+    "saved": "スポットを保存しました",
     "itemsHeading": "アイテム",
-    "itemsEmpty": "このページにはまだ何もありません。",
+    "itemsEmpty": "このスポットにはまだ何もありません。",
     "editItems": "載せるものを編集",
     "default": "デフォルト"
   },
   "publish": {
     "as": "追加するもの",
     "item": "アイテム",
-    "store": "ページ",
+    "store": "スポット",
     "itemHint": "貸し出すモノ・スペース・サービスひとつ。写真、料金、カレンダーを持ちます。",
-    "pageHint": "ページは複数のアイテムをまとめたものです。お店やサービスのホームページとして使えます。",
-    "storeHint": "あなたのページを1つ以上選べます。あなたの名前のデフォルトページが最初から選ばれていて、少なくとも1つは選んだままになります。",
-    "storeLabel": "ページに追加"
+    "pageHint": "スポットは複数のアイテムをまとめたもので、実際の場所でなくてもかまいません。お店や会場、サービスのホームとして使えます。",
+    "colon": "：",
+    "storeHint": "あなたのスポットを1つ以上選べます。あなたの名前のデフォルトスポットが最初から選ばれていて、少なくとも1つは選んだままになります。",
+    "storeLabel": "スポットに追加"
   }
 }

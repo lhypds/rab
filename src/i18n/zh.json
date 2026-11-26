@@ -118,7 +118,7 @@
     "allCategories": "全部分类",
     "area": "当前地区",
     "areaUnknown": "这一带",
-    "areaCount_other": "{{count}} 件",
+    "areaTotals": "{{items}} 项目 · {{spots}} 据点",
     "title": "地图",
     "noToken": "地图需要 Mapbox token：请在 .env 中设置 VITE_MAPBOX_TOKEN。",
     "search": "搜索地点",
@@ -191,7 +191,7 @@
     "openMaps": "在地图中打开",
     "category": "分类",
     "categoryNone": "不分类",
-    "categoryStoreHint": "页面的主要分类。当包含多个品类的项目时，可以选择「不分类」。",
+    "categoryStoreHint": "据点的主要分类。当包含多个品类的项目时，可以选择「不分类」。",
     "uncategorized": "物品",
     "categorySearch": "搜索分类",
     "categoryNoMatch": "没有匹配的分类",
@@ -332,7 +332,7 @@
     "inquiryExplainShared": "请通过上面的联系方式直接商定。",
     "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。",
     "report": "报告",
-    "stores": "所在页面"
+    "stores": "所在据点"
   },
   "calendar": {
     "minDuration": "最短 {{duration}}",
@@ -565,29 +565,30 @@
     "sent": "报告已发送"
   },
   "store": {
-    "title": "页面",
-    "one": "页面",
-    "edit": "编辑页面",
-    "empty": "还没有页面。点「发布」（+）并选择「页面」来创建。",
+    "title": "据点",
+    "one": "据点",
+    "edit": "编辑据点",
+    "empty": "还没有据点。点「发布」（+）并选择「据点」来创建。",
     "count_other": "{{count}} 项",
-    "noneShown": "这里没有页面。",
+    "noneShown": "这里没有据点。",
     "added": "已加入「{{name}}」",
     "alreadyOn": "已经在「{{name}}」里了",
     "itemsNone": "你还没有发布任何项目。",
     "unpublished": "未发布",
-    "saved": "页面已保存",
+    "saved": "据点已保存",
     "itemsHeading": "项目",
-    "itemsEmpty": "这个页面还没有内容。",
+    "itemsEmpty": "这个据点还没有内容。",
     "editItems": "编辑物品",
     "default": "默认"
   },
   "publish": {
     "as": "添加一个",
     "item": "项目",
-    "store": "页面",
+    "store": "据点",
     "itemHint": "单个出租的物品、空间或服务，有自己的照片、价格和日历。",
-    "pageHint": "一个页面是多个项目的集合。可以作为商店、服务的主页使用。",
-    "storeHint": "可勾选一个或多个你的页面。默认页面（以你的名字命名）一开始就已勾选，至少要保留一个。",
-    "storeLabel": "添加到页面"
+    "pageHint": "一个据点是多个项目的集合，可以不是实际的地点。可以作为商店、场地或服务的主页使用。",
+    "colon": "：",
+    "storeHint": "可勾选一个或多个你的据点。默认据点（以你的名字命名）一开始就已勾选，至少要保留一个。",
+    "storeLabel": "添加到据点"
   }
 }

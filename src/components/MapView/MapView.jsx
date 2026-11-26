@@ -1468,7 +1468,17 @@ export default function MapView({ view = "map", query = "", onQuery }) {
           <p className={styles.areaWithin}>
             {/* As lo's strip has it: the ward, then the prefecture. */}
             <span>{[area?.locality, area?.within].filter(Boolean).join(" · ")}</span>
-            {listed && <span>{t("map.areaCount", { count: listed.length })}</span>}
+            {/* At its right, how much is offered here: the items — on the
+                stores, and the ones on none — and the spots they are at, one
+                to a row of the list. */}
+            {listed && (
+              <span>
+                {t("map.areaTotals", {
+                  items: listed.reduce((sum, item) => sum + (item.store ? (item.count ?? 0) : 1), 0).toLocaleString(i18n.language),
+                  spots: listed.length.toLocaleString(i18n.language),
+                })}
+              </span>
+            )}
           </p>
         </header>
         {/* The box that narrows the list: in the top bar where there is room

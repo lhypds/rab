@@ -93,14 +93,10 @@ export default function MinePage() {
           <h1>{t("mine.title")}</h1>
         </div>
 
-        {/* Your pages on the left; your items on the right, with what they
-            are narrowed to above them. On a narrow screen the items come
-            after the pages. */}
+        {/* Your items on the left, with what they are narrowed to above
+            them; your spots on the right. On a narrow screen the spots come
+            after the items. */}
         <div className="others-columns">
-          <section>
-            {data && <StoreList stores={data.stores} username={user.username} filterable carried={carried} onDropItem={putOnStore} />}
-          </section>
-
           <section>
             <div className="part-heading">
               <h2>{t("mine.items")}</h2>
@@ -136,6 +132,10 @@ export default function MinePage() {
                   ))}
                 </ul>
               ))}
+          </section>
+
+          <section>
+            {data && <StoreList stores={data.stores} username={user.username} filterable carried={carried} onDropItem={putOnStore} />}
           </section>
         </div>
       </main>

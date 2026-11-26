@@ -22,7 +22,7 @@ pm2 start data/crawlers/kyoto_rentals/scarce.py --name rab-kyoto-scarce --interp
 pm2 logs rab-kyoto-scarce
 ```
 
-爬虫核验地点、联系电话和至少两张不同的图片，再将完整条目作为 store（页面上的 page）写入数据根目录的 `users/_public/stores/`（`store.json`，`store: true`，`itemIds` 为空）。名称后不加分类标签，标签（或名称末尾的〈一棟貸し町家〉）写入 `what`；地址只写在 `place`，不再放在说明开头。之前写入的条目可用 `node server/tidy-stores.js --write` 整理。来源网址与分类用于去重。低于目标的分类在来源扫描成功后 24 小时再查；来源访问失败后 1 小时再试。详情页单独记录退避时间。调度和重试状态保存在数据根目录的 `crawlers/priority-state/`，重启后继续使用。
+爬虫核验地点、联系电话和至少两张不同的图片，再将完整条目作为 store（页面上显示为 spot / 据点）写入数据根目录的 `users/_public/stores/`（`store.json`，`store: true`，`itemIds` 为空）。名称后不加分类标签，标签（或名称末尾的〈一棟貸し町家〉）写入 `what`；地址只写在 `place`，不再放在说明开头。之前写入的条目可用 `node server/tidy-stores.js --write` 整理。来源网址与分类用于去重。低于目标的分类在来源扫描成功后 24 小时再查；来源访问失败后 1 小时再试。详情页单独记录退避时间。调度和重试状态保存在数据根目录的 `crawlers/priority-state/`，重启后继续使用。
 
 ## 在新检出的仓库恢复爬虫
 

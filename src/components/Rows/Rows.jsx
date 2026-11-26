@@ -58,27 +58,31 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
           </span>
         </Link>
         <span className="row-side">
-          {/* A store says how many items are on it — nothing where there are none. */}
-          {item.store && item.count > 0 && <span className="row-count">{t("store.count", { count: item.count })}</span>}
-          {pin && item.located && (
-            <svg className="row-pin" viewBox="0 0 24 21.6" role="img" aria-label={t("header.pinned")}>
-              <path d={PIN_PATH} />
-              {/* The category's mark in the pin's head, placed as it is in a
-                  pin on the map (see pinElement in MapView). */}
-              <g className="row-pin-glyph" transform="translate(12 10) scale(0.4) translate(-12 -12)">
-                {iconParts(item.category).map((part, index) =>
-                  typeof part === "string" ? (
-                    // A drawing's parts are in a fixed order and have no other identity.
-                    // eslint-disable-next-line react/no-array-index-key
-                    <path key={index} d={part} />
-                  ) : (
-                    // eslint-disable-next-line react/no-array-index-key
-                    <circle key={index} cx={part[0]} cy={part[1]} r={part[2]} />
-                  ),
-                )}
-              </g>
-            </svg>
-          )}
+          {/* A store's count of items over its pin, the two in a column as
+              wide as the wider of them and each centred in it. */}
+          <span className="row-marker">
+            {/* A store says how many items are on it — nothing where there are none. */}
+            {item.store && item.count > 0 && <span className="row-count">{t("store.count", { count: item.count })}</span>}
+            {pin && item.located && (
+              <svg className="row-pin" viewBox="0 0 24 21.6" role="img" aria-label={t("header.pinned")}>
+                <path d={PIN_PATH} />
+                {/* The category's mark in the pin's head, placed as it is in a
+                    pin on the map (see pinElement in MapView). */}
+                <g className="row-pin-glyph" transform="translate(12 10) scale(0.4) translate(-12 -12)">
+                  {iconParts(item.category).map((part, index) =>
+                    typeof part === "string" ? (
+                      // A drawing's parts are in a fixed order and have no other identity.
+                      // eslint-disable-next-line react/no-array-index-key
+                      <path key={index} d={part} />
+                    ) : (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <circle key={index} cx={part[0]} cy={part[1]} r={part[2]} />
+                    ),
+                  )}
+                </g>
+              </svg>
+            )}
+          </span>
           {showPublished && item.active && <span className="status">{t("item.published")}</span>}
           {item.pending > 0 && (
             <span className="status status-pending">{t("booking.waiting", { count: item.pending })}</span>

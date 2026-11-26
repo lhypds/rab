@@ -98,7 +98,7 @@ const CATEGORY = {
   additionalProperties: false,
 };
 
-const CLASSIFY = `rab is a marketplace where people rent out what they have: things, places, and somebody's time and skill. A listing is also sometimes a page — a shop or a business that collects several listings.
+const CLASSIFY = `rab is a marketplace where people rent out what they have: things, places, and somebody's time and skill. A listing is also sometimes a spot — a shop, a venue or a business that collects several listings.
 
 Every listing has one of these categories: ${CATEGORIES.join(", ")}.
 
