@@ -46,6 +46,7 @@ struct ItemsView: View {
                             .padding(.bottom, 6)
                     } description: {
                         Text("Take a photo of something you have to rent out. You can give it a plain background, and it goes into your items.")
+                            .font(.subheadline)
                     } actions: {
                         if CameraPicker.isAvailable {
                             Button("Take a photo") { capture = Capture(image: nil) }
