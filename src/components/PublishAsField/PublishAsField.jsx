@@ -12,19 +12,27 @@ export default function PublishAsField({ value, onChange, disabled = false, hint
   return (
     <div className="field">
       <span className="field-label">{t("publish.as")}</span>
-      <div className="tabs" role="group" aria-label={t("publish.as")}>
-        {PUBLISH_AS.map((each) => (
-          <button
-            key={each}
-            type="button"
-            className={value === each ? "tab active" : "tab"}
-            aria-pressed={value === each}
-            onClick={() => value !== each && onChange(each)}
-            disabled={disabled}
-          >
-            {t(`publish.${each}`)}
-          </button>
-        ))}
+      {/* A switch between the two: the item's word on its left, the
+          page's on its right, either pressed to pick it, and the switch
+          itself flipping from one to the other. */}
+      <div className="switch-field">
+        <button type="button" className={value === "item" ? "switch-word active" : "switch-word"} onClick={() => onChange("item")} disabled={disabled}>
+          {t("publish.item")}
+        </button>
+        <button
+          type="button"
+          role="switch"
+          className="switch"
+          aria-checked={value === "store"}
+          aria-label={t("publish.store")}
+          onClick={() => onChange(value === "store" ? "item" : "store")}
+          disabled={disabled}
+        >
+          <span className="switch-knob" />
+        </button>
+        <button type="button" className={value === "store" ? "switch-word active" : "switch-word"} onClick={() => onChange("store")} disabled={disabled}>
+          {t("publish.store")}
+        </button>
       </div>
       {/* What the one picked is. (publish.storeHint is the page boxes' own,
           under StoreField.) */}

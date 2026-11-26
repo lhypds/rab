@@ -565,6 +565,60 @@ a {
   color: var(--paper);
 }
 
+/* A switch between two words, one on each side of it: the one it is at in
+   ink, the other grey. */
+.switch-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.switch-word {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.switch-word.active {
+  color: var(--ink);
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--ink);
+  transition: transform 0.15s ease;
+}
+
+.switch[aria-checked="true"] .switch-knob {
+  transform: translateX(16px);
+}
+
+.switch:disabled,
+.switch-word:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ------------------------------------------------------------------ rows -- */
 
 .row-list {
@@ -630,6 +684,15 @@ a {
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* A number at the row's right end — a store's count of items. */
+.row-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .row-copy::after {

@@ -1582,6 +1582,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     </svg>
                   </ActionButton>
                 </div>
+                {/* An item is in one category; a page may hold items of
+                    several, and so may be left in none. */}
+                {fields.store && <span className={styles.hint}>{t("item.categoryStoreHint")}</span>}
               </div>
 
               <label className="field">

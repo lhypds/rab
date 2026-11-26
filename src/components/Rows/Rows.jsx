@@ -58,6 +58,8 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
           </span>
         </Link>
         <span className="row-side">
+          {/* A store says how many items are on it — nothing where there are none. */}
+          {item.store && item.count > 0 && <span className="row-count">{t("store.count", { count: item.count })}</span>}
           {pin && item.located && (
             <svg className="row-pin" viewBox="0 0 24 21.6" role="img" aria-label={t("header.pinned")}>
               <path d={PIN_PATH} />

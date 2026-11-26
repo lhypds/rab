@@ -127,8 +127,9 @@ export function priceUnitOf(item) {
 // What the price of an item booked by asking is for: one of the stretches of
 // the clock above, or a whole day — which is what it is where none is said.
 export const DAY_UNIT = 1440;
-export const INQUIRY_UNITS = [...UNITS, DAY_UNIT];
+export const INQUIRY_UNITS = [...UNITS, DAY_UNIT, "visit", "month"];
 export function inquiryUnitOf(item) {
+  if (item?.mode === "inquiry" && ["visit", "month"].includes(item.priceUnit)) return item.priceUnit;
   return item?.mode === "inquiry" && UNITS.includes(Number(item.priceUnit)) ? Number(item.priceUnit) : DAY_UNIT;
 }
 

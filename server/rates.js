@@ -232,6 +232,7 @@ export function readPriceUnit(item) {
 // the clock above, or a whole day — which is what it is where none is said.
 export const DAY_UNIT = 1440;
 export function readInquiryUnit(value) {
+  if (value === "visit" || value === "month") return value;
   const per = Number(value);
   return UNITS.includes(per) ? per : DAY_UNIT;
 }

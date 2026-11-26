@@ -691,9 +691,10 @@ function publicItem(item) {
 // An item as the map and the lists beside it get it, thousands at a time:
 // without its photographs, of which a pin and a row draw only the first — as
 // `thumb` and `pin` — and its own page asks for the item whole.
-function listedItem(item) {
+// A store among them says how many items are on it that the viewer may see.
+function listedItem(item, viewer) {
   const { images, ...rest } = publicItem(item);
-  return rest;
+  return item.store ? { ...rest, count: itemsInStore(item, viewer).length } : rest;
 }
 
 function parseNumber(value, min, max) {
@@ -956,7 +957,7 @@ app.get("/api/items", (req, res) => {
   if (south === null || north === null || west === null || east === null || south > north) {
     return res.status(400).json({ error: "Invalid bounds" });
   }
-  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map(listedItem) });
+  res.json({ items: getItemsInBox({ south, north, west, east }).filter((item) => mayView(req.user, item)).map((item) => listedItem(item, req.user)) });
 });
 
 // The items offered at a spot: every one whose area has it inside, whether or
@@ -974,7 +975,7 @@ app.get("/api/items/at", (req, res) => {
     east: req.query.east == null ? null : parseNumber(req.query.east, -180, 180),
   };
   const whole = Object.values(box).every((edge) => edge !== null) && box.south <= box.north;
-  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map(listedItem) });
+  res.json({ items: getItemsAt(latitude, longitude, whole ? box : null).filter((item) => mayView(req.user, item)).map((item) => listedItem(item, req.user)) });
 });
 
 // Items by what they say about themselves, for the box in the top bar.

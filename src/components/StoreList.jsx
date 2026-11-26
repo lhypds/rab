@@ -90,12 +90,13 @@ export default function StoreList({ stores, username, filterable = false, carrie
                       {dotted([
                         // The default store, which every account has.
                         store.default && t("store.default"),
-                        t("store.count", { count: store.count }),
                         store.place,
                       ])}
                     </span>
                   </span>
                 </Link>
+                {/* How many items are on it, at the row's right end. */}
+                <span className="row-count">{t("store.count", { count: store.count ?? 0 })}</span>
               </div>
             </li>
           ))}

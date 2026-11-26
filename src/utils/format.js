@@ -75,6 +75,8 @@ export function formatPrice(amount, currency, locale) {
 // The piece of the clock an item is booked and priced in, as words: "30 min",
 // "1 hour".
 export function unitName(unit, t) {
+  if (unit === "visit") return t("item.unitVisit");
+  if (unit === "month") return t("item.unitMonth");
   if (unit === DAY_UNIT) return t("item.unitDay");
   return unit === 60 ? t("item.unitHour") : t("item.unitMinutes", { count: unit });
 }
