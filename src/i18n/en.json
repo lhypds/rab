@@ -302,6 +302,8 @@
     "links": "Links",
     "linkAdd": "+ Add link",
     "linkRemove": "Remove link",
+    "linkUp": "Move up",
+    "linkDown": "Move down",
     "contact": "Contact",
     "contactType": "Contact type",
     "contactMessageNote": "By a message here on rab",
@@ -588,6 +590,9 @@
     "unpublished": "not published",
     "saved": "Spot saved",
     "itemsHeading": "Items",
+    "itemsView": "Layout",
+    "viewCards": "Cards",
+    "viewList": "List",
     "itemsEmpty": "Nothing at this spot yet.",
     "editItems": "Edit items",
     "default": "Default"

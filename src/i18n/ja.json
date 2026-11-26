@@ -299,6 +299,8 @@
     "links": "リンク",
     "linkAdd": "+ リンクを追加",
     "linkRemove": "リンクを削除",
+    "linkUp": "上へ",
+    "linkDown": "下へ",
     "contact": "連絡先",
     "contactType": "連絡先の種類",
     "contactMessageNote": "rab 内のメッセージで受け取ります",
@@ -577,6 +579,9 @@
     "unpublished": "非公開",
     "saved": "スポットを保存しました",
     "itemsHeading": "アイテム",
+    "itemsView": "表示",
+    "viewCards": "カード",
+    "viewList": "リスト",
     "itemsEmpty": "このスポットにはまだ何もありません。",
     "editItems": "載せるものを編集",
     "default": "デフォルト"

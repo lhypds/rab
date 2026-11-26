@@ -90,6 +90,7 @@
   padding: 0 10px;
 }
 
+/* The square buttons at the end of a link's line: up, down and remove. */
 .linkRemove {
   flex: none;
   width: 32px;
@@ -114,7 +115,7 @@
 }
 
 @media (hover: hover) {
-  .linkRemove:hover {
+  .linkRemove:hover:not(:disabled) {
     background: var(--ink);
     color: var(--paper);
   }

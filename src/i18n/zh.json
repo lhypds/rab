@@ -299,6 +299,8 @@
     "links": "链接",
     "linkAdd": "+ 添加链接",
     "linkRemove": "删除链接",
+    "linkUp": "上移",
+    "linkDown": "下移",
     "contact": "联系方式",
     "contactType": "联系方式类型",
     "contactMessageNote": "通过 rab 的站内信联系",
@@ -577,6 +579,9 @@
     "unpublished": "未发布",
     "saved": "据点已保存",
     "itemsHeading": "项目",
+    "itemsView": "显示方式",
+    "viewCards": "卡片",
+    "viewList": "列表",
     "itemsEmpty": "这个据点还没有内容。",
     "editItems": "编辑物品",
     "default": "默认"

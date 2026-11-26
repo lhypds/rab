@@ -691,10 +691,22 @@ function publicItem(item) {
 // An item as the map and the lists beside it get it, thousands at a time:
 // without its photographs, of which a pin and a row draw only the first — as
 // `thumb` and `pin` — and its own page asks for the item whole.
-// A store among them says how many items are on it that the viewer may see.
+// A store among them says how many items are on it that the viewer may see,
+// and the categories it is in: the one chosen for it first, where there is
+// one, and then those of the items on it it is not already in, the most first.
+// The map counts it under each of them.
 function listedItem(item, viewer) {
   const { images, ...rest } = publicItem(item);
-  return item.store ? { ...rest, count: itemsInStore(item, viewer).length } : rest;
+  if (!item.store) return rest;
+  const items = itemsInStore(item, viewer);
+  return { ...rest, count: items.length, categories: storeCategories(item, items) };
+}
+
+function storeCategories(store, items) {
+  const counts = new Map();
+  for (const each of items) if (each.category) counts.set(each.category, (counts.get(each.category) ?? 0) + 1);
+  const theirs = [...counts].sort((a, b) => b[1] - a[1]).map(([category]) => category);
+  return [...new Set([store.category, ...theirs].filter(Boolean))];
 }
 
 function parseNumber(value, min, max) {

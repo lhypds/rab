@@ -8,7 +8,7 @@ import { Link, Select, showToast, useLocation, useNavigate } from "../../ui/inde
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
-import { homeFilter, homePath, sortLabel } from "../../utils/categories.js";
+import { homeFilter, homePath, sortLabel, categoriesOfItem } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
@@ -37,6 +37,10 @@ import { itemPath } from "../../utils/stores.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
 
+
+// The scale the map opens on where it knows where the reader is — and the
+// widest one "my position" leaves it at.
+const DEFAULT_ZOOM = 13;
 // How long the map has to have stopped moving before the items in its window
 // are asked for, so a drag is one request rather than one per frame of it.
 const SETTLE_MS = 250;
@@ -351,7 +355,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const held = new Map();
   let heldAll = 0;
   for (const item of offered ?? []) {
-    held.set(item.category, (held.get(item.category) ?? 0) + 1);
+    // A spot with no category of its own counts under each of its items'.
+    const kinds = categoriesOfItem(item);
+    for (const kind of kinds.length ? kinds : [item.category]) held.set(kind, (held.get(kind) ?? 0) + 1);
     heldAll += 1;
   }
   // The dropdowns' own rows: each with how many of it are offered here after
@@ -452,7 +458,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // An item passes when it is of the category in force and every word typed
   // is somewhere in what it says about itself.
   const passes = (item) => {
-    if (category && item.category !== category) return false;
+    if (category && !categoriesOfItem(item).includes(category)) return false;
     if (words.length === 0) return true;
     const text = [item.title, item.description, item.place, item.owner, item.category && t(`category.${item.category}`, item.category)]
       .filter(Boolean)
@@ -675,7 +681,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       touchedRef.current = false;
       const here = (await locationPermission()) === "granted" ? await locate() : null;
       if (cancelled) return;
-      if (here) fly({ ...here, zoom: 13 });
+      if (here) fly({ ...here, zoom: DEFAULT_ZOOM });
       else toRegion();
     };
 
@@ -700,7 +706,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         if (permission === "granted") {
           const here = await locate();
           if (cancelled || touchedRef.current) return;
-          if (here) map.jumpTo({ center: [here.longitude, here.latitude], zoom: 13 });
+          if (here) map.jumpTo({ center: [here.longitude, here.latitude], zoom: DEFAULT_ZOOM });
           else toRegion();
           return;
         }
@@ -1383,7 +1389,10 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     const here = await locate({ timeout: 12000 });
     if (here) {
       touchedRef.current = true;
-      fly({ ...here, zoom: 14 });
+      // Only moved there, at the scale it is at — unless that takes in more
+      // than the map opens on, which is then the scale it comes to.
+      const now = mapRef.current?.getZoom() ?? DEFAULT_ZOOM;
+      fly({ latitude: here.latitude, longitude: here.longitude, zoom: Math.max(now, DEFAULT_ZOOM) });
     } else {
       setGate(locateFailure() ?? "failed");
     }
@@ -1394,7 +1403,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     const here = await locate({ timeout: 15000 });
     if (here) {
       touchedRef.current = true;
-      fly({ ...here, zoom: 13 });
+      fly({ ...here, zoom: DEFAULT_ZOOM });
       setGate(null);
     } else {
       setGate(locateFailure() ?? "failed");

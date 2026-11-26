@@ -1,1 +1,1 @@
-export { BookingRow, ItemRow } from "./Rows.jsx";
+export { BookingRow, ItemCard, ItemRow } from "./Rows.jsx";

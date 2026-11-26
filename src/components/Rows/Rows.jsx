@@ -8,6 +8,7 @@ import { iconParts } from "../../utils/categoryIcons.js";
 import { sortLabel } from "../../utils/categories.js";
 import { itemPath } from "../../utils/stores.js";
 import { PIN_PATH } from "../../utils/mapbox.js";
+import CategoryIcon from "../CategoryIcon/index.js";
 import ReviewModal from "../ReviewModal/index.js";
 import UserName, { dotted } from "../UserName/index.js";
 
@@ -90,6 +91,27 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
           )}
         </span>
       </div>
+    </li>
+  );
+}
+
+// One item as a card in a grid: its photograph over its name and what it
+// costs, the whole card the way to its page. `showPublished` as on a row.
+export function ItemCard({ item, showPublished = false }) {
+  const { t, i18n } = useTranslation();
+  const photo = item.images?.[0]?.thumb ?? item.thumb ?? null;
+  return (
+    <li className="item-card">
+      <Link className="item-card-link" to={itemPath(item)} state={{ back: true }}>
+        <span className="item-card-photo">
+          {photo ? <img src={photo} alt="" loading="lazy" /> : <CategoryIcon category={item.category} />}
+        </span>
+        <span className="item-card-lines">
+          <strong>{item.title}</strong>
+          <span className="item-card-meta">{dotted([priceLine(item, i18n.language, t), sortLabel(item, t)])}</span>
+          {showPublished && item.active && <span className="status">{t("item.published")}</span>}
+        </span>
+      </Link>
     </li>
   );
 }

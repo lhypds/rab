@@ -87,6 +87,14 @@ export function ageOn(birthdate, today) {
 
 // What an item is called by where it is listed among others — in a row, in a
 // pin's card: its category, or "Item" for one with none.
+// The categories an item is in: a spot's as the map's list has them
+// (`categories`: the one chosen for it, then its items' others); anything
+// else's own one.
+export function categoriesOfItem(item) {
+  if (item.categories) return item.categories;
+  return item.category ? [item.category] : [];
+}
+
 export function sortLabel(item, t) {
   if (item.category) return t(`category.${item.category}`, item.category);
   // A page with no category of its own is called what it is.

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
+import { ActionButton, Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
 import { barePhone, durationName, formatCoords, formatPrice, formatUsername, relativeTime, roundPrice, unitName } from "../../utils/format.js";
@@ -11,7 +11,7 @@ import { DAY_UNIT, cellsOn, clockOf, dayBands, hoursOn, dayPrice as ruledDayPric
 import Calendar, { dayStates, quote, reading, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
-import { BookingRow, ItemRow } from "../Rows/index.js";
+import { BookingRow, ItemCard, ItemRow } from "../Rows/index.js";
 import { itemPath } from "../../utils/stores.js";
 import { sortLabel } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
@@ -20,6 +20,9 @@ import ShareModal from "../ShareModal/index.js";
 import SpotMap from "../SpotMap/index.js";
 import { DayTimes } from "../TimeTable/index.js";
 import styles from "./view.module.css";
+
+// Where the layout picked for a spot's items is kept in the browser.
+const ITEMS_VIEW_KEY = "rab.spotItemsView";
 
 const NOTE_MAX = 500;
 // The hours a rental by the day starts out with, until the renter says others:
@@ -97,6 +100,25 @@ export default function ItemView({
   // The stretch of the day picked, { start, end }, where the item is booked by
   // the time.
   const [picked, setPicked] = useState(null);
+  // On a spot, which category of the items on it is shown: null for all.
+  const [itemsCategory, setItemsCategory] = useState(null);
+  // And how they are laid out: as cards, which is how it starts, or as a list
+  // — the one picked last kept in this browser for the next spot.
+  const [itemsView, setItemsView] = useState(() => {
+    try {
+      return localStorage.getItem(ITEMS_VIEW_KEY) === "list" ? "list" : "cards";
+    } catch {
+      return "cards";
+    }
+  });
+  const chooseItemsView = (view) => {
+    setItemsView(view);
+    try {
+      localStorage.setItem(ITEMS_VIEW_KEY, view);
+    } catch {
+      // kept for this page only
+    }
+  };
   const [note, setNote] = useState("");
   // Whether the owner has pressed Delete and is being asked if they mean it.
   const [confirming, setConfirming] = useState(false);
@@ -467,11 +489,36 @@ export default function ItemView({
       )
     );
 
+  // The categories of the items on a spot, each with how many, the most
+  // first (and where as many, in the order they first come).
+  const spotCategories = [];
+  if (item.store) {
+    const counts = new Map();
+    for (const each of item.items ?? []) counts.set(each.category ?? "", (counts.get(each.category ?? "") ?? 0) + 1);
+    spotCategories.push(...[...counts].sort((a, b) => b[1] - a[1]));
+  }
+  // A spot's tags: its own category, then its items' others.
+  const spotTags = item.store ? [...new Set([item.category, ...spotCategories.map(([slug]) => slug)].filter(Boolean))] : [];
+
   return (
     <article className={styles.page}>
       <div className={styles.columns}>
         <header className={styles.head}>
-          {(item.category || !item.store) && (
+          {/* What it is, as tags over its name. An item: its category. A
+              spot: the one chosen for it first, and then the others its
+              items are in, the most first — none where it has neither. */}
+          {item.store ? (
+            spotTags.length > 0 && (
+              <p className={styles.tags}>
+                {spotTags.map((slug) => (
+                  <span key={slug}>
+                    <CategoryIcon category={slug} />
+                    {t(`category.${slug}`, slug)}
+                  </span>
+                ))}
+              </p>
+            )
+          ) : (
             <p className={styles.tags}>
               <span>
                 <CategoryIcon category={item.category} />
@@ -936,17 +983,86 @@ export default function ItemView({
           {item.store && !preview && (
             <>
               <div className="part-heading">
-                <h2>{t("store.itemsHeading")}</h2>
+                {/* The heading, and beside it the pair that lays the items
+                    out as cards or as a list, as the top bar's map and lists. */}
+                <span className={styles.itemsHead}>
+                  <h2>{t("store.itemsHeading")}</h2>
+                  {(item.items ?? []).length > 0 && (
+                    <span className="topbar-view" role="group" aria-label={t("store.itemsView")}>
+                      <ActionButton tooltip={t("store.viewCards")} tooltipLeft aria-pressed={itemsView === "cards"} onClick={() => chooseItemsView("cards")}>
+                        <svg viewBox="0 0 24 24">
+                          {/* 田: one square, crossed through the middle. */}
+                          <path d="M4 4h16v16H4z" />
+                          <path d="M12 4v16" />
+                          <path d="M4 12h16" />
+                        </svg>
+                      </ActionButton>
+                      <ActionButton tooltip={t("store.viewList")} aria-pressed={itemsView === "list"} onClick={() => chooseItemsView("list")}>
+                        <svg viewBox="0 0 24 24">
+                          <path d="M9 6h11" />
+                          <path d="M9 12h11" />
+                          <path d="M9 18h11" />
+                          <path d="M4 6h.01" />
+                          <path d="M4 12h.01" />
+                          <path d="M4 18h.01" />
+                        </svg>
+                      </ActionButton>
+                    </span>
+                  )}
+                </span>
                 <span>{item.items?.length ?? 0}</span>
               </div>
               {(item.items ?? []).length === 0 ? (
                 <p className="part-note">{t("store.itemsEmpty")}</p>
               ) : (
-                <ul className="row-list">
-                  {item.items.map((each) => (
-                    <ItemRow key={each.id} item={each} showPublished={mine} />
-                  ))}
-                </ul>
+                <>
+                  {/* Where the items on it are of more than one category, a
+                      button for each — the most first, with how many — and
+                      one for all of them, to narrow the list to one. */}
+                  {spotCategories.length > 1 && (
+                    <div className={`tabs ${styles.itemTabs}`} role="group" aria-label={t("item.category")}>
+                      <button
+                        type="button"
+                        className={itemsCategory === null ? "tab active" : "tab"}
+                        aria-pressed={itemsCategory === null}
+                        onClick={() => setItemsCategory(null)}
+                      >
+                        {t("map.all")}
+                        <small>{item.items.length}</small>
+                      </button>
+                      {spotCategories.map(([slug, count]) => (
+                        <button
+                          key={slug}
+                          type="button"
+                          className={itemsCategory === slug ? "tab active" : "tab"}
+                          aria-pressed={itemsCategory === slug}
+                          onClick={() => setItemsCategory(itemsCategory === slug ? null : slug)}
+                        >
+                          <CategoryIcon category={slug} />
+                          {slug ? t(`category.${slug}`, slug) : t("item.uncategorized")}
+                          <small>{count}</small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {itemsView === "cards" ? (
+                    <ul className="item-cards">
+                      {item.items
+                        .filter((each) => itemsCategory === null || (each.category ?? "") === itemsCategory)
+                        .map((each) => (
+                          <ItemCard key={each.id} item={each} showPublished={mine} />
+                        ))}
+                    </ul>
+                  ) : (
+                    <ul className="row-list">
+                      {item.items
+                        .filter((each) => itemsCategory === null || (each.category ?? "") === itemsCategory)
+                        .map((each) => (
+                          <ItemRow key={each.id} item={each} showPublished={mine} />
+                        ))}
+                    </ul>
+                  )}
+                </>
               )}
             </>
           )}

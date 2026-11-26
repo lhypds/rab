@@ -618,6 +618,75 @@ a {
   stroke-linejoin: round;
 }
 
+/* Items as cards: as many to a row as fit at 160px or more, each its photo
+   over its name and price, ruled as the rest of the site is. */
+.item-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  /* Clear of the rule over them, as the cards are of each other. */
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.item-card-link:hover {
+  border-color: var(--ink);
+}
+
+.item-card-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.item-card-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-card-photo svg {
+  width: 32px;
+  height: 32px;
+}
+
+.item-card-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 10px;
+}
+
+.item-card-lines strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.item-card-meta {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 10px;
+}
+
+.item-card-lines .status {
+  align-self: flex-start;
+}
+
 /* ------------------------------------------------------------------ rows -- */
 
 .row-list {

@@ -708,6 +708,15 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
 // what it costs. An item that exists is opened on one of them (`part`,
 // "item" or "availability") and saved from there; a new one is taken through
 // both, the first and then the second, and published from the second.
+// A list with the entry at `index` swapped with the one `by` (-1 or 1) from it.
+function moved(list, index, by) {
+  const to = index + by;
+  if (to < 0 || to >= list.length) return list;
+  const next = [...list];
+  [next[index], next[to]] = [next[to], next[index]];
+  return next;
+}
+
 export default function ItemModal({ isOpen, item = null, calendar = null, part = "item", onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -1629,6 +1638,36 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                       maxLength={HOMEPAGE_MAX}
                       aria-label={`${t("item.links")} ${index + 1}`}
                     />
+                    {/* Up and down, to put the links in the order they are
+                        shown in; only where there is more than one. */}
+                    {fields.links.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.linkRemove}
+                          onClick={() => set("links", moved(fields.links, index, -1))}
+                          disabled={index === 0}
+                          aria-label={t("item.linkUp")}
+                          title={t("item.linkUp")}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 15 6-6 6 6" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.linkRemove}
+                          onClick={() => set("links", moved(fields.links, index, 1))}
+                          disabled={index === fields.links.length - 1}
+                          aria-label={t("item.linkDown")}
+                          title={t("item.linkDown")}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       className={styles.linkRemove}
