@@ -1808,6 +1808,8 @@ app.post(
 // among its places as well. What comes back is what was added, put in the
 // stead of what was there, and passed over.
 const PUBLIC_ZIP_MAX = 100 * 1024 * 1024;
+// How many items one zip may carry: rab public push packs several into each.
+const PUBLIC_ZIP_ITEMS = 200;
 
 function requireAdmin(req, res, next) {
   if (req.user.id !== ADMIN_ID) return res.status(403).json({ error: "Only the site's own account sends a public folder" });
@@ -1829,8 +1831,8 @@ app.post(
     }
     const sent = readPublicZip(req.body);
     if (sent.error) return res.status(400).json({ error: sent.error });
-    if (sent.items.length > 1) {
-      return res.status(400).json({ error: `The zip has ${sent.items.length} items in it; send them one at a time` });
+    if (sent.items.length > PUBLIC_ZIP_ITEMS) {
+      return res.status(400).json({ error: `The zip has ${sent.items.length} items in it; send at most ${PUBLIC_ZIP_ITEMS} at a time` });
     }
     try {
       const merged = mergePublic(sent);

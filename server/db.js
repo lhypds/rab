@@ -470,6 +470,34 @@ function storeFromOld(old, userId) {
   };
 }
 
+// The public account's items by the key the crawler knows each by (its
+// source.json), as JSON — read from every folder once, the first time it is
+// asked for, and kept up to date from then on wherever one is taken in,
+// merged or purged — so that a public folder pushed an item at a time does
+// not read thousands of files for each one.
+let publicKeys = null;
+
+function publicKeyIndex() {
+  if (publicKeys) return publicKeys;
+  publicKeys = new Map();
+  for (const { folder } of allItemFolders(PUBLIC_ID)) notePublicKey(folder);
+  return publicKeys;
+}
+
+// One folder's key put in the index (where it is built), read from its
+// source.json.
+function notePublicKey(folder) {
+  if (!publicKeys) return;
+  const key = readItemSource(PUBLIC_ID, folder)?.key;
+  if (key) publicKeys.set(JSON.stringify(key), folder);
+}
+
+// The public item the crawler knows by `key`, where there still is one.
+function publicByKey(key) {
+  const id = publicKeyIndex().get(key);
+  return id && itemsById.get(id)?.ownerId === PUBLIC_ID ? id : null;
+}
+
 // The public account's items that were put in its folder while the server was
 // running — by a crawler (see data/crawlers), which writes a whole item folder
 // and moves it into place — and are not held here yet: taken in, and their ids
@@ -488,6 +516,7 @@ export function adoptPublicItems() {
     }
     if (!item) continue;
     itemsById.set(item.id, { ...perUnit(item), ownerId: PUBLIC_ID });
+    notePublicKey(item.id);
     adopted.push(item.id);
   }
   return adopted;
@@ -1436,11 +1465,6 @@ export function mergePublic({ locations, items }) {
   if (locations.length) writeList(PUBLIC_ID, LOCATIONS_FILE, list);
 
   const things = { added: [], replaced: [], skipped: [] };
-  const byKey = new Map();
-  for (const { folder } of allItemFolders(PUBLIC_ID)) {
-    const key = readItemSource(PUBLIC_ID, folder)?.key;
-    if (key && itemsById.get(folder)?.ownerId === PUBLIC_ID) byKey.set(JSON.stringify(key), folder);
-  }
   for (const { folder, item, source, files } of items) {
     const held = itemsById.get(folder);
     if (held && held.ownerId !== PUBLIC_ID) {
@@ -1448,7 +1472,7 @@ export function mergePublic({ locations, items }) {
       continue;
     }
     const key = source?.key ? JSON.stringify(source.key) : null;
-    const id = held || !key || !byKey.has(key) ? folder : byKey.get(key);
+    const id = held || !key ? folder : (publicByKey(key) ?? folder);
     const existing = itemsById.get(id);
     const time = now();
     // It keeps when it was last changed where it came saying so, so that a
@@ -1462,7 +1486,7 @@ export function mergePublic({ locations, items }) {
     else delete kept.store;
     writeItemFolder(PUBLIC_ID, kept, source ? { ...files, [SOURCE_FILE]: `${JSON.stringify(source, null, 2)}\n` } : files);
     itemsById.set(id, { ...perUnit(kept), ownerId: PUBLIC_ID });
-    if (key) byKey.set(key, id);
+    if (key) publicKeyIndex().set(key, id);
     (existing ? things.replaced : things.added).push(id);
   }
   return { locations: places, items: things };
@@ -1497,6 +1521,7 @@ export function purgePublicItem(id) {
   itemsById.delete(id);
   unsavedItems.delete(id);
   removeItemDir(PUBLIC_ID, id);
+  if (publicKeys) for (const [key, at] of publicKeys) if (at === id) publicKeys.delete(key);
   return true;
 }
 

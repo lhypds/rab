@@ -42,7 +42,7 @@ import { fileURLToPath } from "node:url";
 // if there is one, and otherwise with _admin's password, RAB_PASSWORD (in
 // .env, say), or asked for here. It asks the server
 // what it holds, and sends only the places and items it does not: the places
-// in one zip, then each item's folder in a zip of its own.
+// in one zip, then the items' folders, several to a zip and a few zips at once.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 try {
@@ -311,8 +311,15 @@ async function adminSession(host) {
   return { request, auth, held, close };
 }
 
-// The places, then each item's folder in a zip of its own: what push and
-// mirror send. The number that failed.
+// How the items are sent: packed several to a zip — as many as BATCH_ITEMS,
+// or as come to BATCH_BYTES, whichever is first — and that many zips on their
+// way at once.
+const BATCH_ITEMS = 50;
+const BATCH_BYTES = 20 * 1024 * 1024;
+const BATCH_PARALLEL = 4;
+
+// The places, then the items' folders, packed into zips: what push and mirror
+// send. The number that failed.
 async function sendMissing(fs, session, folder, send) {
   const { zipSync } = await import("fflate");
   const post = async (zip) =>
@@ -328,30 +335,85 @@ async function sendMissing(fs, session, folder, send) {
       console.log(`Places failed: ${error.message}`);
     }
   }
-  const counts = { added: 0, replaced: 0, skipped: 0 };
-  for (const [index, { id, under }] of send.items.entries()) {
-    const at = `[${index + 1}/${send.items.length}] ${id}`;
-    try {
-      // The item's folder as it is, item.json (store.json for a store),
-      // source.json and the photographs; the photographs stored as they are,
-      // being compressed.
-      const dir = path.join(folder, under, id);
-      const files = {};
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isFile() || entry.name.startsWith(".")) continue;
-        const bytes = fs.readFileSync(path.join(dir, entry.name));
-        files[`${under}/${id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
-      }
-      const zip = zipSync(files);
-      const merged = await post(zip);
-      const how = merged.items.added.length ? "added" : merged.items.replaced.length ? "replaced" : "skipped";
-      counts[how] += 1;
-      console.log(`${at} ${how === "skipped" ? "passed over (another account's item has that id)" : how} (${megabytes(zip.length)})`);
-    } catch (error) {
-      failed += 1;
-      console.log(`${at} failed: ${error.message}`);
+
+  // Each item's folder as it is, item.json (store.json for a store),
+  // source.json and the photographs; the photographs stored as they are,
+  // being compressed.
+  const filesOf = ({ id, under }) => {
+    const dir = path.join(folder, under, id);
+    const files = {};
+    let bytes = 0;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || entry.name.startsWith(".")) continue;
+      const data = fs.readFileSync(path.join(dir, entry.name));
+      bytes += data.length;
+      files[`${under}/${id}/${entry.name}`] = entry.name.endsWith(".json") ? data : [data, { level: 0 }];
     }
+    return { files, bytes };
+  };
+
+  // The items in batches, by count and by size; one bigger than a batch on
+  // its own goes alone.
+  const batches = [];
+  let batch = [];
+  let size = 0;
+  for (const item of send.items) {
+    let bytes = 0;
+    try {
+      const dir = path.join(folder, item.under, item.id);
+      for (const name of fs.readdirSync(dir)) bytes += fs.statSync(path.join(dir, name)).size;
+    } catch {
+      // read again when it is packed, and failed there
+    }
+    if (batch.length && (batch.length >= BATCH_ITEMS || size + bytes > BATCH_BYTES)) {
+      batches.push(batch);
+      batch = [];
+      size = 0;
+    }
+    batch.push(item);
+    size += bytes;
   }
+  if (batch.length) batches.push(batch);
+
+  const counts = { added: 0, replaced: 0, skipped: 0 };
+  let done = 0;
+  // A server from before zips of more than one item takes them one at a time.
+  let single = false;
+  const sendBatch = async (items) => {
+    const files = {};
+    for (const item of items) Object.assign(files, filesOf(item).files);
+    const zip = zipSync(files);
+    const merged = await post(zip);
+    counts.added += merged.items.added.length;
+    counts.replaced += merged.items.replaced.length;
+    counts.skipped += merged.items.skipped.length;
+    for (const id of merged.items.skipped) console.log(`${id} passed over (another account's item has that id)`);
+    return zip.length;
+  };
+  const run = async (items) => {
+    try {
+      if (single && items.length > 1) throw new Error("one at a time");
+      const bytes = await sendBatch(items);
+      done += items.length;
+      console.log(`[${done}/${send.items.length}] ${items.length} sent (${megabytes(bytes)})`);
+    } catch (error) {
+      if (items.length > 1 && (single || /one at a time/.test(error.message))) {
+        single = true;
+        for (const item of items) await run([item]);
+        return;
+      }
+      failed += items.length;
+      done += items.length;
+      console.log(`[${done}/${send.items.length}] ${items.map((each) => each.id).join(", ")} failed: ${error.message}`);
+    }
+  };
+  // A few batches on their way at once, each worker taking the next.
+  let next = 0;
+  const worker = async () => {
+    while (next < batches.length) await run(batches[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(BATCH_PARALLEL, batches.length) }, worker));
+
   if (send.items.length) console.log(`Items sent: ${counts.added} added, ${counts.replaced} replaced, ${counts.skipped} passed over, ${failed} failed`);
   return failed;
 }
