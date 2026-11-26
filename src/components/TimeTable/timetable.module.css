@@ -87,20 +87,9 @@
   opacity: 1;
 }
 
-.price {
-  color: var(--muted);
-  font-family: var(--sans);
-  font-size: 10px;
-  line-height: 1;
-}
-
 /* The stretch picked, turned over. */
 .on {
   background: var(--ink);
-}
-
-.on .price {
-  color: var(--paper);
 }
 
 /* What is already on the day, over its half hours: a stretch somebody has —

@@ -726,7 +726,6 @@ export default function ItemView({
                 cells={slots}
                 value={picked}
                 onChange={item.store ? undefined : setPicked}
-                currency={item.currency}
                 unit={unitOf(item)}
                 today={day === today()}
               />

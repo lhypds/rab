@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { formatPrice } from "../../utils/format.js";
 import { STEP, clockOf, hoursOf, hoursOfDates, minutesOf, weekOf, withDatesPainted } from "../../utils/rates.js";
 import styles from "./timetable.module.css";
 
@@ -78,9 +77,9 @@ const dayHour = (unit) => Math.max(40, (20 * 60) / unit);
 // With `today` the day shown is today, and the time it is now is ruled across
 // it in red.
 // `unit` is how long one of the cells is, in minutes.
-export function DayTimes({ cells, value = null, onChange, currency, today = false, unit = STEP }) {
+export function DayTimes({ cells, value = null, onChange, today = false, unit = STEP }) {
   const DAY_HOUR = dayHour(unit);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const clock = useClock(today);
   // The whole day is drawn, midnight to midnight, in a box that shows a part
   // of it and scrolls to the rest. It opens on the part worth seeing: now,
@@ -189,9 +188,6 @@ export function DayTimes({ cells, value = null, onChange, currency, today = fals
         >
           {cells.map((cell, index) => {
             const on = value && cell.start >= value.start && cell.start < value.end;
-            // What it costs is written on every piece that can still be had,
-            // in full: not shortened and not rounded.
-            const priced = !cell.taken;
             return (
               <button
                 key={cell.start}
@@ -204,9 +200,7 @@ export function DayTimes({ cells, value = null, onChange, currency, today = fals
                 // The pointer is the lane's to follow (above); this is the
                 // keyboard's press, which comes as a click with no pointer.
                 onClick={(event) => event.detail === 0 && press(cell)}
-              >
-                {priced && <span className={styles.price}>{formatPrice(cell.price, currency, i18n.language)}</span>}
-              </button>
+              />
             );
           })}
           {taken.map((run) => (
