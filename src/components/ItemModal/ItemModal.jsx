@@ -112,6 +112,21 @@ function startingPricing(item, calendar) {
   return { basePrice: rates[0]?.price != null ? String(rates[0].price) : "", datePrices, slotPrices, extraRates, hourRules };
 }
 
+// The usual hours of an item booked by the date as the form holds them: the
+// rules it keeps, or — kept once as one stretch, or as only the days of the
+// week — one rule of the days it can be had and that stretch, if any.
+function startingDayRules(item) {
+  const kept = item?.dayHours;
+  if (Array.isArray(kept) && kept.length > 0) {
+    return kept.map((rule) => newRule({ days: rule.days ?? EVERY_DAY, start: rule.start ?? "", end: rule.end ?? "" }));
+  }
+  return [newRule({ days: item?.openDays ?? EVERY_DAY, start: kept?.start ?? "", end: kept?.end ?? "" })];
+}
+
+// The days of the week the usual hours of an item booked by the date tick:
+// the days it can be had.
+const dayOpenDays = (rules) => [...new Set(rules.flatMap((rule) => rule.days))].sort();
+
 // The ways the owner is reached that a form starts with, by how the item is
 // booked: asked for, the account's own as its account has them (`own`) or an
 // empty line; by the date or the time, a message here. Somebody else's starts
@@ -194,9 +209,11 @@ function startingFieldsAsSaved(item, calendar, lang) {
     // The rule for days: the days of the week it can be had. Every day, until
     // some are unticked.
     openDays: item?.openDays ?? EVERY_DAY,
-    // The hours of the day it is handed over in, where it is booked by the
-    // date: none until some are set, which is the whole day.
-    dayHours: item?.dayHours ?? { start: "", end: "" },
+    // The usual hours, where it is booked by the date: rules of days of the
+    // week and the hours it is handed over in on them, the whole day where
+    // they are left empty. The days no rule ticks are the days it cannot be
+    // had (see dayOpenDays).
+    dayRules: startingDayRules(item),
     // Where the reader is, not what language they read in (see defaultCurrency).
     currency: item?.currency ?? defaultCurrency(currentRegion().country),
     images: item?.images ?? [],
@@ -595,7 +612,7 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
 // what it costs. An item that exists is opened on one of them (`part`,
 // "item" or "availability") and saved from there; a new one is taken through
 // both, the first and then the second, and published from the second.
-export default function ItemModal({ isOpen, store, item = null, calendar = null, part = "item", onClose, onSaved }) {
+export default function ItemModal({ isOpen, item = null, calendar = null, part = "item", onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const lang = i18n.language;
@@ -662,22 +679,13 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const editing = Boolean(item);
   const names = useMemo(() => weekdayNames(lang), [lang]);
   // The pages a new item goes on, ticked on the sheet: none ticked puts it on
-  // the account's default page. Not asked of a page, nor of an item made from
-  // a page's own sheet, which goes on that page.
+  // the account's default page. Not asked of a page.
   const [storeChoices, setStoreChoices] = useState([]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const location = store?.location;
     const initial = startingFields(item, calendar, lang);
     setStoreChoices([]);
-    if (location) {
-      initial.located = true;
-      initial.latitude = location.latitude;
-      initial.longitude = location.longitude;
-      initial.place = location.address || location.name;
-      initial.region = location.region;
-    }
     setFields(initial);
     currencyPicked.current = false;
     setError("");
@@ -713,7 +721,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     // of the same item, and starting over at each of those would throw away
     // whatever had been typed since the last.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, item?.id, store?.id]);
+  }, [isOpen, item?.id]);
 
   const set = (name, value) => {
     setFields((current) => ({ ...current, [name]: value }));
@@ -871,7 +879,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   function toggleDay(day) {
     const flip = (list) => (list.includes(day) ? list.filter((each) => each !== day) : [...list, day]);
     setFields((current) =>
-      openByRule({ openDays: current.openDays }, day)
+      openByRule({ openDays: current.mode === "day" ? dayOpenDays(current.dayRules) : current.openDays }, day)
         ? { ...current, closed: flip(current.closed) }
         : { ...current, opened: flip(current.opened) },
     );
@@ -912,6 +920,11 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const setHourRules = (change) => setFields((current) => ({ ...current, hourRules: change(current.hourRules) }));
   const setHourRule = (id, patch) =>
     setHourRules((list) => list.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule)));
+  // The same for the usual hours of an item booked by the date.
+  const dayRules = fields.dayRules;
+  const setDayRules = (change) => setFields((current) => ({ ...current, dayRules: change(current.dayRules) }));
+  const setDayRule = (id, patch) =>
+    setDayRules((list) => list.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule)));
 
   // What the form comes to, as the item its page would be drawn from: the
   // calendar in here and the preview are both this.
@@ -920,9 +933,17 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   // Booked by asking: no calendar and no request, only how the owner is reached.
   const inquiry = mode === "inquiry";
   const byDay = !byTime && !inquiry;
-  // The hours it is handed over in, as they are kept: both ends or neither.
-  const { dayHours } = fields;
-  const keptDayHours = byDay && dayHours.start && dayHours.end ? dayHours : null;
+  // The usual hours it is handed over in, as they are kept: each rule's days
+  // (null for all seven) and both ends or neither — and nothing at all where
+  // no rule says any hours, and any time will do.
+  const keptDayHours =
+    byDay && dayRules.some((rule) => rule.start && rule.end)
+      ? dayRules.map((rule) => ({
+          days: rule.days.length === 7 ? null : rule.days,
+          start: rule.start && rule.end ? rule.start : null,
+          end: rule.start && rule.end ? rule.end : null,
+        }))
+      : null;
   // A phone number is kept as its digits, with the code it is dialled with
   // from abroad beside it. A message here is not a way to reach somebody
   // else's.
@@ -937,7 +958,9 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const rates = stepRate === 1 ? stepRates : stepRates.map((rate) => ({ ...rate, price: toKept(rate.price) }));
   // Every hour the item has: the rules, then what was painted for dates.
   const hours = byTime ? [...cleanHourRules(hourRules), ...fields.hourDates] : [];
-  const openDays = fields.openDays.length === 7 ? null : fields.openDays;
+  // By the date, the days it can be had are the days its usual hours tick.
+  const ruledDays = byDay ? dayOpenDays(dayRules) : fields.openDays;
+  const openDays = ruledDays.length === 7 ? null : ruledDays;
   // The rule for calling off as it would be kept: at least a day before,
   // where it is so many days before.
   const cancelCount = Math.max(1, Number(fields.cancelCount) || 1);
@@ -1027,7 +1050,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     const first = itemFault();
     if (first) return first;
     if (byTime && hourRules.some((rule) => !timed(rule) || rule.start >= rule.end)) return t("item.ruleTimesWrong");
-    if (byDay && (dayHours.start || dayHours.end) && !(dayHours.start && dayHours.end && dayHours.start < dayHours.end)) {
+    if (byDay && dayRules.some((rule) => (rule.start || rule.end) && !(rule.start && rule.end && rule.start < rule.end))) {
       return t("item.dayHoursWrong");
     }
     if (byTime && hours.length === 0) return t("item.hoursRequired");
@@ -1057,7 +1080,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
       description: fields.description.trim(),
       what: fields.what.trim(),
       links: fields.links.map((link) => link.trim()).filter(Boolean),
-      ...(store ? { storeIds: [store.id] } : !editing && !fields.store ? { storeIds: storeChoices } : null),
+      ...(!editing && !fields.store && { storeIds: storeChoices }),
       category: fields.category,
       shared: fields.shared,
       // Said when it is made, and what it is from then on.
@@ -1147,10 +1170,13 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 </span>
                 {/* The rule for days: the days of the week it can be had. The
                     calendar under it is what the rule comes to, date by date. */}
-                <div className={styles.dayRule}>
-                  <span className={styles.everyDay}>{t("item.openDays")}</span>
-                  <Weekdays value={fields.openDays} onChange={setOpenDays} names={names} label={t("item.openDays")} />
-                </div>
+                {/* By the date the days are the usual hours' (see above). */}
+                {byTime && (
+                  <div className={styles.dayRule}>
+                    <span className={styles.everyDay}>{t("item.openDays")}</span>
+                    <Weekdays value={fields.openDays} onChange={setOpenDays} names={names} label={t("item.openDays")} />
+                  </div>
+                )}
                 {/* By the time, the stretch of the clock the prices on the
                     calendar under it are for — an hour, say, booked by the
                     quarter. Each date's is worked out from the price of a
@@ -1246,9 +1272,8 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
             <div className={styles.column}>
               {/* First, whether this is one item or a store of them. A store
                   is asked everything an item is; it is only kept apart,
-                  with the items on it. Not asked of one being made on a
-                  store, which is an item on it. */}
-              {!editing && !store && (
+                  with the items on it. */}
+              {!editing && (
                 <PublishAsField
                   value={fields.store ? "store" : "item"}
                   onChange={(as) =>
@@ -1262,7 +1287,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 />
               )}
               {/* And for an item, which pages it goes on. */}
-              {!editing && !store && !fields.store && (
+              {!editing && !fields.store && (
                 <StoreField value={storeChoices} onChange={setStoreChoices} disabled={busy} hintClassName={styles.hint} />
               )}
               {/* Then the photographs: they are what is taken before anything
@@ -1339,6 +1364,18 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                   onClick={generate}
                   disabled={fields.images.length === 0 || uploading > 0 || generating}
                 >
+                  {/* A brain before the word: the photograph is made out. */}
+                  <svg className={styles.brain} viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+                    <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+                    <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+                    <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+                    <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+                    <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+                    <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+                    <path d="M6 18a4 4 0 0 1-1.967-.516" />
+                    <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+                  </svg>
                   {t(generating ? "item.generating" : "item.generate")}
                 </button>
                 <span className={styles.hint}>{t("item.generateHint")}</span>
@@ -1392,9 +1429,15 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                     aria-busy={classifying}
                   >
                     <svg viewBox="0 0 24 24">
-                      <path d="M12 4.5A4.5 4.5 0 0 0 4 7.3 4 4 0 0 0 3.2 14 4.6 4.6 0 0 0 12 19.5" />
-                      <path d="M12 4.5A4.5 4.5 0 0 1 20 7.3 4 4 0 0 1 20.8 14 4.6 4.6 0 0 1 12 19.5" />
-                      <path d="M12 4.5v15" />
+                      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+                      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+                      <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+                      <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+                      <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+                      <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+                      <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+                      <path d="M6 18a4 4 0 0 1-1.967-.516" />
+                      <path d="M19.967 17.484A4 4 0 0 1 18 18" />
                     </svg>
                   </ActionButton>
                 </div>
@@ -1638,25 +1681,66 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
               {/* By the date, the hours of the day it is handed over in — when
                   it can be picked up and brought back: under what it costs.
                   Left at --:--, any time will do. */}
+              {/* The usual hours: these days of the week, handed over between
+                  these times — as many rules as are added. A day no rule
+                  ticks cannot be had; a rule left at --:-- is the whole day. */}
               {byDay && (
                 <div className="field">
-                  <span className="field-label">{t("item.dayHours")}</span>
-                  <span className={styles.ruleTimes}>
-                    {["start", "end"].map((edge) => (
-                      <Select
-                        key={edge}
-                        className={styles.ruleTime}
-                        label={t(`item.ruleTime.${edge}`)}
-                        value={dayHours[edge]}
-                        onChange={(value) => {
-                          setFields((current) => ({ ...current, dayHours: { ...current.dayHours, [edge]: value } }));
-                          setError("");
-                        }}
-                        options={DAY_TIME_OPTIONS}
-                      />
+                  <span className="field-label">{t("item.usualHours")}</span>
+                  <ul className={styles.rules}>
+                    {dayRules.map((rule) => (
+                      <li key={rule.id} className={styles.rule}>
+                        <div className={styles.ruleWhen}>
+                          <Weekdays
+                            value={rule.days}
+                            // The last day cannot be unticked: a rule for no
+                            // day of the week is not a rule.
+                            onChange={(days) => days.length > 0 && setDayRule(rule.id, { days })}
+                            names={names}
+                            label={t("item.ruleDays")}
+                          />
+                          <span className={styles.ruleTimes}>
+                            {["start", "end"].map((edge) => (
+                              <Select
+                                key={edge}
+                                className={styles.ruleTime}
+                                label={t(`item.ruleTime.${edge}`)}
+                                value={rule[edge]}
+                                onChange={(value) => {
+                                  setDayRule(rule.id, { [edge]: value });
+                                  setError("");
+                                }}
+                                options={DAY_TIME_OPTIONS}
+                              />
+                            ))}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className={styles.ruleRemove}
+                          onClick={() => setDayRules((list) => list.filter((each) => each.id !== rule.id))}
+                          // The last of them cannot be taken off.
+                          disabled={dayRules.length <= 1}
+                          aria-label={t("item.ruleRemove")}
+                          title={t("item.ruleRemove")}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 6l12 12M18 6 6 18" />
+                          </svg>
+                        </button>
+                      </li>
                     ))}
-                  </span>
-                  <span className={styles.hint}>{t("item.dayHoursHint")}</span>
+                  </ul>
+                  {dayRules.length < HOUR_RULES_MAX && (
+                    <button
+                      type="button"
+                      className={`small-button ${styles.start}`}
+                      onClick={() => setDayRules((list) => [...list, newRule({ days: EVERY_DAY, start: "09:00", end: "18:00" })])}
+                    >
+                      {t("item.hourRuleAdd")}
+                    </button>
+                  )}
+                  <span className={styles.hint}>{t("item.dayRulesHint")}</span>
                 </div>
               )}
 

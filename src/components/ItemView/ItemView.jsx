@@ -7,8 +7,8 @@ import { barePhone, formatCoords, formatPrice, formatUsername, relativeTime, uni
 import { contactHref } from "../../utils/dialing.js";
 import { MESSAGES_EVENT } from "../Header/Header.jsx";
 import { directionsUrl } from "../../utils/mapbox.js";
-import { DAY_UNIT, cellsOn, clockOf, dayPrice as ruledDayPrice, inquiryUnitOf, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
-import Calendar, { dayStates, quote, slotStates } from "../Calendar/index.js";
+import { DAY_UNIT, cellsOn, clockOf, dayBands, hoursOn, dayPrice as ruledDayPrice, inBands, inquiryUnitOf, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
+import Calendar, { dayStates, quote, reading, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
 import { BookingRow, ItemRow } from "../Rows/index.js";
@@ -86,12 +86,12 @@ export default function ItemView({
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   // The page opens with today picked, since today is what is asked about
-  // first: always for the owner, who can pick any day to change it, and for
-  // anybody else where today can still be had — a day that cannot be asked for
-  // is not one to start them on.
+  // first, where today can still be had — for the owner as for anybody else — a day that cannot be asked for
+  // is not one to start them on. A store's page always opens on today, whose
+  // hours are what is read first there.
   const [selection, setSelection] = useState(() => {
     const day = today();
-    const pickable = item.mine || (item.active && calendar && nextFreeDay(item, calendar) === day);
+    const pickable = item.store || (calendar && nextFreeDay(item, calendar) === day);
     return pickable ? { start: day, end: day } : null;
   });
   // The stretch of the day picked, { start, end }, where the item is booked by
@@ -100,14 +100,29 @@ export default function ItemView({
   const [note, setNote] = useState("");
   // Whether the owner has pressed Delete and is being asked if they mean it.
   const [confirming, setConfirming] = useState(false);
-  // The hours of the day it is handed over in, where it says any: the times
-  // to choose between are the ones inside them, and the two the form starts
-  // with are brought inside them too.
-  const band = item.dayHours ?? null;
-  const within = (time) => (!band ? time : time < band.start ? band.start : time > band.end ? band.end : time);
-  const dayTimes = band ? TIME_OPTIONS.filter((option) => option.value >= band.start && option.value <= band.end) : TIME_OPTIONS;
-  const [startTime, setStartTime] = useState(() => within(DEFAULT_START_TIME));
-  const [endTime, setEndTime] = useState(() => within(DEFAULT_END_TIME));
+  // The hours it is handed over in on the day it is picked up and on the day
+  // it comes back, where it says any (see dayBands): the times to choose
+  // between are the ones inside them, and a time chosen is brought inside
+  // them too — the nearest one on from it, or the last of the day.
+  const startBands = selection ? dayBands(item, selection.start) : null;
+  const endBands = selection ? dayBands(item, selection.end) : null;
+  const startTimes = TIME_OPTIONS.filter((option) => inBands(startBands, option.value));
+  const endTimes = TIME_OPTIONS.filter((option) => inBands(endBands, option.value));
+  const fit = (times, time) =>
+    times.some((option) => option.value === time) ? time : (times.find((option) => option.value > time) ?? times.at(-1))?.value ?? time;
+  const [startPick, setStartTime] = useState(DEFAULT_START_TIME);
+  const [endPick, setEndTime] = useState(DEFAULT_END_TIME);
+  const startTime = fit(startTimes, startPick);
+  const endTime = fit(endTimes, endPick);
+  // What the hours are, said as a line: for the day it is picked up, and for
+  // the day it comes back where those are not the same.
+  const bandsText = (bands) => bands.map((band) => `${band.start}–${band.end}`).join(", ");
+  const bandLines = [];
+  if (selection && startBands) bandLines.push(bandsText(startBands));
+  if (selection && endBands && selection.end !== selection.start && bandsText(endBands) !== bandLines[0]) {
+    if (bandLines.length > 0) bandLines[0] = `${formatDay(selection.start, lang)} ${bandLines[0]}`;
+    bandLines.push(`${formatDay(selection.end, lang)} ${bandsText(endBands)}`);
+  }
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [photo, setPhoto] = useState(0);
@@ -197,8 +212,8 @@ export default function ItemView({
   );
   const slots = bySlot && selection ? slotStates(item, states, selection.start) : [];
   // The one day whose hours the timetable shows, where there is one: a day has
-  // been picked, and the item has not been switched off.
-  const day = bySlot && item.active && selection && selection.start === selection.end ? selection.start : null;
+  // been picked. Published or not, its hours are what they are.
+  const day = bySlot && selection && selection.start === selection.end ? selection.start : null;
   // The pieces of the stretch picked, each costing its share of the price in
   // force then, which is for one stretch of the pricing unit.
   const chosenSlots = picked ? slots.filter((slot) => slot.start >= picked.start && slot.start < picked.end && !slot.taken) : [];
@@ -222,7 +237,7 @@ export default function ItemView({
 
   async function book(event) {
     event.preventDefault();
-    if (preview) return;
+    if (preview || mine) return;
     if (!viewer) return onSignIn?.();
     if (!selection || !ready || busy) return;
     setBusy(true);
@@ -302,6 +317,20 @@ export default function ItemView({
           count: countDays(selection.start, selection.end),
         })
     : "";
+  // On a store's page, the one day picked said back: its date, and the hours
+  // it can be used in that day — or that it cannot be, or that it can all day
+  // where the store says no hours.
+  const storeDay = item.store && calendar && selection ? selection.start : null;
+  const storeState = storeDay ? reading(item, states, calendar, storeDay) : null;
+  const storeBands = storeDay ? (bySlot ? hoursOn(item, storeDay) : storeState.bands) : null;
+  const storeClosed = Boolean(storeDay) && (storeState.closed || (bySlot && storeBands.length === 0));
+  const storeHours = !storeDay
+    ? ""
+    : storeClosed
+      ? t("calendar.closed")
+      : storeBands?.length
+        ? t("booking.dayHours", { hours: storeBands.map((band) => `${band.start}–${band.end}`).join(", ") })
+        : t("calendar.allDay");
   const shownPhoto = item.images[Math.min(photo, item.images.length - 1)];
   // A photograph is never drawn larger than it is: stretched past its own
   // pixels it goes soft, and a small sharp picture reads better than a big
@@ -315,19 +344,23 @@ export default function ItemView({
     height: shownPhoto.height ?? natural[shownPhoto.src]?.height,
   };
   const photoLimit = size?.width && size?.height ? Math.floor(Math.min(size.width, (size.height * 4) / 3)) : undefined;
-  // Not published: said so to its owner, who is the one to publish it; to
-  // anybody else it simply cannot be had.
-  const status = !item.active
-    ? mine
-      ? t("store.unpublished")
-      : t("item.inactive")
-    : inquiry
+  // Whether it can be had, which publishing has nothing to do with: that only
+  // says who can see it, and is a tag of its own beside this one.
+  const status = inquiry
       ? t("item.byInquiry")
       : free === today()
       ? t("item.freeToday")
       : free
         ? t("item.freeFrom", { date: formatDay(free, lang) })
         : t("item.noDays");
+  // The two tags, at the top right of the card: at the end of the price row,
+  // or of the share row on a store, which has no price.
+  const statusTags = (
+    <span className={styles.statusTags}>
+      <span className={`status ${inquiry || free === today() ? "status-confirmed" : "status-pending"}`}>{status}</span>
+      {!item.active && <span className="status status-off">{t("store.unpublished")}</span>}
+    </span>
+  );
 
   // The buttons at the foot of the card, for whoever may change the item. One
   // for the whole item: published, or not — an item is added unpublished
@@ -363,6 +396,81 @@ export default function ItemView({
       )}
     </div>
   );
+
+  // How the owner is reached: on an item, over its calendar — in its place,
+  // booked by asking; on a store, under it, over the button that does the
+  // reaching.
+  const contactPart = (inquiry || contacts.length > 0) && (
+    <>
+      <div className={`${styles.calendarHead} ${styles.contactHead}`}>
+        <h2>{t("item.contact")}</h2>
+      </div>
+      {item.active || mine ? (
+        <dl className={styles.contacts}>
+          {contacts.map((contact, index) => (
+            <div key={index}>
+              <dt>{t(`item.contactTypes.${contact.type}`)}</dt>
+              <dd>
+                {contact.type === "message" ? (
+                  // A message here on rab: the line that says so is
+                  // pressed to write one — to the owner, by whoever
+                  // is reading; the owner's own page opens the
+                  // messages they have. A preview goes nowhere.
+                  preview ? (
+                    t("item.contactMessageNote")
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.contactWrite}
+                      onClick={() => {
+                        if (!viewer) onSignIn?.();
+                        else if (mine || !item.owner) window.dispatchEvent(new Event(MESSAGES_EVENT));
+                        else onMessage?.(item.owner);
+                      }}
+                    >
+                      {t("item.contactMessageNote")}
+                    </button>
+                  )
+                ) : contact.type === "phone" ? (
+                  <a href={contactHref(contact)}>
+                    {contact.code ? `${contact.code} ` : ""}
+                    {barePhone(contact.value)}
+                  </a>
+                ) : contactHref(contact) ? (
+                  <a href={contactHref(contact)}>{contact.value}</a>
+                ) : (
+                  contact.value
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {inquiry && item.active && <p className={styles.small}>{shared || !item.owner ? t("item.inquiryExplainShared") : t("item.inquiryExplain", { name: formatUsername(item.owner) })}</p>}
+    </>
+  );
+
+  // The button that goes to whoever has it directly, on a store and on an
+  // item booked by asking: the way written first — a phone number called, an
+  // address written to — or else a message to them here. Greyed for its own
+  // account, and on a preview.
+  const contactButton =
+    askHref && !mine && !preview ? (
+      <a className={`primary-button ${styles.ask}`} href={askHref}>
+        {t("booking.contact")}
+      </a>
+    ) : (
+      (askHref || (item.owner && !shared)) && (
+        <button
+          type="button"
+          className="primary-button"
+          disabled={mine || preview}
+          onClick={() => (viewer ? onMessage?.(item.owner) : onSignIn?.())}
+        >
+          {t("booking.contact")}
+        </button>
+      )
+    );
 
   return (
     <article className={styles.page}>
@@ -463,15 +571,14 @@ export default function ItemView({
                     : t("item.aDay")}
               </span>
             )}
-            <span className={`status ${item.active && (inquiry || free === today()) ? "status-confirmed" : "status-pending"}`}>
-              {status}
-            </span>
+            {statusTags}
           </p>
           )}
 
           {/* Getting the page in front of people is half of what it is for, so
               the way to do it is the first control on the card and the one
-              drawn loudest. */}
+              drawn loudest. A store, with no price row, has its tags at the
+              far end of this one. */}
           <div className={styles.actions}>
             <button type="button" className="small-button filled" onClick={() => setSharing(true)} disabled={preview}>
               <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
@@ -483,14 +590,15 @@ export default function ItemView({
             </button>
             {/* Keeping it to come back to: it is then on the reader's list of
                 bookmarks (see /others), until the button is pressed again.
-                Not for the account it is under, whose own it is already. */}
-            {!mine && (
+                Shown to the account it is under as to anybody — the card reads
+                the same for everyone — but greyed: its own it is already. */}
+            {(
               <button
                 type="button"
                 className="small-button"
                 aria-pressed={bookmarked}
                 onClick={toggleBookmark}
-                disabled={preview || bookmarking}
+                disabled={preview || bookmarking || mine}
               >
                 <svg className={bookmarked ? `${styles.icon} ${styles.iconOn}` : styles.icon} viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M6 4h12v17l-6-4.5L6 21z" />
@@ -498,47 +606,20 @@ export default function ItemView({
                 {t(bookmarked ? "item.bookmarked" : "item.bookmark")}
               </button>
             )}
-            {canEdit && (
-              <>
-                <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
-                  {t("item.editTitle")}
-                </button>
-                {/* When it can be had and what it costs, which is a sheet of
-                    its own apart from the one the item is edited on. */}
-                <button type="button" className="small-button" onClick={onEditAvailability} disabled={preview}>
-                  {t("item.availabilityTitle")}
-                </button>
-                {/* Which of its owner's items are on a page. */}
-                {item.store && mine && onEditItems && (
-                  <button type="button" className="small-button" onClick={onEditItems} disabled={preview}>
-                    {t("store.editItems")}
-                  </button>
-                )}
-              </>
-            )}
-            {/* Writing to its owner — where it has one by name. */}
-            {!mine && item.owner && !shared && (
-              <button
-                type="button"
-                className="small-button"
-                onClick={() => (viewer ? onMessage?.(item.owner) : onSignIn?.())}
-                disabled={preview}
-              >
-                {t("messages.write", { name: formatUsername(item.owner) })}
-              </button>
-            )}
-            {/* Saying something is wrong with it, to the administrator: for
-                anybody but the account it is under, and the administrator. */}
-            {!mine && !admin && (
-              <button
-                type="button"
-                className="small-button"
-                onClick={() => (viewer ? setPosting("report") : onSignIn?.())}
-                disabled={preview}
-              >
-                {t("item.report")}
-              </button>
-            )}
+            {/* On the same row, the way to the admin: the same for everybody,
+                greyed where it goes nowhere — one does not report to oneself.
+                What the owner and the admin do with it is at the foot of the
+                card, apart from everything a reader needs. */}
+            {/* Saying something is wrong with it, to the administrator. */}
+            <button
+              type="button"
+              className="small-button"
+              onClick={() => (viewer ? setPosting("report") : onSignIn?.())}
+              disabled={preview || mine || admin}
+            >
+              {t("item.report")}
+            </button>
+            {item.store && statusTags}
           </div>
 
           {/* Somebody else's: said, with what follows from it. */}
@@ -618,77 +699,28 @@ export default function ItemView({
               and an email address are pressed to call or to write. */}
           {/* One booked by the date or the time says how its owner is reached
               too, over its calendar, where it says any way at all. */}
-          {(inquiry || contacts.length > 0) && (
-            <>
-              <div className={`${styles.calendarHead} ${styles.contactHead}`}>
-                <h2>{t("item.contact")}</h2>
-              </div>
-              {item.active || mine ? (
-                <dl className={styles.contacts}>
-                  {contacts.map((contact, index) => (
-                    <div key={index}>
-                      <dt>{t(`item.contactTypes.${contact.type}`)}</dt>
-                      <dd>
-                        {contact.type === "message" ? (
-                          // A message here on rab: the line that says so is
-                          // pressed to write one — to the owner, by whoever
-                          // is reading; the owner's own page opens the
-                          // messages they have. A preview goes nowhere.
-                          preview ? (
-                            t("item.contactMessageNote")
-                          ) : (
-                            <button
-                              type="button"
-                              className={styles.contactWrite}
-                              onClick={() => {
-                                if (!viewer) onSignIn?.();
-                                else if (mine || !item.owner) window.dispatchEvent(new Event(MESSAGES_EVENT));
-                                else onMessage?.(item.owner);
-                              }}
-                            >
-                              {t("item.contactMessageNote")}
-                            </button>
-                          )
-                        ) : contact.type === "phone" ? (
-                          <a href={contactHref(contact)}>
-                            {contact.code ? `${contact.code} ` : ""}
-                            {barePhone(contact.value)}
-                          </a>
-                        ) : contactHref(contact) ? (
-                          <a href={contactHref(contact)}>{contact.value}</a>
-                        ) : (
-                          contact.value
-                        )}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : null}
-              {inquiry && item.active && !mine && <p className={styles.small}>{shared || !item.owner ? t("item.inquiryExplainShared") : t("item.inquiryExplain", { name: formatUsername(item.owner) })}</p>}
-            </>
-          )}
+          {!item.store && contactPart}
 
           {!inquiry && (
           <>
           <div className={styles.calendarHead}>
-            <h2>{t("calendar.title")}</h2>
+            <h2>{t(item.store ? "calendar.storeTitle" : "calendar.title")}</h2>
             {/* What the figures on the squares are, which a page has none of. */}
-            <span>{mine ? t("calendar.yours") : item.store ? null : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
+            <span>{item.store ? null : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
           </div>
           <Calendar
             item={item}
             calendar={calendar}
             bookings={bookings}
             selection={selection}
-            // An item that has been switched off can be read and not picked
-            // from, by its owner as by anybody else: every day of it is drawn
-            // closed until it is switched on again.
-            onSelect={item.active ? select : undefined}
-            off={!item.active}
-            editing={mine}
+            // Picked from the same way by its owner as by anybody else.
+            // Published or not, its days are what they are: publishing only
+            // says who can see it. A store's are only read, one at a time.
+            onSelect={select}
+            single={item.store}
           />
           {/* By the time, what the prices on the squares above are for: one stretch of the item's pricing unit. */}
-          {bySlot && <p className={`${styles.small} ${styles.tip}`}>{t("calendar.unit", { unit: unitName(priceUnitOf(item), t) })}</p>}
+          {bySlot && !item.store && <p className={`${styles.small} ${styles.tip}`}>{t("calendar.unit", { unit: unitName(priceUnitOf(item), t) })}</p>}
 
           {/* The hours of the day picked, where the item goes by the time: a
               timetable of that day. The owner reads it; anybody else presses
@@ -703,50 +735,56 @@ export default function ItemView({
                 key={day}
                 cells={slots}
                 value={picked}
-                onChange={mine ? undefined : setPicked}
+                onChange={item.store ? undefined : setPicked}
                 currency={item.currency}
                 unit={unitOf(item)}
                 today={day === today()}
               />
-              {/* And the piece of the clock it is asked for in. */}
-              <p className={`${styles.small} ${styles.tip}`}>{t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}</p>
+              {/* And the piece of the clock it is asked for in — which a
+                  page, not booked itself, has none of. */}
+              {!item.store && (
+                <p className={`${styles.small} ${styles.tip}`}>{t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}</p>
+              )}
             </>
           )}
           </>
           )}
 
-          {mine ? (
+          {item.store ? (
+            // A store is not booked itself: under its calendar, the day
+            // picked and its hours; and the request button, which goes to
+            // whoever keeps the store directly — the way written first, a
+            // phone number called or an address written to, or else a
+            // message to them here. Greyed for the store's own account, and
+            // on a preview.
             <div className={styles.panel}>
-              {/* The days picked, said back. Nothing is changed about them
-                  here: what a day costs and whether it can be had are the
-                  item form's to set. */}
-              {item.active ? !inquiry && selection && <p className={styles.chosen}>{chosen}</p> : <p className={styles.small}>{t("item.inactiveNote")}</p>}
-              {removal}
-              {formError && <p className="form-message error">{formError}</p>}
+              {!inquiry && storeDay && (
+                <p className={styles.chosen}>
+                  <span>{formatDay(storeDay, lang, { weekday: "short", month: "short", day: "numeric" })}</span>
+                  {/* Under it, on a line of its own, its hours in plain ink
+                      — or, in grey, that it cannot be used. */}
+                  <span className={storeClosed ? styles.storeHours : `${styles.storeHours} ${styles.storeHoursOpen}`}>{storeHours}</span>
+                </p>
+              )}
+              {contactPart}
+              {/* Ruled off from what is above it. */}
+              {contactButton && <div className={styles.contactRule}>{contactButton}</div>}
             </div>
           ) : inquiry ? (
-            !item.active ? (
+            // Unpublished, nobody but its owner sees it; the owner sees the
+            // card as it will read once it is published.
+            !item.active && !mine ? (
               <p className={styles.small}>{t("item.inactiveNote")}</p>
             ) : (
-              // Somebody else's has no request to send: the button where one
-              // would be asks the way written first — a phone number is
-              // called, an email address written to, about the item.
-              shared &&
-              askHref && (
+              // Booked by asking, there is no request to send: the button
+              // where one would be goes to the owner directly.
+              contactButton && (
                 <div className={styles.panel}>
-                  {preview ? (
-                    <button type="button" className="primary-button" disabled>
-                      {t("booking.request")}
-                    </button>
-                  ) : (
-                    <a className={`primary-button ${styles.ask}`} href={askHref}>
-                      {t("booking.request")}
-                    </a>
-                  )}
+                  <div className={styles.contactRule}>{contactButton}</div>
                 </div>
               )
             )
-          ) : item.active ? (
+          ) : item.active || mine ? (
             <form className={styles.panel} onSubmit={book}>
               <p className={styles.chosen}>
                 {!selection ? (
@@ -768,9 +806,12 @@ export default function ItemView({
               <fieldset className={styles.fields} disabled={!selection}>
                 {/* The hours, where the item goes by the day: when it is
                     picked up on the first day and brought back on the last. */}
-                {!bySlot && band && (
-                  <p className={styles.small}>{t("booking.dayHours", { start: band.start, end: band.end })}</p>
-                )}
+                {!bySlot &&
+                  bandLines.map((line) => (
+                    <p key={line} className={styles.small}>
+                      {t("booking.dayHours", { hours: line })}
+                    </p>
+                  ))}
                 {!bySlot && (
                   <div className={styles.times}>
                     <div>
@@ -782,7 +823,7 @@ export default function ItemView({
                         label={t("booking.pickupTime")}
                         value={startTime}
                         onChange={setStartTime}
-                        options={dayTimes}
+                        options={startTimes}
                         searchPlaceholder={t("booking.timeSearch")}
                         emptyLabel={t("booking.timeNoMatch")}
                       />
@@ -796,7 +837,7 @@ export default function ItemView({
                         label={t("booking.returnTime")}
                         value={endTime}
                         onChange={setEndTime}
-                        options={dayTimes}
+                        options={endTimes}
                         searchPlaceholder={t("booking.timeSearch")}
                         emptyLabel={t("booking.timeNoMatch")}
                       />
@@ -815,26 +856,47 @@ export default function ItemView({
                   rows={2}
                   minHeight={56}
                 />
-                <button type="submit" className="primary-button" disabled={busy || !ready || preview}>
+                <button type="submit" className="primary-button" disabled={busy || !ready || preview || mine}>
                   {viewer || preview ? t("booking.request") : t("booking.signIn")}
                 </button>
                 <p className={styles.small}>{t("booking.explain")}</p>
-                {/* And what is being agreed to about calling it off. */}
-                <p className={`${styles.small} ${styles.tip}`}>{cancelLine(item.cancel, t)}</p>
+                {/* And what is being agreed to about calling it off, under
+                    a label of its own. */}
+                <div className={styles.policy}>
+                  <span className={styles.policyLabel}>{t("booking.cancelPolicy")}</span>
+                  <p className={styles.small}>{cancelLine(item.cancel, t)}</p>
+                </div>
               </fieldset>
               {formError && <p className="form-message error">{formError}</p>}
             </form>
           ) : (
             <p className={styles.small}>{t("item.inactiveNote")}</p>
           )}
-          {/* Whoever may change an item that is not their own — anybody
-              the admin, for any — has the way to be rid of it here: the same
-              buttons its own account has. */}
-          {!mine && canEdit && removal && (
-            <div className={styles.panel}>
+          {/* At the foot of the card, ruled off from what is for a reader:
+              what whoever may change it does with it — its own account, the
+              admin, anybody signed in for somebody else's. Changing it, and
+              publishing it or being rid of it. */}
+          {canEdit && (
+            <div className={styles.ownerTools}>
+              <div className={styles.buttons}>
+                <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
+                  {t(item.store ? "store.edit" : "item.editTitle")}
+                </button>
+                {/* When it can be had and what it costs, which is a sheet of
+                    its own apart from the one the item is edited on. */}
+                <button type="button" className="small-button" onClick={onEditAvailability} disabled={preview}>
+                  {t("item.availabilityTitle")}
+                </button>
+                {/* Which of its owner's items are on a page. */}
+                {item.store && mine && onEditItems && (
+                  <button type="button" className="small-button" onClick={onEditItems} disabled={preview}>
+                    {t("store.editItems")}
+                  </button>
+                )}
+              </div>
               {removal}
               {/* Where there is no request form above to say it in. */}
-              {(inquiry || !item.active) && formError && <p className="form-message error">{formError}</p>}
+              {(mine || inquiry || item.store || !item.active) && formError && <p className="form-message error">{formError}</p>}
             </div>
           )}
         </aside>

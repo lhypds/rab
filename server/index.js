@@ -98,7 +98,7 @@ const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepStoreImages, n
   "./images.js"
 );
 const { mailConfigured, sendMail } = await import("./mail.js");
-const { MODES, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
+const { MODES, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
 const { OpenAI, canDescribe, classifyListing, describeImage } = await import("./describe.js");
@@ -1365,10 +1365,14 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
     if (start === end && startTime >= endTime) {
       return res.status(400).json({ error: "The end time must be after the start time", code: "TIME_ORDER" });
     }
-    // Inside the hours the item is handed over in, where it says any.
-    const band = item.dayHours;
-    if (band && [startTime, endTime].some((time) => time < band.start || time > band.end)) {
-      return res.status(400).json({ error: `Pick times between ${band.start} and ${band.end}`, code: "TIME_OUTSIDE" });
+    // Inside the hours the item is handed over in on each of the two days,
+    // where it says any.
+    const inside = (day, time) => {
+      const bands = dayBands(item, day);
+      return !bands || bands.some((band) => time >= band.start && time <= band.end);
+    };
+    if (!inside(start, startTime) || !inside(end, endTime)) {
+      return res.status(400).json({ error: "Pick times inside the hours it is handed over in", code: "TIME_OUTSIDE" });
     }
   }
 

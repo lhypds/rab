@@ -12,7 +12,37 @@
 }
 
 .found li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-bottom: 1px solid var(--line);
+}
+
+/* The way to the page, at the right end of its line. */
+.open {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+}
+
+.open svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (hover: hover) {
+  .open:hover {
+    color: var(--ink);
+  }
 }
 
 .choice {

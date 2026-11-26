@@ -58,6 +58,17 @@ const Modal = ({
   // withholding onClose, and the composer does exactly that while it uploads.
   const close = useRef(onClose);
   close.current = onClose;
+  // The layer this sheet is drawn on: as it opens, one over every sheet open
+  // then, so the one opened last is over the rest wherever it stands in the
+  // page — the inbox, mounted beside the top bar, opened from an item looked
+  // at on a sheet further down, comes up over that sheet and not under it, as
+  // it would where the order on the page decided. Counted from the sheets
+  // open, not from every one ever opened, so it stays under what is drawn
+  // over any sheet (the timetable's note, 1100).
+  const layer = useRef(1);
+  const wasOpen = useRef(false);
+  if (isOpen && !wasOpen.current) layer.current = 1 + Math.max(0, ...sheets.map((each) => each.layer));
+  wasOpen.current = isOpen;
 
   // Prevent touchmove on background
   // allow scroll on textarea/input/select but prevent on the rest of the background
@@ -95,7 +106,7 @@ const Modal = ({
     // press to anything inside the sheet that has a better answer for it: a
     // field that empties itself first stops the event there and never reaches
     // this, the way the search field already does out on the pages.
-    const sheet = {};
+    const sheet = { layer: layer.current };
     const handleKeyDown = (event) => {
       if (event.key !== "Escape") return;
       if (event.isComposing || event.keyCode === 229) return;
@@ -133,7 +144,7 @@ const Modal = ({
 
   const box = [styles.modal, wide ? styles.wide : "", large ? styles.large : "", className];
   return (
-    <div className={styles.overlay} data-modal="" onClick={handleOverlayClick} {...gestures}>
+    <div className={styles.overlay} style={{ zIndex: 1000 + layer.current }} data-modal="" onClick={handleOverlayClick} {...gestures}>
       <div className={box.filter(Boolean).join(" ")}>
         <div className={styles.header}>
           {title && <span className={styles.title}>{title}</span>}

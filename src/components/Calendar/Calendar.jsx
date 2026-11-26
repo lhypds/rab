@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { addDays, addMonths, daysBetween, formatMonth, monthGrid, monthOf, today, weekdayNames } from "../../utils/days.js";
 import { compactPrice, wholePrice } from "../../utils/format.js";
-import { cellsOn, dayPrice, openByRule, priceUnitOf, slotsClash } from "../../utils/rates.js";
+import { cellsOn, dayBands, dayPrice, openByRule, priceUnitOf, slotsClash } from "../../utils/rates.js";
 import styles from "./calendar.module.css";
 
 // What is known about every day the calendar reaches, worked out once from the
@@ -54,7 +54,7 @@ export function slotStates(item, states, day) {
 
 // What a day comes to for somebody looking at it: whether anything of it can
 // still be had, and the figure to put on its square.
-function reading(item, states, calendar, day) {
+export function reading(item, states, calendar, day) {
   const state = states.get(day) ?? {};
   const outside = day < today() || day > calendar.until;
   if (item.mode === "time") {
@@ -81,7 +81,17 @@ function reading(item, states, calendar, day) {
     taken: Boolean(state.taken),
     pending: Boolean(state.pending),
     price: state.price ?? dayPrice(item, day),
+    // The hours it is handed over in that day, where it says any.
+    bands: dayBands(item, day),
   };
+}
+
+// A day's hours as written on its square, where the square has no price to
+// carry: the first stretch, broken after the dash rather than anywhere, and
+// a mark that there are more.
+function bandsLabel(bands) {
+  const [first, ...rest] = bands;
+  return `${first.start}–\u200b${first.end}${rest.length > 0 ? " +" : ""}`;
 }
 
 const open = (day) => !day.outside && !day.closed && !day.taken;
@@ -136,6 +146,9 @@ function stretches(slots) {
 //   for whatever the form is collecting dates for. With `onOpen`, each date
 //   has a pencil beside its price, which hands the date to the form to be
 //   given a price of its own.
+// - `onSelect` with `single`, on a store's page: a press picks that one day,
+//   and only ever one — any day ahead, closed ones included, since it is read
+//   for what its hours are.
 export default function Calendar({
   item,
   calendar,
@@ -145,8 +158,8 @@ export default function Calendar({
   onToggle,
   onOpen,
   editing = false,
+  single = false,
   marked = null,
-  off = false,
 }) {
   const { t, i18n } = useTranslation();
   const now = today();
@@ -156,21 +169,17 @@ export default function Calendar({
   const states = useMemo(() => dayStates(calendar, bookings), [calendar, bookings]);
   const cells = useMemo(() => monthGrid(month), [month]);
   const names = useMemo(() => weekdayNames(i18n.language), [i18n.language]);
-  // With `off` the whole item has been switched off by its owner: no day of it
-  // can be had, and every day ahead is drawn the way a closed one is.
-  const read = (day) => {
-    const state = reading(item, states, calendar, day);
-    return off && !state.outside ? { ...state, closed: true } : state;
-  };
+  const read = (day) => reading(item, states, calendar, day);
   const owner = editing || Boolean(onToggle);
 
   function pressable(day, state) {
     if (state.outside || (!onSelect && !onToggle)) return false;
-    return owner || open(state);
+    return owner || single || open(state);
   }
 
   function press(day) {
     if (onToggle) return onToggle(day);
+    if (single) return onSelect({ start: day, end: day });
     // By the time, a rental is within one day, so a press is the whole choice
     // — for the owner too, whose pick is the day whose hours are shown.
     if (item.mode === "time") {
@@ -195,7 +204,7 @@ export default function Calendar({
   // starts and dragged to the day it ends, forwards or back. Not with a
   // finger, whose drag over the calendar is the page being scrolled — there
   // it stays two presses.
-  const ranged = Boolean(onSelect) && !onToggle && item.mode !== "time";
+  const ranged = Boolean(onSelect) && !onToggle && !single && item.mode !== "time";
   const dragRef = useRef(null);
   // The day a press has just let go of. The pointer is still on it, and a day
   // under the pointer is filled in grey — which would read as the press having
@@ -307,7 +316,9 @@ export default function Calendar({
               ? t("calendar.taken")
               : state.closed
                 ? t("calendar.closed")
-                : priceLabel(state, item.currency, i18n.language);
+                : item.store && state.bands
+                  ? bandsLabel(state.bands)
+                  : priceLabel(state, item.currency, i18n.language);
           return (
             <button
               key={day}
@@ -372,6 +383,27 @@ export default function Calendar({
                   )}
                 </span>
               )}
+              {/* By the date, the hours it is handed over in that day, in
+                  full under the pointer the same way. */}
+              {!state.outside && !state.closed && !state.taken && state.bands && (
+                <span
+                  className={[
+                    styles.detail,
+                    index % 7 >= 4 && styles.detailRight,
+                    index >= cells.length - 14 && styles.detailUp,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  aria-hidden="true"
+                >
+                  <span className={styles.detailNote}>{t("calendar.dayHours")}</span>
+                  {state.bands.map((band) => (
+                    <span key={band.start}>
+                      {band.start}–{band.end}
+                    </span>
+                  ))}
+                </span>
+              )}
               {/* What the day costs, or why it cannot be had — and beside it,
                   where the form wants to know (`onOpen`), a pencil: the way
                   to give this one date a price of its own. A span and not a
@@ -409,10 +441,13 @@ export default function Calendar({
           <span className={styles.swatch} />
           {t("calendar.available")}
         </li>
-        <li>
-          <span className={`${styles.swatch} ${styles.taken}`} />
-          {t("calendar.taken")}
-        </li>
+        {/* A page is not booked itself: nothing on it is ever taken. */}
+        {!item.store && (
+          <li>
+            <span className={`${styles.swatch} ${styles.taken}`} />
+            {t("calendar.taken")}
+          </li>
+        )}
         <li>
           <span className={`${styles.swatch} ${styles.closed}`} />
           {t("calendar.closed")}

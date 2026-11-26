@@ -1029,12 +1029,11 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // A row of the list pressed, for an item that stands on the map: the first
   // press goes to its pin — the map moves there and its bubble is put up — and
   // keeps the row from going to the item's page; pressed again, with its
-  // bubble up, the row goes there as it always did. An item with no pin has
-  // nowhere on the map to go to, and its row goes to the page at once.
+  // bubble up, the row opens the item on a sheet over the list (see
+  // ItemPreview), from which its page is one press further. An item with no
+  // pin has nowhere on the map to go to, and its row opens the sheet at once.
   //
-  // As lists there is no map to go to, and an item with no pin has nowhere on
-  // one: those rows open the item on a sheet over the list instead (see
-  // ItemPreview), from which its page is one press further. As lists the
+  // As lists there is no map to go to: those rows open the sheet too. As lists the
   // first press only picks the row, as the keys and the wheel do; pressed
   // again, picked, it opens the sheet.
   const pressRow = (item, event) => {
@@ -1046,12 +1045,11 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       pick(row.parentElement, row);
       return;
     }
-    if (listing || !item.located) {
+    if (listing || !item.located || selectedId === item.id) {
       event.preventDefault();
       look(item, event.currentTarget);
       return;
     }
-    if (selectedId === item.id) return;
     const map = mapRef.current;
     if (!map) return;
     event.preventDefault();
@@ -1419,6 +1417,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       <ItemPreview
         id={previewId}
         onClose={lookAway}
+        // Saved from the form opened on the sheet: the sheet again.
+        onOpen={setPreviewId}
         // Deleted or switched off on the sheet, it is taken out of what is
         // listed and pinned here at once, rather than left until the next
         // time the lists are asked for.

@@ -191,9 +191,12 @@ export default function ContactFields({ contacts, onChange, saved = [], noMessag
           {t("item.contactAdd")}
         </button>
       )}
-      {/* Or one of the account's own, picked from a list. */}
-      {pickable.length > 0 && (contacts.length < CONTACTS_MAX || contacts.some((contact) => contact.type !== "message" && !contact.value.trim())) && (
+      {/* Or one of the account's own, picked from a list — always there, and
+          greyed where none of them is left to take, or there is no room for
+          one more. */}
+      {(
         <Select
+          disabled={pickable.length === 0 || (contacts.length >= CONTACTS_MAX && !contacts.some((contact) => contact.type !== "message" && !contact.value.trim()))}
           className={`${styles.add} ${styles.pick}`}
           label={t("item.contactPick")}
           value=""

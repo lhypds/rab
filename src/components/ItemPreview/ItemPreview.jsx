@@ -3,26 +3,35 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Modal, Skeleton, showToast, useNavigate } from "../../ui/index.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
+import ItemModal from "../ItemModal/index.js";
 import ItemView from "../ItemView/index.js";
+import StoreItemsModal from "../StoreItemsModal/index.js";
 import MessageModal from "../MessageModal/index.js";
 import styles from "./preview.module.css";
 
 // An item looked at without leaving the list it was picked from: its page, on
 // a sheet over the list. Everything a visitor does on the page is done here
-// the same — asking for it, keeping it, writing to its owner. Changing the
-// item is the page's own business, and the owner is taken there for it; the
-// way to the page is in the sheet's bar for everybody else.
+// the same — asking for it, keeping it, writing to its owner. Changing it
+// too: the sheet is put away and the form is opened in its place. The way to
+// the page is in the sheet's bar.
 //
 // `id` is the item being looked at, or null for the sheet put away. `onGone`
 // is told the id of an item that is no longer there to be listed — deleted
 // from here, or switched off — so the list under the sheet can let go of it.
-export default function ItemPreview({ id, onClose, onGone }) {
+// `onOpen` is asked to put the sheet up again on an id: the item's, once it
+// is saved from the form opened from the sheet.
+export default function ItemPreview({ id, onClose, onGone, onOpen }) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [writingTo, setWritingTo] = useState(null);
+  // The form opened from the sheet, once the sheet is put away: which of its
+  // parts ("item", "availability", or "items" for what is on a store), and
+  // the item and calendar it was opened on — the sheet lets go of its own
+  // as it closes.
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(() => {
     if (!id) return Promise.resolve();
@@ -53,6 +62,19 @@ export default function ItemPreview({ id, onClose, onGone }) {
 
   const item = data?.item ?? null;
   const page = `/i/${id}`;
+
+  // Saved: the form is put away and the sheet put up again on the item, as
+  // it now is.
+  function saved() {
+    const again = editing.item.id;
+    setEditing(null);
+    onOpen?.(again);
+  }
+
+  function edit(part) {
+    setEditing({ part, item, calendar: data.calendar });
+    onClose?.();
+  }
 
   async function book(request) {
     try {
@@ -110,8 +132,9 @@ export default function ItemPreview({ id, onClose, onGone }) {
                 onGone?.(item.id);
                 onClose?.();
               }}
-              onEdit={() => navigate(page)}
-              onEditAvailability={() => navigate(page)}
+              onEdit={() => edit("item")}
+              onEditAvailability={() => edit("availability")}
+              onEditItems={() => edit("items")}
               onMessage={setWritingTo}
               onBookmark={(on) => api.setBookmark(item.id, on)}
               onBookingChange={load}
@@ -122,6 +145,19 @@ export default function ItemPreview({ id, onClose, onGone }) {
         </div>
       </Modal>
       <MessageModal username={writingTo} onClose={() => setWritingTo(null)} />
+      {editing && editing.part !== "items" && (
+        <ItemModal
+          isOpen
+          part={editing.part}
+          item={editing.item}
+          calendar={editing.calendar}
+          onClose={() => setEditing(null)}
+          onSaved={saved}
+        />
+      )}
+      {editing?.part === "items" && (
+        <StoreItemsModal isOpen store={editing.item} onClose={() => setEditing(null)} onSaved={saved} />
+      )}
     </>
   );
 }

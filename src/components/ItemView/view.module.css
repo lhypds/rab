@@ -282,15 +282,26 @@
   font-size: 12px;
 }
 
-.price > span[class*="status"] {
-  margin-left: auto;
-  align-self: center;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* Whether it can be had, and whether it is published: at the far end of the
+   row the share button starts, held to the top of it — the top right corner
+   of the card. */
+.statusTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+  align-self: flex-start;
+}
+
+/* Not published: ruled in black like the tag beside it. */
+.statusTags :global(.status-off) {
+  border-color: var(--ink);
 }
 
 .actions :global(.small-button) {
@@ -361,6 +372,15 @@
   font-size: 12px;
 }
 
+/* The button to the owner, ruled off from what is above it the way the
+   calendar is. */
+.contactRule {
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 /* The same button as a link: its word in the middle, and not underlined. */
 .ask {
   display: flex;
@@ -380,9 +400,42 @@
   font-size: 12px;
 }
 
+/* On a store's page, the hours of the day picked: a line of their own under
+   its date, in ink where it can be used. */
+.storeHours {
+  flex-basis: 100%;
+}
+
+.storeHoursOpen {
+  color: var(--ink);
+}
+
 .panel .chosen strong {
   color: var(--ink);
   font-weight: 400;
+}
+
+/* What the owner and the admin do with it, at the foot of the card: ruled
+   off from what is above it like the calendar is. */
+/* Every button of it in one run from left to right, wrapping only where the
+   card runs out: the two groups inside it are not rows of their own. */
+.ownerTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.ownerTools > .buttons {
+  display: contents;
+}
+
+.ownerTools :global(.form-message) {
+  flex-basis: 100%;
+  min-height: 0;
+  margin: 0;
 }
 
 .buttons {
@@ -483,6 +536,31 @@
    kept closer to it than the card's parts are to one another. */
 .tip {
   margin-top: -6px;
+}
+
+/* The cancellation policy: a small label in ink over the line that says it. */
+.policy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.policyLabel {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* The line under the label sits on the gap above, not drawn up into the
+   label the way the note under the button is drawn up to the button. */
+.fields .policy .small {
+  margin-top: 0;
+}
+
+/* Greyed with the rest of the card until a day is picked. */
+.fields:disabled .policyLabel {
+  color: var(--line);
 }
 
 @media (hover: hover) {

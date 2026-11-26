@@ -99,8 +99,7 @@ export default function ItemPage({ id }) {
 
   return (
     <div className="page-shell">
-      {/* On a page of one's own, Publish adds an item to it. */}
-      <Header back listingStore={item?.store && item.mine ? item : undefined} onStoreSaved={load} />
+      <Header back />
       <main className="wide-page">
         {!item ? (
           error ? (

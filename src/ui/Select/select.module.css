@@ -99,6 +99,12 @@
    ring cannot be drawn in a second colour — the box turns over instead, which is
    the same thing every other chosen thing in lo wears. Only for the keyboard: a
    pointer already knows where it is. */
+.trigger:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
+
 .trigger:focus-visible {
   background: var(--ink);
   color: var(--paper);

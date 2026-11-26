@@ -49,6 +49,24 @@ export function openByRule(item, day) {
   return !item.openDays || item.openDays.includes(weekday(day));
 }
 
+// The hours one date of an item booked by the date can be picked up and
+// brought back in: [{ start, end }], or null where any time will do. The
+// usual hours (`dayHours`) are rules — these days of the week, these hours,
+// or the whole day where a rule gives none — and a date has every stretch of
+// the rules for its day. A date no rule is for (one opened on the calendar)
+// can be had at any time. Kept once as one stretch for every day.
+export function dayBands(item, day) {
+  const kept = item.dayHours;
+  if (!kept) return null;
+  const rules = Array.isArray(kept) ? kept : [{ days: null, ...kept }];
+  const mine = rules.filter((rule) => !rule.days || rule.days.includes(weekday(day)));
+  if (mine.length === 0 || mine.some((rule) => !rule.start || !rule.end)) return null;
+  return mine.map(({ start, end }) => ({ start, end })).sort((a, b) => (a.start < b.start ? -1 : 1));
+}
+
+// Whether a time is inside those stretches.
+export const inBands = (bands, time) => !bands || bands.some((band) => time >= band.start && time <= band.end);
+
 // The hours one day has, where the item is booked by the time, joined where
 // they touch, earliest first. A date the owner painted has what was painted,
 // and one they wiped (`hoursOff`) has none; any other date has what the rules

@@ -2,15 +2,20 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Checkbox } from "../../ui/index.js";
+import { storePath } from "../../utils/stores.js";
+import { useAuth } from "../AuthProvider/index.js";
 import styles from "./store.module.css";
 
 // Which pages a new item goes on, asked on the sheet it is made on (ItemModal):
 // any number of one's own pages, ticked. Every item is on at least one page:
 // the default page — the one named after one's account, which the server lists
 // first — is ticked to start with, and the last page ticked cannot be
-// unticked. `value` is the list of the pages' ids.
+// unticked. `value` is the list of the pages' ids. Each line has at its right
+// end the way to the page itself, opened in a tab of its own so the form is
+// not lost.
 export default function StoreField({ value, onChange, disabled = false, hintClassName }) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [own, setOwn] = useState(null);
 
   // One's own pages, read once when the field is first shown.
@@ -50,6 +55,22 @@ export default function StoreField({ value, onChange, disabled = false, hintClas
                 {store.thumb && <img src={store.thumb} alt="" loading="lazy" />}
                 <span>{store.default ? `${store.title} (${t("store.default")})` : store.title}</span>
               </Checkbox>
+              {user && (
+                <a
+                  className={styles.open}
+                  href={storePath({ ...store, owner: user.username })}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={t("map.open")}
+                  title={t("map.open")}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 4h6v6" />
+                    <path d="M20 4l-9 9" />
+                    <path d="M18 14v6H4V6h6" />
+                  </svg>
+                </a>
+              )}
             </li>
           ))}
         </ul>

@@ -32,7 +32,7 @@ const EDGE = 8;
 // With `fit` the closed box is as wide as the name it is showing, rather than
 // as wide as the longest name it could show: for a box that stands on its own
 // and has nothing beside it to keep in line.
-export default function Select({ options: all, value, onChange, label, className, searchPlaceholder, emptyLabel, fit = false, sans = false }) {
+export default function Select({ options: all, value, onChange, label, className, searchPlaceholder, emptyLabel, fit = false, sans = false, disabled = false }) {
   const searchable = Boolean(searchPlaceholder);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -247,6 +247,8 @@ export default function Select({ options: all, value, onChange, label, className
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-label={label}
+        // Shown and greyed where there is nothing it could be set to.
+        disabled={disabled}
         onClick={() => (open ? hide() : show())}
         onKeyDown={onTriggerKey}
       >

@@ -20,7 +20,7 @@ export const LIST_EVENT = "rab:list";
 // And by anything that wants the account's messages opened.
 export const MESSAGES_EVENT = "rab:messages";
 
-export default function Header({ back = false, listingStore, onStoreSaved, view, onView, query = "", onQuery }) {
+export default function Header({ back = false, view, onView, query = "", onQuery }) {
   const { t } = useTranslation();
   const { user, unread } = useAuth();
   const navigate = useNavigate();
@@ -140,7 +140,7 @@ export default function Header({ back = false, listingStore, onStoreSaved, view,
               to the map rather than reading it. Shown to everybody — to a
               stranger it is the way in, by way of signing in. */}
           <ActionButton
-            tooltip={listingStore ? t("store.addItem", { name: listingStore.title }) : t("header.list")}
+            tooltip={t("header.list")}
             onClick={post}
           >
             <svg viewBox="0 0 24 24">
@@ -221,13 +221,9 @@ export default function Header({ back = false, listingStore, onStoreSaved, view,
       {user && (
         <ItemModal
           isOpen={listing}
-          store={listingStore}
           onClose={() => setListing(false)}
-          onSaved={(item, savedStore) => {
+          onSaved={(item) => {
             setListing(false);
-            // Made from a store's own page, it is on that store, which is
-            // shown again with it; made anywhere else, it is opened.
-            if (savedStore && listingStore) return onStoreSaved(savedStore);
             // Straight to the page it now has, which is where its calendar is
             // and what there is to send to somebody — a page's at its own
             // address under its owner's.

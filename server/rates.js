@@ -135,14 +135,37 @@ export function readCancel(value) {
 // to Friday" — or null where it is every day.
 export const readOpenDays = readWeekdays;
 
-// The hours of the day an item booked by the date can be picked up and
-// brought back in, { start, end } — or null where it says none, and any time
-// of day will do.
+// The usual hours an item booked by the date can be picked up and brought
+// back in, as rules: [{ days, start, end }] — the days of the week (null for
+// all of them), and the hours, or null for both where it is the whole day.
+// Null where no rule says any hours, and any time of day will do. One stretch
+// sent the way it once was, { start, end }, is that stretch every day.
+const DAY_RULES_MAX = 12;
 export function readDayHours(value) {
-  const start = String(value?.start ?? "");
-  const end = String(value?.end ?? "");
-  if (!TIME_RE.test(start) || !TIME_RE.test(end) || start >= end) return null;
-  return { start, end };
+  const list = Array.isArray(value) ? value : value ? [{ days: null, ...value }] : [];
+  const rules = [];
+  for (const rule of list.slice(0, DAY_RULES_MAX)) {
+    const days = readWeekdays(rule?.days);
+    if (Array.isArray(rule?.days) && rule.days.length === 0) continue;
+    const start = String(rule?.start ?? "");
+    const end = String(rule?.end ?? "");
+    if (!start && !end) rules.push({ days, start: null, end: null });
+    else if (TIME_RE.test(start) && TIME_RE.test(end) && start < end) rules.push({ days, start, end });
+  }
+  return rules.some((rule) => rule.start) ? rules : null;
+}
+
+// The hours one date can be picked up and brought back in: [{ start, end }],
+// or null where any time will do — every stretch of the rules for its day of
+// the week, and any time on a date no rule is for, or one a rule gives the
+// whole of.
+export function dayBands(item, day) {
+  const kept = item.dayHours;
+  if (!kept) return null;
+  const rules = Array.isArray(kept) ? kept : [{ days: null, ...kept }];
+  const mine = rules.filter((rule) => !rule.days || rule.days.includes(weekday(day)));
+  if (mine.length === 0 || mine.some((rule) => !rule.start || !rule.end)) return null;
+  return mine.map(({ start, end }) => ({ start, end }));
 }
 
 // A plain list of dates, in order; empty where none are named.
