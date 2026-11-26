@@ -403,10 +403,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他颜色" } }
       }
     },
-    "Take a photo of something you have to rent out. You can give it a plain background, and it goes into your items." : {
+    "Take a photo of something you have. You can give it a plain background, and it goes into your items." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "貸し出すものを撮ってください。背景を単色に変えることもでき、マイアイテムに入ります。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "给你要出租的东西拍张照。可以给它换一个纯色背景，然后登记到你的物品里。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "持っているものを撮ってください。背景を単色に変えることもでき、マイアイテムに入ります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "给你的东西拍张照。可以给它换一个纯色背景，然后登记到你的物品里。" } }
       }
     },
     "Car" : {
