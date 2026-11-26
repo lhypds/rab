@@ -232,7 +232,7 @@ function ContactIcon({ type }) {
   );
 }
 
-export default function MapView({ view = "map", query = "", onQuery }) {
+export default function MapView({ view = "map", query = "", onQuery, active = true }) {
   // Read as lists rather than on the map: the same area and the same items,
   // with the map put away (not taken down — it is where it was on the way
   // back).
@@ -864,6 +864,15 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     setPreviewId(null);
     lookedFrom.current?.focus?.();
   };
+  // The bubble's View, and the rest of it that is the same link: the item on
+  // the sheet, over the map, rather than its page — its page being one press
+  // further, from the sheet. A press meant for a new tab or window is left to
+  // be one, to the page.
+  const preview = (item, event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    look(item, null);
+  };
 
   // A row picked with the keys or the wheel, rather than with the pointer: it
   // is given the keyboard, and is from then on the one row marked — the row
@@ -1383,6 +1392,14 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     if (element && element.parentNode !== map.getCanvasContainer()) map.getCanvasContainer().append(element);
   }, [open, popupNode]);
 
+  // Shown again after standing out of sight under an item's page (see App):
+  // the map measures its box afresh, which was nothing while it was hidden.
+  useEffect(() => {
+    if (!active) return undefined;
+    const frame = requestAnimationFrame(() => mapRef.current?.resize());
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
+
   /* -------------------------------------------------------------- the tools */
 
   async function goToMe() {
@@ -1690,7 +1707,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             <div className={styles.card}>
               {/* What it is, and the way to its page: everything above the two
                   buttons is one link. */}
-              <Link className={styles.cardBody} to={itemPath(open)} draggable={false}>
+              <Link className={styles.cardBody} to={itemPath(open)} draggable={false} onClick={(event) => preview(open, event)}>
                 {open.thumb && <img className={styles.cardPhoto} src={open.thumb} alt="" draggable={false} />}
                 <strong className={styles.cardTitle}>{open.title}</strong>
                 {open.what && <span className={styles.cardMeta}>{open.what}</span>}
@@ -1709,7 +1726,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                   calendar. Nobody
                   asks to rent their own, so on those there is only the one. */}
               <span className={styles.cardActions}>
-                <Link className={styles.cardLink} to={itemPath(open)} draggable={false}>
+                <Link className={styles.cardLink} to={itemPath(open)} draggable={false} onClick={(event) => preview(open, event)}>
                   {t("map.open")}
                 </Link>
                 {open.owner !== user?.username &&

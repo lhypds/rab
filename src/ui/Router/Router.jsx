@@ -53,6 +53,15 @@ export function RouterProvider({ children }) {
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>;
 }
 
+// What is under it reads `location` as the address, whatever the address bar
+// says: a page kept standing out of sight under another (see App) goes on
+// seeing its own address while the one over it has the bar.
+export function LocationScope({ location, children }) {
+  const outer = useContext(RouterContext);
+  const value = useMemo(() => ({ ...outer, location }), [outer, location]);
+  return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>;
+}
+
 export function useNavigate() {
   return useContext(RouterContext).navigate;
 }

@@ -1,6 +1,7 @@
 import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
 import { AuthPage, HomePage, ItemPage, MinePage, OthersPage, PreviewPage, UserPage } from "./pages/index.js";
-import { Navigate, useLocation } from "./ui/index.js";
+import { useRef } from "react";
+import { LocationScope, Navigate, useLocation } from "./ui/index.js";
 import { homeFilter, homePath } from "./utils/categories.js";
 
 // One segment after a prefix, decoded, or nothing where the path is not that
@@ -29,9 +30,39 @@ export default function App() {
 
 function Page() {
   const { ready, user } = useAuth();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  // The map as it was last left, kept standing out of sight while an item's
+  // or a spot's page is open over it, so that the way back finds it where it
+  // was — its place, its scale, its list — rather than loading it again.
+  const keptHome = useRef(null);
   if (!ready) return <Loading />;
 
+  const home = homeFilter(location.pathname);
+  const page = otherPage(location.pathname, user);
+  if (home && !home.old) keptHome.current = location;
+  else if (!isItemPath(location.pathname)) keptHome.current = null;
+
+  return (
+    <>
+      {keptHome.current && (
+        <LocationScope location={keptHome.current}>
+          <div hidden={Boolean(page)}>
+            <HomePage active={!page} />
+          </div>
+        </LocationScope>
+      )}
+      {page}
+    </>
+  );
+}
+
+// An item's page or a spot's: what the map is kept standing under.
+function isItemPath(pathname) {
+  return Boolean(segment(pathname, "/i/") || segment(pathname, "/s/") || /^\/u\/[^/]+\/p\/[^/]+\/?$/.test(pathname));
+}
+
+// Whatever is open that is not the map: null on the map itself.
+function otherPage(pathname, user) {
   // The map and an item's page are open to anybody: they are what a link that
   // somebody was sent opens on. Only what is your own asks who you are.
   // What it is narrowed to is in its address — /c/camera — so a link to it
@@ -39,7 +70,7 @@ function Page() {
   // (/things/camera) is put at its own.
   const home = homeFilter(pathname);
   if (home?.old) return <Navigate to={homePath(home.category)} replace />;
-  if (home) return <HomePage />;
+  if (home) return null;
   if (pathname === "/login") return <AuthPage />;
   if (pathname === "/mine") return user ? <MinePage /> : <Navigate to="/login?next=/mine" replace />;
   if (pathname === "/preview") return <PreviewPage />;
