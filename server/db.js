@@ -1451,7 +1451,9 @@ export function mergePublic({ locations, items }) {
     const id = held || !key || !byKey.has(key) ? folder : byKey.get(key);
     const existing = itemsById.get(id);
     const time = now();
-    const kept = { ...item, id, shared: true, createdAt: existing?.createdAt ?? item.createdAt ?? time, updatedAt: time };
+    // It keeps when it was last changed where it came saying so, so that a
+    // sender can tell later whether what it has is newer than this.
+    const kept = { ...item, id, shared: true, createdAt: existing?.createdAt ?? item.createdAt ?? time, updatedAt: item.updatedAt ?? time };
     delete kept.ownerId;
     delete kept.page;
     // A store (stores/<id>/store.json in the zip) is kept under stores/, with the
@@ -1468,11 +1470,19 @@ export function mergePublic({ locations, items }) {
 
 // What the public account already holds, for a sender to compare with what it
 // has and send only the rest: each item's id and the crawler's key for it
-// (source.json), deleted ones too, and each place's id and address.
+// (source.json) and when it was last changed, deleted ones too, and each
+// place's id and address.
 export function heldPublic() {
   const items = allItemFolders(PUBLIC_ID)
     .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID)
-    .map(({ folder: id, store }) => ({ id, store, key: readItemSource(PUBLIC_ID, id)?.key ?? null }));
+    .map(({ folder: id, store }) => ({
+      id,
+      store,
+      key: readItemSource(PUBLIC_ID, id)?.key ?? null,
+      // When it was last changed, for a sender to send its own again where
+      // that is newer (rab public push).
+      updatedAt: itemsById.get(id)?.updatedAt ?? null,
+    }));
   const locations = getLocations(PUBLIC_ID).map(({ id, address }) => ({ id, address: address ?? null }));
   return { items, locations };
 }

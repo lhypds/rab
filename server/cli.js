@@ -16,7 +16,9 @@ import { fileURLToPath } from "node:url";
 //                                      send what of a public folder the server
 //                                      at <url> does not have yet, an item at a
 //                                      time, to be merged into _public's
-//                                      (/api/public); without -f, this source's
+//                                      (/api/public) — and what it has too but
+//                                      changed longer ago (updatedAt) than here,
+//                                      to replace it; without -f, this source's
 //                                      own data/users/_public
 //   rab public pull [-f <folder>] [-u <url>]
 //                                      bring what the server's _public has
@@ -58,7 +60,8 @@ const USAGE = `Usage:
   rab user <username> pass <new>     set an account's password (${PASSWORD_MIN}–${PASSWORD_MAX} characters)
   rab user delete <username> [--yes] delete an account and everything it has
   rab public push [-f <folder>] [-u <url>]
-                                     send the items of a public folder the server does not have
+                                     send the items of a public folder the server does not have,
+                                     and those it has with an older updatedAt than here (replaced)
                                      (data/users/_public here, without -f), to the server at <url>
                                      (this machine's, without -u, or RAB_HOST)
   rab public pull [-f <folder>] [-u <url>]
@@ -205,7 +208,8 @@ function remoteArgs(args) {
 
 // What is here: the places, and each item folder with an item.json in it —
 // and each store folder (stores/) with a store.json in it — with the key the
-// crawler knows it by and the folder it is in (`under`: "items" or "stores").
+// crawler knows it by, when it was last changed, and the folder it is in
+// (`under`: "items" or "stores").
 function localPublic(fs, folder) {
   const list = readJson(fs, path.join(folder, "locations.json"));
   const locations = Array.isArray(list) ? list.filter((each) => each && typeof each === "object" && !Array.isArray(each)) : [];
@@ -214,7 +218,12 @@ function localPublic(fs, folder) {
     const dir = path.join(folder, under);
     for (const entry of fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : []) {
       if (!entry.isDirectory() || !/^\d+$/.test(entry.name) || !fs.existsSync(path.join(dir, entry.name, file))) continue;
-      items.push({ id: entry.name, under, key: readJson(fs, path.join(dir, entry.name, "source.json"))?.key ?? null });
+      items.push({
+        id: entry.name,
+        under,
+        key: readJson(fs, path.join(dir, entry.name, "source.json"))?.key ?? null,
+        updatedAt: readJson(fs, path.join(dir, entry.name, file))?.updatedAt ?? null,
+      });
     }
   }
   items.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
@@ -233,6 +242,27 @@ function missingFrom(other, { items, locations }) {
     items: items.filter((each) => !ids.has(each.id) && !(each.key && keys.has(JSON.stringify(each.key)))),
     locations: locations.filter((each) => !placeIds.has(each.id) && !(each.address && addresses.has(each.address))),
   };
+}
+
+// Which of `items` the other side has too — by id, or by the crawler's key —
+// but changed longer ago than here: the ones to send again, to replace what is
+// there. One whose time either side does not know (a server from before it
+// said) is left as it is.
+const timeOf = (value) => {
+  const time = Date.parse(value ?? "");
+  return Number.isFinite(time) ? time : null;
+};
+
+function olderIn(other, items) {
+  const byId = new Map(other.items.map((each) => [each.id, each]));
+  const byKey = new Map(other.items.filter((each) => each.key).map((each) => [JSON.stringify(each.key), each]));
+  return items.filter((each) => {
+    const there = byId.get(each.id) ?? (each.key ? byKey.get(JSON.stringify(each.key)) : undefined);
+    if (!there) return false;
+    const mine = timeOf(each.updatedAt);
+    const theirs = timeOf(there.updatedAt);
+    return mine !== null && theirs !== null && theirs < mine;
+  });
 }
 
 // Signed in to the server as _admin for one command, and out again after,
@@ -342,7 +372,10 @@ async function sendPublic(args, { mirror = false } = {}) {
     const held = await session.held();
     console.log(`${host} has ${held.items.length} items, ${held.locations.length} places`);
     const send = missingFrom(held, here);
-    console.log(`To send: ${send.items.length} items, ${send.locations.length} places`);
+    // And what it has too, but older than here: sent again, to replace it.
+    const newer = olderIn(held, here.items);
+    console.log(`To send: ${send.items.length} new items, ${newer.length} newer than the server's, ${send.locations.length} places`);
+    send.items = [...send.items, ...newer].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
     const drop = mirror ? missingFrom(here, held) : { items: [], locations: [] };
     if (mirror) console.log(`To delete on ${host}: ${drop.items.length} items, ${drop.locations.length} places`);
 
