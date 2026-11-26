@@ -314,7 +314,7 @@ async function adminSession(host) {
 // How the items are sent: packed several to a zip — as many as BATCH_ITEMS,
 // or as come to BATCH_BYTES, whichever is first — and that many zips on their
 // way at once.
-const BATCH_ITEMS = 50;
+const BATCH_ITEMS = 100;
 const BATCH_BYTES = 20 * 1024 * 1024;
 const BATCH_PARALLEL = 4;
 
