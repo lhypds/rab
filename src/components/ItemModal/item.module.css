@@ -85,15 +85,15 @@
 .linkRow input {
   flex: 1;
   min-width: 0;
-  /* As tall as the cross beside it. */
-  height: 24px;
-  padding: 0 8px;
+  /* As tall as every other field on the sheet, and the cross beside it. */
+  height: 32px;
+  padding: 0 10px;
 }
 
 .linkRemove {
   flex: none;
-  width: 22px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
