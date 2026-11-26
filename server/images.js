@@ -175,14 +175,17 @@ export function imageFile(name) {
   return { path: path.join(dir, name), type: IMAGE_TYPES[path.extname(name).slice(1)] };
 }
 
-// The pin's own copy of a picture: the size a pin on the map draws it, twice
-// over for a sharp screen. A map can hold thousands of pins at once, and each
-// one asking for the list's thumbnail is tens of megabytes; this is a kilobyte
-// or two each. Made the first time it is asked for and kept in data/cache/pins,
-// named after the picture it is of — whose bytes never change, so neither do
-// its own. Resolves to the file's path, or null where there is no such picture.
-const PIN_SIZE = 64;
-const pinsDir = path.join(dataDir, "cache", "pins");
+// The pin's own copy of a picture: the size a pin on the map draws it (32px),
+// half again over for a sharper screen. A map can hold thousands of pins at
+// once, and each one asking for the list's thumbnail is tens of megabytes;
+// this is about 600 bytes each. Made the first time it is asked for and kept
+// in data/cache/pins-<size>, named after the picture it is of — whose bytes
+// never change, so neither do its own. The size is in the folder's name so a
+// change of size is not served from copies made at the old one. Resolves to
+// the file's path, or null where there is no such picture.
+const PIN_SIZE = 48;
+const PIN_QUALITY = 60;
+const pinsDir = path.join(dataDir, "cache", `pins-${PIN_SIZE}`);
 const pinsMaking = new Map();
 
 export async function pinImageFile(name) {
@@ -198,7 +201,7 @@ export async function pinImageFile(name) {
         const bytes = await sharp(source.path, { animated: false })
           .rotate()
           .resize(PIN_SIZE, PIN_SIZE, { fit: "cover" })
-          .webp({ quality: 70 })
+          .webp({ quality: PIN_QUALITY })
           .toBuffer();
         // Written whole under another name first, so a file half written is
         // never served.

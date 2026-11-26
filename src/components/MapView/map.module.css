@@ -469,8 +469,16 @@
   transform: translateX(-50%);
   border: 1px solid #000;
   background: #fff;
-  /* Part of the pin to the pointer as well as to the eye: resting on the
+  /* Part of the pin to the pointer as well as to the eye: a press on the
      picture opens the bubble, which then stands where the picture was. */
+  /* Hidden until its picture has loaded. Not display: none, which would keep
+     a lazy picture from ever being fetched; hidden also takes it away from
+     the pointer until it shows. */
+  visibility: hidden;
+}
+
+.pinPhotoLoaded {
+  visibility: visible;
 }
 
 .pinPhoto img {

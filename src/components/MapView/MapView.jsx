@@ -40,6 +40,28 @@ import styles from "./map.module.css";
 // are asked for, so a drag is one request rather than one per frame of it.
 const SETTLE_MS = 250;
 
+// How much ground past the window is asked for with it, as a share of the
+// window's own width and height on each side: half a window all round, so a
+// drag of up to half a screen finds its pins already there. A zoom of this
+// much or more from the one last asked at asks again even inside that ground —
+// in, for a smaller box than the one held; out, since it has outgrown it.
+const FETCH_MARGIN = 0.5;
+const REFETCH_ZOOM = 1;
+
+const wrapLongitude = (longitude) => mapboxgl.LngLat.convert([longitude, 0]).wrap().lng;
+
+// Whether a spot is inside the window, whose longitudes may run past ±180.
+function inView(view, item) {
+  if (!view || item.latitude == null || item.longitude == null) return false;
+  if (item.latitude < view.south || item.latitude > view.north) return false;
+  if (view.east - view.west >= 360) return true;
+  const west = wrapLongitude(view.west);
+  const east = wrapLongitude(view.east);
+  return west <= east
+    ? item.longitude >= west && item.longitude <= east
+    : item.longitude >= west || item.longitude <= east;
+}
+
 // How far above the spot a bubble sits: the pin's own height (25.2px) and a
 // pixel, as in lo.
 const POPUP_OFFSET = 26;
@@ -48,17 +70,6 @@ const POPUP_OFFSET = 26;
 // said not now. Kept for the tab's life only: the next visit asks again, since
 // a map of what is nearby has one question worth asking twice.
 const GATE_KEY = "rab:gate-dismissed";
-
-// A pointer that can rest on a thing, as against a finger that can only land on
-// it. Read once: a device does not change its mind about this. Where there is
-// one, resting it on a pin opens the pin's bubble and a click holds it there —
-// lo's arrangement.
-const HOVERS = window.matchMedia("(hover: hover)").matches;
-
-// How long a bubble opened by the pointer outlives the pointer leaving its pin:
-// long enough to cross the hairline between the pin and the bubble over it, so
-// what the bubble offers can be reached and pressed.
-const LEAVE_MS = 120;
 
 // vi's keys for moving, and the arrows they stand for among the rows.
 const VI_KEYS = { h: "ArrowLeft", j: "ArrowDown", k: "ArrowUp", l: "ArrowRight" };
@@ -102,11 +113,19 @@ function setPinPhoto(element, src) {
     const image = document.createElement("img");
     image.alt = "";
     image.loading = "lazy";
+    // The frame stands over the pin only once its picture is there: an empty
+    // white square while it loads, or for one that never does, says nothing.
+    image.addEventListener("load", () => frame.classList.add(styles.pinPhotoLoaded));
+    image.addEventListener("error", () => frame.classList.remove(styles.pinPhotoLoaded));
     frame.append(image);
     element.append(frame);
   }
   const image = frame.firstChild;
-  if (image.getAttribute("src") !== src) image.src = src;
+  if (image.getAttribute("src") !== src) {
+    frame.classList.remove(styles.pinPhotoLoaded);
+    image.src = src;
+    if (image.complete && image.naturalWidth > 0) frame.classList.add(styles.pinPhotoLoaded);
+  }
 }
 
 // The map the site opens on: everything out for rent in the window being
@@ -149,13 +168,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
-  // The pin the pointer is resting on, where there is a pointer. Its bubble is
-  // borrowed from the chosen one for as long as it rests there.
-  const [hoveredId, setHoveredId] = useState(null);
   // The row of the list the pointer is resting on: its pin is lit for as long
   // as it rests there, and no bubble is put up for it.
   const [pointedId, setPointedId] = useState(null);
-  const leaveRef = useRef(null);
   // Which category the pins are for is in the address — /c/camera — so the
   // page can be sent to somebody as it stands. Changing it changes the
   // address in place: no new entry to step back
@@ -355,6 +370,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   };
   const filtering = Boolean(category || words.length);
   const shown = filtering ? items.filter(passes) : items;
+  // Of those, the ones inside the window itself, which is what the count says.
+  const [viewBox, setViewBox] = useState(null);
+  const inWindow = shown.filter((item) => inView(viewBox, item)).length;
   // Something looked for by name is looked for everywhere, not only in the
   // area the reader stands in: the box is in the bar, over the whole page, and
   // a title typed into it is expected to be found wherever the item is. So
@@ -386,16 +404,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const pool =
     here && sought && found ? [...here, ...found.filter((item) => !here.some((each) => each.id === item.id))] : here;
   const listed = pool && (filtering ? pool.filter(passes) : pool);
-  // The one whose bubble is up: what the pointer is on, and failing that what
-  // was chosen.
-  const open =
-    shown.find((item) => item.id === hoveredId) ?? shown.find((item) => item.id === selectedId) ?? null;
-
-  const stay = useCallback(() => window.clearTimeout(leaveRef.current), []);
-  const leave = useCallback(() => {
-    window.clearTimeout(leaveRef.current);
-    leaveRef.current = window.setTimeout(() => setHoveredId(null), LEAVE_MS);
-  }, []);
+  // The one whose bubble is up: the pin that was pressed. Resting the pointer
+  // on a pin only lights it; the bubble waits for a press.
+  const open = shown.find((item) => item.id === selectedId) ?? null;
 
   const fly = useCallback((spot, { animate = true } = {}) => {
     const map = mapRef.current;
@@ -458,27 +469,53 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     let controller = null;
     let cancelled = false;
 
+    // The box last asked for, wider than the window by FETCH_MARGIN all round,
+    // and the zoom it was asked at. A move that stays inside it at much the
+    // same zoom has its pins already, so a drag shows them as it goes rather
+    // than after it stops.
+    let fetched = null;
+
     function ask() {
       const bounds = map.getBounds();
-      // A window wider than the world is the whole of it; one that runs past
+      const view = { south: bounds.getSouth(), north: bounds.getNorth(), west: bounds.getWest(), east: bounds.getEast() };
+      const zoom = map.getZoom();
+      if (
+        fetched &&
+        Math.abs(zoom - fetched.zoom) < REFETCH_ZOOM &&
+        view.south >= fetched.south &&
+        view.north <= fetched.north &&
+        view.west >= fetched.west &&
+        view.east <= fetched.east
+      ) {
+        return;
+      }
+      const width = view.east - view.west;
+      const height = view.north - view.south;
+      const box = {
+        south: Math.max(-90, view.south - height * FETCH_MARGIN),
+        north: Math.min(90, view.north + height * FETCH_MARGIN),
+        west: view.west - width * FETCH_MARGIN,
+        east: view.east + width * FETCH_MARGIN,
+      };
+      // A box wider than the world is the whole of it; one that runs past
       // the antimeridian has its edges brought back into range, which leaves
       // west greater than east — the server reads that as a box that wraps.
-      const whole = bounds.getEast() - bounds.getWest() >= 360;
-      const wrap = (longitude) => mapboxgl.LngLat.convert([longitude, 0]).wrap().lng;
+      const whole = box.east - box.west >= 360;
       controller?.abort();
       controller = new AbortController();
       api
         .getItems(
           {
-            south: Math.max(-90, bounds.getSouth()),
-            north: Math.min(90, bounds.getNorth()),
-            west: whole ? -180 : wrap(bounds.getWest()),
-            east: whole ? 180 : wrap(bounds.getEast()),
+            south: box.south,
+            north: box.north,
+            west: whole ? -180 : wrapLongitude(box.west),
+            east: whole ? 180 : wrapLongitude(box.east),
           },
           { signal: controller.signal },
         )
         .then((data) => {
           if (cancelled) return;
+          fetched = whole ? { ...box, west: -Infinity, east: Infinity, zoom } : { ...box, zoom };
           setItems(data.items ?? []);
           setLoaded(true);
           setFailed(false);
@@ -490,14 +527,25 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         });
     }
 
+    // The window as it now stands, for the count of what is in it: the items
+    // held reach past it.
+    function look() {
+      const bounds = map.getBounds();
+      setViewBox({ south: bounds.getSouth(), north: bounds.getNorth(), west: bounds.getWest(), east: bounds.getEast() });
+    }
+
     function settle() {
       window.clearTimeout(timer);
       timer = window.setTimeout(ask, SETTLE_MS);
+      look();
       const center = map.getCenter().wrap();
       saveView({ latitude: center.lat, longitude: center.lng, zoom: map.getZoom() });
     }
 
-    map.on("load", ask);
+    map.on("load", () => {
+      look();
+      ask();
+    });
     map.on("moveend", settle);
     // A move the reader made carries the event that made it; one made by code
     // does not.
@@ -568,7 +616,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       cancelled = true;
       stopListening();
       window.clearTimeout(timer);
-      window.clearTimeout(leaveRef.current);
       controller?.abort();
       hideSelf();
       for (const { marker } of markersRef.current.values()) marker.remove();
@@ -663,13 +710,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
           event.stopPropagation();
           setSelectedId((current) => (current === item.id ? null : item.id));
         });
-        if (HOVERS) {
-          element.addEventListener("mouseenter", () => {
-            stay();
-            setHoveredId(item.id);
-          });
-          element.addEventListener("mouseleave", leave);
-        }
         const marker = new mapboxgl.Marker({ element, anchor: "bottom" })
           .setLngLat([item.longitude, item.latitude])
           .addTo(map);
@@ -1058,17 +1098,6 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     map.flyTo({ center: [item.longitude, item.latitude], zoom: Math.max(map.getZoom(), 14), duration: 800 });
   };
 
-  // The bubble itself holds a borrowed bubble open while the pointer is in it.
-  useEffect(() => {
-    if (!HOVERS) return undefined;
-    popupNode.addEventListener("mouseenter", stay);
-    popupNode.addEventListener("mouseleave", leave);
-    return () => {
-      popupNode.removeEventListener("mouseenter", stay);
-      popupNode.removeEventListener("mouseleave", leave);
-    };
-  }, [popupNode, stay, leave]);
-
   // The bubble over the pin being looked at. One popup, moved rather than remade; what
   // is in it is drawn by React through the portal below.
   useEffect(() => {
@@ -1331,7 +1360,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         {/* How much there is to see in this window, said once it is known. */}
         {loaded && (
           <p className={styles.count}>
-            {failed ? t("map.failed") : shown.length === 0 ? t("map.empty") : t("map.count", { count: shown.length })}
+            {failed ? t("map.failed") : inWindow === 0 ? t("map.empty") : t("map.count", { count: inWindow })}
           </p>
         )}
 
