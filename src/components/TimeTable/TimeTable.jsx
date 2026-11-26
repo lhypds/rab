@@ -97,6 +97,17 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
     scrollRef.current.scrollTop = (from * DAY_HOUR) / 60;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Today, a piece of the day that has begun can no longer be had: it is
+  // greyed like the hours the day does not have, up to the first piece still
+  // to come.
+  const past = (cell) => clock !== null && minutesOf(cell.start) < clock;
+  // What cannot be picked: somebody's already, or gone by.
+  const shut = (cell) => cell.taken || past(cell);
+  // A stretch picked that the clock has since reached is let go of.
+  useEffect(() => {
+    if (value && onChange && clock !== null && minutesOf(value.start) < clock) onChange(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clock]);
   const taken = useMemo(() => runs(cells, (cell) => cell.taken), [cells]);
   const pending = useMemo(() => runs(cells, (cell) => cell.pending && !cell.taken), [cells]);
   if (cells.length === 0) return <p className={styles.none}>{t("calendar.noHours")}</p>;
@@ -112,7 +123,7 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
     // half hour between the two can be had.
     if (single && cell.start > value.start) {
       const between = cells.filter((each) => each.start >= value.start && each.start <= cell.start);
-      const whole = between.every((each, index) => !each.taken && (index === 0 || between[index - 1].end === each.start));
+      const whole = between.every((each, index) => !shut(each) && (index === 0 || between[index - 1].end === each.start));
       if (whole) return onChange({ start: value.start, end: cell.end });
     }
     onChange({ start: cell.start, end: cell.end });
@@ -133,7 +144,7 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
   function stretch(anchor, at) {
     let first = anchor;
     let last = anchor;
-    const joined = (a, b) => cells[a].end === cells[b].start && !cells[a].taken && !cells[b].taken;
+    const joined = (a, b) => cells[a].end === cells[b].start && !shut(cells[a]) && !shut(cells[b]);
     while (last + 1 < cells.length && minutesOf(cells[last + 1].start) <= at && joined(last, last + 1)) last += 1;
     while (first > 0 && minutesOf(cells[first - 1].end) > at && joined(first - 1, first)) first -= 1;
     return { start: cells[first].start, end: cells[last].end };
@@ -142,7 +153,7 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
   function down(event) {
     if (!onChange || (event.pointerType === "mouse" && event.button !== 0)) return;
     const { index } = indexAt(event);
-    if (index === -1 || cells[index].taken) return;
+    if (index === -1 || shut(cells[index])) return;
     dragRef.current = { anchor: index, moved: false, before: value };
     laneRef.current.setPointerCapture(event.pointerId);
   }
@@ -192,9 +203,9 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
               <button
                 key={cell.start}
                 type="button"
-                className={[styles.cell, on && styles.on].filter(Boolean).join(" ")}
+                className={[styles.cell, on && styles.on, past(cell) && styles.past].filter(Boolean).join(" ")}
                 style={{ top: top(cell.start), height: (unit * DAY_HOUR) / 60 }}
-                disabled={cell.taken || !onChange}
+                disabled={shut(cell) || !onChange}
                 aria-pressed={Boolean(on)}
                 aria-label={`${cell.start}–${cell.end}`}
                 // The pointer is the lane's to follow (above); this is the

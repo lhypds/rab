@@ -87,6 +87,11 @@
   opacity: 1;
 }
 
+/* Gone by today: grey, as the hours the day does not have. */
+.past {
+  background: var(--soft);
+}
+
 /* The stretch picked, turned over. */
 .on {
   background: var(--ink);
