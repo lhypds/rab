@@ -34,6 +34,9 @@ div.sheet {
    margins), held in the middle of a sheet that is wider than that, with room
    left under it at the foot of the sheet. */
 .page {
+  /* The sheet scrolls on its own, with no bar over it: the booking card
+     sticks at its top, not the bar's height down (see ItemView). */
+  --card-top: 0px;
   width: min(100%, 1056px);
   margin: 0 auto;
   padding-bottom: 12px;

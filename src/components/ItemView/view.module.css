@@ -55,8 +55,10 @@
     position: sticky;
     /* The same 20px the page keeps over it before anything is scrolled (see
        .wide-page), so the card is already where it sticks and does not move
-       when the page starts to. */
-    top: calc(var(--topbar) + 20px);
+       when the page starts to. Where the page is drawn inside a sheet that
+       scrolls on its own, with no bar over it, the sheet says --card-top: 0
+       — or the card would be pushed down that far from the first. */
+    top: var(--card-top, calc(var(--topbar) + 20px));
     align-self: start;
   }
 }

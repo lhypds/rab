@@ -33,6 +33,7 @@ import { categoriesOf } from "../CategoryFilter/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import FilterBox from "../FilterBox/index.js";
 import ItemPreview from "../ItemPreview/index.js";
+import { itemPath } from "../../utils/stores.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
 
@@ -1680,7 +1681,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             <div className={styles.card}>
               {/* What it is, and the way to its page: everything above the two
                   buttons is one link. */}
-              <Link className={styles.cardBody} to={`/i/${open.id}`} draggable={false}>
+              <Link className={styles.cardBody} to={itemPath(open)} draggable={false}>
                 {open.thumb && <img className={styles.cardPhoto} src={open.thumb} alt="" draggable={false} />}
                 <strong className={styles.cardTitle}>{open.title}</strong>
                 {open.what && <span className={styles.cardMeta}>{open.what}</span>}
@@ -1699,7 +1700,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                   calendar. Nobody
                   asks to rent their own, so on those there is only the one. */}
               <span className={styles.cardActions}>
-                <Link className={styles.cardLink} to={`/i/${open.id}`} draggable={false}>
+                <Link className={styles.cardLink} to={itemPath(open)} draggable={false}>
                   {t("map.open")}
                 </Link>
                 {open.owner !== user?.username &&
@@ -1715,7 +1716,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                       <ContactIcon type={open.contacts[0].type} />
                     </a>
                   ) : (
-                    <Link className={styles.cardLink} to={`/i/${open.id}?book=1`} draggable={false}>
+                    <Link className={styles.cardLink} to={`${itemPath(open)}?book=1`} draggable={false}>
                       {t("map.request")}
                       <ContactIcon type={open.contacts?.[0]?.type} />
                     </Link>

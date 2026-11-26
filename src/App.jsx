@@ -4,7 +4,7 @@ import { Navigate, useLocation } from "./ui/index.js";
 import { homeFilter, homePath } from "./utils/categories.js";
 
 // One segment after a prefix, decoded, or nothing where the path is not that
-// shape: /i/<id> is an item and /u/<name> is a person.
+// shape: /i/<id> is an item, /s/<id> a spot and /u/<name> a person.
 function segment(pathname, prefix) {
   if (!pathname.startsWith(prefix)) return "";
   const rest = pathname.slice(prefix.length).replace(/\/$/, "");
@@ -50,8 +50,13 @@ function Page() {
   const itemId = segment(pathname, "/i/");
   if (itemId) return <ItemPage key={itemId} id={itemId} />;
 
-  // /u/<name>/p/<id> is one of the pages somebody made of their items: an
+  // /s/<id> is a spot — one of the stores somebody made of their items: an
   // item like any other (see server/db.js), at an address of its own.
+  const spotId = segment(pathname, "/s/");
+  if (spotId) return <ItemPage key={spotId} id={spotId} />;
+
+  // /u/<name>/p/<id> is where a spot was before: opened, and put right to
+  // /s/<id> (see ItemPage).
   const page = /^\/u\/([^/]+)\/p\/([^/]+)\/?$/.exec(pathname);
   if (page) {
     try {

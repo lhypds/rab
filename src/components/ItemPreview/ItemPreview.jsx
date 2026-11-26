@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Modal, Skeleton, showToast, useNavigate } from "../../ui/index.js";
+import { itemPath } from "../../utils/stores.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
 import ItemModal from "../ItemModal/index.js";
 import ItemView from "../ItemView/index.js";
@@ -61,7 +62,8 @@ export default function ItemPreview({ id, onClose, onGone, onOpen }) {
   }, [load, username]);
 
   const item = data?.item ?? null;
-  const page = `/i/${id}`;
+  // Its own address: /s/<id> for a spot, /i/<id> for anything else.
+  const page = item ? itemPath(item) : `/i/${id}`;
 
   // Saved: the form is put away and the sheet put up again on the item, as
   // it now is.

@@ -4,6 +4,7 @@ import * as api from "../../api.js";
 import { useNavigate } from "../../ui/index.js";
 import { priceLine } from "../../utils/format.js";
 import { sortLabel } from "../../utils/categories.js";
+import { itemPath } from "../../utils/stores.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./search.module.css";
 
@@ -56,7 +57,7 @@ export default function ItemSearch() {
     setQuery("");
     setItems(null);
     setOpen(false);
-    navigate(`/i/${item.id}`);
+    navigate(itemPath(item));
   }
 
   function steer(event) {

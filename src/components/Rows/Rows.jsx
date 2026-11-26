@@ -6,6 +6,7 @@ import { bookingEnded, bookingWhen, canCancel, cancelLine } from "../../utils/bo
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
 import { iconParts } from "../../utils/categoryIcons.js";
 import { sortLabel } from "../../utils/categories.js";
+import { itemPath } from "../../utils/stores.js";
 import { PIN_PATH } from "../../utils/mapbox.js";
 import ReviewModal from "../ReviewModal/index.js";
 import UserName, { dotted } from "../UserName/index.js";
@@ -46,7 +47,7 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
       <div className="row">
         {/* `back`: the item's page was come to from a list, and its way back
             is to that list (see Header). */}
-        <Link className="row-copy" to={`/i/${item.id}`} state={{ back: true }} draggable={false} onClick={onPress}>
+        <Link className="row-copy" to={itemPath(item)} state={{ back: true }} draggable={false} onClick={onPress}>
           {item.thumb && <img className="row-thumb" src={item.thumb} alt="" width="40" height="40" loading="lazy" draggable={false} />}
           <span className="row-lines">
             {/* A few words for what it is, where it says, after its name. */}

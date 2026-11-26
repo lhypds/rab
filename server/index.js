@@ -1953,7 +1953,7 @@ function sharePage(html, req, item) {
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    `<meta property="og:url" content="${escapeHtml(item.store && item.owner ? `${origin}/u/${encodeURIComponent(item.owner)}/p/${item.id}` : `${origin}/i/${item.id}`)}" />`,
+    `<meta property="og:url" content="${escapeHtml(`${origin}/${item.store ? "s" : "i"}/${item.id}`)}" />`,
     item.images[0] ? `<meta property="og:image" content="${escapeHtml(origin + item.images[0].src)}" />` : "",
     `<meta name="twitter:card" content="${item.images[0] ? "summary_large_image" : "summary"}" />`,
   ];
@@ -1965,8 +1965,9 @@ if (isProduction) {
   app.use(express.static(dist, { index: false }));
   app.use((req, res, next) => {
     if (req.method !== "GET") return next();
-    // An item at /i/<id>, or a store (a page, as the site says) at its owner's /u/<name>/p/<id>.
-    const shared = /^\/i\/([a-z0-9]{1,32})\/?$/.exec(req.path) ?? /^\/u\/[^/]+\/p\/([a-z0-9]{1,32})\/?$/i.exec(req.path);
+    // An item at /i/<id>, or a store (a spot, as the site says) at /s/<id> —
+    // or at its owner's /u/<name>/p/<id>, where it was before.
+    const shared = /^\/[is]\/([a-z0-9]{1,32})\/?$/.exec(req.path) ?? /^\/u\/[^/]+\/p\/([a-z0-9]{1,32})\/?$/i.exec(req.path);
     const item = shared ? getItem(shared[1]) : null;
     if (!item) return res.sendFile(indexPath);
     fs.readFile(indexPath, "utf8", (error, html) => {

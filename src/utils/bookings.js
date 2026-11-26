@@ -36,7 +36,7 @@ export function linePath(message) {
   const itemId = message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
   if (itemId) return `/i/${itemId}`;
   const store = message.store;
-  if (store && !store.gone && store.owner) return `/u/${encodeURIComponent(store.owner)}/p/${encodeURIComponent(store.id)}`;
+  if (store && !store.gone) return `/s/${encodeURIComponent(store.id)}`;
   return null;
 }
 
