@@ -19,15 +19,12 @@ struct NewItemView: View {
     @State private var processing = true
     @State private var processError: String?
 
-    @State private var kind = Kind.item
-    /// The sort of thing it is within its kind: suggested from the photo and
-    /// the name until somebody picks one themselves. Empty is none.
+    /// The sort of thing it is: suggested from the photo and the name until
+    /// somebody picks one themselves. Empty is none.
     @State private var category = ""
     @State private var categoryPicked = false
     /// What the phone's classifier saw in the photo.
     @State private var seen: [Sighting] = []
-    /// The kind was chosen by hand, so the photo no longer decides it.
-    @State private var kindPicked = false
     /// The server is being asked what the photo is of.
     @State private var describing = true
     /// The server answered: the category is its, not the phone's own guess.
@@ -98,16 +95,12 @@ struct NewItemView: View {
                     }
                 }
 
-                // What it is — its kind, and the sort of thing within the kind —
-                // both filled in from the photo, and anybody's to change.
+                // What it is — the sort of thing — filled in from the photo, and
+                // anybody's to change.
                 Section {
-                    Picker("Kind", selection: Binding(get: { kind }, set: { pick(kind: $0) })) {
-                        ForEach(Kind.allCases) { Text($0.name).tag($0) }
-                    }
-                    .pickerStyle(.menu)
                     Picker(selection: Binding(get: { category }, set: { category = $0; categoryPicked = true })) {
                         Text("None").tag("")
-                        ForEach(Categories.all[kind] ?? [], id: \.self) { slug in
+                        ForEach(Categories.all, id: \.self) { slug in
                             Text(Categories.name(slug)).tag(slug)
                         }
                     } label: {
@@ -265,8 +258,8 @@ struct NewItemView: View {
         processing = false
     }
 
-    /// Fills the form in from the photo: the kind, the category, the name and
-    /// the description, as rab's server makes them out. Whatever has been
+    /// Fills the form in from the photo: the category, the name and the
+    /// description, as rab's server makes them out. Whatever has been
     /// typed or chosen by hand in the meantime is left alone.
     ///
     /// Where the server cannot say, the form says so and is left to be filled
@@ -278,8 +271,8 @@ struct NewItemView: View {
         do {
             let suggestion = try await model.describe(original)
             described = true
-            if !kindPicked { kind = suggestion.kind }
-            if !categoryPicked, kind == suggestion.kind { category = suggestion.category }
+            // Only one the picker has: a slug it does not know would show as none.
+            if !categoryPicked, Categories.all.contains(suggestion.category) { category = suggestion.category }
             if title.isEmpty { title = suggestion.title }
             if details.isEmpty { details = suggestion.description }
         } catch let error as APIError where error.status == 404 || error.status == 503 {
@@ -292,22 +285,11 @@ struct NewItemView: View {
         suggestCategory()
     }
 
-    /// A kind chosen by hand: its categories are others, so the category goes
-    /// back to the phone's guess among them.
-    private func pick(kind chosen: Kind) {
-        guard chosen != kind else { return }
-        kind = chosen
-        kindPicked = true
-        categoryPicked = false
-        described = false
-        suggestCategory()
-    }
-
     /// The phone's guess at the category, unless one has been picked by hand
     /// or the server has given one.
     private func suggestCategory() {
         guard !categoryPicked, !described else { return }
-        category = Categories.suggest(kind: kind, seen: seen, title: title) ?? ""
+        category = Categories.suggest(seen: seen, title: title) ?? ""
     }
 
     /// Stands the subject on the colour chosen, if one is.
@@ -350,7 +332,7 @@ struct NewItemView: View {
         Task {
             defer { saving = false }
             do {
-                let item = try model.save(image: shown, kind: kind, category: category, title: name, description: details.trimmingCharacters(in: .whitespacesAndNewlines), region: region, locationId: model.location(locationId)?.id)
+                let item = try model.save(image: shown, category: category, title: name, description: details.trimmingCharacters(in: .whitespacesAndNewlines), region: region, locationId: model.location(locationId)?.id)
                 do {
                     try await model.publish(item)
                     dismiss()

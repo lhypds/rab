@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { useNavigate } from "../../ui/index.js";
 import { priceLine } from "../../utils/format.js";
-import { sortLabel } from "../../utils/kinds.js";
+import { sortLabel } from "../../utils/categories.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./search.module.css";
 

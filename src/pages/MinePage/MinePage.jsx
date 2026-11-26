@@ -2,15 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
-import { CategoryFilter, CategoryIcon, categoriesOf, kindOfCategory, Header, ItemRow, useAuth } from "../../components/index.js";
+import { CategoryFilter, categoriesOf, Header, ItemRow, useAuth } from "../../components/index.js";
 import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
-import { KINDS } from "../../utils/kinds.js";
 
-// What the list of your items can be narrowed to: one kind of thing, one at
-// a time, and — on or off beside whichever that is — only what is published.
-// "All" is none of that: it is pressed while nothing else is, and pressing it
-// lets go of the rest. The buttons stand in this order.
-const FILTERS = ["all", "published", ...KINDS];
+// What the list of your items can be narrowed to: only what is published, on
+// or off, and one category. "All" is none of that: it is pressed while nothing
+// else is, and pressing it lets go of the rest.
+const FILTERS = ["all", "published"];
 
 // What is yours: what you have out for rent, in one list. (What you have
 // asked other people for is on /others.) An item
@@ -26,37 +24,19 @@ export default function MinePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const wanted = searchParams.get("show");
-  const filter = KINDS.includes(wanted) ? wanted : "all";
   const published = searchParams.get("published") === "1";
-  // And within it one category, "" for all of them: one the kind in force
-  // does not have is no choice at all.
-  const kind = KINDS.includes(filter) ? filter : null;
   const slugWanted = searchParams.get("category") ?? "";
-  const category = categoriesOf(kind, Boolean(user?.adult)).includes(slugWanted) ? slugWanted : "";
-  const show = (name, slug, onlyPublished = published) => {
+  const category = categoriesOf(Boolean(user?.adult)).includes(slugWanted) ? slugWanted : "";
+  const show = (slug, onlyPublished) => {
     const query = new URLSearchParams();
-    if (name !== "all") query.set("show", name);
     if (onlyPublished) query.set("published", "1");
     if (slug) query.set("category", slug);
     navigate(query.size > 0 ? `/mine?${query}` : "/mine", { replace: true, scroll: false });
   };
-  // All gives up the published switch and the category along with the kind;
-  // a kind leaves both as they are.
-  // And a kind pressed a second time is let go of, which with nothing else
-  // pressed is All again.
-  // Choosing a category chooses the kind it belongs to as well, so the kind's
-  // button is pressed with it; one that is in every kind leaves the kind alone.
-  const chooseCategory = (slug) => show((slug && kindOfCategory(slug)) || filter, slug);
-  const setFilter = (name) =>
-    name === "all"
-      ? show("all", "", false)
-      : // Letting go of a kind lets go of the category chosen within it too.
-        name === filter
-        ? show("all", "", published)
-        : show(name, category, published);
-  const pressed = (name) =>
-    name === "published" ? published : name === "all" ? filter === "all" && !published && !category : filter === name;
+  const chooseCategory = (slug) => show(slug, published);
+  // Published is a switch of its own; All lets go of it and the category.
+  const press = (name) => (name === "published" ? show(category, !published) : show("", false));
+  const pressed = (name) => (name === "published" ? published : !published && !category);
 
   const load = useCallback(() => {
     api
@@ -71,7 +51,7 @@ export default function MinePage() {
   useEffect(load, [load]);
 
   // An item of yours dragged from the list on the right onto one of your pages
-  // on the left is put on that page: a page takes items of any kind.
+  // on the left is put on that page.
   const [carried, setCarried] = useState(null);
   const carry = (item, event) => {
     if (!event) return setCarried(null);
@@ -102,10 +82,7 @@ export default function MinePage() {
   // The ones asked about first, by who has waited longest; the rest after
   // them, in the order they came in (a sort keeps that where two are equal).
   const turn = (item) => asked.get(item.id) ?? Number.MAX_SAFE_INTEGER;
-  const fits = (item) =>
-    (filter === "all" || (item.kind || "item") === filter) &&
-    (!published || item.active) &&
-    (!category || item.category === category);
+  const fits = (item) => (!published || item.active) && (!category || item.category === category);
   const items = (data?.items ?? []).filter(fits).sort((a, b) => turn(a) - turn(b));
 
   return (
@@ -130,8 +107,8 @@ export default function MinePage() {
               {data && <span>{items.length}</span>}
             </div>
 
-            {/* What the list below is narrowed to: the kind, and after the last
-                of the kinds the category within it. */}
+            {/* What the list below is narrowed to: published or not, and the
+                category. */}
             <div className="tabs" role="group">
               {FILTERS.map((name) => (
                 <button
@@ -139,30 +116,19 @@ export default function MinePage() {
                   type="button"
                   aria-pressed={pressed(name)}
                   className={pressed(name) ? "tab active" : "tab"}
-                  // Published is a switch of its own, pressed and let go without
-                  // touching which kind is chosen.
-                  onClick={() => (name === "published" ? show(filter, category, !published) : setFilter(name))}
+                  onClick={() => press(name)}
                 >
-                  {/* Each kind leads with its own mark, as on the map. */}
-                  {KINDS.includes(name) && <CategoryIcon kind={name} />}
-                  {/* What is a service to whoever books it is, to whoever offers
-                      it, a skill of their own. */}
-                  {name === "published" ? t("item.published") : name === "service" ? t("mine.skills") : t(`kind.${name}`)}
+                  {name === "published" ? t("item.published") : t("map.all")}
                 </button>
               ))}
-              <CategoryFilter
-                kind={kind}
-                kindLabel={kind === "service" ? t("mine.skills") : undefined}
-                value={category}
-                onChange={chooseCategory}
-              />
+              <CategoryFilter value={category} onChange={chooseCategory} />
             </div>
 
             {error && <p className="list-error">{error}</p>}
             {!data && !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />}
             {data &&
               (items.length === 0 ? (
-                <p className="empty-state">{t(filter === "all" && !category && !published ? "mine.itemsEmpty" : "mine.noneShown")}</p>
+                <p className="empty-state">{t(!category && !published ? "mine.itemsEmpty" : "mine.noneShown")}</p>
               ) : (
                 <ul className="row-list">
                   {items.map((item) => (

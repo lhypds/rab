@@ -147,7 +147,7 @@ export const setBookmark = (id, on) => send("PUT", `/api/items/${name(id)}/bookm
 // sender's conversation with them: asking for one listed for somebody else to
 // be deleted, and saying what is wrong with one (`reason` is the kind).
 export const reportItem = (id, reason, note) => send("POST", `/api/items/${name(id)}/report`, { reason, note });
-// What a photograph is of, as a listing would say it: { kind, category, title,
+// What a photograph is of, as a listing would say it: { category, title,
 // description }, in the language asked for (see server/describe.js). The
 // model takes its time, so this waits longer than most.
 export const describePhoto = (blob, lang) =>

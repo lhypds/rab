@@ -68,25 +68,18 @@ const ICONS = {
   handyman: ["M4 4h10l4 4H4z", "M9 8h3v13H9z"],
 };
 
-// What stands in for a category nobody chose, or the one called "other": the
-// kind itself — a box for a thing, a doorway for a space, people for a
-// service.
-const KIND_ICONS = {
-  item: ["M3 8l9-5 9 5v8l-9 5-9-5z", "M3 8l9 5 9-5", "M12 13v8"],
-  space: ["M5 21V3h14v18", "M3 21h18", "M10 21v-6h4v6"],
-  // People, more than one: somebody in front and another behind their
-  // shoulder — and not the one person the account button in the bar is.
-  service: [[9, 8, 3.5], "M2 21c0-3.6 3.1-6 7-6s7 2.4 7 6", "M15.5 4.7a3.5 3.5 0 0 1 0 6.6", "M18 15.4c2.4.8 4 2.8 4 5.6"],
-};
+// What stands in for a category nobody chose, or the one called "other": a
+// box, an item like any other.
+const ITEM_ICON = ["M3 8l9-5 9 5v8l-9 5-9-5z", "M3 8l9 5 9-5", "M12 13v8"];
 
-export function iconParts(kind, category) {
-  return ICONS[category] ?? KIND_ICONS[kind] ?? KIND_ICONS.item;
+export function iconParts(category) {
+  return ICONS[category] ?? ITEM_ICON;
 }
 
 // The same parts as markup, for the one place that is built by hand rather than
 // rendered: a pin on the map is a DOM node the map places, not a React one.
-export function iconMarkup(kind, category) {
-  return iconParts(kind, category)
+export function iconMarkup(category) {
+  return iconParts(category)
     .map((part) =>
       typeof part === "string"
         ? `<path d="${part}"/>`

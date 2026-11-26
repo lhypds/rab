@@ -6,7 +6,7 @@ import { priceLine } from "../../utils/format.js";
 import styles from "./items.module.css";
 
 // The sheet the items on a store are chosen on, apart from the one the store
-// itself is changed on: the account's own items, of any kind, one to a
+// itself is changed on: the account's own items, one to a
 // line, ticked to be on it — in the order they were ticked. `onSaved` is told
 // the store as it was kept.
 export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
@@ -34,7 +34,7 @@ export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
   }, [isOpen, store?.id]);
 
   if (!store) return null;
-  // A store takes the account's items of every kind.
+  // A store takes any of the account's items.
   const choices = items ?? [];
 
   function toggle(id, on) {

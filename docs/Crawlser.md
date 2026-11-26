@@ -785,8 +785,8 @@ One entry of sources.json is enough to follow such a chain:
     name      what the reports, done.json and `forever.py --rerun` call it
     index     the page that links to the Kyoto branches, or a list of such pages
     link      a regular expression a branch page's address matches
-    kind      item | space | service
-    category  one of src/utils/kinds.js
+    kind      item | space | service (no longer read by rab: the server drops it)
+    category  one of src/utils/categories.js
     label     what is put after a title that does not say what is on offer
 
 and optionally:

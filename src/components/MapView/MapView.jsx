@@ -8,7 +8,7 @@ import { Link, Select, showToast, useLocation, useNavigate } from "../../ui/inde
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
-import { CATEGORIES, KINDS, homeFilter, homePath, sortLabel } from "../../utils/kinds.js";
+import { homeFilter, homePath, sortLabel } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
@@ -156,16 +156,14 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // as it rests there, and no bubble is put up for it.
   const [pointedId, setPointedId] = useState(null);
   const leaveRef = useRef(null);
-  // Which kind and which category the pins are for is in the address —
-  // /things/camera — so the page can be sent to somebody as it stands.
-  // Changing either changes the address in place: no new entry to step back
+  // Which category the pins are for is in the address — /c/camera — so the
+  // page can be sent to somebody as it stands. Changing it changes the
+  // address in place: no new entry to step back
   // through, and what the entry carries (see utils/back.js) is kept.
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { kind, category } = homeFilter(pathname) ?? { kind: null, category: "" };
-  const narrow = (nextKind, nextCategory) =>
-    navigate(homePath(nextKind, nextCategory), { replace: true, scroll: false, state: window.history.state });
-  const setCategory = (slug) => narrow(kind, slug);
+  const { category } = homeFilter(pathname) ?? { category: "" };
+  const setCategory = (slug) => navigate(homePath(slug), { replace: true, scroll: false, state: window.history.state });
   // The question about location, while it is being asked: "ask" before the
   // reader has answered, "locating" while the browser does, and afterwards why
   // it came to nothing: "denied", "failed" or "insecure" (see locateFailure).
@@ -205,32 +203,26 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // page holds it): a filter on what is already here — the list and the pins
   // alike — rather than a search somewhere else.
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  // Which category the pins are for, within the kind in force: "" is all of
-  // them. The choices are that kind's categories, or every kind's where no
-  // kind is chosen ("other" is in all three, and is listed once).
-  // "Other" is always the last of them.
-  const categoryChoices = categoriesOf(kind, Boolean(user?.adult));
-  // Each one leads with its own mark, the one its pins wear on the map — and
-  // the kind's mark where the category has none of its own. `text` is what
-  // the search reads, since the label is no longer a plain string.
+  // Which category the pins are for: "" is all of them. "Other" is always
+  // the last of the choices.
+  const categoryChoices = categoriesOf(Boolean(user?.adult));
+  // Each one leads with its own mark, the one its pins wear on the map.
+  // `text` is what the search reads, since the label is no longer a plain
+  // string.
   const withIcon = (slug, name) => (
     <span className={styles.categoryName}>
-      <CategoryIcon kind={kind} category={slug} />
+      <CategoryIcon category={slug} />
       {name}
     </span>
   );
-  // Within a kind, the two choices every kind has say which kind's they are:
-  // "All categories (Things)", "Other (Things)".
-  const named = (slug, name) =>
-    kind && (slug === "" || slug === "other") ? t("item.categoryWithin", { name, kind: t(`kind.${kind}`) }) : name;
-  const allName = named("", t("map.allCategories"));
+  const allName = t("map.allCategories");
   const categoryOptions = [
     { value: "", name: allName, label: withIcon("", allName), text: allName },
     ...categoryChoices.map((slug) => ({
       value: slug,
-      name: named(slug, t(`category.${slug}`)),
-      label: withIcon(slug, named(slug, t(`category.${slug}`))),
-      text: `${named(slug, t(`category.${slug}`))} ${slug}`,
+      name: t(`category.${slug}`),
+      label: withIcon(slug, t(`category.${slug}`)),
+      text: `${t(`category.${slug}`)} ${slug}`,
     })),
   ];
   // What is typed over the categories, as lists: the ones whose name has
@@ -238,14 +230,13 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const [categoryQuery, setCategoryQuery] = useState("");
   const categoryWords = categoryQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // And they are set out by how much each has here: the categories with the
-  // most offered in this area first — within the kind in force — and the ones
+  // most offered in this area first, and the ones
   // with nothing after them, in the order they are always in. "All
   // categories" stays at the head, being none of them, and "other" at the
   // foot however much it has.
   const held = new Map();
   let heldAll = 0;
   for (const item of offered ?? []) {
-    if (kind && item.kind !== kind) continue;
     held.set(item.category, (held.get(item.category) ?? 0) + 1);
     heldAll += 1;
   }
@@ -319,12 +310,8 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     carriedRef.current = null;
     setDropOn(null);
     if (!item || !slug || item.category === slug) return;
-    // A category belongs to a kind, and the item goes over to it where its
-    // own kind has no such category: the kind in force, if that has it.
-    const kinds = KINDS.filter((each) => CATEGORIES[each].includes(slug));
-    const nextKind = kinds.includes(item.kind) ? item.kind : kinds.includes(kind) ? kind : (kinds[0] ?? item.kind);
     try {
-      const { item: saved } = await api.updateItem(item.id, { category: slug, kind: nextKind });
+      const { item: saved } = await api.updateItem(item.id, { category: slug });
       const swap = (list) => list && list.map((each) => (each.id === saved.id ? { ...each, ...saved } : each));
       setOffered(swap);
       setItems(swap);
@@ -335,23 +322,18 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     }
   };
 
-  // Pressing a kind starts over within it: every category of that kind. All
-  // is every kind and every category; and the kind in force, pressed again,
-  // is let go of — back to all.
-  const chooseKind = (next) => narrow(next === kind ? null : next, "");
-  // An item passes when it is of the kind and the category in force and every
-  // word typed is somewhere in what it says about itself.
+  // An item passes when it is of the category in force and every word typed
+  // is somewhere in what it says about itself.
   const passes = (item) => {
-    if (kind && item.kind !== kind) return false;
     if (category && item.category !== category) return false;
     if (words.length === 0) return true;
-    const text = [item.title, item.description, item.place, item.owner, t(`kind.${item.kind}`), item.category && t(`category.${item.category}`, item.category)]
+    const text = [item.title, item.description, item.place, item.owner, item.category && t(`category.${item.category}`, item.category)]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
     return words.every((word) => text.includes(word));
   };
-  const filtering = Boolean(kind || category || words.length);
+  const filtering = Boolean(category || words.length);
   const shown = filtering ? items.filter(passes) : items;
   // Something looked for by name is looked for everywhere, not only in the
   // area the reader stands in: the box is in the bar, over the whole page, and
@@ -656,11 +638,11 @@ export default function MapView({ view = "map", query = "", onQuery }) {
       }
       entry.marker.setLngLat([item.longitude, item.latitude]);
       entry.element.setAttribute("aria-label", item.title);
-      // What kind of thing it is, said in the pin's head. Written only when it
+      // What category it is, said in the pin's head. Written only when it
       // has changed, so a drag that keeps a pin does not redraw it.
-      const mark = `${item.kind}/${item.category}`;
+      const mark = item.category ?? "";
       if (entry.mark !== mark) {
-        entry.element.querySelector(`.${styles.glyph}`).innerHTML = iconMarkup(item.kind, item.category);
+        entry.element.querySelector(`.${styles.glyph}`).innerHTML = iconMarkup(item.category);
         entry.mark = mark;
       }
       setPinPhoto(entry.element, item.pin ?? item.thumb);
@@ -668,14 +650,14 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     // `shown` is derived afresh each render; what it is derived from is what
     // is watched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, kind, category, query]);
+  }, [items, category, query]);
 
   useEffect(() => {
     for (const [id, entry] of markersRef.current) {
       entry.element.classList.toggle(styles.pinChosen, id === selectedId);
       entry.element.classList.toggle(styles.pinPointed, id === pointedId);
     }
-  }, [selectedId, pointedId, items, kind, category, query]);
+  }, [selectedId, pointedId, items, category, query]);
 
   // The item being looked at on a sheet over the list, by its id, and the row
   // it was opened from — which is given the keyboard back when the sheet is
@@ -961,27 +943,13 @@ export default function MapView({ view = "map", query = "", onQuery }) {
         {/* The box that narrows the list: in the top bar where there is room
             (see Header), and here on a phone. */}
         <FilterBox slash className={styles.sideFilter} value={query} onChange={onQuery} placeholder={t("search.placeholder")} />
-        {/* As lists, the column is what narrows them: the kinds as the row of
-            small boxes the map has in its corner, and under it the categories
-            of the kind in force. */}
+        {/* As lists, the column is what narrows them: the categories. */}
         {listing && (
-          <div className={styles.kindRow} role="group" aria-label={t("item.kind")}>
-            {[null, ...KINDS].map((each) => (
-              <button
-                key={each ?? "all"}
-                type="button"
-                className={kind === each ? `${styles.kind} ${styles.kindChosen}` : styles.kind}
-                aria-pressed={kind === each}
-                onClick={() => chooseKind(each)}
-              >
-                {each && <CategoryIcon kind={each} />}
-                {each ? t(`kind.${each}`) : t("kind.all")}
-              </button>
-            ))}
+          <div className={styles.categoryRow} role="group" aria-label={t("item.category")}>
             {/* On a phone the list of categories is put away, and the
                 category is picked from the dropdown the map has instead. */}
             <Select
-              className={`${styles.category} ${styles.rowCategory}`}
+              className={styles.category}
               fit
               label={t("item.category")}
               value={category}
@@ -1001,7 +969,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
             placeholder={t("item.categorySearch")}
           />
         )}
-        {/* The categories of the kind in force, as a list of short rows: the
+        {/* The categories, as a list of short rows: the
             one pressed is the one the items are narrowed to. */}
         {listing && (
           <ul className={styles.choices} aria-label={t("item.category")}>
@@ -1033,7 +1001,7 @@ export default function MapView({ view = "map", query = "", onQuery }) {
                 >
                   {option.label}
                   {/* How many of them are offered here, at the row's far end:
-                      everything of the kind in force for "all", and nothing
+                      everything for "all", and nothing
                       written where there are none. */}
                   {(option.value === "" ? heldAll : held.get(option.value)) > 0 && (
                     <span className={styles.choiceCount}>{option.value === "" ? heldAll : held.get(option.value)}</span>
@@ -1126,23 +1094,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
           onLocate={goToMe}
         />
 
-        {/* Which kind of thing the pins are for: all of them, or one of the
-            three. */}
-        <div className={styles.kinds} role="group" aria-label={t("item.kind")}>
-          {[null, ...KINDS].map((each) => (
-            <button
-              key={each ?? "all"}
-              type="button"
-              className={kind === each ? `${styles.kind} ${styles.kindChosen}` : styles.kind}
-              aria-pressed={kind === each}
-              onClick={() => chooseKind(each)}
-            >
-              {/* Each kind leads with its own mark; "all" is no kind and has none. */}
-              {each && <CategoryIcon kind={each} />}
-              {each ? t(`kind.${each}`) : t("kind.all")}
-            </button>
-          ))}
-          {/* And which category within it: all of them unless one is picked. */}
+        {/* Which category the pins are for: all of them unless one is
+            picked. */}
+        <div className={styles.filters} role="group" aria-label={t("item.category")}>
           <Select
             className={styles.category}
             fit

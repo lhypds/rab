@@ -1,7 +1,7 @@
 import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
 import { AuthPage, HomePage, ItemPage, MinePage, OthersPage, PreviewPage, UserPage } from "./pages/index.js";
 import { Navigate, useLocation } from "./ui/index.js";
-import { homeFilter } from "./utils/kinds.js";
+import { homeFilter, homePath } from "./utils/categories.js";
 
 // One segment after a prefix, decoded, or nothing where the path is not that
 // shape: /i/<id> is an item and /u/<name> is a person.
@@ -34,9 +34,12 @@ function Page() {
 
   // The map and an item's page are open to anybody: they are what a link that
   // somebody was sent opens on. Only what is your own asks who you are.
-  // What it is narrowed to is in its address — /things, /things/camera — so a
-  // link to it opens on the same kind and category.
-  if (homeFilter(pathname)) return <HomePage />;
+  // What it is narrowed to is in its address — /c/camera — so a link to it
+  // opens on the same category. One from before every listing was an item
+  // (/things/camera) is put at its own.
+  const home = homeFilter(pathname);
+  if (home?.old) return <Navigate to={homePath(home.category)} replace />;
+  if (home) return <HomePage />;
   if (pathname === "/login") return <AuthPage />;
   if (pathname === "/mine") return user ? <MinePage /> : <Navigate to="/login?next=/mine" replace />;
   if (pathname === "/preview") return <PreviewPage />;

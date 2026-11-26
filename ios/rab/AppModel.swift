@@ -170,7 +170,7 @@ final class AppModel {
 
     // MARK: - describing
 
-    /// What rab's server makes of a photograph — its kind, category, name and
+    /// What rab's server makes of a photograph — its category, name and
     /// description, in the phone's language. It throws where the server cannot
     /// say: no key on it, no connection, a picture it would not describe.
     func describe(_ image: UIImage) async throws -> Suggestion {
@@ -188,7 +188,7 @@ final class AppModel {
     }
 
     /// Keeps a photographed thing in the user's folder, newest first.
-    func save(image: UIImage, kind: Kind, category: String, title: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
+    func save(image: UIImage, category: String, title: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
         guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
             throw BackgroundRemover.Failure.noImage
@@ -197,7 +197,6 @@ final class AppModel {
         let photo = try store.savePhoto(jpeg.data, id: id)
         let item = SavedItem(
             id: id,
-            kind: kind,
             category: category.isEmpty ? nil : category,
             title: title,
             description: description,
@@ -345,7 +344,6 @@ final class AppModel {
         let body = ItemBody(
             title: item.title,
             description: item.description ?? "",
-            kind: (item.kind ?? .item).rawValue,
             category: item.category ?? "",
             currency: item.currency,
             price: item.price,

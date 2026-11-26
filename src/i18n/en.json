@@ -114,6 +114,7 @@
   "map": {
     "categoryMoved": "Moved to {{name}}",
     "categoryMoveFailed": "Could not change the category",
+    "all": "All",
     "allCategories": "All categories",
     "area": "Current area",
     "areaUnknown": "Around here",
@@ -185,9 +186,9 @@
     "noDays": "No free days",
     "access": "Access",
     "openMaps": "Open in Maps",
-    "kind": "Kind",
     "category": "Category",
     "categoryNone": "No category",
+    "uncategorized": "Item",
     "categorySearch": "Search categories",
     "categoryNoMatch": "No matching category",
     "photoMain": "Main",
@@ -195,7 +196,7 @@
     "photosHint": "Up to 100 photos, compressed before upload. The first is the main photo and is shown on the map — press a photo to make it the main one.",
     "generate": "Recognize",
     "generating": "Recognizing…",
-    "generateHint": "Fills in the kind, category, name and description from the main photo.",
+    "generateHint": "Fills in the category, name and description from the main photo.",
     "generateUnavailable": "This server is not set up to fill this in from the photo.",
     "generateBusy": "Too many photos at once. Try again in a moment.",
     "generateFailed": "This could not be filled in from the photo. Fill it in yourself.",
@@ -290,7 +291,6 @@
       "hours": "Hours"
     },
     "cancelCount": "How many",
-    "categoryWithin": "{{name}} ({{kind}})",
     "homepage": "Homepage",
     "contact": "Contact",
     "contactType": "Contact type",
@@ -394,8 +394,7 @@
     "title": "Mine",
     "itemsEmpty": "You have nothing listed. Press + to publish something.",
     "noneShown": "Nothing here.",
-    "items": "Items",
-    "skills": "Skills"
+    "items": "Items"
   },
   "user": {
     "missing": "There is nobody by that name.",
@@ -434,21 +433,6 @@
   "search": {
     "placeholder": "Search...",
     "empty": "Nothing by that name"
-  },
-  "kind": {
-    "all": "All",
-    "item": "Things",
-    "space": "Spaces",
-    "service": "Services",
-    "skill": "Skills",
-    "one": {
-      "item": "Thing",
-      "space": "Space",
-      "service": "Service (Skill)"
-    },
-    "itemHint": "Something you own: a car, a camera, a projector, a bike.",
-    "spaceHint": "A place: a home, a meeting room, storage, a music studio.",
-    "serviceHint": "Your time: photography, lessons, repairs, a guide."
   },
   "category": {
     "car": "Car",
@@ -578,23 +562,14 @@
   },
   "store": {
     "title": "Pages",
+    "one": "Page",
     "edit": "Edit page",
-    "empty": "No pages yet. Make a store, a space or a page of your services with Publish (+), choosing Page.",
+    "empty": "No pages yet. Make one with Publish (+), choosing Page.",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
     "noneShown": "No pages here.",
     "added": "Added to “{{name}}”",
     "alreadyOn": "Already on “{{name}}”",
-    "kinds": {
-      "item": "Store",
-      "space": "Spaces",
-      "service": "Services"
-    },
-    "kindHints": {
-      "item": "A store of the things you rent out: cars, cameras, bikes.",
-      "space": "A place with spaces to rent: rooms, parking spaces, storage units.",
-      "service": "The services you offer, together: lessons, treatments, repairs."
-    },
     "addItem": "Add to {{name}}",
     "itemsNone": "You have published nothing yet.",
     "unpublished": "not published",

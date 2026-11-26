@@ -114,6 +114,7 @@
   "map": {
     "categoryMoved": "「{{name}}」に移動しました",
     "categoryMoveFailed": "カテゴリを変更できませんでした",
+    "all": "すべて",
     "allCategories": "すべてのカテゴリ",
     "area": "現在のエリア",
     "areaUnknown": "このあたり",
@@ -183,9 +184,9 @@
     "noDays": "空きなし",
     "access": "アクセス",
     "openMaps": "マップで開く",
-    "kind": "種類",
     "category": "カテゴリ",
     "categoryNone": "カテゴリなし",
+    "uncategorized": "アイテム",
     "categorySearch": "カテゴリを検索",
     "categoryNoMatch": "該当するカテゴリがありません",
     "photoMain": "メイン",
@@ -193,7 +194,7 @@
     "photosHint": "最大100枚、アップロード前に圧縮されます。1枚目がメイン写真で、地図に表示されます。写真を押すとメインにできます。",
     "generate": "認識",
     "generating": "認識中…",
-    "generateHint": "メイン写真から種類・カテゴリ・名前・説明を自動で入力します。",
+    "generateHint": "メイン写真からカテゴリ・名前・説明を自動で入力します。",
     "generateUnavailable": "このサーバーでは写真からの自動入力が設定されていません。",
     "generateBusy": "混み合っています。少し待ってからもう一度お試しください。",
     "generateFailed": "写真から入力できませんでした。手動で入力してください。",
@@ -286,7 +287,6 @@
       "hours": "時間"
     },
     "cancelCount": "数",
-    "categoryWithin": "{{name}}（{{kind}}）",
     "homepage": "ホームページ",
     "contact": "連絡先",
     "contactType": "連絡先の種類",
@@ -386,8 +386,7 @@
     "title": "私の",
     "itemsEmpty": "掲載しているものはありません。+ から追加できます。",
     "noneShown": "該当するアイテムはありません。",
-    "items": "アイテム",
-    "skills": "スキル"
+    "items": "アイテム"
   },
   "user": {
     "missing": "そのユーザーは見つかりません。",
@@ -426,21 +425,6 @@
   "search": {
     "placeholder": "検索...",
     "empty": "見つかりません"
-  },
-  "kind": {
-    "all": "すべて",
-    "item": "モノ",
-    "space": "スペース",
-    "service": "サービス",
-    "skill": "スキル",
-    "one": {
-      "item": "モノ",
-      "space": "スペース",
-      "service": "サービス（スキル）"
-    },
-    "itemHint": "持ち物：車、カメラ、プロジェクター、自転車など。",
-    "spaceHint": "場所：住まい、会議室、収納スペース、音楽スタジオなど。",
-    "serviceHint": "あなたの時間：撮影、レッスン、修理、ガイドなど。"
   },
   "category": {
     "car": "車",
@@ -567,22 +551,13 @@
   },
   "store": {
     "title": "ページ",
+    "one": "ページ",
     "edit": "ページを編集",
-    "empty": "ページはまだありません。「掲載する」（+）で「ページ」を選ぶと、ストア、スペース、サービスのページを作れます。",
+    "empty": "ページはまだありません。「掲載する」（+）で「ページ」を選ぶと作れます。",
     "count_other": "{{count}}件",
     "noneShown": "ここにはページがありません。",
     "added": "「{{name}}」に追加しました",
     "alreadyOn": "すでに「{{name}}」にあります",
-    "kinds": {
-      "item": "ストア",
-      "space": "スペース",
-      "service": "サービス"
-    },
-    "kindHints": {
-      "item": "モノを貸し出すお店：車、カメラ、自転車など。",
-      "space": "貸せる空間がそろう場所：部屋、駐車場、収納スペースなど。",
-      "service": "提供するサービスのまとめ：レッスン、施術、修理など。"
-    },
     "addItem": "「{{name}}」に追加",
     "itemsNone": "まだ何も掲載していません。",
     "unpublished": "非公開",

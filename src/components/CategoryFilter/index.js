@@ -1,1 +1,1 @@
-export { default, categoriesOf, kindOfCategory } from "./CategoryFilter.jsx";
+export { default, categoriesOf } from "./CategoryFilter.jsx";

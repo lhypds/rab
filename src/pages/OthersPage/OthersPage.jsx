@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { BookingRow, Header, ItemRow, KindTabs, MessageModal, useKindFilter } from "../../components/index.js";
+import { BookingRow, Header, ItemRow, CategoryTabs, MessageModal, useCategoryFilter } from "../../components/index.js";
 import { Skeleton } from "../../ui/index.js";
 
 // When a rental starts, as text that sorts: its day, then its time — the first
@@ -19,9 +19,9 @@ export default function OthersPage() {
   const [writingTo, setWritingTo] = useState(null);
   // Each column has a filter of its own, in the address, so coming back from
   // an item's page lands on the lists that were left: the rentals' under
-  // `show` and `category`, the bookmarks' under `kept` and `keptCategory`.
-  const rentalsFilter = useKindFilter("show", "category");
-  const keptFilter = useKindFilter("kept", "keptCategory");
+  // `category`, the bookmarks' under `keptCategory`.
+  const rentalsFilter = useCategoryFilter("category");
+  const keptFilter = useCategoryFilter("keptCategory");
 
   const load = useCallback(() => {
     api
@@ -42,17 +42,11 @@ export default function OthersPage() {
   // The one rented last at the top: by when the rental is for, latest first,
   // and where two are for the same time, the one asked for later.
   const shown = bookings
-    ?.filter(
-      (booking) =>
-        (rentalsFilter.filter === "all" || booking.itemKind === rentalsFilter.filter) &&
-        (!rentalsFilter.category || booking.itemCategory === rentalsFilter.category),
-    )
+    ?.filter((booking) => rentalsFilter.fits(booking.itemCategory))
     .sort((a, b) => (startOf(a) < startOf(b) ? 1 : startOf(a) > startOf(b) ? -1 : b.id - a.id));
   // The bookmarks, narrowed by their own filter; the one kept last first,
   // which is how they come.
-  const kept = bookmarks?.filter(
-    (item) => (keptFilter.filter === "all" || item.kind === keptFilter.filter) && (!keptFilter.category || item.category === keptFilter.category),
-  );
+  const kept = bookmarks?.filter((item) => keptFilter.fits(item.category));
 
   return (
     <div className="page-shell">
@@ -69,12 +63,12 @@ export default function OthersPage() {
               <h2>{t("others.rentals")}</h2>
               {shown && <span>{shown.length}</span>}
             </div>
-            <KindTabs {...rentalsFilter} />
+            <CategoryTabs {...rentalsFilter} />
 
             {!shown ? (
               !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />
             ) : shown.length === 0 ? (
-              <p className="empty-state">{t(rentalsFilter.filter === "all" && !rentalsFilter.category ? "others.empty" : "others.noneShown")}</p>
+              <p className="empty-state">{t(rentalsFilter.everything ? "others.empty" : "others.noneShown")}</p>
             ) : (
               <ul className="row-list">
                 {shown.map((booking) => (
@@ -88,12 +82,12 @@ export default function OthersPage() {
               <h2>{t("others.bookmarks")}</h2>
               {kept && <span>{kept.length}</span>}
             </div>
-            <KindTabs {...keptFilter} />
+            <CategoryTabs {...keptFilter} />
 
             {!kept ? (
               !error && <Skeleton rows={3} lines={2} label={t("common.loading")} />
             ) : kept.length === 0 ? (
-              <p className="empty-state">{t(keptFilter.filter === "all" && !keptFilter.category ? "others.noBookmarks" : "others.noneShown")}</p>
+              <p className="empty-state">{t(keptFilter.everything ? "others.noBookmarks" : "others.noneShown")}</p>
             ) : (
               <ul className="row-list">
                 {kept.map((item) => (

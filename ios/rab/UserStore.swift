@@ -10,23 +10,6 @@ struct Region: Codable, Hashable {
     var bbox: [Double]
 }
 
-/// What is being rented out, as rab's server names it: something owned, a
-/// place, or somebody's time.
-enum Kind: String, Codable, CaseIterable, Identifiable {
-    case item, space, service
-
-    var id: String { rawValue }
-
-    /// As the website's tabs call them.
-    var name: LocalizedStringKey {
-        switch self {
-        case .item: "Things"
-        case .space: "Spaces"
-        case .service: "Services"
-        }
-    }
-}
-
 /// A place of the user's that things can be attached to — "Home", "The
 /// studio": a name, and where the phone was when it was added, if it could say.
 struct SavedLocation: Codable, Identifiable, Hashable {
@@ -48,10 +31,8 @@ struct SavedLocation: Codable, Identifiable, Hashable {
 /// One thing photographed on this phone.
 struct SavedItem: Codable, Identifiable, Hashable {
     var id: String
-    /// Missing from the items saved before there was a choice: those are things.
-    var kind: Kind?
-    /// The sort of thing it is within its kind (see Categories); none where
-    /// nothing was suggested or chosen.
+    /// The sort of thing it is (see Categories); none where nothing was
+    /// suggested or chosen.
     var category: String?
     var title: String
     /// Missing from the items saved before the form asked for one.

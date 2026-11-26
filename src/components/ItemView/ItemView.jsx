@@ -13,6 +13,7 @@ import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
 import { BookingRow, ItemRow } from "../Rows/index.js";
 import { itemPath } from "../../utils/stores.js";
+import { sortLabel } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
 import ReportModal from "../ReportModal/index.js";
 import ShareModal from "../ShareModal/index.js";
@@ -364,13 +365,13 @@ export default function ItemView({
         <header className={styles.head}>
           <p className={styles.tags}>
             {/* A page says so first: a collection of its owner's items. */}
-            {item.store && <span>{t(`store.kinds.${item.kind}`)}</span>}
-            <span>
-              <CategoryIcon kind={item.kind} category={item.category} />
-              {item.category ? t(`category.${item.category}`, item.category) : t(`kind.${item.kind}`)}
-            </span>
-            {/* One with a category says that and not its kind as well: the
-                category is within the kind, and says more. */}
+            {item.store && <span>{t("store.one")}</span>}
+            {(item.category || !item.store) && (
+              <span>
+                <CategoryIcon category={item.category} />
+                {sortLabel(item, t)}
+              </span>
+            )}
           </p>
           <h1 className={styles.title}>{item.title}</h1>
           <p className={styles.meta}>
@@ -588,12 +589,10 @@ export default function ItemView({
                   <li key={store.id}>
                     {preview ? (
                       <span>
-                        <CategoryIcon kind={store.kind} />
                         {store.name}
                       </span>
                     ) : (
                       <Link to={itemPath({ ...store, store: true })}>
-                        <CategoryIcon kind={store.kind} />
                         {store.name}
                       </Link>
                     )}

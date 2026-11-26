@@ -51,7 +51,6 @@ export function moveIntoFolders(db, databasePath) {
       id: row.id,
       title: row.title,
       description: row.description,
-      kind: row.kind ?? "item",
       category: row.category ?? "",
       mode: row.mode ?? "day",
       rates: list(row.rates),

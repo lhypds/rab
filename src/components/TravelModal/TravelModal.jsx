@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, useLocation, useNavigate } from "../../ui/index.js";
-import { homeFilter } from "../../utils/kinds.js";
+import { homeFilter } from "../../utils/categories.js";
 import { findPlaces } from "../../utils/places.js";
 import { travelHome, travelTo, useRegion } from "../../utils/region.js";
 import { readCoordinates, toSpot } from "../../utils/travel.js";

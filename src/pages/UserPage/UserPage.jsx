@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
-import { Header, ItemRow, KindTabs, MessageModal, Rating, loginPath, useAuth, useKindFilter } from "../../components/index.js";
+import { Header, ItemRow, CategoryTabs, MessageModal, Rating, loginPath, useAuth, useCategoryFilter } from "../../components/index.js";
 import { ActionButton, Skeleton, useNavigate } from "../../ui/index.js";
 import { formatDate, formatUsername } from "../../utils/format.js";
 
@@ -19,7 +19,7 @@ export default function UserPage({ username }) {
   const [error, setError] = useState("");
   const [writing, setWriting] = useState(false);
   // What their items are narrowed to, in the address as on the other lists.
-  const itemsFilter = useKindFilter();
+  const itemsFilter = useCategoryFilter();
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +37,7 @@ export default function UserPage({ username }) {
   }, [username, t]);
 
   const own = user?.username === data?.user.username;
-  const items = (data?.items ?? []).filter((item) => itemsFilter.fits(item.kind, item.category));
+  const items = (data?.items ?? []).filter((item) => itemsFilter.fits(item.category));
 
   return (
     <div className="page-shell">
@@ -86,7 +86,7 @@ export default function UserPage({ username }) {
                   <h2>{t("user.items")}</h2>
                   <span>{items.length}</span>
                 </div>
-                <KindTabs {...itemsFilter} />
+                <CategoryTabs {...itemsFilter} />
                 {items.length === 0 ? (
                   <p className="empty-state">{t(itemsFilter.everything ? "user.itemsEmpty" : "user.noneShown")}</p>
                 ) : (

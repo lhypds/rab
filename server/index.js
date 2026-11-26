@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import compression from "compression";
 import express from "express";
-import { isAdultCategory } from "../src/utils/kinds.js";
+import { isAdultCategory } from "../src/utils/categories.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -133,7 +133,6 @@ const DESCRIPTION_MAX = 2000;
 const PLACE_MAX = 120;
 const REGION_MAX = 120;
 const IMAGES_MAX = 100;
-const KINDS = new Set(["item", "space", "service"]);
 const CATEGORY_RE = /^[a-z0-9-]{0,32}$/;
 const PRICE_MAX = 100_000_000;
 const CURRENCIES = new Set(["JPY", "CNY", "USD", "EUR"]);
@@ -294,7 +293,7 @@ function readSession(req, _res, next) {
 }
 
 // The account as the browser is told about it: who it is, and whether it may
-// be shown the grown-up categories (see kinds.js) — for its lists to offer
+// be shown the grown-up categories (see categories.js) — for its lists to offer
 // them. What it may see is decided here, whatever the browser thinks.
 function accountOf(user) {
   return { ...user, adult: isAdult(user.id) };
@@ -631,7 +630,7 @@ function storeSummaries(user, viewer) {
     .map((store) => storeSummary(store, viewer));
 }
 
-// Of the ids sent for a store's items, the account's own items — of any kind:
+// Of the ids sent for a store's items, the account's own items — any of them:
 // a store takes things, spaces and services alike — each once, in the order
 // sent.
 function storeItemIds(userId, ids) {
@@ -669,7 +668,7 @@ app.post("/api/stores/:id/items", requireSession, (req, res) => {
 // the public account whose title or place has `q` in it, for somebody
 // else's item.
 app.get("/api/stores/choices", requireSession, (req, res) => {
-  const pick = (store) => ({ id: store.id, title: store.title, place: store.place ?? null, kind: store.kind, default: store.default, thumb: store.thumb ?? null });
+  const pick = (store) => ({ id: store.id, title: store.title, place: store.place ?? null, default: store.default, thumb: store.thumb ?? null });
   if (req.query.shared === "1") return res.json({ stores: findSharedStores(req.query.q).map(pick) });
   res.json({ stores: getStores(req.user.id).map(pick) });
 });
@@ -813,7 +812,6 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
     moreRegions.push(more);
     if (moreRegions.length === MORE_REGIONS_MAX) break;
   }
-  const kind = KINDS.has(body?.kind) ? body.kind : "item";
   const category = CATEGORY_RE.test(String(body?.category ?? "")) ? String(body?.category ?? "") : "";
   const currency = String(body?.currency ?? "");
   if (!CURRENCIES.has(currency)) return { error: "Unsupported currency" };
@@ -854,7 +852,6 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       description: text(body?.description, DESCRIPTION_MAX),
       // Its own page somewhere else, where it has one.
       homepage: readHomepage(body?.homepage),
-      kind,
       category,
       mode,
       rates: parsed.rates,
@@ -977,11 +974,11 @@ app.get("/api/region", async (req, res) => {
 // between — where things stand. A stranger sees which days are taken; the
 // renter also sees their own requests; the owner sees all of them.
 // The stores an item is on, as the way to each from the item's own page: a
-// name, its kind, whose it is (null for somebody else's, which is on the
+// name, whose it is (null for somebody else's, which is on the
 // public account's stores, if any), and whether it is its owner's default.
 function storesOf(item) {
   if (item.store) return [];
-  return storesWith(item).map((store) => ({ id: store.id, name: store.title, kind: store.kind, owner: store.owner ?? null, default: store.default }));
+  return storesWith(item).map((store) => ({ id: store.id, name: store.title, owner: store.owner ?? null, default: store.default }));
 }
 
 function itemAnswer(item, viewer) {
@@ -1676,8 +1673,8 @@ app.delete("/api/messages/:username", requireSession, (req, res) => {
 // The browser compresses to WebP before it sends, which keeps the wire free of
 // an 8 MB phone photo; whatever arrives as something else is made WebP as it
 // is stored (see images.js).
-// What a photograph is of, for a form that wants filling in: its kind, its
-// category, a name and a description (see describe.js). Asked by the phone as
+// What a photograph is of, for a form that wants filling in: its category,
+// a name and a description (see describe.js). Asked by the phone as
 // soon as a photo is taken. Nothing is kept: the picture is looked at and gone.
 app.post(
   "/api/describe",

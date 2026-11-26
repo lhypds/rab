@@ -1,12 +1,12 @@
 export { default as AccountModal } from "./AccountModal/index.js";
 export { AuthProvider, loginPath, rememberedUsername, useAuth } from "./AuthProvider/index.js";
 export { default as Calendar, dayStates, quote, slotStates } from "./Calendar/index.js";
-export { default as CategoryFilter, categoriesOf, kindOfCategory } from "./CategoryFilter/index.js";
+export { default as CategoryFilter, categoriesOf } from "./CategoryFilter/index.js";
 export { default as CategoryIcon } from "./CategoryIcon/index.js";
 export { default as Header } from "./Header/index.js";
 export { default as ItemModal } from "./ItemModal/index.js";
 export { default as ItemView } from "./ItemView/index.js";
-export { default as KindTabs, useKindFilter } from "./KindTabs/index.js";
+export { default as CategoryTabs, useCategoryFilter } from "./CategoryTabs/index.js";
 export { default as LanguageSwitcher } from "./LanguageSwitcher/index.js";
 export { default as Loading } from "./Loading/index.js";
 export { default as MapView } from "./MapView/index.js";

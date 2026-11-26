@@ -7,7 +7,7 @@ import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords
 import { uploadPhoto } from "../../utils/image.js";
 import PublishAsField from "../PublishAsField/index.js";
 import StoreField from "../StoreField/index.js";
-import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
+import { categoriesFor, isAdultCategory } from "../../utils/categories.js";
 import { dialCodeOf } from "../../utils/dialing.js";
 import { AREA_TYPES, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, postcodeOf, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
@@ -131,7 +131,6 @@ function startingFields(item, calendar, lang) {
     // Whether it is a store — a collection of the account's items — rather
     // than one item (see PublishAsField). Everything else is asked the same.
     store: item?.store === true,
-    kind: item?.kind ?? "item",
     category: item?.category ?? "",
     title: item?.title ?? "",
     description: item?.description ?? "",
@@ -530,7 +529,7 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
 // that comes to before any of it is published.
 //
 // The form is in two parts, each a sheet of its own: what the item is — its
-// kind, its name, its photographs, where it is — and when it can be had and
+// category, its name, its photographs, where it is — and when it can be had and
 // what it costs. An item that exists is opened on one of them (`part`,
 // "item" or "availability") and saved from there; a new one is taken through
 // both, the first and then the second, and published from the second.
@@ -678,10 +677,10 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   }
 
   // The form filled in from the main photograph, as the phone's is the moment
-  // a photo is taken (see server/describe.js): which kind of thing it is, its
-  // category, a name and a few lines about it. Only the main photograph is
-  // looked at — the first — however many there are. Asked for by a button,
-  // so what it answers is written over whatever those four said before.
+  // a photo is taken (see server/describe.js): its category, a name and a few
+  // lines about it. Only the main photograph is looked at — the first —
+  // however many there are. Asked for by a button, so what it answers is
+  // written over whatever those three said before.
   async function generate() {
     const photo = fields.images[0];
     if (!photo || generating) return;
@@ -695,7 +694,6 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
       const listing = await api.describePhoto(blob, lang.slice(0, 2));
       setFields((current) => ({
         ...current,
-        kind: KINDS.includes(listing.kind) ? listing.kind : current.kind,
         category: listing.category ?? "",
         title: (listing.title || current.title).slice(0, TITLE_MAX),
         description: (listing.description || current.description).slice(0, DESCRIPTION_MAX),
@@ -837,7 +835,6 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     title: fields.title.trim() || t("item.titlePlaceholder"),
     description: fields.description.trim(),
     homepage: homepageOf(fields.homepage),
-    kind: fields.kind,
     category: fields.category,
     shared: fields.shared,
     store: fields.store,
@@ -935,7 +932,6 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
       description: fields.description.trim(),
       homepage: fields.homepage.trim(),
       ...(store ? { storeId: store.id } : !editing && !fields.store && storeChoice ? { storeId: storeChoice } : null),
-      kind: fields.kind,
       category: fields.category,
       shared: fields.shared,
       // Said when it is made, and what it is from then on.
@@ -994,7 +990,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const busy = saving || uploading > 0;
   const withIcon = (slug, name) => (
     <span className={styles.category}>
-      <CategoryIcon kind={fields.kind} category={slug} />
+      <CategoryIcon category={slug} />
       {name}
     </span>
   );
@@ -1006,7 +1002,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     // the English word finds a row whatever language the names are in.
     // A grown-up category only for an account old enough for it — or where
     // the item is in one already, so that editing it does not empty the box.
-    ...categoriesFor(fields.kind, Boolean(user?.adult) || CATEGORIES[fields.kind].includes(fields.category) && !categoriesFor(fields.kind).includes(fields.category)).map((slug) => ({
+    ...categoriesFor(Boolean(user?.adult) || isAdultCategory(fields.category)).map((slug) => ({
       value: slug,
       label: withIcon(slug, t(`category.${slug}`)),
       text: `${t(`category.${slug}`)} ${slug}`,
@@ -1137,33 +1133,6 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
               {!editing && !store && !fields.store && (
                 <StoreField shared={fields.shared} value={storeChoice} onChange={setStoreChoice} disabled={busy} hintClassName={styles.hint} />
               )}
-              {/* Which kind of thing it is, before anything else is said of it:
-                  the one question whose answer is known before a photograph
-                  is taken. */}
-              <div className="field">
-                <span className="field-label">{t("item.kind")}</span>
-                <div className="tabs" role="group">
-                  {KINDS.map((kind) => (
-                    <button
-                      key={kind}
-                      type="button"
-                      className={fields.kind === kind ? "tab active" : "tab"}
-                      aria-pressed={fields.kind === kind}
-                      onClick={() => setFields((current) => ({ ...current, kind, category: "" }))}
-                    >
-                      {/* One's own time is a skill one has; somebody else's
-                          is a service they give. The kind kept is the same. */}
-                      {/* A store is named for what it collects: a store of
-                          things, a page of spaces, of services. An item of
-                          the third kind is somebody's time: a service, or a
-                          skill one has — "Service (Skill)". */}
-                      {t(fields.store ? `store.kinds.${kind}` : `kind.one.${kind}`)}
-                    </button>
-                  ))}
-                </div>
-                <span className={styles.hint}>{t(fields.store ? `store.kindHints.${fields.kind}` : `kind.${fields.kind}Hint`)}</span>
-              </div>
-
               {/* Then the photographs: they are what is taken before anything
                   is written. */}
               <div className="field">
@@ -1229,7 +1198,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
 
               {/* Under the photographs, a field of its own: the rest of what
                   the thing is — its category, its name and what is said about
-                  it, and its kind where the picture says otherwise — made out
+                  it — made out
                   from the main one, with a line saying so. */}
               <div className="field">
                 <button

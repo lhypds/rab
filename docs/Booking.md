@@ -9,15 +9,15 @@ place inside your country, and the plane in the top bar goes anywhere else.
 
 ## Listing and pricing
 
-Three kinds of thing can be rented: a **thing** (a car, a camera, a projector), a
-**space** (a home, a meeting room, storage, a music studio) and a **service** (somebody's
-time). Each is booked one of two ways, and priced by rules its owner writes: **by the
+Everything that can be rented is an **item**, told apart by its category: a car, a
+camera, a projector; a home, a meeting room, storage, a music studio; somebody's time —
+photography, lessons, repairs. Each is booked one of two ways, and priced by rules its owner writes: **by the
 date** — an ordinary day's price, plus rules for some days of the week or some dates — or
 **by the date and the time** — the owner paints the hours of the week it can be had on a
 timetable, sets an ordinary hour's price, and adds rules for some days, dates or hours of
 the clock. The clock is cut in half hours.
 
-The plus in the top bar publishes one: kind and category, name, description, up to a
+The plus in the top bar publishes one: category, name, description, up to a
 hundred photographs (compressed in the browser; the first is the main one), the pricing
 rules, a calendar to close the days it cannot be had, the area it is offered in (a town,
 a ward, a prefecture — required, and filled in with the city you are in, or the city
@@ -40,9 +40,9 @@ have out and who has asked for it; "My rentals" is what you have asked other peo
 
 ## Profile pages
 
-From Mine or your profile you can create multiple pages. Each collects your things,
-spaces or services and can link to a saved location. Edit a page to select existing
-listings. The plus on your page creates a listing of its kind, starts it at the page's
+From Mine or your profile you can create multiple pages. Each collects any of your
+items and can link to a saved location. Edit a page to select existing listings. The
+plus on your page creates a listing, starts it at the page's
 location if it has one, and adds it to the collection when you publish. Share the
 page at `/u/<name>/p/<id>`. Visitors can open and book each published listing.
 

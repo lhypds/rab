@@ -514,10 +514,9 @@ if (first === "list" && words.length === 2) {
   const user = account(first);
   const items = store.getItemsByUser(user.id);
   table([
-    ["ID", "KIND", "CATEGORY", "STATE", "PRICE", "CREATED", "TITLE"],
+    ["ID", "CATEGORY", "STATE", "PRICE", "CREATED", "TITLE"],
     ...items.map((item) => [
       item.id,
-      item.kind,
       item.category || "-",
       item.active ? "published" : "unlisted",
       `${item.price} ${item.currency}`,

@@ -100,10 +100,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "描述" } }
       }
     },
-    "Kind" : {
+    "Item" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "種類" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "种类" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アイテム" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "物品" } }
       }
     },
     "My items" : {
@@ -277,18 +277,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
       }
     },
-    "Services" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サービス" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务" } }
-      }
-    },
-    "Spaces" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スペース" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空间" } }
-      }
-    },
     "Taken" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影" } },
@@ -311,12 +299,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を読み込めません" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取照片" } }
-      }
-    },
-    "Things" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "モノ" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "物品" } }
       }
     },
     "Username" : {

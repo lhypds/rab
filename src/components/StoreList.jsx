@@ -1,46 +1,38 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useLocation, useSearchParams } from "../ui/index.js";
-import { KINDS } from "../utils/kinds.js";
-import CategoryIcon from "./CategoryIcon/index.js";
 import { dotted } from "./UserName/index.js";
 import { storePath } from "../utils/stores.js";
 
 // What the list of stores can be narrowed to, as the list of items beside it:
-// one kind at a time, and on or off beside it only the public ones — a store
-// with at least one published item on it. "All" is none of that.
-const FILTERS = ["all", "published", ...KINDS];
+// on or off, only the public ones — a store with at least one published item
+// on it. "All" is not that.
+const FILTERS = ["all", "published"];
 
 // `carried`: an item being dragged from somewhere else on the screen, which
 // any store takes when it is let go over it (`onDropItem`).
 export default function StoreList({ stores, username, filterable = false, carried = null, onDropItem }) {
   const { t } = useTranslation();
   const [dropOn, setDropOn] = useState(null);
-  // A store takes an item of any kind.
+  // Any store takes any item.
   const takes = (store) => Boolean(onDropItem && carried);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   // The filter is in the address, under names of its own so the items' filter
   // in the same address is left alone.
-  const wanted = searchParams.get("stores");
-  const filter = filterable && KINDS.includes(wanted) ? wanted : "all";
   const published = filterable && searchParams.get("storesPublished") === "1";
-  const show = (name, onlyPublished) => {
+  const show = (onlyPublished) => {
     const query = new URLSearchParams(searchParams);
-    if (name === "all") query.delete("stores");
-    else query.set("stores", name);
     if (onlyPublished) query.set("storesPublished", "1");
     else query.delete("storesPublished");
     navigate(query.size > 0 ? `${pathname}?${query}` : pathname, { replace: true, scroll: false });
   };
-  // As with items: All lets go of everything, a kind pressed again is let go
-  // of, and Published is a switch of its own.
-  const press = (name) =>
-    name === "all" ? show("all", false) : name === "published" ? show(filter, !published) : show(name === filter ? "all" : name, published);
-  const pressed = (name) => (name === "published" ? published : name === "all" ? filter === "all" && !published : filter === name);
+  // As with items: All lets go of everything, and Published is a switch.
+  const press = (name) => show(name === "published" ? !published : false);
+  const pressed = (name) => (name === "published" ? published : !published);
 
-  const shown = stores.filter((store) => (filter === "all" || store.kind === filter) && (!published || store.published > 0));
+  const shown = stores.filter((store) => !published || store.published > 0);
 
   return (
     <>
@@ -58,10 +50,7 @@ export default function StoreList({ stores, username, filterable = false, carrie
               className={pressed(name) ? "tab active" : "tab"}
               onClick={() => press(name)}
             >
-              {KINDS.includes(name) && <CategoryIcon kind={name} />}
-              {/* A page is named for what it collects: a store of things,
-                  a page of spaces, of services. */}
-              {name === "published" ? t("item.published") : name === "all" ? t("kind.all") : t(`store.kinds.${name}`)}
+              {name === "published" ? t("item.published") : t("map.all")}
             </button>
           ))}
         </div>
@@ -96,10 +85,6 @@ export default function StoreList({ stores, username, filterable = false, carrie
                     <strong>{store.title}</strong>
                     <span className="row-meta">
                       {dotted([
-                        <span className="kind-label">
-                          <CategoryIcon kind={store.kind} />
-                          {t(`store.kinds.${store.kind}`)}
-                        </span>,
                         // The default store, which every account has.
                         store.default && t("store.default"),
                         t("store.count", { count: store.count }),

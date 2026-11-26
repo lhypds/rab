@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { SOURCE_FILE, accountFolders, allItemFolders, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
-import { ADULT_AGE, ageOn } from "../src/utils/kinds.js";
+import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -260,7 +260,7 @@ export function setEmail(userId, email) {
 
 // When the account says it was born, "YYYY-MM-DD", or null where it has not
 // said: kept in its user.json, shown to nobody, and asked for only to decide
-// whether it is old enough for the grown-up categories (see kinds.js).
+// whether it is old enough for the grown-up categories (see categories.js).
 export function getBirthdate(userId) {
   const { birthdate } = readRecord(userId, USER_FILE);
   return typeof birthdate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(birthdate) ? birthdate : null;
@@ -358,9 +358,12 @@ function linesOf(userId) {
   return messagesByUser.get(userId);
 }
 
-// An item booked by the time, from when its prices were for an hour and it was
-// booked by the half hour: it has neither written down, and is read as both.
-function perUnit(item) {
+// An item as it is read from its folder. One booked by the time, from when its
+// prices were for an hour and it was booked by the half hour, has neither
+// written down, and is read as both. And one from when listings were of three
+// kinds — a thing, a space, a service — loses its `kind`: every listing is an
+// item now, told apart by its category alone.
+function perUnit({ kind: _kind, ...item }) {
   if (item.mode !== "time" || item.unit != null) return item;
   return { ...item, unit: 30, priceUnit: 60 };
 }
@@ -417,7 +420,7 @@ function load() {
 }
 
 // A store as it was kept before stores were items — a name, a word about it,
-// one kind, a copy of a saved location, how its owner is reached, its
+// a copy of a saved location, how its owner is reached, its
 // photographs and the ids of its items — as the item it is now: priced on
 // request, booked by asking where it says how its owner is reached and by the
 // day where not, in the currency of its owner's newest item.
@@ -436,7 +439,6 @@ function storeFromOld(old, userId) {
     title: old.name ?? "",
     description: old.description ?? "",
     homepage: "",
-    kind: old.kind || "item",
     category: "",
     mode: contacts.length > 0 ? "inquiry" : "day",
     rates: [],
@@ -604,7 +606,6 @@ function servedItem(item) {
     active: item.active === true,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
-    kind: item.kind,
     category: item.category,
     mode: item.mode,
     // An item from before there were rules has one: its price, every day.
@@ -755,7 +756,6 @@ function itemFields(item) {
     title: item.title,
     description: item.description,
     homepage: item.homepage ?? "",
-    kind: item.kind,
     category: item.category,
     mode: item.mode,
     rates: item.rates,
@@ -913,8 +913,6 @@ function servedBooking(booking) {
     renter: nameOf(booking.renterId),
     renterId: booking.renterId,
     itemTitle: item?.title ?? null,
-    // What kind of thing it is a booking of: a thing, a space or a service.
-    itemKind: item?.kind || "item",
     itemCategory: item?.category ?? null,
     ownerId: booking.ownerId,
     owner: nameOf(booking.ownerId),
@@ -1448,12 +1446,11 @@ export function publicLocations() {
 // The stores an account makes of what it has out — "Liu's Music Gear Store".
 // A store is an item like any other — its photographs, its price, where it is,
 // when it can be had, booked as one is — with `store: true` and, in
-// `itemIds`, some of the account's own items of its kind, in the order it put
-// them: the site calls it a page — a store of things, a page of spaces, a
-// page of services — and everything behind it calls it a store. It is kept in a
-// folder of its own under its owner's stores/ rather than items/ (see
-// files.js). An item deleted since, or of another kind now, is left in the
-// list and left out of what is read.
+// `itemIds`, some of the account's own items, in the order it put them: the
+// site calls it a page, and everything behind it calls it a store. It is kept
+// in a folder of its own under its owner's stores/ rather than items/ (see
+// files.js). An item deleted since is left in the list and left out of what is
+// read.
 export const STORES_MAX = 50;
 
 // Every account has one store from the first — its default store, made with
@@ -1483,7 +1480,7 @@ function makeDefaultStore(userId) {
     // start).
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .map((item) => item.id);
-  const store = storeFromOld({ id: newItemId(now()), name: username, kind: "item", contacts: getContacts(userId), itemIds }, userId);
+  const store = storeFromOld({ id: newItemId(now()), name: username, contacts: getContacts(userId), itemIds }, userId);
   store.default = true;
   itemsById.set(store.id, store);
   changedItem(store);

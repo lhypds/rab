@@ -255,8 +255,8 @@ struct ListingRow: View {
                 Text(listing.title).lineLimit(1)
                 // The price only where the item has one.
                 ((listing.price ?? 0) > 0
-                    ? Text(priceText(listing.price ?? 0, listing.currency ?? "")) + Text(verbatim: " · ") + Text((listing.kind ?? .item).name)
-                    : Text((listing.kind ?? .item).name))
+                    ? Text(priceText(listing.price ?? 0, listing.currency ?? "")) + Text(verbatim: " · ") + Text(Categories.label(listing.category))
+                    : Text(Categories.label(listing.category)))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -311,8 +311,7 @@ struct ListingDetailView: View {
             }
 
             Section {
-                LabeledContent("Kind") { Text((listing.kind ?? .item).name) }
-                // Always there, under the kind it belongs to; "None" where it has none.
+                // Always there; "None" where it has none.
                 LabeledContent("Category") {
                     if let category = listing.category, !category.isEmpty {
                         Text(Categories.name(category))
@@ -398,8 +397,8 @@ struct ItemRow: View {
                 Text(item.title).lineLimit(1)
                 // The price only where the item has one: the form asks for none.
                 (item.price > 0
-                    ? Text(priceText(item.price, item.currency)) + Text(verbatim: " · ") + Text((item.kind ?? .item).name)
-                    : Text((item.kind ?? .item).name))
+                    ? Text(priceText(item.price, item.currency)) + Text(verbatim: " · ") + Text(Categories.label(item.category))
+                    : Text(Categories.label(item.category)))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

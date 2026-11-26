@@ -1,4 +1,4 @@
-/* The account's items of the page's kind, one to a line, ticked to be on it. */
+/* The account's items, one to a line, ticked to be on it. */
 .items {
   display: flex;
   flex-direction: column;

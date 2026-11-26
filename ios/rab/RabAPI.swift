@@ -36,7 +36,6 @@ struct ImageRef: Encodable {
 struct ItemBody: Encodable {
     var title: String
     var description = ""
-    var kind = "item"
     var category = ""
     var currency: String
     var mode = "day"
@@ -67,7 +66,6 @@ struct Listing: Codable, Identifiable, Hashable {
     var id: String
     var title: String
     var description: String?
-    var kind: Kind?
     var category: String?
     var price: Double?
     var currency: String?
@@ -79,9 +77,8 @@ struct Listing: Codable, Identifiable, Hashable {
 }
 
 /// What the server made of a photograph (POST /api/describe): the listing's
-/// kind and category, and a name and a description for it.
+/// category, and a name and a description for it.
 struct Suggestion: Decodable {
-    var kind: Kind
     var category: String
     var title: String
     var description: String

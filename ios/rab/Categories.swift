@@ -1,24 +1,32 @@
 import SwiftUI
 import Vision
 
-/// The sorts of thing, space and service rab knows, under each kind: the same
-/// slugs the website has (src/utils/kinds.js), since the server keeps the slug
-/// and the website shows its name. Nobody picks one here to begin with — the
-/// phone looks at the photo and the name and suggests it (see `suggest`).
+/// The sorts of thing rab knows — things, places and somebody's time, all in
+/// one list: the same slugs the website has (src/utils/categories.js), since
+/// the server keeps the slug and the website shows its name. Nobody picks one
+/// here to begin with — the phone looks at the photo and the name and suggests
+/// it (see `suggest`).
 enum Categories {
-    static let all: [Kind: [String]] = [
-        .item: ["car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "audio", "musical-instrument", "computer", "game-console", "electronics", "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing", "other"],
-        .space: ["home", "meeting-room", "studio", "music-studio", "storage", "event-space", "workspace", "parking", "other"],
-        .service: [
-            "photography", "teaching", "repair", "moving", "cleaning", "design", "3d-printing", "guide", "translation", "music", "fitness", "beauty",
-            "massage", "pet-care", "childcare", "care", "cooking", "driver", "delivery", "gardening", "it-support", "programming",
-            "videography", "writing", "consulting", "event-help", "handyman", "other",
-        ],
+    static let all: [String] = [
+        "car", "bike", "camera", "video-camera", "drone", "binoculars", "projector", "audio", "musical-instrument", "computer", "game-console", "electronics",
+        "kitchen-appliance", "cleaning-appliance", "beauty-appliance", "tools", "camping", "sports", "clothing",
+        "home", "meeting-room", "studio", "music-studio", "storage", "event-space", "workspace", "parking",
+        "photography", "teaching", "repair", "moving", "cleaning", "design", "3d-printing", "guide", "translation", "music", "fitness", "beauty",
+        "massage", "pet-care", "childcare", "care", "cooking", "driver", "delivery", "gardening", "it-support", "programming",
+        "videography", "writing", "consulting", "event-help", "handyman",
+        "other",
     ]
 
     /// A category's name, as the website says it.
     static func name(_ slug: String) -> LocalizedStringKey {
         LocalizedStringKey(names[slug] ?? slug)
+    }
+
+    /// What a row says an item is: its category, or just an item where it
+    /// has none.
+    static func label(_ slug: String?) -> LocalizedStringKey {
+        guard let slug, !slug.isEmpty else { return "Item" }
+        return name(slug)
     }
 
     private static let names: [String: String] = [
@@ -100,15 +108,15 @@ enum Categories {
         "handyman": ["handyman", "odd job", "杂工", "便利屋"],
     ]
 
-    /// The category the photo and the name point at, among those of a kind, or
-    /// nil where neither says enough. A word in the name counts for a
+    /// The category the photo and the name point at, or nil where neither
+    /// says enough. A word in the name counts for a
     /// certainty. What Vision saw counts for as much as it was sure of it, and
     /// alone it has to be quite sure: its names are broad ("computer" for a
     /// pen on a desk), and a wrong category is worse than none.
-    static func suggest(kind: Kind, seen: [Sighting], title: String) -> String? {
+    static func suggest(seen: [Sighting], title: String) -> String? {
         let name = title.lowercased()
         var best: (slug: String, score: Double)?
-        for slug in all[kind] ?? [] {
+        for slug in all {
             guard let words = hints[slug] else { continue }
             var score = 0.0
             for word in words {

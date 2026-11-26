@@ -1,49 +1,33 @@
 import { useTranslation } from "react-i18next";
 import { Select } from "../../ui/index.js";
-import { CATEGORIES, KINDS, categoriesFor } from "../../utils/kinds.js";
+import { categoriesFor } from "../../utils/categories.js";
 import { useAuth } from "../AuthProvider/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import styles from "./filter.module.css";
 
-// The categories a list can be narrowed to within `kind` — every kind's where
-// there is none ("other" is in all three, and is listed once — last, where it
-// is in every kind's own list: it is what is picked when nothing above it
-// fits). The grown-up ones are among them only where `adult` (see kinds.js).
-export function categoriesOf(kind, adult = false) {
-  const all = [...new Set((KINDS.includes(kind) ? [kind] : KINDS).flatMap((each) => categoriesFor(each, adult)))];
-  return [...all.filter((slug) => slug !== "other"), ...all.filter((slug) => slug === "other")];
+// The categories a list can be narrowed to. The grown-up ones are among them
+// only where `adult` (see categories.js).
+export function categoriesOf(adult = false) {
+  return categoriesFor(adult);
 }
 
-// The one kind a category belongs to, or null where it is in more than one
-// ("other" is in all three) or in none.
-export function kindOfCategory(slug) {
-  const kinds = KINDS.filter((kind) => CATEGORIES[kind].includes(slug));
-  return kinds.length === 1 ? kinds[0] : null;
-}
-
-// The dropdown under a list's filter: which category of it is shown, "" for
-// all of them. Each leads with its own mark, as on the map.
-//
-// Within a kind, the two choices that every kind has say which kind's they
-// are: "All categories (Things)", "Other (Things)". `kindLabel` is what the
-// kind is called on the page the dropdown is on, where that is not its usual
-// name.
-export default function CategoryFilter({ kind = null, kindLabel, value, onChange }) {
+// The dropdown over a list: which category of it is shown, "" for all of
+// them. Each leads with its own mark, as on the map.
+export default function CategoryFilter({ value, onChange }) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const within = KINDS.includes(kind) ? kind : null;
-  const withIcon = (slug, name) => (
-    <span className={styles.name}>
-      <CategoryIcon kind={within} category={slug} />
-      {name}
-    </span>
-  );
-  const called = within ? (kindLabel ?? t(`kind.${within}`)) : null;
-  const named = (slug, name) =>
-    within && (slug === "" || slug === "other") ? t("item.categoryWithin", { name, kind: called }) : name;
-  const options = ["", ...categoriesOf(within, Boolean(user?.adult))].map((slug) => {
-    const name = named(slug, slug ? t(`category.${slug}`, slug) : t("map.allCategories"));
-    return { value: slug, label: withIcon(slug, name), text: name };
+  const options = ["", ...categoriesOf(Boolean(user?.adult))].map((slug) => {
+    const name = slug ? t(`category.${slug}`, slug) : t("map.allCategories");
+    return {
+      value: slug,
+      label: (
+        <span className={styles.name}>
+          <CategoryIcon category={slug} />
+          {name}
+        </span>
+      ),
+      text: name,
+    };
   });
   return (
     <div className={styles.row}>

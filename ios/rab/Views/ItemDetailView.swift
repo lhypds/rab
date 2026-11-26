@@ -38,8 +38,7 @@ struct ItemDetailView: View {
             }
 
             Section {
-                LabeledContent("Kind") { Text((item.kind ?? .item).name) }
-                // Always there, under the kind it belongs to; "None" where it has none.
+                // Always there; "None" where it has none.
                 LabeledContent("Category") {
                     if let category = item.category, !category.isEmpty {
                         Text(Categories.name(category))
