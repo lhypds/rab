@@ -98,7 +98,7 @@ const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepStoreImages, n
   "./images.js"
 );
 const { mailConfigured, sendMail } = await import("./mail.js");
-const { MODES, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
+const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
 const { OpenAI, canDescribe, classifyListing, describeImage } = await import("./describe.js");
@@ -876,6 +876,8 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       hours: hours.hours,
       // The piece of the clock it is booked in, where it is booked by the time.
       unit: readUnit(body?.unit),
+      // The shortest stretch one booking may be: a whole number of that unit.
+      minDuration: readMinDuration(body?.minDuration, readUnit(body?.unit)),
       // And the stretch of the clock its prices are for.
       // Booked by asking, that may be a whole day as well.
       priceUnit: mode === "inquiry" ? readInquiryUnit(body?.priceUnit) : readPriceUnit(body),
@@ -1386,6 +1388,9 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
     if (price === null) {
       return res.status(400).json({ error: "Pick hours it can be booked for", code: "TIME_UNAVAILABLE" });
     }
+    if (tooShort(item, from, until)) {
+      return res.status(400).json({ error: "Book a longer stretch", code: "TIME_TOO_SHORT" });
+    }
     // An item that says no price has hours that cost nothing that is known.
     slots = [{ start: from, end: until, price: item.price == null ? null : price }];
   }
@@ -1411,7 +1416,8 @@ app.post("/api/items/:id/bookings", requireSession, (req, res) => {
         renterId: req.user.id,
         start,
         end,
-        total: total === null ? null : Math.round(total * 100) / 100,
+        // To the smallest coin of its currency: the yen has nothing after the point.
+        total: total === null ? null : roundPrice(total, item.currency),
         currency: item.currency,
         note: text(req.body?.note, NOTE_MAX),
         slots,

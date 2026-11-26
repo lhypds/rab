@@ -140,6 +140,8 @@
     "request": "Request"
   },
   "item": {
+    "minDurationHint": "The shortest one booking can be: a whole number of steps.",
+    "minDuration": "Minimum booking",
     "region": "Service area",
     "regionPlaceholder": "Search for a city, region or postcode",
     "regionRequired": "Pick the area it is offered in",
@@ -255,7 +257,7 @@
     "unit": "Available by step of",
     "unitMinutes": "{{count}} min",
     "unitHour": "1 hour",
-    "unitHint": "The shortest stretch that can be booked, and the step a longer one grows by. The hours below are set in this step too.",
+    "unitHint": "The step a booking grows by. The hours below are set in this step too.",
     "bookingType": "Availability type",
     "modeHint": {
       "day": "Available by the day.",
@@ -265,6 +267,7 @@
     "priceUnit": "Price per",
     "basePricing": "Default pricing",
     "basePricingStep": "Default price per step",
+    "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",
     "pricingHint": {
       "day": "What an ordinary day costs. To price one date differently, press the pencil beside it on the calendar below.",
       "time": "The price of one step of the available time: with a 15-minute step, this is what 15 minutes cost. To price one date differently, press the pencil beside it on the calendar below.",
@@ -333,6 +336,7 @@
     "stores": "On pages"
   },
   "calendar": {
+    "minDuration": "at least {{duration}}",
     "title": "Availability",
     "storeTitle": "Opening hours",
     "perDay": "price per day",
@@ -363,6 +367,7 @@
     "editPrice": "Set this date's price"
   },
   "booking": {
+    "tooShort": "Book at least {{duration}}",
     "cancelPolicy": "Cancellation policy",
     "pickupTime": "Start time",
     "returnTime": "End time",

@@ -103,9 +103,17 @@ export function hourPrice(item, day, time) {
 // The piece of the clock an item booked by the time is asked for in, in
 // minutes, as its owner chose (see server/rates.js): half an hour where they
 // have not. The hours and the prices are still said on the half hour.
-export const UNITS = [10, 15, 30, 60];
+export const UNITS = [10, 15, 20, 30, 60];
 export function unitOf(item) {
   return UNITS.includes(Number(item?.unit)) ? Number(item.unit) : STEP;
+}
+
+// The shortest stretch one booking may be, in minutes: a whole number of the
+// unit it is booked in (see server/rates.js), one unit where it says none.
+export function minDurationOf(item) {
+  const unit = unitOf(item);
+  const asked = Number(item?.minDuration);
+  return Number.isFinite(asked) && asked > unit ? Math.ceil(asked / unit) * unit : unit;
 }
 
 // The stretch of the clock a price is for, in minutes — "an hour", "ten

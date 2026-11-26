@@ -205,10 +205,18 @@ export function parseHours(value) {
 // Half an hour where they have not, which is what it was before there was a
 // choice. The hours it can be had and the hours a price is for are still said
 // on the half hour; this is only how finely they are cut for booking.
-export const UNITS = [10, 15, 30, 60];
+export const UNITS = [10, 15, 20, 30, 60];
 export function readUnit(value) {
   const unit = Number(value);
   return UNITS.includes(unit) ? unit : STEP;
+}
+
+// The shortest stretch one booking may be, in minutes: a whole number of the
+// unit it is booked in, one unit where nothing is said, a day at most.
+export function readMinDuration(value, unit) {
+  const asked = Number(value);
+  if (!Number.isFinite(asked) || asked <= unit) return unit;
+  return Math.min(Math.floor(1440 / unit) * unit, Math.ceil(asked / unit) * unit);
 }
 
 // The stretch of the clock a price is for — "1000 an hour", "300 for ten
@@ -291,6 +299,19 @@ export function hourPrice(item, day, time) {
   return price;
 }
 
+// An amount brought to the smallest coin its currency has — none after the
+// point for the yen, two for the dollar.
+export function roundPrice(amount, currency) {
+  let digits = 2;
+  try {
+    digits = Math.min(2, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits);
+  } catch {
+    // An unknown currency is counted in hundredths.
+  }
+  const scale = 10 ** digits;
+  return Math.round(Number(amount) * scale) / scale;
+}
+
 // Any minute of the day, midnight at its end included.
 const MINUTE_RE = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 
@@ -298,6 +319,11 @@ const MINUTE_RE = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 // or null where it is not wholly inside the hours the day has, or not cut
 // where the unit cuts them: a whole number of pieces, counted from where that
 // stretch of hours starts.
+// Whether the stretch asked for is shorter than the item lets one booking be.
+export function tooShort(item, start, end) {
+  return minutes(end) - minutes(start) < readMinDuration(item.minDuration, readUnit(item.unit));
+}
+
 export function timeQuote(item, day, start, end) {
   if (!MINUTE_RE.test(String(start)) || !MINUTE_RE.test(String(end)) || start >= end) return null;
   const range = hoursOn(item, day).find((each) => start >= each.start && end <= each.end);

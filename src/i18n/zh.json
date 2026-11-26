@@ -138,6 +138,8 @@
     "request": "申请"
   },
   "item": {
+    "minDurationHint": "一次预约至少要这么长，是可用时间步长的整数倍。",
+    "minDuration": "最短预约时长",
     "region": "服务地区",
     "regionPlaceholder": "搜索城市、地区或邮编",
     "regionRequired": "请选择服务地区",
@@ -252,7 +254,7 @@
     "unit": "可用时间步长",
     "unitMinutes": "{{count}} 分钟",
     "unitHour": "1 小时",
-    "unitHint": "可预约的最短时长，更长的预约按这个单位递增。下面的时间也按这个步长设定。",
+    "unitHint": "预约时长按这个单位递增。下面的时间也按这个步长设定。",
     "bookingType": "可用类型",
     "modeHint": {
       "day": "按天提供。",
@@ -262,6 +264,7 @@
     "priceUnit": "价格按",
     "basePricing": "默认价格",
     "basePricingStep": "默认步长价格",
+    "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",
     "pricingHint": {
       "day": "平时一天的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。",
       "time": "每个可用时间步长的价格：步长是 15 分钟时，这是 15 分钟的价格。想给某一天单独定价，在下面的日历上点那一天价格旁边的铅笔。",
@@ -329,6 +332,7 @@
     "stores": "所在页面"
   },
   "calendar": {
+    "minDuration": "最短 {{duration}}",
     "title": "可利用时间",
     "storeTitle": "营业时间",
     "perDay": "每天价格",
@@ -356,6 +360,7 @@
     "editPrice": "设置这一天的价格"
   },
   "booking": {
+    "tooShort": "至少需要预约 {{duration}}",
     "cancelPolicy": "取消政策",
     "pickupTime": "开始时间",
     "returnTime": "结束时间",

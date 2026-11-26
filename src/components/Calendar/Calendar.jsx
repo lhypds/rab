@@ -297,8 +297,10 @@ export default function Calendar({
           // A day that cannot be pressed is switched off — unless it has a
           // pencil, which a switched-off button would take down with it: then
           // the day is left on and simply does nothing (`still`).
+          // A day that cannot be had has no price to give, so no pencil.
+          const pencil = Boolean(onOpen) && !state.outside && !state.closed;
           const inert = !pressable(day, state);
-          const still = inert && Boolean(onOpen) && !state.outside;
+          const still = inert && pencil;
           const classes = [
             styles.day,
             still && styles.still,
@@ -412,7 +414,7 @@ export default function Calendar({
               {label && (
                 <span className={styles.foot}>
                   <span className={styles.note}>{label}</span>
-                  {onOpen && (
+                  {pencil && (
                     <span
                       className={styles.pencil}
                       role="button"

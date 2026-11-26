@@ -76,8 +76,10 @@ const dayHour = (unit) => Math.max(40, (20 * 60) / unit);
 // calendar above it. Without `onChange` it is only read.
 // With `today` the day shown is today, and the time it is now is ruled across
 // it in red.
-// `unit` is how long one of the cells is, in minutes.
-export function DayTimes({ cells, value = null, onChange, today = false, unit = STEP }) {
+// `unit` is how long one of the cells is, in minutes, and `least` the
+// shortest stretch that can be picked: a press picks that much from the cell
+// pressed, and a drag never comes to less.
+export function DayTimes({ cells, value = null, onChange, today = false, unit = STEP, least = unit }) {
   const DAY_HOUR = dayHour(unit);
   const { t } = useTranslation();
   const clock = useClock(today);
@@ -90,6 +92,9 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
   // The lane the half hours are in, and the drag across it while there is one.
   const laneRef = useRef(null);
   const dragRef = useRef(null);
+  // The stretch a press would pick where the mouse is, drawn round in ink:
+  // as long as the shortest stretch, not one cell.
+  const [hover, setHover] = useState(null);
   useLayoutEffect(() => {
     if (!scrollRef.current || cells.length === 0) return;
     const first = minutesOf(cells[0].start);
@@ -116,17 +121,55 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
   const to = 24;
   const top = (time) => ((minutesOf(time) - from * 60) * DAY_HOUR) / 60;
 
-  function press(cell) {
-    const single = value && minutesOf(value.end) - minutesOf(value.start) === unit;
-    if (single && cell.start === value.start) return onChange(null);
-    // A second press later in the day ends the stretch there, where every
-    // half hour between the two can be had.
-    if (single && cell.start > value.start) {
-      const between = cells.filter((each) => each.start >= value.start && each.start <= cell.start);
-      const whole = between.every((each, index) => !shut(each) && (index === 0 || between[index - 1].end === each.start));
-      if (whole) return onChange({ start: value.start, end: cell.end });
+  // The shortest stretch there is, from the cell at `index` on down the day
+  // (`way` 1) or up to it and ending there (`way` -1) — or null, where the
+  // cells that far do not follow one another or cannot all be had.
+  const count = Math.max(1, Math.round(least / unit));
+  function shortest(index, way) {
+    const first = way > 0 ? index : index - count + 1;
+    const last = first + count - 1;
+    if (first < 0 || last >= cells.length) return null;
+    for (let at = first; at <= last; at++) {
+      if (shut(cells[at]) || (at > first && cells[at - 1].end !== cells[at].start)) return null;
     }
-    onChange({ start: cell.start, end: cell.end });
+    return { start: cells[first].start, end: cells[last].end };
+  }
+
+  // The shortest stretch with the pointer (at `at` minutes, over the cell at
+  // `index`) in its middle — or, where the hours or something taken are in
+  // the way, moved as little as will do, still over that cell.
+  function around(index, at) {
+    const wanted = (at - least / 2 - minutesOf(cells[index].start)) / unit;
+    const tries = [];
+    for (let first = index - count + 1; first <= index; first++) tries.push(first);
+    tries.sort((a, b) => Math.abs(a - index - wanted) - Math.abs(b - index - wanted));
+    for (const first of tries) {
+      const next = shortest(first, 1);
+      if (next) return next;
+    }
+    return null;
+  }
+
+  // A press works with the brush (the box drawn round the pointer, see
+  // around; from the cell itself for the keyboard). Where any of it is not
+  // picked yet, all of it is — joined to what is picked where the two touch,
+  // and in its place where they do not. Where all of it is picked already,
+  // the press lets go of what is picked.
+  function press(cell, at = null) {
+    const index = cells.indexOf(cell);
+    const brush = at === null ? (shortest(index, 1) ?? shortest(index, -1)) : around(index, at);
+    const inside = brush
+      ? value && brush.start >= value.start && brush.end <= value.end
+      : value && cell.start >= value.start && cell.start < value.end;
+    if (inside) return onChange(null);
+    if (!brush) return;
+    if (value && brush.start <= value.end && brush.end >= value.start) {
+      return onChange({
+        start: brush.start < value.start ? brush.start : value.start,
+        end: brush.end > value.end ? brush.end : value.end,
+      });
+    }
+    onChange(brush);
   }
 
   // A stretch can also be drawn: pressed where it starts and dragged to where
@@ -138,34 +181,50 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
     return { at, index: cells.findIndex((cell) => at >= minutesOf(cell.start) && at < minutesOf(cell.end)) };
   }
 
-  // From the half hour the drag began on towards the one the pointer is over,
-  // as far as the half hours follow one another and can be had: a stretch
-  // stops at one that is somebody's, and at an hour the day does not have.
-  function stretch(anchor, at) {
-    let first = anchor;
-    let last = anchor;
+  // A drag paints, the way a brush does: the brush is the shortest stretch,
+  // with the pointer in its middle (see around), and what is picked is all it
+  // has gone over since it went down — up the day or down it, as far as the
+  // pieces follow one another and can be had: it stops at one that is
+  // somebody's, and at an hour the day does not have.
+  function paint(brush, index, at) {
+    let first = cells.findIndex((cell) => cell.start === brush.start);
+    let last = cells.findIndex((cell) => cell.end === brush.end);
+    const under = index !== -1 && !shut(cells[index]) ? around(index, at) : null;
+    const upTo = under ? minutesOf(under.start) : at;
+    const downTo = under ? minutesOf(under.end) : at;
     const joined = (a, b) => cells[a].end === cells[b].start && !shut(cells[a]) && !shut(cells[b]);
-    while (last + 1 < cells.length && minutesOf(cells[last + 1].start) <= at && joined(last, last + 1)) last += 1;
-    while (first > 0 && minutesOf(cells[first - 1].end) > at && joined(first - 1, first)) first -= 1;
+    while (last + 1 < cells.length && minutesOf(cells[last + 1].start) < downTo && joined(last, last + 1)) last += 1;
+    while (first > 0 && minutesOf(cells[first - 1].end) > upTo && joined(first - 1, first)) first -= 1;
     return { start: cells[first].start, end: cells[last].end };
   }
 
   function down(event) {
     if (!onChange || (event.pointerType === "mouse" && event.button !== 0)) return;
-    const { index } = indexAt(event);
+    const { index, at } = indexAt(event);
     if (index === -1 || shut(cells[index])) return;
-    dragRef.current = { anchor: index, moved: false, before: value };
+    // Where there is no room for the shortest stretch, nothing can be picked.
+    const brush = around(index, at);
+    if (!brush) return;
+    dragRef.current = { anchor: index, at, brush, moved: false, before: value };
     laneRef.current.setPointerCapture(event.pointerId);
   }
 
   function move(event) {
     const drag = dragRef.current;
-    if (!drag) return;
-    const { at } = indexAt(event);
-    // Until the pointer leaves the half hour it went down on, it is a press.
+    if (!drag) {
+      if (onChange && event.pointerType === "mouse") {
+        const { index, at } = indexAt(event);
+        const next = index === -1 || shut(cells[index]) ? null : around(index, at);
+        if (next?.start !== hover?.start || next?.end !== hover?.end) setHover(next);
+      }
+      return;
+    }
+    if (hover) setHover(null);
+    const { index, at } = indexAt(event);
+    // Until the pointer leaves the piece it went down on, it is a press.
     if (!drag.moved && at >= minutesOf(cells[drag.anchor].start) && at < minutesOf(cells[drag.anchor].end)) return;
     drag.moved = true;
-    const next = stretch(drag.anchor, at);
+    const next = paint(drag.brush, index, at);
     if (!value || next.start !== value.start || next.end !== value.end) onChange(next);
   }
 
@@ -173,7 +232,7 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
-    if (!drag.moved) press(cells[drag.anchor]);
+    if (!drag.moved) press(cells[drag.anchor], drag.at);
   }
 
   // Taken away by the system mid-drag — a call, a gesture of its own — the
@@ -196,6 +255,7 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={cancel}
+          onPointerLeave={() => setHover(null)}
         >
           {cells.map((cell, index) => {
             const on = value && cell.start >= value.start && cell.start < value.end;
@@ -214,6 +274,10 @@ export function DayTimes({ cells, value = null, onChange, today = false, unit = 
               />
             );
           })}
+          {/* Not over what is picked already: that is drawn in ink. */}
+          {hover && !(value && hover.start >= value.start && hover.end <= value.end) && (
+            <div className={styles.hover} style={{ top: top(hover.start), height: top(hover.end) - top(hover.start) }} aria-hidden="true" />
+          )}
           {taken.map((run) => (
             <div
               key={`t${run.start}`}

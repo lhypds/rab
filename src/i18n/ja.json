@@ -138,6 +138,8 @@
     "request": "リクエスト"
   },
   "item": {
+    "minDurationHint": "1回の予約の最短の長さで、予約の刻みの整数倍です。",
+    "minDuration": "最短予約時間",
     "region": "提供エリア",
     "regionPlaceholder": "市区町村・都道府県・郵便番号で検索",
     "regionRequired": "提供エリアを選んでください",
@@ -252,7 +254,7 @@
     "unit": "提供時間の刻み",
     "unitMinutes": "{{count}}分",
     "unitHour": "1時間",
-    "unitHint": "予約できる最短の長さで、それより長い予約はこの単位ずつ延びます。下の時間もこの刻みで設定します。",
+    "unitHint": "予約はこの単位ずつ延びます。下の時間もこの刻みで設定します。",
     "bookingType": "提供タイプ",
     "modeHint": {
       "day": "日単位で提供します。",
@@ -262,6 +264,7 @@
     "priceUnit": "料金の基準",
     "basePricing": "通常料金",
     "basePricingStep": "刻みごとの通常料金",
+    "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",
     "pricingHint": {
       "day": "通常の1日の料金です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。",
       "time": "提供時間の刻み1つ分の料金です。刻みが15分なら、15分の料金です。特定の日だけ別料金にするには、下のカレンダーでその日の料金の横の鉛筆を押します。",
@@ -329,6 +332,7 @@
     "stores": "掲載ページ"
   },
   "calendar": {
+    "minDuration": "最短 {{duration}}",
     "title": "空き状況",
     "storeTitle": "営業時間",
     "perDay": "1日の料金",
@@ -356,6 +360,7 @@
     "editPrice": "この日の料金を設定"
   },
   "booking": {
+    "tooShort": "{{duration}}以上予約してください",
     "cancelPolicy": "キャンセルポリシー",
     "pickupTime": "開始時刻",
     "returnTime": "終了時刻",

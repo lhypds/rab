@@ -314,6 +314,11 @@
   border-bottom: 0;
 }
 
+/* The base price's field stands right after its name, not at the far end. */
+.plain .ruleWhen {
+  flex: none;
+}
+
 .ruleWhen {
   flex: 1;
   min-width: 0;
@@ -324,6 +329,13 @@
 }
 
 .everyDay {
+  font-size: 12px;
+}
+
+/* After the step's price, how it is worked out from the default price. */
+.formula {
+  min-width: 0;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -535,12 +547,19 @@
   padding-left: 22px;
 }
 
-.rule .rulePrice {
+/* A price only worked out from another: read, not typed in. */
+.priced > input:read-only {
+  background: var(--soft);
+  color: var(--muted);
+  cursor: default;
+}
+
+.rulePrice {
   flex: none;
   width: 96px;
 }
 
-.rule .rulePrice > input {
+.rulePrice > input {
   height: 24px;
   padding-right: 8px;
 }
@@ -702,4 +721,24 @@
 .categorySelect {
   flex: 1;
   min-width: 0;
+}
+
+/* A number of minutes, short, with what it counts after it. */
+.minutes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.minutes > input {
+  width: 72px;
+  height: 24px;
+  /* The arrows stand inside the padding: none, and they are at the edge. */
+  padding-right: 0;
+}
+
+.minutes > input::-webkit-inner-spin-button {
+  height: 100%;
+  margin: 0;
 }

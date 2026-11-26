@@ -186,12 +186,19 @@
     opacity: 1;
   }
 
-  .cell:not(:disabled):not(.on):hover {
-    box-shadow: inset 0 0 0 1px var(--ink);
-    /* Over the hours' lines, which are drawn after the lane and would
-       otherwise run across the box's top and bottom edges. */
-    z-index: 1;
-  }
+}
+
+/* The stretch a press would pick, where the mouse is over the day: boxed in
+   ink, as long as the shortest stretch that can be picked. Over the hours'
+   lines, which are drawn after the lane and would otherwise run across the
+   box's top and bottom edges. */
+.hover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  box-shadow: inset 0 0 0 1px var(--ink);
+  pointer-events: none;
 }
 
 /* ------------------------------------------------ the week, to be painted -- */
@@ -237,8 +244,8 @@
 }
 
 .revert svg {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;

@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
-import { barePhone, formatCoords, formatPrice, formatUsername, relativeTime, unitName } from "../../utils/format.js";
+import { barePhone, durationName, formatCoords, formatPrice, formatUsername, relativeTime, roundPrice, unitName } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
 import { MESSAGES_EVENT } from "../Header/Header.jsx";
 import { directionsUrl } from "../../utils/mapbox.js";
-import { DAY_UNIT, cellsOn, clockOf, dayBands, hoursOn, dayPrice as ruledDayPrice, inBands, inquiryUnitOf, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
+import { DAY_UNIT, cellsOn, clockOf, dayBands, hoursOn, dayPrice as ruledDayPrice, inBands, inquiryUnitOf, minDurationOf, minutesOf, priceNow, priceUnitOf, unitOf } from "../../utils/rates.js";
 import Calendar, { dayStates, quote, reading, slotStates } from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
@@ -220,12 +220,15 @@ export default function ItemView({
   // An item that says no price comes to no total.
   const slotTotal = chosenSlots.some((slot) => slot.price == null)
     ? null
-    : Math.round(chosenSlots.reduce((sum, slot) => sum + (slot.price * unitOf(item)) / priceUnitOf(item), 0) * 100) / 100;
+    : roundPrice(chosenSlots.reduce((sum, slot) => sum + (slot.price * unitOf(item)) / priceUnitOf(item), 0), item.currency);
   // Picked up and brought back on the same day, it has to come back later than
   // it went out.
   const timesWrong =
     !bySlot && Boolean(selection) && (!startTime || !endTime || (selection.start === selection.end && startTime >= endTime));
-  const ready = bySlot ? chosenSlots.length > 0 : Boolean(price) && !timesWrong;
+  // By the time, a stretch shorter than one booking may be cannot be asked for.
+  const minDuration = minDurationOf(item);
+  const tooShort = bySlot && Boolean(picked) && minutesOf(picked.end) - minutesOf(picked.start) < minDuration;
+  const ready = bySlot ? chosenSlots.length > 0 && !tooShort : Boolean(price) && !timesWrong;
   const total = bySlot ? slotTotal : price?.total;
   const url = `${window.location.origin}${itemPath(item)}`;
 
@@ -256,6 +259,8 @@ export default function ItemView({
       setFormError(
         error.code === "DAYS_UNAVAILABLE" || error.code === "TIME_UNAVAILABLE"
           ? t("booking.unavailable")
+          : error.code === "TIME_TOO_SHORT"
+            ? t("booking.tooShort", { duration: durationName(minDuration, t) })
           : error.code === "ALREADY_REQUESTED"
             ? t("booking.already")
             : error.code === "TIME_REQUIRED" || error.code === "TIME_ORDER"
@@ -727,12 +732,17 @@ export default function ItemView({
                 value={picked}
                 onChange={item.store ? undefined : setPicked}
                 unit={unitOf(item)}
+                least={minDuration}
                 today={day === today()}
               />
               {/* And the piece of the clock it is asked for in — which a
                   page, not booked itself, has none of. */}
               {!item.store && (
-                <p className={`${styles.small} ${styles.tip}`}>{t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}</p>
+                <p className={`${styles.small} ${styles.tip}`}>
+                  {t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}
+                  {/* And the shortest it may be, where that is more than one step. */}
+                  {minDuration > unitOf(item) && ` · ${t("calendar.minDuration", { duration: durationName(minDuration, t) })}`}
+                </p>
               )}
             </>
           )}
@@ -784,7 +794,13 @@ export default function ItemView({
                   )
                 ) : (
                   <>
-                    <span>{bySlot && !picked ? `${chosen} · ${t("calendar.pickSlots")}` : chosen}</span>
+                    <span>
+                      {bySlot && !picked
+                        ? `${chosen} · ${t("calendar.pickSlots")}`
+                        : tooShort
+                          ? `${chosen} · ${t("booking.tooShort", { duration: durationName(minDuration, t) })}`
+                          : chosen}
+                    </span>
                     {(bySlot ? ready : Boolean(price)) && <strong>{formatPrice(total, item.currency, lang)}</strong>}
                   </>
                 )}

@@ -618,6 +618,9 @@ function servedItem(item) {
     // The piece of the clock it is booked in, in minutes, where it is booked
     // by the time: half an hour for an item from before there was a choice.
     unit: item.unit ?? 30,
+    // The shortest stretch one booking may be, in minutes: one unit where
+    // the item says none.
+    minDuration: item.minDuration ?? item.unit ?? 30,
     // The stretch of the clock a price is for, in minutes: the booking unit
     // where the item says none.
     priceUnit: item.priceUnit ?? item.unit ?? 30,
@@ -808,6 +811,7 @@ function itemFields(item) {
     rates: item.rates,
     hours: item.hours ?? [],
     unit: item.unit ?? 30,
+    minDuration: item.minDuration ?? item.unit ?? 30,
     priceUnit: item.priceUnit ?? item.unit ?? 30,
     cancel: item.cancel ?? { mode: "any" },
     contacts: item.contacts ?? [],

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
-import { CURRENCIES, compactPrice, currencySymbol, defaultCurrency, formatCoords, unitName, wholePrice } from "../../utils/format.js";
+import { CURRENCIES, compactPrice, currencyDigits, durationName, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
 import PublishAsField from "../PublishAsField/index.js";
 import StoreField from "../StoreField/index.js";
@@ -12,7 +12,7 @@ import { dialCodeOf } from "../../utils/dialing.js";
 import { AREA_TYPES, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, postcodeOf, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { openPreview, writePreview } from "../../utils/preview.js";
-import { clockOf, hourPrice, inquiryUnitOf, INQUIRY_UNITS, listPrice, minutesOf, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
+import { clockOf, hourPrice, inquiryUnitOf, INQUIRY_UNITS, listPrice, minDurationOf, minutesOf, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
 import { currentRegion, loadRegion, useRegion } from "../../utils/region.js";
 import { useAuth } from "../AuthProvider/index.js";
 import Calendar from "../Calendar/index.js";
@@ -149,7 +149,7 @@ function startingFields(item, calendar, lang) {
   const fields = startingFieldsAsSaved(item, calendar, lang);
   if (fields.mode !== "time" || fields.priceUnit === fields.unit) return fields;
   const by = fields.unit / fields.priceUnit;
-  const scale = (price) => (price === "" || price == null ? price : String(Math.round(Number(price) * by * 100) / 100));
+  const scale = (price) => (price === "" || price == null ? price : exactPrice(Number(price) * by));
   return {
     ...fields,
     basePrice: scale(fields.basePrice),
@@ -190,6 +190,8 @@ function startingFieldsAsSaved(item, calendar, lang) {
     inquiryUnit: inquiryUnitOf(item),
     // The piece of the clock it is booked in, where it is booked by the time.
     unit: unitOf(item),
+    // The shortest stretch one booking may be: a whole number of that unit.
+    minDuration: minDurationOf(item),
     // And the stretch of the clock its prices are for, which is its own choice.
     priceUnit: priceUnitOf(item),
     // The hours it can be had, in two parts: the rules (`hourRules`), and what
@@ -244,6 +246,19 @@ function cleanHourRules(rules) {
 }
 
 // A price as typed, as a number — or null where it is not one.
+// A step's price is kept to six places, not two: a third of 10 kept as 3.33
+// would come back as 9.99 for the hour it is a third of. Two are shown.
+const exactPrice = (number) => String(Math.round(number * 1e6) / 1e6);
+// Two places, or as few as the currency has: none for the yen.
+const shownPrice = (text, currency) => {
+  if (text == null || text === "" || !Number.isFinite(Number(text))) return text;
+  const digits = currencyDigits(currency);
+  return new RegExp(`^\\d*${digits ? `\\.?\\d{0,${digits}}` : ""}$`).test(String(text)) ? text : String(roundPrice(text, currency));
+};
+// What may be typed for a price: figures, and a point where the currency has
+// anything after one.
+const priceText = (value, currency) => value.replace(currencyDigits(currency) ? /[^\d.]/g : /\D/g, "");
+
 const priceOf = (text) => (String(text).trim() !== "" && Number.isFinite(Number(text)) ? Number(text) : null);
 
 // What the form's layers come to as the rules that are kept, each one over
@@ -310,6 +325,87 @@ function withSlotPrice(slots, { day, start, end, price }) {
     if (slot.end > end) kept.push({ ...slot, start: end });
   }
   return priceOf(price) === null ? kept : [...kept, { day, start, end, price }];
+}
+
+// A stretch in minutes brought onto whole steps of `unit`: the nearest
+// number of them not shorter than it, one at least and a day at most.
+const wholeSteps = (minutes, unit) =>
+  Math.min(Math.floor(1440 / unit) * unit, Math.max(unit, Math.ceil((Number(minutes) || 0) / unit) * unit));
+
+// A number of minutes, turned a `step` at a time by its arrows, the arrow
+// keys or the mouse wheel over it; `onDone` is told what it came to once it
+// is left, which may be something typed between steps.
+const WHEEL_PAUSE = 120; // milliseconds of quiet that end one turn of the wheel
+const WHEEL_CLICK = 100; // pixels one click of a wheel scrolls
+function MinutesInput({ value, step, max, onChange, onDone, label, suffix }) {
+  const ref = useRef(null);
+  // What is being typed, which may be nothing for a moment.
+  const [text, setText] = useState(null);
+  const turn = (steps) => {
+    const by = steps * step;
+    setText(null);
+    onChange(Math.min(max, Math.max(step, Math.round((Number(value) || step) / step) * step + by)));
+  };
+  // The wheel is listened for directly: React's is passive, and the page
+  // would scroll as well.
+  const turnRef = useRef(turn);
+  turnRef.current = turn;
+  useEffect(() => {
+    const input = ref.current;
+    // One click of the wheel can come as a run of events — a smooth-scrolling
+    // wheel or a trackpad sends dozens — so a step is taken for the first
+    // event after a pause, and in a run that goes on, one more for each
+    // click's worth of scrolling.
+    let last = -Infinity;
+    let run = 0;
+    const wheel = (event) => {
+      event.preventDefault();
+      if (event.deltaY === 0) return;
+      const pixels = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaMode === 2 ? event.deltaY * WHEEL_CLICK : event.deltaY;
+      const fresh = event.timeStamp - last > WHEEL_PAUSE;
+      last = event.timeStamp;
+      let steps = 0;
+      if (fresh) {
+        run = 0;
+        steps = Math.sign(pixels);
+      } else {
+        run += pixels;
+        steps = Math.trunc(run / WHEEL_CLICK);
+        run -= steps * WHEEL_CLICK;
+      }
+      if (steps === 0) return;
+      // Turned, it is being worked on: leaving it then brings it onto steps.
+      if (document.activeElement !== input) input.focus();
+      turnRef.current(-steps);
+    };
+    input.addEventListener("wheel", wheel, { passive: false });
+    return () => input.removeEventListener("wheel", wheel);
+  }, []);
+  return (
+    <span className={styles.minutes}>
+      <input
+        ref={ref}
+        type="number"
+        className="text-input mono"
+        value={text ?? value}
+        min={step}
+        max={max}
+        step={step}
+        inputMode="numeric"
+        aria-label={label}
+        onChange={(event) => {
+          const typed = event.target.value.replace(/\D/g, "");
+          setText(typed);
+          if (typed !== "") onChange(Number(typed));
+        }}
+        onBlur={() => {
+          setText(null);
+          onDone(value);
+        }}
+      />
+      <span>{suffix}</span>
+    </span>
+  );
 }
 
 // Whether a rule names hours, and whether the ones it names are in order.
@@ -628,6 +724,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // The date whose base price is being set, on a sheet over the form, and
   // what has been typed there so far.
   const [pricing, setPricing] = useState(null);
+  // The default price as last typed for the stretch priced by (see
+  // unitPriceShown), with the step's price it came to.
+  const [unitPrice, setUnitPrice] = useState(null);
   // Which of the two parts a new item's form is on.
   const [step, setStep] = useState("item");
   const [error, setError] = useState("");
@@ -902,6 +1001,26 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // booked in where that is finer — every price is for one of those units.
   const priceStep = Math.min(STEP, fields.unit);
   const PRICE_TIME_OPTIONS = useMemo(() => timeOptions(priceStep), [priceStep]);
+  // The prices are written a step each, but it is the default price for the
+  // stretch priced by that is said first (see unitPriceShown): the step or the
+  // stretch changed, every step's price is worked out afresh so what the
+  // stretch costs stays as it was.
+  const rescaled = (current, next) => {
+    const by = (next.unit / current.unit) * (current.priceUnit / next.priceUnit);
+    if (next.mode !== "time" || by === 1) return next;
+    const scale = (price) => (price === "" || price == null ? price : exactPrice(Number(price) * by));
+    return {
+      ...next,
+      basePrice: scale(next.basePrice),
+      datePrices: Object.fromEntries(Object.entries(next.datePrices).map(([day, price]) => [day, scale(price)])),
+      slotPrices: next.slotPrices.map((slot) => ({ ...slot, price: scale(slot.price) })),
+      extraRates: next.extraRates.map((rate) => ({ ...rate, price: Number(scale(rate.price)) })),
+    };
+  };
+  const setPriceUnit = (priceUnit) => {
+    setFields((current) => rescaled(current, { ...current, priceUnit }));
+    setError("");
+  };
   // The unit changed, the hours already said are brought onto it: each
   // stretch widened to the nearest whole units round it, so none is lost.
   const setUnit = (unit) =>
@@ -914,7 +1033,10 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
               end: clockOf(Math.ceil(minutesOf(range.end) / unit) * unit),
             }
           : range;
-      return { ...current, unit, hourRules: current.hourRules.map(snap), hourDates: current.hourDates.map(snap) };
+      // The shortest booking stays a whole number of units: the nearest one
+      // not shorter than it was.
+      const minDuration = Math.max(unit, Math.ceil(current.minDuration / unit) * unit);
+      return rescaled(current, { ...current, unit, minDuration, hourRules: current.hourRules.map(snap), hourDates: current.hourDates.map(snap) });
     });
   const hourRules = fields.hourRules;
   const setHourRules = (change) => setFields((current) => ({ ...current, hourRules: change(current.hourRules) }));
@@ -956,6 +1078,23 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   const stepRate = byTime ? fields.priceUnit / fields.unit : 1;
   const toKept = (price) => Math.round(price * stepRate * 100) / 100;
   const rates = stepRate === 1 ? stepRates : stepRates.map((rate) => ({ ...rate, price: toKept(rate.price) }));
+  // The default price for the whole stretch priced by, worked out from the
+  // step's and back. What was typed is kept on show while the step's price is
+  // still the one it came to, so a third of a price is not rounded under the
+  // pen.
+  const typedUnitPrice = unitPrice && unitPrice.base === fields.basePrice;
+  const unitPriceShown = typedUnitPrice
+    ? unitPrice.text
+    : fields.basePrice === "" || Number.isNaN(Number(fields.basePrice))
+      ? ""
+      : String(roundPrice(toKept(Number(fields.basePrice)), fields.currency));
+  const setUnitPriceText = (value) => {
+    const text = priceText(value, fields.currency);
+    const number = Number(text);
+    const base = text === "" || Number.isNaN(number) ? "" : exactPrice(number / stepRate);
+    setUnitPrice({ text, base });
+    set("basePrice", base);
+  };
   // Every hour the item has: the rules, then what was painted for dates.
   const hours = byTime ? [...cleanHourRules(hourRules), ...fields.hourDates] : [];
   // By the date, the days it can be had are the days its usual hours tick.
@@ -985,6 +1124,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     store: fields.store,
     mode,
     unit: fields.unit,
+    minDuration: wholeSteps(fields.minDuration, fields.unit),
     priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
     cancel,
     contacts,
@@ -1087,6 +1227,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       ...(!editing && { store: fields.store }),
       mode,
       unit: fields.unit,
+      minDuration: wholeSteps(fields.minDuration, fields.unit),
       priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
       cancel,
       contacts,
@@ -1177,22 +1318,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     <Weekdays value={fields.openDays} onChange={setOpenDays} names={names} label={t("item.openDays")} />
                   </div>
                 )}
-                {/* By the time, the stretch of the clock the prices on the
-                    calendar under it are for — an hour, say, booked by the
-                    quarter. Each date's is worked out from the price of a
-                    step (see stepRate), and said under the pointer. */}
-                {byTime && priced && (
-                  <div className={styles.dayRule}>
-                    <span className={styles.everyDay}>{t("item.priceUnit")}</span>
-                    <Select
-                      className={styles.currency}
-                      label={t("item.priceUnit")}
-                      value={fields.priceUnit}
-                      onChange={(value) => set("priceUnit", value)}
-                      options={UNITS.map((each) => ({ value: each, label: unitName(each, t) }))}
-                    />
-                  </div>
-                )}
                 {/* By the date, a press closes a day or opens it again. By the
                     time, a day can be had once it has hours, so a press picks
                     the day whose week the timetable below is showing. */}
@@ -1212,7 +1337,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                           setPricing({
                             day,
                             kept: stepRate !== 1,
-                            price: fields.datePrices[day] ? String(toKept(Number(fields.datePrices[day]))) : "",
+                            price: fields.datePrices[day] ? String(roundPrice(toKept(Number(fields.datePrices[day])), fields.currency)) : "",
                           })
                       : undefined
                   }
@@ -1236,9 +1361,13 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     <PriceInput
                       currency={fields.currency}
                       className={styles.rulePrice}
-                      value={fields.basePrice}
+                      value={shownPrice(fields.basePrice, fields.currency)}
+                      // By the time it is only worked out from the default
+                      // price for the stretch priced by, in the left column.
+                      readOnly={byTime}
+                      tabIndex={byTime ? -1 : undefined}
                       onChange={(event) => {
-                        set("basePrice", event.target.value.replace(/[^\d.]/g, ""));
+                        set("basePrice", priceText(event.target.value, fields.currency));
                         setError("");
                       }}
                       inputMode="decimal"
@@ -1246,6 +1375,18 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                       aria-label={t(byTime ? "item.basePricingStep" : "item.basePricing")}
                       maxLength={12}
                     />
+                    {/* How it is worked out: the default price for the
+                        stretch priced by, cut into steps. */}
+                    {byTime && (
+                      <span className={styles.formula}>
+                        {t("item.stepFormula", {
+                          price: unitPriceShown === "" ? t("item.basePricing") : formatPrice(unitPriceShown, fields.currency, lang),
+                          // Both in minutes, so the figures are the sum: × 20 分钟 ÷ 60 分钟.
+                          unit: t("item.unitMinutes", { count: fields.unit }),
+                          per: t("item.unitMinutes", { count: fields.priceUnit }),
+                        })}
+                      </span>
+                    )}
                   </li>
                 </ul>
   );
@@ -1664,6 +1805,36 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     />
                   </div>
                 )}
+                {/* By the time, the stretch of the clock the prices are for
+                    (an hour, say, booked by the quarter) and the default price
+                    for it; what one step of it comes to is beside the step. */}
+                {byTime && (
+                  <>
+                    <div className={styles.modeRow}>
+                      <span className={styles.everyDay}>{t("item.priceUnit")}</span>
+                      <Select
+                        className={styles.currency}
+                        label={t("item.priceUnit")}
+                        value={fields.priceUnit}
+                        onChange={setPriceUnit}
+                        options={UNITS.map((each) => ({ value: each, label: unitName(each, t) }))}
+                      />
+                    </div>
+                    <div className={styles.modeRow}>
+                      <span className={styles.everyDay}>{t("item.basePricing")}</span>
+                      <PriceInput
+                        currency={fields.currency}
+                        className={styles.rulePrice}
+                        value={unitPriceShown}
+                        onChange={(event) => setUnitPriceText(event.target.value)}
+                        inputMode="decimal"
+                        placeholder={t("item.price")}
+                        aria-label={t("item.basePricing")}
+                        maxLength={12}
+                      />
+                    </div>
+                  </>
+                )}
                 {!byTime && basePriceRow}
                 {/* Rules from when prices were written freely, which are none
                     of the three layers: still in force, and said to be. */}
@@ -1784,7 +1955,24 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     </div>
                   </div>
                   <span className={styles.hint}>{t("item.unitHint")}</span>
-                  {/* Under the step, what one step costs. */}
+                  {/* The shortest stretch one booking may be, in minutes:
+                      turned a step at a time, and brought onto whole steps
+                      once the field is left. */}
+                  <div className={styles.dayRule}>
+                    <span className={styles.everyDay}>{t("item.minDuration")}</span>
+                    <MinutesInput
+                      value={fields.minDuration}
+                      step={fields.unit}
+                      max={Math.floor(1440 / fields.unit) * fields.unit}
+                      onChange={(value) => set("minDuration", value)}
+                      onDone={(value) => set("minDuration", wholeSteps(value, fields.unit))}
+                      label={t("item.minDuration")}
+                      suffix={t("item.unitMinutes", { count: "" }).trim()}
+                    />
+                  </div>
+                  <span className={styles.hint}>{t("item.minDurationHint")}</span>
+                  {/* Under the step, what one step costs: worked out from the
+                      default price in the column at the left. */}
                   {priced && (
                     <>
                       {basePriceRow}
@@ -1937,7 +2125,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                       priced
                         ? (day, start, end, run) => {
                             const own = fields.slotPrices.find((slot) => slot.day === day && slot.start <= start && slot.end >= end);
-                            setPricing({ day, start, end, from: run.start, until: run.end, price: own?.price ?? "" });
+                            setPricing({ day, start, end, from: run.start, until: run.end, price: shownPrice(own?.price ?? "", fields.currency) });
                           }
                         : undefined
                     }
@@ -2078,7 +2266,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 const datePrices = { ...current.datePrices };
                 const price = priceOf(pricing.price);
                 if (price === null) delete datePrices[pricing.day];
-                else datePrices[pricing.day] = pricing.kept ? String(Math.round((price / stepRate) * 100) / 100) : pricing.price;
+                else datePrices[pricing.day] = pricing.kept ? exactPrice(price / stepRate) : pricing.price;
                 return { ...current, datePrices };
               });
               setError("");
@@ -2107,11 +2295,11 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
               <PriceInput
                 currency={fields.currency}
                 value={pricing.price}
-                onChange={(event) => setPricing({ ...pricing, price: event.target.value.replace(/[^\d.]/g, "") })}
+                onChange={(event) => setPricing({ ...pricing, price: priceText(event.target.value, fields.currency) })}
                 inputMode="decimal"
                 placeholder={
-                  (pricing.start && fields.datePrices[pricing.day]) ||
-                  (pricing.kept && priceOf(fields.basePrice) !== null ? String(toKept(priceOf(fields.basePrice))) : fields.basePrice) ||
+                  (pricing.start && shownPrice(fields.datePrices[pricing.day], fields.currency)) ||
+                  (pricing.kept && priceOf(fields.basePrice) !== null ? String(roundPrice(toKept(priceOf(fields.basePrice)), fields.currency)) : shownPrice(fields.basePrice, fields.currency)) ||
                   t("item.price")
                 }
                 aria-label={t("item.price")}

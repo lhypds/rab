@@ -36,18 +36,36 @@ export function currencySymbol(currency, locale) {
   }
 }
 
+// How many places after the point a currency is counted in: none for the yen,
+// two for the dollar. Never more than two.
+export function currencyDigits(currency) {
+  try {
+    return Math.min(2, new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits);
+  } catch {
+    return 2;
+  }
+}
+
+// An amount brought to the smallest coin its currency has: ¥333.33 is ¥333.
+export function roundPrice(amount, currency) {
+  const scale = 10 ** currencyDigits(currency);
+  return Math.round(Number(amount) * scale) / scale;
+}
+
 // A price as its own currency writes it. Whole amounts lose the decimals — a
-// tent at ¥1,500 a day is not ¥1,500.00 — and anything with cents keeps both.
+// tent at ¥1,500 a day is not ¥1,500.00 — and anything with cents keeps both;
+// the yen has none at all.
 export function formatPrice(amount, currency, locale) {
   const value = Number(amount);
   if (amount == null || amount === "" || !Number.isFinite(value)) return "";
+  const digits = currencyDigits(currency);
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       currencyDisplay: "narrowSymbol",
-      minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: Number.isInteger(roundPrice(value, currency)) ? 0 : digits,
+      maximumFractionDigits: digits,
     }).format(value);
   } catch {
     return `${value} ${currency}`;
@@ -59,6 +77,11 @@ export function formatPrice(amount, currency, locale) {
 export function unitName(unit, t) {
   if (unit === DAY_UNIT) return t("item.unitDay");
   return unit === 60 ? t("item.unitHour") : t("item.unitMinutes", { count: unit });
+}
+
+// A length of time in minutes as words: "2 hours", "90 minutes".
+export function durationName(minutes, t) {
+  return minutes % 60 === 0 ? t("calendar.hours", { count: minutes / 60 }) : t("calendar.minutes", { count: minutes });
 }
 
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
