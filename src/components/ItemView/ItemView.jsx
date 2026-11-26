@@ -369,17 +369,7 @@ export default function ItemView({
   // right, the way to be rid of the item altogether, in red and asked twice.
   // Somebody else's is not deleted by whoever is reading it, and has no
   // buttons here: having it deleted is asked of the administrator in a report.
-  const removal = shared && !admin ? null : confirming ? (
-    <div className={styles.buttons}>
-      <span className={styles.confirm}>{t("item.deleteConfirm")}</span>
-      <button type="button" className="small-button" disabled={busy} onClick={() => setConfirming(false)}>
-        {t("common.cancel")}
-      </button>
-      <button type="button" className={`small-button ${styles.danger} ${styles.dangerFilled}`} disabled={busy} onClick={remove}>
-        {t("item.delete")}
-      </button>
-    </div>
-  ) : (
+  const removal = shared && !admin ? null : (
     <div className={styles.buttons}>
       {/* Where there is no such button, Delete stands alone at the left edge:
           nothing empty is left in its place to hold a gap open. */}
@@ -900,6 +890,19 @@ export default function ItemView({
             </div>
           )}
         </aside>
+        {/* Asked twice before it is deleted: on a sheet of its own, over the
+            page, rather than in place of the buttons. */}
+        <Modal isOpen={confirming} title={t("item.delete")} onClose={busy ? undefined : () => setConfirming(false)} closeOnOverlay>
+          <p className="modal-text">{t("item.deleteConfirm")}</p>
+          <div className="modal-actions">
+            <button type="button" className="outline-button" disabled={busy} onClick={() => setConfirming(false)}>
+              {t("common.cancel")}
+            </button>
+            <button type="button" className={`primary-button ${styles.deleteButton}`} disabled={busy} onClick={remove}>
+              {t("item.delete")}
+            </button>
+          </div>
+        </Modal>
 
         <div className={styles.rest}>
           {/* What its owner wrote about it, under a heading and a rule like

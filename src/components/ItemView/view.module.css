@@ -451,23 +451,12 @@
   color: var(--danger);
 }
 
-.buttons .dangerFilled {
-  background: var(--danger);
-  color: var(--paper);
-}
-
 @media (hover: hover) {
   .buttons .danger:hover:not(:disabled) {
     border-color: var(--danger);
     background: var(--danger);
     color: var(--paper);
   }
-}
-
-/* The question takes the room to the left of its two answers. */
-.confirm {
-  margin-right: auto;
-  font-size: 12px;
 }
 
 /* What a request is made of — the hours, the note, the button — laid out like
@@ -668,4 +657,18 @@
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Delete, on the sheet that asks first: in red, the one thing here that
+   cannot be taken back. */
+.deleteButton {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+@media (hover: hover) {
+  .deleteButton:hover:not(:disabled) {
+    background: var(--paper);
+    color: var(--danger);
+  }
 }
