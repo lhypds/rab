@@ -1,8 +1,9 @@
 export const MAPBOX_TOKEN = String(import.meta.env.VITE_MAPBOX_TOKEN ?? "").trim();
 
-// The quiet face of the map: grey ground and hairline streets, which is the
-// only one a page drawn in one ink sits on without arguing.
-export const MAP_STYLE = "mapbox://styles/mapbox/light-v11";
+// The map in colour: green parks, blue water, the roads in their colours —
+// the streets and stations around a spot are read at a glance, which is what
+// both the home page's map and an item's access map are looked at for.
+export const MAP_STYLE = "mapbox://styles/mapbox/streets-v12";
 
 // Where the map opens for somebody it has never met and cannot locate.
 export const DEFAULT_VIEW = { latitude: 35.6812, longitude: 139.7671, zoom: 11 };

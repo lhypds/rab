@@ -98,6 +98,10 @@ function cullPins(map, markers) {
   }
 }
 
+// How long a row has to be held still, as lists, before a drag carries it to
+// a category rather than drawing the columns sideways.
+const HOLD_MS = 300;
+
 // How far above the spot a bubble sits: the pin's own height (25.2px) and a
 // pixel, as in lo.
 const POPUP_OFFSET = 26;
@@ -392,24 +396,37 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // at all for the admin — and the server is what says so in the end.
   const mayMove = (item) => Boolean(user && (item.shared || item.owner === user.username || isAdmin(user)));
   const carriedRef = useRef(null);
+  // A drag over the columns with the mouse, as lists: `held` once a row that
+  // can be carried has been held still long enough (HOLD_MS) to be picked up.
+  // `coast`, the frame of the glide a drag let go while moving carries on in.
+  const swipe = useRef({ held: false, bound: null, coast: 0 });
   const [dropOn, setDropOn] = useState(null);
   const carry = (item, event) => {
     if (!event) {
       carriedRef.current = null;
+      swipe.current.held = false;
       setDropOn(null);
+      return;
+    }
+    // Only a row held a moment first is picked up: a drag straight away
+    // draws the columns sideways instead (see the swipe below), and the
+    // browser's carrying is called off for it.
+    if (!swipe.current.held) {
+      event.preventDefault();
       return;
     }
     carriedRef.current = item;
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", item.title);
-    // What follows the pointer is the row's own contents, not the cell it
-    // lies in: the cell is ruled off from the column beside it, and that rule
-    // would be carried along with it.
-    const inside = event.currentTarget.querySelector(".row-copy");
-    if (inside) {
-      const box = inside.getBoundingClientRect();
-      event.dataTransfer.setDragImage(inside, event.clientX - box.left, event.clientY - box.top);
-    }
+    // What follows the pointer is the whole card, in the black frame it was
+    // given when the press had been held long enough (see data-held).
+    // The column's rule, which each card draws down from its side, is taken
+    // off for the moment the browser takes the picture, and put back after.
+    const card = event.currentTarget;
+    const box = card.getBoundingClientRect();
+    card.dataset.lifting = "";
+    event.dataTransfer.setDragImage(card, event.clientX - box.left, event.clientY - box.top);
+    window.setTimeout(() => delete card.dataset.lifting, 0);
   };
   // A category takes what is carried where it is one — not "all" — and not
   // the one the item is in already.
@@ -862,6 +879,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // as a stutter of starts.
   const glide = useRef({ target: null, frame: 0 });
   const glideTo = (list, row) => {
+    // A drag's glide gives way to the row picked.
+    cancelAnimationFrame(swipe.current.coast);
+    swipe.current.coast = 0;
     const state = glide.current;
     const from = state.frame ? state.target : list.scrollLeft;
     const frame = list.getBoundingClientRect();
@@ -888,9 +908,12 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   };
   // Drawn sideways by hand meanwhile, the columns are left where the hand
   // puts them.
+  // And so is a glide left over from a drag let go (see the swipe).
   const stopGlide = () => {
     cancelAnimationFrame(glide.current.frame);
     glide.current.frame = 0;
+    cancelAnimationFrame(swipe.current.coast);
+    swipe.current.coast = 0;
   };
   // Where nothing has been picked yet — or what was picked is no longer
   // listed — the first row is: it is given the keyboard, so the keys and the
@@ -1149,6 +1172,139 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     const hear = (event) => rowWheelNow.current(event, list);
     list.addEventListener("wheel", hear, { passive: false });
     return () => list.removeEventListener("wheel", hear);
+  });
+
+  // The columns drawn sideways by dragging them with the mouse, as a finger
+  // draws them on a screen (which the browser does by itself). A row that can
+  // be carried to a category is picked up only once it has been held still a
+  // moment; a drag begun at once draws the columns. A drag that drew them is
+  // not a press on the row it ends over.
+  useEffect(() => {
+    const list = tileRows.current;
+    const state = swipe.current;
+    // Heard on the list itself, once for each list drawn; the gesture is
+    // followed on the window, so a page drawn again in the middle of one does
+    // not cut it short.
+    if (!list || state.bound === list) return;
+    state.bound = list;
+    let start = null;
+    let row = null;
+    let timer = 0;
+    let moved = false;
+    let swallow = false;
+    // Where the mouse has been over the last moments, for how fast the
+    // columns were going when let go; and the frame the next position is
+    // written at, so a mouse that reports many times a frame moves them once.
+    let trail = [];
+    let frame = 0;
+    let at = 0;
+    const cover = document.createElement("div");
+    cover.className = styles.swipeCover;
+    const letGo = () => {
+      window.clearTimeout(timer);
+      if (row) delete row.dataset.held;
+    };
+    const move = (event) => {
+      if (!start || state.held) return;
+      const dx = event.clientX - start.x;
+      if (!moved) {
+        if (Math.hypot(dx, event.clientY - start.y) < 4) return;
+        moved = true;
+        letGo();
+        stopGlide();
+        document.body.append(cover);
+        window.getSelection()?.removeAllRanges();
+      }
+      at = start.left - dx;
+      trail.push({ time: event.timeStamp, x: event.clientX });
+      while (trail.length > 2 && event.timeStamp - trail[0].time > 100) trail.shift();
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          list.scrollLeft = at;
+        });
+      }
+    };
+    // Let go while moving, the columns carry on the way they were going and
+    // slow to a stop, as they do under a finger.
+    const coast = (speed) => {
+      let last = performance.now();
+      const step = (now) => {
+        const elapsed = Math.min(now - last, 50);
+        last = now;
+        const before = list.scrollLeft;
+        list.scrollLeft = before - speed * elapsed;
+        speed *= 0.95 ** (elapsed / 16);
+        if (Math.abs(speed) < 0.02 || list.scrollLeft === before) {
+          state.coast = 0;
+          return;
+        }
+        state.coast = requestAnimationFrame(step);
+      };
+      state.coast = requestAnimationFrame(step);
+    };
+    const up = (event) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      letGo();
+      cover.remove();
+      if (moved) {
+        swallow = true;
+        cancelAnimationFrame(frame);
+        frame = 0;
+        list.scrollLeft = at;
+        // How fast, over the last tenth of a second — nothing if the mouse
+        // was held still before it was let go.
+        const first = trail[0];
+        const last = trail[trail.length - 1];
+        const span = last && last.time - first.time;
+        if (span > 0 && event.timeStamp - last.time < 60) {
+          const speed = (last.x - first.x) / span;
+          if (Math.abs(speed) > 0.1) coast(speed);
+        }
+      }
+      trail = [];
+      start = null;
+    };
+    list.addEventListener("mousedown", (event) => {
+      swallow = false;
+      cancelAnimationFrame(state.coast);
+      state.coast = 0;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const under = event.target.closest?.("li");
+      row = under?.parentElement === list ? under : null;
+      start = { x: event.clientX, y: event.clientY, left: list.scrollLeft };
+      moved = false;
+      state.held = false;
+      window.clearTimeout(timer);
+      if (row?.draggable) {
+        const held = row;
+        timer = window.setTimeout(() => {
+          state.held = true;
+          held.dataset.held = "";
+        }, HOLD_MS);
+      }
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    });
+    list.addEventListener(
+      "click",
+      (event) => {
+        if (!swallow) return;
+        swallow = false;
+        event.preventDefault();
+        event.stopPropagation();
+      },
+      true,
+    );
+    // Carried and put down: the mouse's own let-go is not heard meanwhile.
+    list.addEventListener("dragend", () => {
+      letGo();
+      state.held = false;
+      start = null;
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    });
   });
 
   // The list beside the map is not picked among by the wheel: it is a list

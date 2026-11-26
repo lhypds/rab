@@ -272,6 +272,19 @@
   overscroll-behavior-x: contain;
 }
 
+/* Laid over the whole page while the columns are drawn sideways with the
+   mouse: it shows the hand that holds them, over the links' own pointer, and
+   keeps the rows from being lit one after another as they pass under it or
+   their words marked. One sheet over them rather than a rule on every row,
+   which would have thousands of rows restyled as the drag starts and ends. */
+.swipeCover {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  cursor: grabbing;
+  user-select: none;
+}
+
 .tiles > li,
 .tiles > li:first-child {
   position: relative;
@@ -282,6 +295,17 @@
   padding: 0 12px;
   border-top: 0;
   box-shadow: 0 -1px 0 var(--line);
+}
+
+/* A row held long enough to be picked up: the whole card framed in black, as
+   it is the moment the press has been held, and as it is carried. Drawn inside
+   the box rather than as a border, which would add a pixel to each side. Set
+   after the rows' own rule above, which it stands in for. */
+.tiles > li[data-held] {
+  z-index: 1;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  cursor: grabbing;
 }
 
 /* Every row the one height, whatever it holds: the 44px of the fullest row's
@@ -316,6 +340,12 @@
   width: 1px;
   background: var(--line);
   pointer-events: none;
+}
+
+/* Not in the picture of a row taken to carry it: the card is carried on its
+   own, without the column's rule running down from its side. */
+.tiles > li[data-lifting]::after {
+  display: none;
 }
 
 .tilesEmpty {
