@@ -1051,7 +1051,8 @@ app.get("/api/items/:id", (req, res) => {
 // Where somebody else's item is put is one of the public account's places
 // from then on (its locations.json), for the next such item to be put at: the
 // spot, and what it is called — the line written under the pin, or failing
-// that the item's name. A spot that is one of them already is not added twice.
+// that the item's name. A spot or an address that is one of them already is not
+// added twice.
 // The places are read once for however many items: there are thousands of
 // each, and reading the file again for every item kept the server from
 // starting for minutes.
@@ -1061,7 +1062,9 @@ function rememberPublicPlaces(items) {
   for (const item of items) {
     if (!item.shared || !item.located || item.latitude == null || item.longitude == null) continue;
     places ??= getLocations(PUBLIC_ID);
-    if (places.some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) continue;
+    // One place per address too, as push and mirror count them (rab public).
+    if (places.some((place) => (near(place.latitude, item.latitude) && near(place.longitude, item.longitude))
+      || (item.place && place.address === item.place))) continue;
     const saved = saveLocation(PUBLIC_ID, {
       id: null,
       name: text(item.place || item.title, LOCATION_NAME_MAX),

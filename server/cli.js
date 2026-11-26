@@ -233,6 +233,19 @@ function localPublic(fs, folder) {
 // Which of `items` and `places` the other side does not have — by id, by the
 // crawler's key, by address — `other` being { items, locations } as GET
 // /api/public gives them, or as localPublic does.
+// Of `held`, the places that repeat an address another of them has and are
+// not the one kept for it: the one whose id `here` has, or else the first.
+function extraPlaces(held, here) {
+  const ours = new Set(here.map((each) => each.id));
+  const kept = new Map();
+  for (const each of held) {
+    if (!each.address) continue;
+    const first = kept.get(each.address);
+    if (!first || (!ours.has(first.id) && ours.has(each.id))) kept.set(each.address, each);
+  }
+  return held.filter((each) => each.address && kept.get(each.address) !== each);
+}
+
 function missingFrom(other, { items, locations }) {
   const ids = new Set(other.items.map((each) => each.id));
   const keys = new Set(other.items.filter((each) => each.key).map((each) => JSON.stringify(each.key)));
@@ -418,6 +431,16 @@ async function sendMissing(fs, session, folder, send) {
   return failed;
 }
 
+// "31840 items, 3415 spots, 3049 places": a spot is an item folder under
+// stores/ (`under` here, `store` as the server gives it), a place a saved
+// location in locations.json.
+function counted({ items = [], locations }) {
+  const spots = items.filter((each) => each.under === "stores" || each.store).length;
+  const parts = [`${items.length - spots} items`, `${spots} spots`];
+  if (locations) parts.push(`${locations.length} places`);
+  return parts.join(", ");
+}
+
 // rab push / rab mirror [-f <folder>] [-u <url>]: what the server does not
 // have, sent; and for mirror, what it has that is not here, deleted there, so
 // that its _public is this folder's.
@@ -426,26 +449,30 @@ async function sendPublic(args, { mirror = false } = {}) {
   const fs = await import("node:fs");
   const folder = publicFolder(fs, path.resolve(file));
   const here = localPublic(fs, folder);
-  console.log(`${folder}: ${here.items.length} items, ${here.locations.length} places`);
+  console.log(`${folder}: ${counted(here)}`);
 
   const session = await adminSession(host);
   let failed = 0;
   try {
     const held = await session.held();
-    console.log(`${host} has ${held.items.length} items, ${held.locations.length} places`);
+    console.log(`${host} has ${counted(held)}`);
     const send = missingFrom(held, here);
     // And what it has too, but older than here: sent again, to replace it.
     const newer = olderIn(held, here.items);
-    console.log(`To send: ${send.items.length} new items, ${newer.length} newer than the server's, ${send.locations.length} places`);
+    console.log(`To send: ${counted({ items: send.items })} new, ${counted({ items: newer })} newer than the server's, ${send.locations.length} places`);
     send.items = [...send.items, ...newer].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
     const drop = mirror ? missingFrom(here, held) : { items: [], locations: [] };
-    if (mirror) console.log(`To delete on ${host}: ${drop.items.length} items, ${drop.locations.length} places`);
+    // The server keeps one place per address (see mergePublic), but may still
+    // hold more from before: all but one go too — the one with an id here, or
+    // else the first.
+    if (mirror) drop.locations = [...drop.locations, ...extraPlaces(held.locations, here.locations)];
+    if (mirror) console.log(`To delete on ${host}: ${counted(drop)}`);
 
     const deleting = drop.items.length + drop.locations.length;
     if (deleting && !yes) {
       if (!process.stdin.isTTY) throw new Error("Deleting on the server is not done without --yes when nobody is there to ask.");
       const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
-      const answer = await prompt.question(`This deletes ${drop.items.length} items and ${drop.locations.length} places on ${host} for good. Type yes to go on: `);
+      const answer = await prompt.question(`This deletes ${counted(drop)} on ${host} for good. Type yes to go on: `);
       prompt.close();
       if (answer.trim() !== "yes") throw new Error("Nothing was sent or deleted.");
     }
@@ -491,15 +518,15 @@ async function receivePublic(args) {
     ? named
     : publicFolder(fs, named);
   const here = localPublic(fs, folder);
-  console.log(`${folder}: ${here.items.length} items, ${here.locations.length} places`);
+  console.log(`${folder}: ${counted(here)}`);
 
   const session = await adminSession(host);
   let failed = 0;
   try {
     const held = await session.held();
-    console.log(`${host} has ${held.items.length} items, ${held.locations.length} places`);
+    console.log(`${host} has ${counted(held)}`);
     const take = missingFrom(here, held);
-    console.log(`To fetch: ${take.items.length} items, ${take.locations.length} places`);
+    console.log(`To fetch: ${counted(take)}`);
 
     if (take.locations.length) {
       const all = await answerOf(await session.request("/api/public/locations", { headers: session.auth }));
