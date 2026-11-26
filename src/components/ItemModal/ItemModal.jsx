@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
@@ -12,8 +12,8 @@ import { dialCodeOf } from "../../utils/dialing.js";
 import { AREA_TYPES, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, postcodeOf, savedView } from "../../utils/mapbox.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { openPreview, writePreview } from "../../utils/preview.js";
-import { clockOf, hourPrice, inquiryUnitOf, INQUIRY_UNITS, listPrice, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
-import { currentRegion, useRegion } from "../../utils/region.js";
+import { clockOf, hourPrice, inquiryUnitOf, INQUIRY_UNITS, listPrice, minutesOf, openByRule, priceUnitOf, STEP, unitOf, UNITS } from "../../utils/rates.js";
+import { currentRegion, loadRegion, useRegion } from "../../utils/region.js";
 import { useAuth } from "../AuthProvider/index.js";
 import Calendar from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
@@ -126,7 +126,25 @@ function startingContacts(mode, shared, own) {
 // message here.
 const messageOnly = () => [{ type: "message", value: "" }];
 
+// By the time, every price is written in the form for one step of the clock
+// it is booked in — the base price, a date's, a stretch's — and kept for the
+// stretch the owner prices by (`priceUnit`, an hour say): brought onto the
+// step here, and back onto the stretch as it is kept (see stepRate).
 function startingFields(item, calendar, lang) {
+  const fields = startingFieldsAsSaved(item, calendar, lang);
+  if (fields.mode !== "time" || fields.priceUnit === fields.unit) return fields;
+  const by = fields.unit / fields.priceUnit;
+  const scale = (price) => (price === "" || price == null ? price : String(Math.round(Number(price) * by * 100) / 100));
+  return {
+    ...fields,
+    basePrice: scale(fields.basePrice),
+    datePrices: Object.fromEntries(Object.entries(fields.datePrices).map(([day, price]) => [day, scale(price)])),
+    slotPrices: fields.slotPrices.map((slot) => ({ ...slot, price: scale(slot.price) })),
+    extraRates: fields.extraRates.map((rate) => ({ ...rate, price: Number(scale(rate.price)) })),
+  };
+}
+
+function startingFieldsAsSaved(item, calendar, lang) {
   return {
     // Whose it is: the account's own, or somebody else's that the account is
     // writing down — which anybody may then change or delete.
@@ -179,7 +197,8 @@ function startingFields(item, calendar, lang) {
     // The hours of the day it is handed over in, where it is booked by the
     // date: none until some are set, which is the whole day.
     dayHours: item?.dayHours ?? { start: "", end: "" },
-    currency: item?.currency ?? defaultCurrency(lang),
+    // Where the reader is, not what language they read in (see defaultCurrency).
+    currency: item?.currency ?? defaultCurrency(currentRegion().country),
     images: item?.images ?? [],
     // No place until one is asked for: a service has no doorway, and not
     // everybody wants a pin on their street.
@@ -374,6 +393,11 @@ async function whereabouts() {
 // `taken` is the areas the item is offered in already, in its other fields:
 // an area is said once, so those are left out of what is listed here — and
 // with them whatever is inside one of them, or has one of them inside it.
+// The most the list of answers under (or over) the field stands, and the
+// room it keeps from the window's edge.
+const AREA_LIST_MAX_H = 280;
+const AREA_EDGE = 8;
+
 function AreaField({ value, onChange, near = null, taken = [] }) {
   const { t } = useTranslation();
   const { country } = useRegion();
@@ -454,6 +478,39 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
   const free = listed?.list?.filter((place) => !taken.some((area) => areasOverlap(area, areaOf(place))));
   const offered = !listed || (!places && free.length === 0) ? null : listed.list ? { list: free } : listed;
 
+  // The answers stand over the form, in front of it, rather than in it: the
+  // fields under this one stay where they are while the list is open. Placed
+  // from where the field stands, and again as the sheet scrolls or the window
+  // is resized — downwards unless the room is plainly upstairs, as a menu's is
+  // (see Select).
+  const searchRef = useRef(null);
+  const [box, setBox] = useState(null);
+  const open = Boolean(offered);
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const place = () => {
+      const rect = searchRef.current?.querySelector("input")?.getBoundingClientRect();
+      if (!rect) return;
+      const below = window.innerHeight - rect.bottom - AREA_EDGE;
+      const above = rect.top - AREA_EDGE;
+      const up = below < Math.min(AREA_LIST_MAX_H, above);
+      setBox({
+        left: rect.left,
+        width: rect.width,
+        top: up ? undefined : rect.bottom - 1,
+        bottom: up ? window.innerHeight - rect.top - 1 : undefined,
+        maxHeight: Math.min(AREA_LIST_MAX_H, up ? above : below),
+      });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
+
   if (value && !changing) {
     return (
       <button type="button" className={styles.area} aria-haspopup="listbox" onClick={() => setChanging(true)}>
@@ -467,6 +524,7 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
 
   return (
     <div
+      ref={searchRef}
       className={styles.areaSearch}
       role="search"
       // Left without choosing, the search closes and the area is what it was.
@@ -503,7 +561,7 @@ function AreaField({ value, onChange, near = null, taken = [] }) {
         disabled={!MAPBOX_TOKEN}
       />
       {offered && (
-        <ul className={styles.areaResults}>
+        <ul className={styles.areaResults} style={box ?? { visibility: "hidden" }}>
           {offered.error && <li className={styles.areaNote}>{offered.error}</li>}
           {offered.list?.length === 0 && <li className={styles.areaNote}>{t("map.searchEmpty")}</li>}
           {offered.list?.map((place) => (
@@ -589,6 +647,17 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   // they are, they are what the way it is booked starts with (see
   // startingContacts), and change with it.
   const contactsTouched = useRef(false);
+  // Whether the currency was picked by hand. Until it is, a new item's is the
+  // one paid where the reader is — which may only be known after the form
+  // is open, the reader's country being asked once a page (see loadRegion).
+  const currencyPicked = useRef(false);
+  useEffect(() => {
+    if (!isOpen || item) return;
+    // Asked here too: the form may be opened from a page with no map on it.
+    loadRegion();
+    if (currencyPicked.current || !country) return;
+    setFields((current) => ({ ...current, currency: defaultCurrency(country) }));
+  }, [isOpen, item, country]);
   const fileRef = useRef(null);
   const editing = Boolean(item);
   const names = useMemo(() => weekdayNames(lang), [lang]);
@@ -610,6 +679,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
       initial.region = location.region;
     }
     setFields(initial);
+    currencyPicked.current = false;
     setError("");
     setPricing(null);
     setStep("item");
@@ -814,12 +884,30 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     set("openDays", days);
   }
 
-  // How finely the hours it can be had are said: by the half hour, or by the
-  // unit it is booked in or priced in where either is finer — ten minutes at
-  // a time, where ten minutes is what is booked or what is priced. The
-  // timetable's cells and the times in the dropdowns are both this.
-  const hourStep = Math.min(STEP, fields.unit, fields.priceUnit);
+  // How finely the hours it can be had are said: by the unit it is booked in
+  // — an hour at a time where an hour is what is booked, ten minutes where
+  // ten minutes is. The timetable's cells and the times in the usual hours'
+  // dropdowns are both this, and change with it.
+  const hourStep = fields.unit;
   const TIME_OPTIONS = useMemo(() => timeOptions(hourStep), [hourStep]);
+  // The hours a price is for are said on the half hour, or by the unit it is
+  // booked in where that is finer — every price is for one of those units.
+  const priceStep = Math.min(STEP, fields.unit);
+  const PRICE_TIME_OPTIONS = useMemo(() => timeOptions(priceStep), [priceStep]);
+  // The unit changed, the hours already said are brought onto it: each
+  // stretch widened to the nearest whole units round it, so none is lost.
+  const setUnit = (unit) =>
+    setFields((current) => {
+      const snap = (range) =>
+        range.start && range.end
+          ? {
+              ...range,
+              start: clockOf(Math.floor(minutesOf(range.start) / unit) * unit),
+              end: clockOf(Math.ceil(minutesOf(range.end) / unit) * unit),
+            }
+          : range;
+      return { ...current, unit, hourRules: current.hourRules.map(snap), hourDates: current.hourDates.map(snap) };
+    });
   const hourRules = fields.hourRules;
   const setHourRules = (change) => setFields((current) => ({ ...current, hourRules: change(current.hourRules) }));
   const setHourRule = (id, patch) =>
@@ -841,7 +929,12 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   const contacts = keptContacts(fields.contacts, dialCode, { noMessage: fields.shared });
   // A page is a collection of items, each with its own prices: it has none.
   const priced = !fields.store;
-  const rates = priced ? cleanRates(fields, byTime) : [];
+  // The prices as written, one step's each by the time — and as kept, for
+  // the stretch it is priced by: a step's price times the steps in it.
+  const stepRates = priced ? cleanRates(fields, byTime) : [];
+  const stepRate = byTime ? fields.priceUnit / fields.unit : 1;
+  const toKept = (price) => Math.round(price * stepRate * 100) / 100;
+  const rates = stepRate === 1 ? stepRates : stepRates.map((rate) => ({ ...rate, price: toKept(rate.price) }));
   // Every hour the item has: the rules, then what was painted for dates.
   const hours = byTime ? [...cleanHourRules(hourRules), ...fields.hourDates] : [];
   const openDays = fields.openDays.length === 7 ? null : fields.openDays;
@@ -893,6 +986,9 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
     mine: false,
     createdAt: item?.createdAt ?? null,
   };
+  // The same, priced as written: one step's price a step. The timetable of
+  // hours is drawn a step a cell, and says what a cell costs.
+  const stepDraft = { ...draft, rates: stepRates, priceUnit: fields.unit };
   const draftCalendar = useMemo(
     () => ({
       from: today(),
@@ -983,11 +1079,10 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
       place: fields.located ? fields.place.trim() : "",
       region: fields.region,
       moreRegions: fields.moreRegions.filter(Boolean),
-      // Saving the form publishes the item: one that was not public yet —
-      // registered from the phone, to be finished here — is from now on. Where
-      // it is shown follows from what it has: on the map if it has a location,
-      // by search and by its link either way.
-      active: true,
+      // Saving the form does not publish anything: a new one is added
+      // unpublished, and is published — and unpublished again, whenever — on
+      // its own page (see ItemView). One that exists stays as it was.
+      active: editing ? Boolean(item.active) : false,
       closed,
       opened,
     };
@@ -1040,8 +1135,8 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
   ];
 
   // The dates it can be had: the rule for days, and the calendar that rule
-  // comes to. Written here once and stood in one column or the other, by how
-  // the item is booked (see the second sheet below).
+  // comes to. Stood in the left column of the second sheet, under the price,
+  // however the item is booked by the calendar.
   const datesField = (
               <div className="field">
                 <span className="field-label">
@@ -1056,6 +1151,22 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                   <span className={styles.everyDay}>{t("item.openDays")}</span>
                   <Weekdays value={fields.openDays} onChange={setOpenDays} names={names} label={t("item.openDays")} />
                 </div>
+                {/* By the time, the stretch of the clock the prices on the
+                    calendar under it are for — an hour, say, booked by the
+                    quarter. Each date's is worked out from the price of a
+                    step (see stepRate), and said under the pointer. */}
+                {byTime && priced && (
+                  <div className={styles.dayRule}>
+                    <span className={styles.everyDay}>{t("item.priceUnit")}</span>
+                    <Select
+                      className={styles.currency}
+                      label={t("item.priceUnit")}
+                      value={fields.priceUnit}
+                      onChange={(value) => set("priceUnit", value)}
+                      options={UNITS.map((each) => ({ value: each, label: unitName(each, t) }))}
+                    />
+                  </div>
+                )}
                 {/* By the date, a press closes a day or opens it again. By the
                     time, a day can be had once it has hours, so a press picks
                     the day whose week the timetable below is showing. */}
@@ -1066,10 +1177,51 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                   // timetable shows is turned to beside the timetable itself.
                   onToggle={byTime ? undefined : toggleDay}
                   // The pencil beside a date's price asks what its own base price is.
-                  onOpen={priced ? (day) => setPricing({ day, price: fields.datePrices[day] ?? "" }) : undefined}
+                  // By the time the calendar says each date's price for the
+                  // stretch it is priced by, and the pencil asks it in the
+                  // same: brought back onto one step as it is kept.
+                  onOpen={
+                    priced
+                      ? (day) =>
+                          setPricing({
+                            day,
+                            kept: stepRate !== 1,
+                            price: fields.datePrices[day] ? String(toKept(Number(fields.datePrices[day]))) : "",
+                          })
+                      : undefined
+                  }
                 />
                 <span className={styles.hint}>{t(byTime ? "item.availabilityHintTime" : "item.availabilityHint")}</span>
               </div>
+  );
+
+  // The base price: what it is for, and — in the field at the right — what
+  // that costs. By the date it is a day, and stands with the currency, under
+  // how it is booked; by the time it is one step of the clock it is booked
+  // in, and stands under that step. A date's own base price is set on the
+  // calendar of dates, and a price for some hours beside those hours.
+  const basePriceRow = (
+                <ul className={`${styles.rules} ${styles.plain}`}>
+                  <li className={styles.rule}>
+                    <div className={styles.ruleWhen}>
+                      <span className={styles.everyDay}>{t(byTime ? "item.basePricingStep" : "item.basePricing")}</span>
+                      {!byTime && !inquiry && <span className={styles.everyDay}>{t("item.aDay")}</span>}
+                    </div>
+                    <PriceInput
+                      currency={fields.currency}
+                      className={styles.rulePrice}
+                      value={fields.basePrice}
+                      onChange={(event) => {
+                        set("basePrice", event.target.value.replace(/[^\d.]/g, ""));
+                        setError("");
+                      }}
+                      inputMode="decimal"
+                      placeholder={t("item.price")}
+                      aria-label={t(byTime ? "item.basePricingStep" : "item.basePricing")}
+                      maxLength={12}
+                    />
+                  </li>
+                </ul>
   );
 
   // The part on show: the one asked for, for an item that exists; the step a
@@ -1437,29 +1589,6 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 <span className={styles.hint}>{t(fields.shared ? "item.modeHintShared" : `item.modeHint.${mode}`)}</span>
               </div>
 
-              {/* By the time, the piece of the clock it is asked for in: the
-                  shortest stretch somebody can book, and the step a longer one
-                  grows by. */}
-              {byTime && (
-                <div className="field">
-                  <span className="field-label">{t("item.unit")}</span>
-                  <div className="tabs" role="group" aria-label={t("item.unit")}>
-                    {UNITS.map((each) => (
-                      <button
-                        key={each}
-                        type="button"
-                        className={fields.unit === each ? "tab active" : "tab"}
-                        aria-pressed={fields.unit === each}
-                        onClick={() => set("unit", each)}
-                      >
-                        {unitName(each, t)}
-                      </button>
-                    ))}
-                  </div>
-                  <span className={styles.hint}>{t("item.unitHint")}</span>
-                </div>
-              )}
-
               {priced && (
               <div className="field">
                 <span className="field-label">{t("item.pricing")}</span>
@@ -1469,16 +1598,17 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                     className={styles.currency}
                     label={t("item.currency")}
                     value={fields.currency}
-                    onChange={(value) => set("currency", value)}
+                    onChange={(value) => {
+                      currencyPicked.current = true;
+                      set("currency", value);
+                    }}
                     options={CURRENCIES.map((code) => ({ value: code, label: code }))}
                   />
                 </div>
 
-                {/* By the time, the stretch of the clock every price is for,
-                    on a line of its own: said apart from the unit it is
-                    booked in — by the hour and booked by the quarter, say. */}
-                {/* Booked by asking, the same line: what the price is for,
-                    which here may be a whole day too. */}
+                {/* Booked by asking, what the price is for, on a line of its
+                    own — which here may be a whole day too. By the time it
+                    is one step of the clock it is booked in, and not asked. */}
                 {inquiry && (
                   <div className={styles.modeRow}>
                     <span className={styles.everyDay}>{t("item.priceUnit")}</span>
@@ -1491,46 +1621,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                     />
                   </div>
                 )}
-                {byTime && (
-                  <div className={styles.modeRow}>
-                    <span className={styles.everyDay}>{t("item.priceUnit")}</span>
-                    <Select
-                      className={styles.currency}
-                      label={t("item.priceUnit")}
-                      value={fields.priceUnit}
-                      onChange={(value) => set("priceUnit", value)}
-                      options={UNITS.map((each) => ({ value: each, label: unitName(each, t) }))}
-                    />
-                  </div>
-                )}
-                {/* The base price: what it is for, and — in the field at the
-                    right — what that costs. By the time, what it is for is a
-                    stretch of the clock the owner picks, apart from the unit
-                    it is booked in: by the hour and booked by the quarter,
-                    say. By the date, it is a day. A date's own base price is
-                    set on the calendar of dates below, and a price for some
-                    hours beside those hours. */}
-                <ul className={`${styles.rules} ${styles.plain}`}>
-                  <li className={styles.rule}>
-                    <div className={styles.ruleWhen}>
-                      <span className={styles.everyDay}>{t("item.basePricing")}</span>
-                      {!byTime && !inquiry && <span className={styles.everyDay}>{t("item.aDay")}</span>}
-                    </div>
-                    <PriceInput
-                      currency={fields.currency}
-                      className={styles.rulePrice}
-                      value={fields.basePrice}
-                      onChange={(event) => {
-                        set("basePrice", event.target.value.replace(/[^\d.]/g, ""));
-                        setError("");
-                      }}
-                      inputMode="decimal"
-                      placeholder={t("item.price")}
-                      aria-label={t("item.basePricing")}
-                      maxLength={12}
-                    />
-                  </li>
-                </ul>
+                {!byTime && basePriceRow}
                 {/* Rules from when prices were written freely, which are none
                     of the three layers: still in force, and said to be. */}
                 {fields.extraRates.length > 0 && (
@@ -1541,56 +1632,12 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                     </button>
                   </span>
                 )}
-                <span className={styles.hint}>{t(`item.pricingHint.${mode}`)}</span>
+                {!byTime && <span className={styles.hint}>{t(`item.pricingHint.${mode}`)}</span>}
               </div>
               )}
-              {/* The rule for calling a booking off, once the owner has said
-                  yes to it: any time, never, or until so many days before it
-                  starts — and for the last, how many. */}
-              {/* A page is not booked itself: it has no such rule. */}
-              {!inquiry && !fields.store && (
-              <div className="field">
-                <span className="field-label">{t("item.cancelRule")}</span>
-                <div className="tabs" role="group" aria-label={t("item.cancelRule")}>
-                  {CANCEL_MODES.map((each) => (
-                    <button
-                      key={each}
-                      type="button"
-                      className={fields.cancelMode === each ? "tab active" : "tab"}
-                      aria-pressed={fields.cancelMode === each}
-                      onClick={() => set("cancelMode", each)}
-                    >
-                      {t(`item.cancelMode.${each}`)}
-                    </button>
-                  ))}
-                </div>
-                {/* Before: how many, and then what is counted — days, or
-                    hours. */}
-                {fields.cancelMode === "before" && (
-                  <div className={styles.before}>
-                    <input
-                      className={`text-input mono ${styles.days}`}
-                      value={fields.cancelCount}
-                      onChange={(event) => set("cancelCount", event.target.value.replace(/\D/g, "").slice(0, 3))}
-                      inputMode="numeric"
-                      aria-label={t("item.cancelCount")}
-                    />
-                    <Select
-                      className={styles.currency}
-                      label={t("item.cancelUnit")}
-                      value={fields.cancelUnit}
-                      onChange={(value) => set("cancelUnit", value)}
-                      options={CANCEL_UNITS.map((each) => ({ value: each, label: t(`item.cancelUnits.${each}`) }))}
-                    />
-                  </div>
-                )}
-                <span className={styles.hint}>{cancelLine(cancel, t)}</span>
-              </div>
-              )}
-
               {/* By the date, the hours of the day it is handed over in — when
-                  it can be picked up and brought back: last on the left, under
-                  what it costs. Left at --:--, any time will do. */}
+                  it can be picked up and brought back: under what it costs.
+                  Left at --:--, any time will do. */}
               {byDay && (
                 <div className="field">
                   <span className="field-label">{t("item.dayHours")}</span>
@@ -1613,19 +1660,15 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 </div>
               )}
 
-              {/* By the time, the dates stand here, under the price, and the
-                  column beside is the hours'. */}
-              {byTime && datesField}
+              {/* The dates stand here, under the price, however it is
+                  booked; by the time the column beside is the hours'. */}
+              {(byDay || byTime) && datesField}
             </div>
 
-            {/* This sheet has two columns too. By the date: how it is booked,
-                what it costs and the hours of the day on the left, the dates
-                it can be had on the right. By the time: the dates go left with the rest, and the
-                right is the hours. */}
+            {/* This sheet has two columns too: how it is booked, what it
+                costs and the dates it can be had on the left; by the time,
+                the hours on the right. */}
             <div className={styles.column}>
-              {/* By the date, the dates are this column's. */}
-              {byDay && datesField}
-
               {/* The hours it can be had, where it is booked by the time: under
                   the dates. First the usual hours — these hours, on these
                   days of the week — and then one week of what they come to,
@@ -1636,6 +1679,34 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                   <span className="field-label">
                     {t("item.hours")}
                   </span>
+                  {/* First the piece of the clock it is asked for in: the
+                      shortest stretch somebody can book, and the step a longer
+                      one grows by — and the step the hours under it are said
+                      in (see hourStep). */}
+                  <div className={styles.dayRule}>
+                    <span className={styles.everyDay}>{t("item.unit")}</span>
+                    <div className="tabs" role="group" aria-label={t("item.unit")}>
+                      {UNITS.map((each) => (
+                        <button
+                          key={each}
+                          type="button"
+                          className={fields.unit === each ? "tab active" : "tab"}
+                          aria-pressed={fields.unit === each}
+                          onClick={() => setUnit(each)}
+                        >
+                          {unitName(each, t)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <span className={styles.hint}>{t("item.unitHint")}</span>
+                  {/* Under the step, what one step costs. */}
+                  {priced && (
+                    <>
+                      {basePriceRow}
+                      <span className={styles.hint}>{t("item.pricingHint.time")}</span>
+                    </>
+                  )}
                   {/* First the usual hours: these hours, on these days of the
                       week, and what they cost where that is not the base
                       price. */}
@@ -1758,7 +1829,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                     // What each stretch costs, written on it: the price in
                     // force on that date when the stretch starts — the
                     // date's own base price where it has one.
-                    priceAt={priced ? (day, time) => compactPrice(hourPrice(draft, day, time), fields.currency, lang) : undefined}
+                    priceAt={priced ? (day, time) => compactPrice(hourPrice(stepDraft, day, time), fields.currency, lang) : undefined}
                     // The same figure written out in full, for when the
                     // pointer asks about a stretch.
                     // Said under the pointer with what stretch of the clock
@@ -1767,8 +1838,8 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                       priced
                         ? (day, time) =>
                             t("item.perHour", {
-                              price: wholePrice(hourPrice(draft, day, time), fields.currency, lang),
-                              unit: unitName(fields.priceUnit, t),
+                              price: wholePrice(hourPrice(stepDraft, day, time), fields.currency, lang),
+                              unit: unitName(fields.unit, t),
                             })
                         : undefined
                     }
@@ -1792,7 +1863,6 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 </div>
               )}
 
-              {/* Last of all on the sheet. */}
               {/* How the owner is reached, whichever way it is booked: the
                   first way, the second, the third and so on, each a kind — a
                   phone number, an email address, an address, a message here
@@ -1813,6 +1883,51 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 >
                   <span className={styles.hint}>{t("item.contactHint")}</span>
                 </ContactFields>
+              )}
+
+              {/* The rule for calling a booking off, once the owner has said
+                  yes to it: any time, never, or until so many days before it
+                  starts — and for the last, how many. Last of all on the
+                  sheet, under how the owner is reached. */}
+              {/* A page is not booked itself: it has no such rule. */}
+              {!inquiry && !fields.store && (
+              <div className="field">
+                <span className="field-label">{t("item.cancelRule")}</span>
+                <div className="tabs" role="group" aria-label={t("item.cancelRule")}>
+                  {CANCEL_MODES.map((each) => (
+                    <button
+                      key={each}
+                      type="button"
+                      className={fields.cancelMode === each ? "tab active" : "tab"}
+                      aria-pressed={fields.cancelMode === each}
+                      onClick={() => set("cancelMode", each)}
+                    >
+                      {t(`item.cancelMode.${each}`)}
+                    </button>
+                  ))}
+                </div>
+                {/* Before: how many, and then what is counted — days, or
+                    hours. */}
+                {fields.cancelMode === "before" && (
+                  <div className={styles.before}>
+                    <input
+                      className={`text-input mono ${styles.days}`}
+                      value={fields.cancelCount}
+                      onChange={(event) => set("cancelCount", event.target.value.replace(/\D/g, "").slice(0, 3))}
+                      inputMode="numeric"
+                      aria-label={t("item.cancelCount")}
+                    />
+                    <Select
+                      className={styles.currency}
+                      label={t("item.cancelUnit")}
+                      value={fields.cancelUnit}
+                      onChange={(value) => set("cancelUnit", value)}
+                      options={CANCEL_UNITS.map((each) => ({ value: each, label: t(`item.cancelUnits.${each}`) }))}
+                    />
+                  </div>
+                )}
+                <span className={styles.hint}>{cancelLine(cancel, t)}</span>
+              </div>
               )}
             </div>
             </>
@@ -1842,7 +1957,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
               </button>
             )}
             <button type="submit" className="primary-button" disabled={busy}>
-              {uploading > 0 ? t("item.uploading") : editing ? t("common.save") : shown === "item" ? t("item.next") : t("item.publish")}
+              {uploading > 0 ? t("item.uploading") : editing ? t("common.save") : shown === "item" ? t("item.next") : t("item.add")}
             </button>
           </div>
         </form>
@@ -1877,8 +1992,9 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                   return { ...current, slotPrices: withSlotPrice(current.slotPrices, { day, start, end, price }) };
                 }
                 const datePrices = { ...current.datePrices };
-                if (priceOf(pricing.price) === null) delete datePrices[pricing.day];
-                else datePrices[pricing.day] = pricing.price;
+                const price = priceOf(pricing.price);
+                if (price === null) delete datePrices[pricing.day];
+                else datePrices[pricing.day] = pricing.kept ? String(Math.round((price / stepRate) * 100) / 100) : pricing.price;
                 return { ...current, datePrices };
               });
               setError("");
@@ -1897,7 +2013,7 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                       label={t(`item.ruleTime.${edge}`)}
                       value={pricing[edge]}
                       onChange={(value) => setPricing({ ...pricing, [edge]: value })}
-                      options={TIME_OPTIONS.filter((option) => option.value >= pricing.from && option.value <= pricing.until)}
+                      options={PRICE_TIME_OPTIONS.filter((option) => option.value >= pricing.from && option.value <= pricing.until)}
                     />
                   </div>
                 ))}
@@ -1909,7 +2025,11 @@ export default function ItemModal({ isOpen, store, item = null, calendar = null,
                 value={pricing.price}
                 onChange={(event) => setPricing({ ...pricing, price: event.target.value.replace(/[^\d.]/g, "") })}
                 inputMode="decimal"
-                placeholder={(pricing.start && fields.datePrices[pricing.day]) || fields.basePrice || t("item.price")}
+                placeholder={
+                  (pricing.start && fields.datePrices[pricing.day]) ||
+                  (pricing.kept && priceOf(fields.basePrice) !== null ? String(toKept(priceOf(fields.basePrice))) : fields.basePrice) ||
+                  t("item.price")
+                }
                 aria-label={t("item.price")}
                 maxLength={12}
                 autoFocus

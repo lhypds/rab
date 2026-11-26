@@ -70,10 +70,6 @@
   gap: 6px;
 }
 
-.linkRow + .linkRow {
-  margin-top: 6px;
-}
-
 .linkRow input {
   flex: 1;
   min-width: 0;
@@ -629,8 +625,14 @@
 }
 
 /* The answers hang from the field, ruled into it. */
+/* In front of the form rather than in it (see AreaField): placed over the page
+   where the field stands, and scrolled on its own when it is long. */
 .areaResults {
-  margin: -1px 0 0;
+  position: fixed;
+  z-index: 999;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
   padding: 0;
   list-style: none;
   border: 1px solid var(--ink);
@@ -678,6 +680,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* The brain beside the menu is as tall as the menu's box (32px, see
+     Select), and widened to keep the house button's shape. */
+  --action-w: 36px;
+  --action-h: 32px;
+  --action-icon: 16px;
 }
 
 .categorySelect {

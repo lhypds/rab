@@ -164,6 +164,23 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   const { pathname } = useLocation();
   const { category } = homeFilter(pathname) ?? { category: "" };
   const setCategory = (slug) => navigate(homePath(slug), { replace: true, scroll: false, state: window.history.state });
+  // The category the columns were last laid out for. Changed, the columns
+  // are not laid out again at once — thousands of rows take a moment, and the
+  // press would seem to have done nothing meanwhile — but the frame says it is
+  // loading first, is drawn so, and the columns come the frame after.
+  const [settledCategory, setSettledCategory] = useState(category);
+  const switching = category !== settledCategory;
+  useEffect(() => {
+    if (!switching) return undefined;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setSettledCategory(category));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [category, switching]);
   // The question about location, while it is being asked: "ask" before the
   // reader has answered, "locating" while the browser does, and afterwards why
   // it came to nothing: "denied", "failed" or "insecure" (see locateFailure).
@@ -198,6 +215,9 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // Everything offered there: the items whose area has the spot inside it,
   // whether or not they have a pin. Null until the first answer.
   const [offered, setOffered] = useState(null);
+  // While what is offered is being asked for — the first time, or again for
+  // somewhere else. As lists the frame stands empty then, saying so.
+  const [fetching, setFetching] = useState(false);
 
   // `query` is what is being looked for, typed in the box in the top bar (the
   // page holds it): a filter on what is already here — the list and the pins
@@ -572,8 +592,22 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // What the place the reader stands in is called, in the language the page is
   // in — switching language re-reads it, as it relabels the map.
   const placeLang = lang;
+  // Somewhere else, what is offered is loading from the moment the reader
+  // goes there — not only once the place has been named and the items are
+  // asked for — so the old place's list is not shown under the new place's
+  // name meanwhile. The items are always asked for again then (see below),
+  // which ends it; a name only re-read in another language is not a move.
+  const spotBefore = useRef(null);
   useEffect(() => {
     if (!spot) return undefined;
+    if (spotBefore.current !== spot) {
+      // The old place's name and ground go too: its name would stand over
+      // the new place meanwhile, and the items would be asked for inside its
+      // ground before the new one is known (the heading waits, as at first).
+      if (spotBefore.current) setArea(undefined);
+      spotBefore.current = spot;
+      setFetching(true);
+    }
     const controller = new AbortController();
     areaAt(spot.latitude, spot.longitude, placeLang, controller.signal)
       .then((found) => setArea(found ? { name: found.name, locality: found.locality, within: found.within, bbox: found.bbox } : null))
@@ -589,11 +623,17 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   useEffect(() => {
     if (!spot || area === undefined) return undefined;
     const controller = new AbortController();
+    setFetching(true);
     api
       .getItemsAt(spot, area?.bbox ?? null, { signal: controller.signal })
-      .then((data) => setOffered(data.items ?? []))
+      .then((data) => {
+        setOffered(data.items ?? []);
+        setFetching(false);
+      })
       .catch((error) => {
-        if (error?.name !== "AbortError") setOffered([]);
+        if (error?.name === "AbortError") return;
+        setOffered([]);
+        setFetching(false);
       });
     return () => controller.abort();
     // The area is watched by its box: a name re-read in another language is
@@ -679,14 +719,105 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   // data-keyed in the styles) until the pointer is moved again. Beside the
   // map the row picked is the item chosen on it as well: the map goes to its
   // pin and puts its bubble up, or puts the bubble away for one with no pin.
+  // As lists, the item whose row was picked last — by the keys, the wheel or
+  // a first press — which a second press opens. Kept aside rather than in
+  // state: picking is done a row to every notch of the wheel, and drawing all
+  // the thousands of rows again for each would make the wheel stutter. The
+  // row picked has the keyboard, and is marked by that (see :focus-within).
+  const tileChosen = useRef(null);
+
+  // The columns drawn sideways until `row` stands whole inside the frame,
+  // a little of the way left to go at every frame. Asked again before they
+  // are there — the wheel spun fast, a column a notch — the way is only made
+  // longer, and they carry on at the speed they had: the browser's own smooth
+  // scrolling starts slow again each time it is asked, and a fast wheel reads
+  // as a stutter of starts.
+  const glide = useRef({ target: null, frame: 0 });
+  const glideTo = (list, row) => {
+    const state = glide.current;
+    const from = state.frame ? state.target : list.scrollLeft;
+    const frame = list.getBoundingClientRect();
+    const box = row.getBoundingClientRect();
+    const start = box.left - frame.left - list.clientLeft + list.scrollLeft;
+    const end = start + box.width;
+    let target = from;
+    if (start < target) target = start;
+    else if (end > target + list.clientWidth) target = end - list.clientWidth;
+    target = Math.max(0, Math.min(target, list.scrollWidth - list.clientWidth));
+    state.target = target;
+    if (state.frame || Math.abs(target - list.scrollLeft) < 1) return;
+    const step = () => {
+      const left = state.target - list.scrollLeft;
+      if (Math.abs(left) < 1) {
+        list.scrollLeft = state.target;
+        state.frame = 0;
+        return;
+      }
+      list.scrollLeft += left * 0.3;
+      state.frame = requestAnimationFrame(step);
+    };
+    state.frame = requestAnimationFrame(step);
+  };
+  // Drawn sideways by hand meanwhile, the columns are left where the hand
+  // puts them.
+  const stopGlide = () => {
+    cancelAnimationFrame(glide.current.frame);
+    glide.current.frame = 0;
+  };
+  // Where nothing has been picked yet — or what was picked is no longer
+  // listed — the first row is: it is given the keyboard, so the keys and the
+  // wheel go on from it and a press opens it. Except while something is
+  // being typed, which keeps the keyboard; the row is marked as chosen then
+  // instead, until a row is picked.
+  // The columns are laid out afresh after they stood aside for the word that
+  // they were loading (see switching): the row picked before is picked again
+  // then, if it is still listed.
+  const [firstChosenId, setFirstChosenId] = useState(null);
+  const laidOut = useRef(null);
+  useEffect(() => {
+    // Back on the map the pick is forgotten: the list comes back to its first.
+    if (!listing) tileChosen.current = null;
+    if (!listing || !listed?.length) return;
+    const list = tileRows.current;
+    if (!list?.firstElementChild) return;
+    const fresh = laidOut.current !== list;
+    laidOut.current = list;
+    let at = listed.findIndex((item) => item.id === tileChosen.current);
+    if (at >= 0 && !fresh) return;
+    if (at < 0) at = 0;
+    const row = list.children[at];
+    tileChosen.current = listed[at].id;
+    const held = document.activeElement;
+    const typing = held instanceof HTMLElement && (held.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(held.tagName));
+    if (typing || document.querySelector("[data-modal]")) {
+      setFirstChosenId(listed[at].id);
+      return;
+    }
+    row.querySelector("a")?.focus({ preventScroll: true });
+    if (at === 0) list.scrollLeft = 0;
+    else glideTo(list, row);
+  }, [listing, listed, switching, fetching]);
   const pick = (list, row) => {
     if (!row) return;
-    list.dataset.keyed = "";
+    // Marked only when it is not already: the mark changes how every one of
+    // the thousands of rows is drawn, and setting it again, though to the
+    // same, has them all looked over again — a stutter at every notch.
+    if (!("keyed" in list.dataset)) list.dataset.keyed = "";
+    jogged.current = 0;
     // The whole row is brought into view, margins and all — focusing its link
     // would bring only the link, and leave the row cut by the frame's edge.
     row.querySelector("a")?.focus({ preventScroll: true });
-    row.scrollIntoView({ block: "nearest", inline: "nearest" });
-    if (listing) return;
+    // As lists, a row picked off the edge brings a column in, and it is glided
+    // to rather than jumped to (see glideTo); the list beside the map is
+    // brought along as browsers bring things into view.
+    if (list === tileRows.current) glideTo(list, row);
+    else row.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    if (listing) {
+      tileChosen.current = listed?.[[...list.children].indexOf(row)]?.id ?? null;
+      // Null already at every notch but the first, which draws nothing.
+      setFirstChosenId(null);
+      return;
+    }
     const item = listed?.[[...list.children].indexOf(row)];
     if (!item?.located) {
       setSelectedId(null);
@@ -697,8 +828,23 @@ export default function MapView({ view = "map", query = "", onQuery }) {
     const map = mapRef.current;
     map?.flyTo({ center: [item.longitude, item.latitude], zoom: Math.max(map.getZoom(), 14), duration: 500 });
   };
+  // Only for the pointer really moved: the browser also says the mouse has
+  // moved when the rows have moved under a pointer at rest, as the wheel
+  // carries them along, and taking the mark off then — for the next notch to
+  // put it back — would have every row drawn afresh twice a notch. Nor for
+  // the pixel or two a hand on the wheel jogs the mouse by: a few pixels'
+  // way, gathered up since the mark was put on, is a move.
+  const jogged = useRef(0);
   const unkey = (event) => {
-    delete event.currentTarget.dataset.keyed;
+    const list = event.currentTarget;
+    if (!("keyed" in list.dataset)) {
+      jogged.current = 0;
+      return;
+    }
+    jogged.current += Math.abs(event.movementX) + Math.abs(event.movementY);
+    if (jogged.current < 6) return;
+    jogged.current = 0;
+    delete list.dataset.keyed;
   };
 
   // The row a key leads to from `row`: the arrows go to the row above or
@@ -778,41 +924,104 @@ export default function MapView({ view = "map", query = "", onQuery }) {
 
   // The wheel over the columns of items, turned up or down, picks among them:
   // it steps from the row that has the keyboard to the next or the one before,
-  // a row to a notch — what a trackpad sends in crumbs is saved up until it
-  // comes to a notch's worth — and the columns follow the row. Where no row
+  // a row to every notch, however quickly they follow one another — what a
+  // trackpad sends in crumbs is a row to every notch's worth — and the
+  // columns glide after the row. Where no row
   // has the keyboard yet, the first notch gives it to the row under the
-  // pointer, or to the first. A wheel turned sideways draws the columns
-  // sideways, as it always did.
-  const wheeled = useRef({ sum: 0, at: 0, stepped: 0 });
+  // pointer, or to the first. With Shift held the wheel, whichever way it is
+  // turned, steps to the nearest row in the column beside instead, as the
+  // left and right arrows do — and the page is not scrolled sideways for it.
+  // A wheel turned sideways without Shift draws the columns sideways, as it
+  // always did.
+  const wheeled = useRef({ sum: 0, at: 0, acrossAt: 0, pending: 0, across: false, under: null, frame: 0 });
   const rowWheel = (event, list) => {
-    if (!list || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-    if (previewId) return;
-    const held = document.activeElement?.closest?.("li");
-    const row = held?.parentElement === list ? held : null;
-    const saved = wheeled.current;
-    // Crumbs from a turn that stopped a while ago are not part of this one.
-    if (event.timeStamp - saved.at > 250) saved.sum = 0;
-    saved.at = event.timeStamp;
-    saved.sum += event.deltaMode === 0 ? event.deltaY : event.deltaY * 40;
-    if (Math.abs(saved.sum) < 40) return;
-    // And no faster than the eye follows: a flick of a trackpad is a few
-    // rows, not the whole list gone by.
-    if (event.timeStamp - saved.stepped < 70) {
-      saved.sum = 0;
+    if (!list || previewId) return;
+    const across = event.shiftKey;
+    const sideways = across && Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    const delta = sideways ? event.deltaX : event.deltaY;
+    // A wheel's notch comes as one event of its own, a trackpad's swipe as a
+    // run of crumbs. Browsers give a trackpad's away by its old wheelDelta
+    // being exactly three times the new delta, the other way round; a notch's
+    // is a whole turn of 120 whatever the delta is.
+    const old = sideways ? event.wheelDeltaX : event.wheelDeltaY;
+    const notch = event.deltaMode !== 0 || (old !== undefined && old !== 0 && old !== -3 * delta);
+    if (!across && Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+      if (event.deltaX) stopGlide();
       return;
     }
-    saved.stepped = event.timeStamp;
-    const under = event.target.closest?.("li");
-    const next = !row
-      ? under?.parentElement === list
-        ? under
-        : list.firstElementChild
-      : saved.sum > 0
-        ? row.nextElementSibling
-        : row.previousElementSibling;
-    saved.sum = 0;
-    pick(list, next);
+    if (across) event.preventDefault();
+    const saved = wheeled.current;
+    let steps;
+    if (notch) {
+      // Every notch is a row, however fast they come: turned five times, the
+      // wheel goes five rows.
+      steps = Math.sign(delta);
+    } else if (across) {
+      // Turned with Shift, a wheel's notch is sent on as a sideways scroll,
+      // and some systems send it as small as a trackpad's crumb — so small
+      // that a notch's worth would take several notches. Sideways, then, every
+      // event is a column, as every notch is; only not faster than a column
+      // in a few frames, for a trackpad swiped with Shift held sends dozens.
+      if (!delta || event.timeStamp - saved.acrossAt < 50) return;
+      saved.acrossAt = event.timeStamp;
+      steps = Math.sign(delta);
+    } else {
+      // Crumbs from a turn that stopped a while ago are not part of this one.
+      if (event.timeStamp - saved.at > 250) saved.sum = 0;
+      saved.at = event.timeStamp;
+      saved.sum += delta;
+      // A row for every notch's worth, and what is over kept for the next:
+      // a swipe goes on evenly, a row at a time, as far as it carries.
+      steps = Math.trunc(saved.sum / 40);
+      saved.sum -= steps * 40;
+    }
+    if (!steps) return;
+    // The steps of one frame are taken together, at the frame: a wheel spun
+    // fast sends several between two frames, and laying the page out again
+    // for each, to be drawn once, is only time lost.
+    if (saved.across !== across) saved.pending = 0;
+    saved.across = across;
+    saved.pending += steps;
+    if (!saved.under) saved.under = event.target.closest?.("li");
+    if (saved.frame) return;
+    saved.frame = requestAnimationFrame(() => {
+      const { pending, under } = saved;
+      saved.frame = 0;
+      saved.pending = 0;
+      saved.under = null;
+      const held = document.activeElement?.closest?.("li");
+      let row = held?.parentElement === list ? held : null;
+      let left = Math.abs(pending);
+      // Where no row has the keyboard yet, the first step is to the row
+      // under the pointer, or to the first.
+      if (!row) {
+        row = under?.parentElement === list ? under : list.firstElementChild;
+        left -= 1;
+      }
+      for (; left > 0 && row; left -= 1) {
+        const next = across
+          ? rowToward(list, row, pending > 0 ? "ArrowRight" : "ArrowLeft")
+          : pending > 0
+            ? row.nextElementSibling
+            : row.previousElementSibling;
+        if (!next) break;
+        row = next;
+      }
+      pick(list, row);
+    });
   };
+
+  // Heard natively rather than through React, whose wheel listeners are
+  // passive and so cannot keep Shift and the wheel from scrolling the page.
+  const rowWheelNow = useRef(rowWheel);
+  rowWheelNow.current = rowWheel;
+  useEffect(() => {
+    const list = tileRows.current;
+    if (!list) return;
+    const hear = (event) => rowWheelNow.current(event, list);
+    list.addEventListener("wheel", hear, { passive: false });
+    return () => list.removeEventListener("wheel", hear);
+  });
 
   // The list beside the map is not picked among by the wheel: it is a list
   // that scrolls up and down itself, and the wheel over it scrolls it.
@@ -825,10 +1034,18 @@ export default function MapView({ view = "map", query = "", onQuery }) {
   //
   // As lists there is no map to go to, and an item with no pin has nowhere on
   // one: those rows open the item on a sheet over the list instead (see
-  // ItemPreview), from which its page is one press further.
+  // ItemPreview), from which its page is one press further. As lists the
+  // first press only picks the row, as the keys and the wheel do; pressed
+  // again, picked, it opens the sheet.
   const pressRow = (item, event) => {
     // A press meant for a new tab or window is left to be one.
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (listing && tileChosen.current !== item.id) {
+      event.preventDefault();
+      const row = event.currentTarget.closest("li");
+      pick(row.parentElement, row);
+      return;
+    }
     if (listing || !item.located) {
       event.preventDefault();
       look(item, event.currentTarget);
@@ -1049,40 +1266,44 @@ export default function MapView({ view = "map", query = "", onQuery }) {
           wheel turned up or down picks among them, row by row (see
           rowWheel). */}
       {listing &&
-        (listed?.length > 0 ? (
+        (!listed || fetching || switching ? (
+          // Being brought: the frame the columns will stand in, and in the
+          // middle of it word that they are coming.
+          <div className={`${styles.sideEmpty} ${styles.tilesEmpty}`} role="status">
+            <p>{t("common.loading")}</p>
+          </div>
+        ) : listed.length > 0 ? (
           <ul
             ref={tileRows}
             className={`row-list ${styles.tiles}`}
             onKeyDown={rowKeys}
             onMouseMove={unkey}
-            onWheel={(event) => rowWheel(event, event.currentTarget)}
           >
             {listed.map((item) => (
               <ItemRow
                 key={item.id}
                 item={item}
                 pin
+                chosen={item.id === firstChosenId}
                 onPress={(event) => pressRow(item, event)}
                 onDrag={mayMove(item) ? (event) => carry(item, event) : undefined}
               />
             ))}
           </ul>
         ) : (
-          listed && (
-            <div className={`${styles.sideEmpty} ${styles.tilesEmpty}`}>
-              {filtering ? (
-                <p>{t("search.empty")}</p>
-              ) : (
-                <>
-                  <p>{t("map.areaEmpty")}</p>
-                  <p>{t("map.areaEmptyAsk")}</p>
-                  <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(LIST_EVENT))}>
-                    {t("header.list")}
-                  </button>
-                </>
-              )}
-            </div>
-          )
+          <div className={`${styles.sideEmpty} ${styles.tilesEmpty}`}>
+            {filtering ? (
+              <p>{t("search.empty")}</p>
+            ) : (
+              <>
+                <p>{t("map.areaEmpty")}</p>
+                <p>{t("map.areaEmptyAsk")}</p>
+                <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(LIST_EVENT))}>
+                  {t("header.list")}
+                </button>
+              </>
+            )}
+          </div>
         ))}
 
       <section className={`${styles.frame} map-frame`} aria-label={t("map.title")}>

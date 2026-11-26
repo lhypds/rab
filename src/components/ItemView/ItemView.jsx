@@ -315,8 +315,12 @@ export default function ItemView({
     height: shownPhoto.height ?? natural[shownPhoto.src]?.height,
   };
   const photoLimit = size?.width && size?.height ? Math.floor(Math.min(size.width, (size.height * 4) / 3)) : undefined;
+  // Not published: said so to its owner, who is the one to publish it; to
+  // anybody else it simply cannot be had.
   const status = !item.active
-    ? t("item.inactive")
+    ? mine
+      ? t("store.unpublished")
+      : t("item.inactive")
     : inquiry
       ? t("item.byInquiry")
       : free === today()
@@ -326,8 +330,9 @@ export default function ItemView({
         : t("item.noDays");
 
   // The buttons at the foot of the card, for whoever may change the item. One
-  // for the whole item: it can be had, or it cannot — which is not asked of
-  // somebody else's, since that is its owner's to say. And beside it, at the
+  // for the whole item: published, or not — an item is added unpublished
+  // (see ItemModal) and published here, and unpublished again whenever its
+  // owner likes. Not asked of somebody else's, since that is its owner's to say. And beside it, at the
   // right, the way to be rid of the item altogether, in red and asked twice.
   // Somebody else's is not deleted by whoever is reading it, and has no
   // buttons here: having it deleted is asked of the administrator in a report.
@@ -347,7 +352,7 @@ export default function ItemView({
           nothing empty is left in its place to hold a gap open. */}
       {((mine && !shared) || admin) && (
         <button type="button" className="small-button" disabled={busy || preview} onClick={() => setActive(!item.active)}>
-          {item.active ? t("calendar.close") : t("calendar.open")}
+          {item.active ? t("item.unpublish") : t("item.publish")}
         </button>
       )}
       {/* The default store, which every account has, is not deleted. */}

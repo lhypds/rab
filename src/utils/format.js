@@ -12,12 +12,17 @@ export function formatUsername(username) {
 
 export const CURRENCIES = ["JPY", "CNY", "USD", "EUR"];
 
-// The currency a new item starts in: the one the language the form is being
-// read in is most likely to be paid in — yen in Japanese, yuan in Chinese,
-// dollars in English — and one select away from being any of the others.
-const CURRENCY_BY_LANGUAGE = { ja: "JPY", zh: "CNY", en: "USD" };
-export function defaultCurrency(language) {
-  return CURRENCY_BY_LANGUAGE[String(language ?? "").toLowerCase().split("-")[0]] ?? "USD";
+// The currency a new item starts in: the one paid where the reader is — yen
+// in Japan, yuan in China, euros in the euro's countries — whatever language
+// the page is read in, and one select away from being any of the others.
+// Dollars anywhere else, and where nobody knows where the reader is.
+const EURO = ["AT", "BE", "HR", "CY", "EE", "FI", "FR", "DE", "GR", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PT", "SK", "SI", "ES"];
+export function defaultCurrency(country) {
+  const code = String(country ?? "").toUpperCase();
+  if (code === "JP") return "JPY";
+  if (code === "CN") return "CNY";
+  if (EURO.includes(code)) return "EUR";
+  return "USD";
 }
 
 // The mark a currency is written with, on its own: ¥ for yen and for yuan, $,

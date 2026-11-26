@@ -73,3 +73,9 @@
 .add {
   align-self: flex-start;
 }
+
+/* The list of the account's own ways, set off from the ways above it by the
+   room each of those has over its own label. */
+.pick {
+  margin-top: 8px;
+}

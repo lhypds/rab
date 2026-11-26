@@ -26,7 +26,9 @@ export default function PublishAsField({ value, onChange, disabled = false, hint
           </button>
         ))}
       </div>
-      <span className={hintClassName}>{t(`publish.${value}Hint`)}</span>
+      {/* What the one picked is. (publish.storeHint is the page boxes' own,
+          under StoreField.) */}
+      <span className={hintClassName}>{t(value === "store" ? "publish.pageHint" : "publish.itemHint")}</span>
     </div>
   );
 }

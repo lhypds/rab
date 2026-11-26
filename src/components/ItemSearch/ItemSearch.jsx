@@ -130,7 +130,10 @@ export default function ItemSearch() {
               >
                 {item.thumb && <img className={styles.thumb} src={item.thumb} alt="" width="32" height="32" />}
                 <span className={styles.lines}>
-                  <strong>{item.title}</strong>
+                  <strong>
+                    {item.title}
+                    {item.what && <span className="row-what">{item.what}</span>}
+                  </strong>
                   <span>
                     {dotted([
                       priceLine(item, i18n.language, t),

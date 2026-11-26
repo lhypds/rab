@@ -12,17 +12,21 @@ import { fileURLToPath } from "node:url";
 //                                      (`rab user _admin pass <new>` is how the
 //                                      admin account is first given one)
 //   rab user delete <username>         delete an account and everything it has
-//   rab push [-f <folder>] [-u <url>]
+//   rab public push [-f <folder>] [-u <url>]
 //                                      send what of a public folder the server
 //                                      at <url> does not have yet, an item at a
 //                                      time, to be merged into _public's
 //                                      (/api/public); without -f, this source's
 //                                      own data/users/_public
-//   rab pull [-f <folder>] [-u <url>]  bring what the server's _public has
+//   rab public pull [-f <folder>] [-u <url>]
+//                                      bring what the server's _public has
 //                                      that the folder does not, here
-//   rab mirror [-f <folder>] [-u <url>] [--yes]
+//   rab public mirror [-f <folder>] [-u <url>] [--yes]
 //                                      push, and delete on the server what of
 //                                      its _public the folder does not have
+//   rab public purge [-u <url>] [--yes]
+//                                      delete every item and store of the
+//                                      server's _public (its places stay)
 //
 // The user commands read and write the same data/users/ and db.sqlite the
 // server does (and the same .env says where those are). Listing is safe at any
@@ -30,7 +34,7 @@ import { fileURLToPath } from "node:url";
 // which holds the folders in memory and would write part of what was deleted
 // back: stop it first.
 //
-// rab push, pull and mirror go through a running server instead — this
+// rab public push, pull, mirror and purge go through a running server instead — this
 // machine's, on its port, unless -u <url> (or RAB_HOST, in .env, say) names
 // another — signed in as _admin: with RAB_TOKEN, a session token of _admin's,
 // if there is one, and otherwise with _admin's password, RAB_PASSWORD (in
@@ -53,13 +57,17 @@ const USAGE = `Usage:
   rab user <username> items          list what an account has out for rent
   rab user <username> pass <new>     set an account's password (${PASSWORD_MIN}–${PASSWORD_MAX} characters)
   rab user delete <username> [--yes] delete an account and everything it has
-  rab push [-f <folder>] [-u <url>]
+  rab public push [-f <folder>] [-u <url>]
                                      send the items of a public folder the server does not have
                                      (data/users/_public here, without -f), to the server at <url>
                                      (this machine's, without -u, or RAB_HOST)
-  rab pull [-f <folder>] [-u <url>]  fetch the items and places the server has and the folder does not
-  rab mirror [-f <folder>] [-u <url>] [--yes]
+  rab public pull [-f <folder>] [-u <url>]
+                                     fetch the items and places the server has and the folder does not
+  rab public mirror [-f <folder>] [-u <url>] [--yes]
                                      push, then delete on the server what the folder does not have
+                                     (asks first, unless --yes)
+  rab public purge [-u <url>] [--yes]
+                                     delete every item and store in the server's _public
                                      (asks first, unless --yes)`;
 
 function fail(message) {
@@ -453,15 +461,55 @@ async function receivePublic(args) {
   if (failed) process.exit(1);
 }
 
-const args = process.argv.slice(2);
-
-if (args[0] === "push" || args[0] === "mirror") {
-  await sendPublic(args.slice(1), { mirror: args[0] === "mirror" });
-  process.exit(0);
+// rab public purge [-u <url>] [--yes]: every item and store of the server's
+// _public deleted, after asking; its places are left as they are.
+async function purgePublic(args) {
+  const { host, yes } = remoteArgs(args);
+  const session = await adminSession(host);
+  let failed = 0;
+  try {
+    const held = await session.held();
+    const count = held.items.length;
+    const stores = held.items.filter((each) => each.store).length;
+    const what = `${count - stores} items and ${stores} stores`;
+    console.log(`${host} has ${what} in _public`);
+    if (count === 0) return;
+    if (!yes) {
+      if (!process.stdin.isTTY) throw new Error("Purging is not done without --yes when nobody is there to ask.");
+      const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await prompt.question(`This deletes all ${what} of _public on ${host} for good (its places stay). Type purge to go on: `);
+      prompt.close();
+      if (answer.trim() !== "purge") throw new Error("Nothing was deleted.");
+    }
+    let deleted = 0;
+    for (const [index, { id }] of held.items.entries()) {
+      try {
+        await answerOf(await session.request(`/api/public/items/${encodeURIComponent(id)}`, { method: "DELETE", headers: session.auth }));
+        deleted += 1;
+        console.log(`[${index + 1}/${count}] ${id} deleted`);
+      } catch (error) {
+        failed += 1;
+        console.log(`[${index + 1}/${count}] ${id} failed: ${error.message}`);
+      }
+    }
+    console.log(`Deleted on ${host}: ${deleted} of ${count}`);
+  } catch (error) {
+    console.error(error.message);
+    failed += 1;
+  } finally {
+    await session.close();
+  }
+  if (failed) process.exit(1);
 }
 
-if (args[0] === "pull") {
-  await receivePublic(args.slice(1));
+const args = process.argv.slice(2);
+
+if (args[0] === "public") {
+  const [, command, ...rest] = args;
+  if (command === "push" || command === "mirror") await sendPublic(rest, { mirror: command === "mirror" });
+  else if (command === "pull") await receivePublic(rest);
+  else if (command === "purge") await purgePublic(rest);
+  else fail(USAGE);
   process.exit(0);
 }
 

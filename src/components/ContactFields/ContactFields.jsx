@@ -194,7 +194,7 @@ export default function ContactFields({ contacts, onChange, saved = [], noMessag
       {/* Or one of the account's own, picked from a list. */}
       {pickable.length > 0 && (contacts.length < CONTACTS_MAX || contacts.some((contact) => contact.type !== "message" && !contact.value.trim())) && (
         <Select
-          className={styles.add}
+          className={`${styles.add} ${styles.pick}`}
           label={t("item.contactPick")}
           value=""
           onChange={pick}

@@ -178,6 +178,8 @@
     "deleted": "Item deleted",
     "uploading": "Uploading",
     "publish": "Publish",
+    "unpublish": "Unpublish",
+    "add": "Add",
     "missing": "This item does not exist or has been removed.",
     "ageRequired": "This item is in the Adult category. Set your date of birth on your account to see it.",
     "share": "Share",
@@ -225,7 +227,7 @@
     "availabilityHintTime": "Tick the days of the week it can be had. Press the pencil beside a date's price to give it a default price of its own.",
     "preview": "Preview",
     "previewTitle": "Preview",
-    "previewNote": "This is the booking page people will see. It is a preview: nothing is published until you press Publish in the form.",
+    "previewNote": "This is the booking page people will see. It is a preview: pressing Add does not publish it either — press Publish on its page when it is ready.",
     "previewClose": "Close preview",
     "previewEmpty": "There is nothing to preview. Open the item form and press Preview.",
     "previewBlocked": "The browser blocked the preview tab. Allow pop-ups for this site and try again.",
@@ -255,7 +257,7 @@
     "unit": "Available by step of",
     "unitMinutes": "{{count}} min",
     "unitHour": "1 hour",
-    "unitHint": "The shortest stretch that can be booked, and the step a longer one grows by. Available hours and price time ranges are still set on the half hour.",
+    "unitHint": "The shortest stretch that can be booked, and the step a longer one grows by. The hours below are set in this step too.",
     "bookingType": "Availability type",
     "modeHint": {
       "day": "Available by the day.",
@@ -264,9 +266,10 @@
     },
     "priceUnit": "Price per",
     "basePricing": "Default pricing",
+    "basePricingStep": "Default price per step",
     "pricingHint": {
       "day": "What an ordinary day costs. To price one date differently, press the pencil beside it on the calendar below.",
-      "time": "The default price, for the stretch of time picked under “Price per” — which can differ from the booking step: priced per hour and booked by 15 minutes, a 15-minute booking costs a quarter of it. To price one date differently, press the pencil beside it on the calendar below.",
+      "time": "The price of one step of the available time: with a 15-minute step, this is what 15 minutes cost. To price one date differently, press the pencil beside it on the calendar below.",
       "inquiry": "The usual price, for the stretch of time picked under “Price per”, shown as a guide. The final price is agreed when you are contacted."
     },
     "datePrice": "Default pricing · {{date}}",
@@ -586,6 +589,7 @@
     "item": "Item",
     "store": "Page",
     "itemHint": "One thing, space or service to rent out, with its own photos, price and calendar.",
+    "pageHint": "A page is a collection of several items. Use it as the home page of a shop or a service.",
     "storeHint": "Tick one or more of your pages. Your default page, named after you, is ticked to start with, and at least one stays ticked.",
     "storeLabel": "Add to page"
   }

@@ -27,8 +27,6 @@ import UserName, { dotted } from "../UserName/index.js";
 export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, onDrag, chosen = false, pin = false }) {
   const { t, i18n } = useTranslation();
   const meta = [
-    // A few words for what it is, where it says.
-    item.what,
     priceLine(item, i18n.language, t),
     sortLabel(item, t),
     // Its rating, once somebody has rated it.
@@ -51,7 +49,11 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
         <Link className="row-copy" to={`/i/${item.id}`} state={{ back: true }} draggable={false} onClick={onPress}>
           {item.thumb && <img className="row-thumb" src={item.thumb} alt="" width="40" height="40" loading="lazy" draggable={false} />}
           <span className="row-lines">
-            <strong>{item.title}</strong>
+            {/* A few words for what it is, where it says, after its name. */}
+            <strong>
+              {item.title}
+              {item.what && <span className="row-what">{item.what}</span>}
+            </strong>
             <span className="row-meta">{dotted(meta)}</span>
           </span>
         </Link>

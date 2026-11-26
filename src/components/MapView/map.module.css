@@ -284,6 +284,25 @@
   box-shadow: 0 -1px 0 var(--line);
 }
 
+/* Every row the one height, whatever it holds: the 44px of the fullest row's
+   lines — a name on two lines and the meta under them — and its padding. A
+   name whose words are set in more than one face, or a side with a pin and a
+   word over it, would otherwise stand a pixel or two taller than the rest, and
+   the columns would no longer line up across. */
+.tiles :global(.row) {
+  box-sizing: border-box;
+  height: 64px;
+  overflow: hidden;
+}
+
+.tiles :global(.row-lines) {
+  max-height: 44px;
+}
+
+.tiles :global(.row-lines strong) {
+  max-height: 28px;
+}
+
 /* A rule down the far side of every column of them, in the grey the rows are
    ruled in, clear of the rows' own rules. Each row draws it from its own top
    to well past the foot of the page, where the list cuts it off: so the rule

@@ -82,7 +82,10 @@ export default function StoreList({ stores, username, filterable = false, carrie
                 <Link className="row-copy" draggable={false} to={storePath({ owner: username, id: store.id })} state={{ back: true }}>
                   {store.thumb && <img className="row-thumb" src={store.thumb} alt="" width="40" height="40" loading="lazy" />}
                   <span className="row-lines">
-                    <strong>{store.title}</strong>
+                    <strong>
+                      {store.title}
+                      {store.what && <span className="row-what">{store.what}</span>}
+                    </strong>
                     <span className="row-meta">
                       {dotted([
                         // The default store, which every account has.

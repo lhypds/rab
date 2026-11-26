@@ -19,14 +19,14 @@ cannot be signed in to until it has one; set one with `./rab user _admin pass <n
 
 `_admin` can also send a public folder — `_public`'s folder from another server, or
 what a crawler left (`locations.json`, `items/<made>/item.json` and its photographs) — and
-have it merged into `_public`'s. `./rab push` asks the server what it holds already
+have it merged into `_public`'s. `./rab public push` asks the server what it holds already
 (`GET /api/public`: each item's id and `source.json` key, each place's id and address),
 and sends only the places and items it does not have: the places in one zip, then each
 item's folder in a zip of its own, printing each as it goes:
 
-    ./rab push                                             to this machine's server, on its port
-    ./rab push -u rab.gcc3.com                             to another (or RAB_HOST)
-    ./rab push -f ~/crawled -u rab.gcc3.com                another folder than this source's
+    ./rab public push                                      to this machine's server, on its port
+    ./rab public push -u rab.gcc3.com                      to another (or RAB_HOST)
+    ./rab public push -f ~/crawled -u rab.gcc3.com         another folder than this source's
 
 Without `-f` it sends this source's own `data/users/_public` (under `RAB_DATA` where that is
 set). The folder named may be the public folder itself or hold it as its one folder. It signs in
@@ -35,13 +35,13 @@ session token of `_admin`'s, if that is set.
 
 The server and the password can be kept in `.env`, so that nothing needs to be typed:
 
-    RAB_HOST=rab.gcc3.com          where push, pull and mirror go (-u goes before it)
+    RAB_HOST=rab.gcc3.com          where public push, pull, mirror and purge go (-u goes before it)
     RAB_PASSWORD=<password>        _admin's password there (./rab user _admin pass <password> on the server)
 
 Two more go the same way, with the same `-f` and `-u`:
 
-    ./rab pull                     fetch what the server's _public has and the folder does not
-    ./rab mirror                   push, then delete on the server what the folder does not have
+    ./rab public pull              fetch what the server's _public has and the folder does not
+    ./rab public mirror            push, then delete on the server what the folder does not have
 
 `pull` adds the server's missing places to the folder's `locations.json` and writes each missing
 item's folder (`GET /api/public/locations`, `GET /api/public/items/<id>`, a zip). A folder that is
@@ -51,6 +51,15 @@ item and place that the folder has under neither the same id, nor the same key o
 are cancelled first. It says how many it will delete and asks for `yes`; `--yes` skips the
 question, and without a terminal it is required. Note that the server adds each new item's
 spot to `_public`'s places, so a mirror from a folder whose `locations.json` lacks them deletes them.
+
+To empty `_public` on a server:
+
+    ./rab public purge             delete every item and store of the server's _public
+    ./rab public purge -u rab.gcc3.com
+
+It deletes each one outright as `mirror` does (`DELETE /api/public/items/<id>`; open bookings
+are cancelled first) and leaves the places. It says how many items and stores it will delete
+and asks for `purge` to be typed; `--yes` skips the question, and without a terminal it is required.
 
 Without `./rab`, pushing is
 
