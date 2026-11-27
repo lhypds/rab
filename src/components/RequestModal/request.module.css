@@ -146,80 +146,6 @@
   stroke-width: 1.4;
 }
 
-/* The same photographs where the request is read: larger, each opening whole. */
-.shots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.shots a {
-  flex: none;
-  width: 96px;
-  height: 96px;
-  border: 1px solid var(--line);
-  background: var(--soft);
-}
-
-.shots img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* The sheet a request is read on. */
-.view {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.line {
-  margin: 0;
-  font-size: 14px;
-}
-
-.meta {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.description {
-  margin: 0;
-  white-space: pre-wrap;
-  font-size: 14px;
-}
-
-.contacts {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  font-size: 12px;
-}
-
-.contacts > div {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.contacts dt {
-  flex: none;
-  color: var(--muted);
-}
-
-.contacts dt::after {
-  content: ":";
-}
-
-.contacts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 /* What is being looked for, and the brain beside it that has the model fill
    the form in: as tall as the box, and widened to keep the house button's
    shape (see the item form's category row). */
@@ -241,15 +167,4 @@
    weight in a box this small: thinner. */
 .whatRow svg {
   stroke-width: 1.5;
-}
-
-/* "By a message here on rab", pressed to write one: a link in the line. */
-.contactWrite {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
 }

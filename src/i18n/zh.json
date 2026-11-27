@@ -17,8 +17,8 @@
     "viewMap": "地图",
     "viewList": "列表",
     "pinned": "地图上有位置",
-    "have": "我有",
-    "need": "我需要"
+    "have": "添加",
+    "need": "需求"
   },
   "auth": {
     "username": "用户名",
@@ -106,6 +106,8 @@
       "declined": "预订被拒绝：{{item}} · {{dates}}",
       "cancelled": "预订已取消：{{item}} · {{dates}}",
       "gone": "已删除的项目",
+      "wanted": "需求：{{item}}",
+      "goneRequest": "已删除的需求",
       "cancelRequest": "申请取消：{{item}} · {{dates}}",
       "cancelRefused": "取消申请被拒绝：{{item}} · {{dates}}",
       "deleteRequest": "申请删除：{{item}}",
@@ -639,6 +641,8 @@
     "storeLabel": "添加到据点"
   },
   "request": {
+    "missing": "找不到这条需求。",
+    "edit": "编辑",
     "title": "我需要",
     "what": "你在找什么？",
     "whatPlaceholder": "例如：婴儿车、搬家帮手",
@@ -666,7 +670,7 @@
     "saved": "需求已发布",
     "titleRequired": "请填写你在找什么。",
     "placeRequired": "请选择需求区域范围，或添加位置。",
-    "offer": "发消息",
+    "offer": "联系他/她",
     "delete": "删除",
     "deleteConfirm": "删除这条需求？",
     "deleted": "需求已删除",

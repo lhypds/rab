@@ -17,8 +17,8 @@
     "viewMap": "地図",
     "viewList": "リスト",
     "pinned": "地図に位置あり",
-    "have": "提供する",
-    "need": "探しています"
+    "have": "追加",
+    "need": "募集"
   },
   "auth": {
     "username": "ユーザー名",
@@ -106,6 +106,8 @@
       "declined": "予約不成立：{{item}} · {{dates}}",
       "cancelled": "予約キャンセル：{{item}} · {{dates}}",
       "gone": "削除されたアイテム",
+      "wanted": "募集：{{item}}",
+      "goneRequest": "削除された募集",
       "cancelRequest": "キャンセル依頼：{{item}} · {{dates}}",
       "cancelRefused": "キャンセル依頼が拒否されました：{{item}} · {{dates}}",
       "deleteRequest": "削除依頼：{{item}}",
@@ -142,13 +144,13 @@
     "kind": "表示",
     "kinds": {
       "offers": "提供",
-      "requests": "リクエスト"
+      "requests": "募集"
     },
-    "requestsEmpty": "このエリアにはまだリクエストがありません。",
+    "requestsEmpty": "このエリアにはまだ募集がありません。",
     "requestsEmptyAsk": "探しているものがあれば、ここで伝えましょう。",
-    "requestTotals_other": "{{count}} 件のリクエスト",
-    "requestCount_other": "ここに {{count}} 件のリクエスト",
-    "requestsNone": "ここにはまだリクエストがありません"
+    "requestTotals_other": "{{count}} 件の募集",
+    "requestCount_other": "ここに {{count}} 件の募集",
+    "requestsNone": "ここにはまだ募集がありません"
   },
   "item": {
     "minDurationHint": "1回の予約の最短の長さで、予約の刻みの整数倍です。",
@@ -442,11 +444,11 @@
   },
   "mine": {
     "title": "マイページ",
-    "wantedEmpty": "リクエストはまだありません。上のバーに探しているものを入力してください。",
+    "wantedEmpty": "募集はまだありません。上のバーに探しているものを入力してください。",
     "itemsEmpty": "掲載しているものはありません。+ から追加できます。",
     "noneShown": "該当するアイテムはありません。",
     "items": "アイテム",
-    "wanted": "リクエスト"
+    "wanted": "募集"
   },
   "user": {
     "missing": "そのユーザーは見つかりません。",
@@ -639,11 +641,13 @@
     "storeLabel": "スポットに追加"
   },
   "request": {
+    "missing": "この募集は見つかりません。",
+    "edit": "編集",
     "title": "探しています",
     "what": "何を探していますか？",
     "whatPlaceholder": "例：ベビーカー、引っ越しの手伝い",
     "categoryNone": "カテゴリー指定なし",
-    "where": "場所",
+    "where": "募集場所",
     "when": "期間",
     "from": "開始日",
     "until": "終了日",
@@ -657,26 +661,26 @@
     "fillingIn": "生成中…",
     "fillInUnavailable": "このサーバーでは自動入力を利用できません。",
     "fillInFailed": "自動入力できませんでした。手動で入力してください。",
-    "editTitle": "リクエストを編集",
-    "updated": "リクエストを保存しました",
-    "contactHint": "リクエストに表示され、提供できる人から連絡が届きます。",
+    "editTitle": "募集を編集",
+    "updated": "募集を保存しました",
+    "contactHint": "募集に表示され、提供できる人から連絡が届きます。",
     "note": "詳細",
     "notePlaceholder": "そのほか伝えたいこと",
-    "post": "リクエストを投稿",
-    "saved": "リクエストを投稿しました",
+    "post": "募集を投稿",
+    "saved": "募集を投稿しました",
     "titleRequired": "探しているものを入力してください。",
-    "placeRequired": "リクエストエリアを選ぶか、位置を追加してください。",
-    "offer": "メッセージを送る",
+    "placeRequired": "募集エリアを選ぶか、位置を追加してください。",
+    "offer": "連絡する",
     "delete": "削除",
-    "deleteConfirm": "このリクエストを削除しますか？",
-    "deleted": "リクエストを削除しました",
+    "deleteConfirm": "この募集を削除しますか？",
+    "deleted": "募集を削除しました",
     "anonymous": "匿名で投稿",
     "anonymousHint": "ユーザー名は表示されません。rab のメッセージでも連絡を受けられ、そのやり取りでも匿名のままです。",
     "anonymousName": "匿名",
     "anyTime": "いつでも",
     "contact": "連絡する",
     "photosHint": "任意。探しているものの写真があれば。",
-    "region": "リクエストエリア",
+    "region": "募集エリア",
     "regionHint": "地図が表示している市区町村が入ります。このエリアを見ている人のリストに表示されます。位置を追加しなくても表示されます。"
   }
 }

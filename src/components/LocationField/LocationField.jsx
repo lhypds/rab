@@ -24,9 +24,10 @@ const near = (a, b) => Math.abs(a - b) < 1e-6;
 // what of it changed. `locations` are the places to choose from, and
 // `onSaved` is told of one just kept — with `region` saved beside it, and in
 // the public account's folder where `shared`. `onTouched` is told the spot
-// was put by hand. Mounted afresh for each opening of its form (by `key`): it
+// was put by hand. `label` is what the field is called, where it is not an
+// item's place. Mounted afresh for each opening of its form (by `key`): it
 // starts by taking a place already written as somebody's own words.
-export default function LocationField({ value, onChange, locations, shared = false, region = null, onSaved, onTouched, onError }) {
+export default function LocationField({ value, onChange, locations, shared = false, region = null, label, onSaved, onTouched, onError }) {
   const { t } = useTranslation();
   const { country } = useRegion();
   // The language a spot is named in (see addressLanguage).
@@ -115,7 +116,7 @@ export default function LocationField({ value, onChange, locations, shared = fal
   return (
     <div className="field">
       <span className="field-label">
-        {t("item.location")}
+        {label ?? t("item.location")}
         {located && <span className="field-count">{formatCoords(latitude, longitude)}</span>}
       </span>
       {/* The places to put it at: choosing one puts the pin there. Always here,

@@ -4,8 +4,10 @@ import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
 import { ItemCard } from "../../components/Rows/index.js";
 import { BookingRow, CategoryFilter, CategoryTabs, categoriesOf, Header, ItemRow, MessageModal, useAuth, useCategoryFilter } from "../../components/index.js";
-import { RequestView } from "../../components/RequestModal/index.js";
-import { ActionButton, Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
+import ItemPreview from "../../components/ItemPreview/index.js";
+import { useListView } from "../../components/ListView.jsx";
+import RequestModal, { RequestView } from "../../components/RequestModal/index.js";
+import { Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
 
 // What the list of your items can be narrowed to: only what is published, on
 // or off, and one category. "All" is none of that: it is pressed while nothing
@@ -15,16 +17,6 @@ const FILTERS = ["all", "published"];
 // The five things that are an account's, in the order they stand down the
 // left of the page.
 const TABS = ["items", "stores", "requests", "rentals", "bookmarks"];
-
-// Whether they are drawn as rows or as cards, kept by the browser.
-const VIEW_KEY = "rab:mine-view";
-function keptView() {
-  try {
-    return localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list";
-  } catch {
-    return "list";
-  }
-}
 
 // When a booking starts, as text that sorts: its day, then its time — the first
 // slot's where it is for slots, the pickup's otherwise.
@@ -96,8 +88,27 @@ export default function MinePage() {
   const kept = bookmarks?.filter((item) => keptFilter.fits(item.category));
   const [writingTo, setWritingTo] = useState(null);
 
+  // An item or a spot — your own, or one you kept — looked at without leaving
+  // the list: its page, on a sheet over this one (see ItemPreview), by its
+  // id. A press meant for a new tab or window is left to go to the page.
+  const [previewId, setPreviewId] = useState(null);
+  const preview = (item, event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    setPreviewId(item.id);
+  };
+  // What you kept, asked for again: one let go of on the sheet is off the list.
+  const loadBookmarks = useCallback(() => {
+    api
+      .getBookmarks()
+      .then((answer) => setBookmarks(answer.items))
+      .catch((requestError) => setError(requestError.message));
+  }, []);
+
   // One of your own requests ("I need"), opened on a sheet from its row.
   const [viewing, setViewing] = useState(null);
+  // And the one being changed, on the form.
+  const [editingRequest, setEditingRequest] = useState(null);
   const openRequest = (request, event) => {
     event.preventDefault();
     setViewing(request);
@@ -132,40 +143,7 @@ export default function MinePage() {
   // How the one on the right is drawn: rows, or cards with their photographs.
   // Kept by the browser, the same for every one of them. What you have booked
   // is always rows: each has things to press that a card has no room for.
-  const [view, setViewState] = useState(keptView);
-  const setView = (next) => {
-    setViewState(next);
-    try {
-      localStorage.setItem(VIEW_KEY, next);
-    } catch {
-      // Rows again next time.
-    }
-  };
-  const cards = view === "cards";
-  // The pair that says which, beside the heading of what is shown — as on a
-  // spot's page, beside the heading of the items on it.
-  const viewPair = (
-    <span className="topbar-view" role="group" aria-label={t("store.itemsView")}>
-      <ActionButton tooltip={t("store.viewCards")} tooltipLeft aria-pressed={cards} onClick={() => setView("cards")}>
-        <svg viewBox="0 0 24 24">
-          {/* 田: one square, crossed through the middle. */}
-          <path d="M4 4h16v16H4z" />
-          <path d="M12 4v16" />
-          <path d="M4 12h16" />
-        </svg>
-      </ActionButton>
-      <ActionButton tooltip={t("store.viewList")} aria-pressed={!cards} onClick={() => setView("list")}>
-        <svg viewBox="0 0 24 24">
-          <path d="M9 6h11" />
-          <path d="M9 12h11" />
-          <path d="M9 18h11" />
-          <path d="M4 6h.01" />
-          <path d="M4 12h.01" />
-          <path d="M4 18h.01" />
-        </svg>
-      </ActionButton>
-    </span>
-  );
+  const { cards, viewPair } = useListView();
 
   return (
     <div className="page-shell">
@@ -216,20 +194,20 @@ export default function MinePage() {
                   ) : cards ? (
                     <ul className="item-cards">
                       {items.map((item) => (
-                        <ItemCard key={item.id} item={item} showPublished />
+                        <ItemCard key={item.id} item={item} showPublished onPress={(event) => preview(item, event)} />
                       ))}
                     </ul>
                   ) : (
                     <ul className="row-list">
                       {items.map((item) => (
-                        <ItemRow key={item.id} item={item} showPublished />
+                        <ItemRow key={item.id} item={item} showPublished onPress={(event) => preview(item, event)} />
                       ))}
                     </ul>
                   ))}
               </>
             )}
 
-            {tab === "stores" && (data ? <StoreList stores={data.stores} username={user.username} filterable cards={cards} beside={viewPair} /> : !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />)}
+            {tab === "stores" && (data ? <StoreList stores={data.stores} username={user.username} filterable cards={cards} beside={viewPair} onPress={preview} /> : !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />)}
 
             {/* What you are looking for. Here they can be taken down — the
                 ones whose dates have gone as well. */}
@@ -302,13 +280,13 @@ export default function MinePage() {
                 ) : cards ? (
                   <ul className="item-cards">
                     {kept.map((item) => (
-                      <ItemCard key={item.id} item={item} />
+                      <ItemCard key={item.id} item={item} onPress={(event) => preview(item, event)} />
                     ))}
                   </ul>
                 ) : (
                   <ul className="row-list">
                     {kept.map((item) => (
-                      <ItemRow key={item.id} item={item} showOwner />
+                      <ItemRow key={item.id} item={item} showOwner onPress={(event) => preview(item, event)} />
                     ))}
                   </ul>
                 )}
@@ -318,12 +296,45 @@ export default function MinePage() {
         </div>
       </main>
       <MessageModal username={writingTo} onClose={() => setWritingTo(null)} />
+      {/* An item or a spot opened from its row, on a sheet over the list.
+          Whatever was done to it there — changed, published, deleted, let go
+          of — the lists are asked for again once the sheet is put away. */}
+      <ItemPreview
+        id={previewId}
+        onClose={() => {
+          setPreviewId(null);
+          load();
+          loadBookmarks();
+        }}
+        // Saved from the form opened on the sheet: the sheet again.
+        onOpen={setPreviewId}
+        onGone={() => {
+          load();
+          loadBookmarks();
+        }}
+      />
       <RequestView
         request={viewing}
         onClose={() => setViewing(null)}
+        // Changed from its sheet: the sheet is put away and the form opened.
+        onEdit={(request) => {
+          setViewing(null);
+          setEditingRequest(request);
+        }}
         onGone={(gone) => {
           setData((current) => current && { ...current, wanted: current.wanted.filter((request) => request.id !== gone) });
           setViewing(null);
+        }}
+      />
+      {/* The form on one of your requests: saved, it takes the old one's
+          place in the list. */}
+      <RequestModal
+        isOpen={Boolean(editingRequest)}
+        request={editingRequest}
+        onClose={() => setEditingRequest(null)}
+        onSaved={(saved) => {
+          setEditingRequest(null);
+          setData((current) => current && { ...current, wanted: current.wanted.map((request) => (request.id === saved.id ? saved : request)) });
         }}
       />
     </div>

@@ -11,10 +11,14 @@ import styles from "./messages.module.css";
 // left, a wash on the ones with something unread, and the exchange with the one
 // that is picked on the right.
 //
-// `username` is whose exchange to open on, when the inbox is being put back
-// where a step back found it. `onLeave` is told, with the open exchange's name,
-// when a link inside is about to leave for a page.
-export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
+// `username` is whose exchange to open on: when the inbox is being put back
+// where a step back found it, or opened to write to somebody (see
+// MessageModal) — who then has a row at the head of the list even before
+// anything has been said. `about` is the id of the request that exchange was
+// opened from, where it was (see MessageThread), and `aboutTitle` what was
+// asked for, to tell its row by. `onLeave` is told, with the open exchange's
+// name, when a link inside is about to leave for a page.
+export default function MessagesModal({ isOpen, username, about = null, aboutTitle = "", onClose, onLeave }) {
   const { t } = useTranslation();
   const { noteUnread } = useAuth();
   const [conversations, setConversations] = useState([]);
@@ -54,13 +58,24 @@ export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
     if (isOpen) load();
   }, [isOpen, load]);
 
+  // Whoever the inbox was opened to write to, where nothing has been said
+  // with them yet: a row of their own at the head of the list, until the
+  // exchange is one of the list's own — or is deleted from here.
+  const [dropped, setDropped] = useState(null);
+  useEffect(() => {
+    if (!isOpen) setDropped(null);
+  }, [isOpen]);
+  const held = conversations;
+  const fresh = isOpen && username && dropped !== username && !held.some((conversation) => conversation.username === username);
+  const listed = fresh ? [{ username, unread: 0, about: aboutTitle || null }, ...held] : held;
+
   // Whose exchange the right column shows: the one picked while it is still in
   // the list, and otherwise the first — so the column is never left empty
   // beside a list with somebody in it, and deleting the open one moves on to
   // the next.
-  const reading = conversations.some((conversation) => conversation.username === picked)
+  const reading = listed.some((conversation) => conversation.username === picked)
     ? picked
-    : (conversations[0]?.username ?? null);
+    : (listed[0]?.username ?? null);
 
   // The exchange on the right is read by being shown, so its row gives up the
   // wash without waiting for the list to be asked for again.
@@ -111,6 +126,7 @@ export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
     setError("");
     try {
       await api.deleteConversation(username);
+      setDropped(username);
       setConversations((current) => current.filter((conversation) => conversation.username !== username));
     } catch (requestError) {
       setError(requestError.message);
@@ -123,7 +139,7 @@ export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
         {error && <p className="form-message error">{error}</p>}
 
         {/* Waiting is not the same answer as none. */}
-        {conversations.length === 0 ? (
+        {listed.length === 0 ? (
           loading ? (
             <Skeleton rows={4} lines={2} label={t("common.loading")} />
           ) : (
@@ -132,7 +148,7 @@ export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
         ) : (
           <div className={styles.columns}>
             <ul className={styles.list}>
-              {conversations.map((conversation) => {
+              {listed.map((conversation) => {
                 const key = conversation.username;
                 return (
                   <li key={key} className={styles.row}>
@@ -187,7 +203,9 @@ export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
             </ul>
 
             <div className={styles.pane}>
-              <MessageThread username={reading} onLeave={() => (onLeave ?? onClose)(reading)} />
+              {/* Opened from a request, that exchange is headed by a line
+                  that leads to it. */}
+              <MessageThread username={reading} onLeave={() => (onLeave ?? onClose)(reading)} about={reading === username ? about : null} />
             </div>
           </div>
         )}

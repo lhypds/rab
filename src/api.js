@@ -205,5 +205,8 @@ export const reviewBooking = (bookingId, rating, comment, itemRating) =>
 export const getUnread = () => request("/api/unread");
 export const getMessages = () => request("/api/messages");
 export const getConversation = (username, options) => request(`/api/messages/${name(username)}`, options);
-export const sendMessage = (username, body) => send("POST", `/api/messages/${name(username)}`, { body });
+// `requestId` is the request ("I need") the exchange was opened from, where
+// it was: the server then says which, ahead of the first thing written.
+export const sendMessage = (username, body, requestId = null) =>
+  send("POST", `/api/messages/${name(username)}`, { body, ...(requestId ? { requestId } : null) });
 export const deleteConversation = (username) => send("DELETE", `/api/messages/${name(username)}`);

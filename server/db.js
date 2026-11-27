@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, writeRequest, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -1292,6 +1292,15 @@ function servedMessage(line) {
     // (A line from before stores were called so says `page`.)
     store: (line.store ?? line.page) ? storeOfLine(line.store ?? line.page) : null,
     reason: line.reason ?? null,
+    // The request an exchange is about, said at its head (see the "wanted"
+    // line): what was asked for, and `gone` once it has been taken down.
+    request: line.requestId
+      ? {
+          id: line.requestId,
+          title: heldRequests().get(line.requestId)?.title ?? null,
+          gone: !heldRequests().has(line.requestId),
+        }
+      : null,
     booking: booking
       ? {
           id: booking.id,
@@ -1323,6 +1332,12 @@ const inThread = (line, otherId, via) => line.with === otherId && (line.via ?? n
 function threadHandle(line) {
   if (!line.via) return nameOf(line.with);
   return line.anon ? `~${line.via}` : `${nameOf(line.with)}~${line.via}`;
+}
+
+// Whether an exchange has already said it is about a request: the line that
+// leads to it is written once, ahead of the first thing said about it.
+export function saidOfRequest(userId, otherId, via, requestId) {
+  return linesOf(userId).some((line) => inThread(line, otherId, via) && line.requestId === requestId);
 }
 
 // Who `userId` is writing to by way of a request: its maker, from what has
@@ -1406,7 +1421,7 @@ export function createMessage(
   body,
   // `via` and `anonId`: the request an exchange is by way of, and which end of
   // it asked without a name (see inThread).
-  { kind = "text", bookingId = null, itemId = null, store = null, reason = null, via = null, anonId = null } = {},
+  { kind = "text", bookingId = null, itemId = null, store = null, reason = null, via = null, anonId = null, requestId = null } = {},
 ) {
   // The clock, so a number is never handed out twice even after both ends have
   // deleted the lines that carried the highest ones.
@@ -1420,6 +1435,7 @@ export function createMessage(
     // Or the store it is about, as whose it is and its id.
     ...(store ? { store: { ownerId: store.ownerId, id: store.id } } : null),
     ...(reason ? { reason } : null),
+    ...(requestId ? { requestId } : null),
     ...(via ? { via } : null),
     time: now(),
     read: false,
@@ -1890,14 +1906,68 @@ export function deleteUser(userId) {
 // that stand in its window.
 export const REQUESTS_MAX = 20;
 let requestsById = null;
+// A request's id is the millisecond it was made, in Unix time, as an item's
+// is. One from before that — "q" and some letters, drawn at random — is given
+// the time it was made the first time it is read: its folder is renamed, what
+// it was called is kept on it (`was`), and every exchange that was by way of
+// it, or says it is about it, is pointed at the new id. A link made with the
+// old id still finds it (`requestIdByOldId`).
+const requestIdByOldId = new Map();
+const TIME_ID_RE = /^\d+$/;
 
 function heldRequests() {
   if (requestsById) return requestsById;
   requestsById = new Map();
+  requestIdByOldId.clear();
   for (const userId of usersById.keys()) {
-    for (const request of readRequests(userId)) requestsById.set(request.id, { ...request, ownerId: userId });
+    for (const request of readRequests(userId)) {
+      requestsById.set(request.id, { ...request, ownerId: userId });
+      if (request.was) requestIdByOldId.set(String(request.was), request.id);
+    }
+  }
+  const renamed = new Map();
+  for (const request of [...requestsById.values()]) {
+    if (TIME_ID_RE.test(request.id)) continue;
+    const was = request.id;
+    let stamp = Date.parse(request.createdAt) || Date.now();
+    while (requestsById.has(String(stamp)) || itemsById.has(String(stamp))) stamp += 1;
+    const id = String(stamp);
+    moveRequestDir(request.ownerId, was, id);
+    const { ownerId, ...kept } = { ...request, id, was };
+    writeRequest(ownerId, kept);
+    requestsById.delete(was);
+    requestsById.set(id, { ...kept, ownerId });
+    requestIdByOldId.set(was, id);
+    renamed.set(was, id);
+  }
+  if (renamed.size > 0) {
+    transaction(() => {
+      for (const [userId, lines] of messagesByUser) {
+        let touched = false;
+        for (const line of lines) {
+          for (const key of ["via", "requestId"]) {
+            if (line[key] && renamed.has(line[key])) {
+              line[key] = renamed.get(line[key]);
+              touched = true;
+            }
+          }
+        }
+        if (touched) changed(userId, "messages.json");
+      }
+    });
   }
   return requestsById;
+}
+
+// Read as the server starts rather than when first asked for, so the ones
+// still to be renamed are renamed before anything is served from their
+// folders.
+heldRequests();
+
+// A request's id as it is now, from the one it may have had before.
+export function requestIdNow(id) {
+  const held = heldRequests();
+  return held.has(id) ? id : (requestIdByOldId.get(id) ?? id);
 }
 
 // A request as it goes out: shaped like an item where it can be — a title, a
@@ -1928,7 +1998,12 @@ function servedRequest(request) {
 const stillWanted = (request) => !request.end || request.end >= now().slice(0, 10);
 
 export function getRequest(id) {
-  return servedRequest(heldRequests().get(id));
+  return servedRequest(heldRequests().get(requestIdNow(id)));
+}
+
+// As it is kept, with whose it is: for the server's own use.
+export function getRequestHeld(id) {
+  return heldRequests().get(requestIdNow(id)) ?? null;
 }
 
 export function getRequests() {
@@ -1945,10 +2020,16 @@ export function getRequestsByUser(userId) {
 export function createRequest(userId, request) {
   const held = heldRequests();
   if ([...held.values()].filter((each) => each.ownerId === userId).length >= REQUESTS_MAX) return null;
-  const id = `q${crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x")}`;
-  const kept = { id, ...request, createdAt: now(), ownerId: userId };
+  // Its id is the millisecond it was made, in Unix time, as an item's is (see
+  // newItemId) — the next one free where that one is taken, by a request or
+  // by an item: the map lists the two together, by their ids.
+  const createdAt = now();
+  let stamp = Date.parse(createdAt);
+  while (held.has(String(stamp)) || itemsById.has(String(stamp))) stamp += 1;
+  const id = String(stamp);
+  const kept = { id, ...request, createdAt, ownerId: userId };
   held.set(id, kept);
-  writeRequest(userId, { id, ...request, createdAt: kept.createdAt });
+  writeRequest(userId, { id, ...request, createdAt });
   return servedRequest(kept);
 }
 
@@ -1959,9 +2040,11 @@ export function updateRequest(userId, id, request) {
   const held = heldRequests();
   const before = held.get(id);
   if (!before || before.ownerId !== userId) return null;
-  const kept = { id, ...request, createdAt: before.createdAt, ownerId: userId };
+  // What it was called before ids were times stays on it too.
+  const same = { createdAt: before.createdAt, ...(before.was ? { was: before.was } : null) };
+  const kept = { id, ...request, ...same, ownerId: userId };
   held.set(id, kept);
-  writeRequest(userId, { id, ...request, createdAt: before.createdAt });
+  writeRequest(userId, { id, ...request, ...same });
   return servedRequest(kept);
 }
 

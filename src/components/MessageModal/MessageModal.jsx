@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { Link, Modal, Skeleton, TextArea } from "../../ui/index.js";
+import { Link, Skeleton, TextArea } from "../../ui/index.js";
 import { bookingLine, isBookingLine, linePath } from "../../utils/bookings.js";
 import { formatUsername, relativeTime, threadName } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
+import MessagesModal from "../MessagesModal/index.js";
 import UserName from "../UserName/index.js";
 import styles from "./message.module.css";
 
@@ -36,11 +37,12 @@ function same(a, b) {
 }
 
 // One exchange with one person: what has been said, oldest first, and a box at
-// the foot of it to answer in. The body of a sheet rather than a sheet itself,
-// so it can stand alone in one (see MessageModal below) or beside the list of
-// people in the inbox. `onLeave` is told when a link inside it is about to
+// the foot of it to answer in. The body of a sheet rather than a sheet itself:
+// it stands beside the list of people in the inbox. `onLeave` is told when a link inside it is about to
 // leave for a page, so whatever is holding it open can put itself away.
-export function MessageThread({ username, onLeave }) {
+// `about` is the id of the request the exchange was opened from, where it
+// was: the first thing sent is then headed by a line that leads to it.
+export function MessageThread({ username, onLeave, about = null }) {
   const { t, i18n } = useTranslation();
   const { user, noteUnread } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -154,9 +156,9 @@ export function MessageThread({ username, onLeave }) {
     setSending(true);
     setError("");
     try {
-      const data = await api.sendMessage(username, body);
+      const data = await api.sendMessage(username, body, about);
       atEndRef.current = true;
-      setMessages((current) => [...current, data.message]);
+      setMessages((current) => [...current, ...(data.before ? [data.before] : []), data.message]);
       setDraft("");
     } catch (requestError) {
       setError(requestError.message);
@@ -278,38 +280,18 @@ export function MessageThread({ username, onLeave }) {
   );
 }
 
-// The exchange in a sheet of its own, for the places that open one person's
-// thread without the inbox around it. `onNavigate` is told when a link inside
+// Writing to one person, from the places that open their exchange — an
+// item's page, a profile, a request: the inbox, opened on that exchange, with
+// everybody else the reader has an exchange with down its left as always.
+// `about` is the id of the request it was opened from, where it was, and
+// `aboutTitle` what was asked for. `onNavigate` is told when a link inside
 // the sheet is about to leave for a page, so whatever is holding sheets open
 // over this one can put them away too.
-export default function MessageModal({ username, onClose, onNavigate }) {
-  const { t } = useTranslation();
-  const them = threadName(username);
+export default function MessageModal({ username, onClose, onNavigate, about = null, aboutTitle = "" }) {
   function leave() {
     onClose();
     onNavigate?.();
   }
 
-  return (
-    <Modal
-      isOpen={Boolean(username)}
-      // The name is the way through to the other person's page.
-      title={
-        username &&
-        (them ? (
-          <Link className={styles.profile} to={`/u/${encodeURIComponent(them)}`} state={BACK} onClick={leave}>
-            {formatUsername(them)}
-          </Link>
-        ) : (
-          // Nobody to go through to: asked without a name.
-          t("request.anonymousName")
-        ))
-      }
-      onClose={onClose}
-      closeOnOverlay
-      wide
-    >
-      <MessageThread username={username} onLeave={leave} />
-    </Modal>
-  );
+  return <MessagesModal isOpen={Boolean(username)} username={username} about={about} aboutTitle={aboutTitle} onClose={onClose} onLeave={leave} />;
 }

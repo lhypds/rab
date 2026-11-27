@@ -14,8 +14,34 @@
   margin: 0;
 }
 
+/* The buttons are always at the foot of the sheet, at the right, however
+   small the window and however little the form holds: the form scrolls
+   under them where it is longer than the sheet, and where it is shorter they
+   are pushed down to the sheet's foot, not left in the middle of it with
+   empty room under them. The row is as wide as the sheet — the sheet's 16px
+   at each side is taken into it — so nothing shows through beside it, and
+   the room under the buttons is the row's own: as much as there is to the
+   right of them, and no more. No rule over the row. */
 .form > :global(.modal-actions) {
-  margin-top: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: auto -16px 0;
+  padding: 10px 16px 16px;
+  background: var(--paper);
+}
+
+/* For that, the form is as tall as the sheet has room for: the part of the
+   sheet under its bar (the last thing in it) lays the form out in a column
+   it fills — and gives up its own room at the foot, which is the row's. */
+div.sheet > div:last-child {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+div.sheet .form {
+  flex: 1 0 auto;
 }
 
 /* One column on a phone; two where the sheet is wide enough to hold them —

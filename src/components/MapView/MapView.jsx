@@ -28,14 +28,15 @@ import {
 import { currentRegion, loadRegion, onTravel, takeJourney, useRegion, waitingJourney } from "../../utils/region.js";
 import { MapTools, showSelf } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
-import { useAuth } from "../AuthProvider/index.js";
-import { LIST_EVENT, NEED_EVENT, REQUESTED_EVENT } from "../Header/Header.jsx";
+import { loginPath, useAuth } from "../AuthProvider/index.js";
+import { HOME_EVENT, LIST_EVENT, NEED_EVENT, REQUESTED_EVENT } from "../Header/Header.jsx";
 import RequestModal, { RequestView } from "../RequestModal/index.js";
 import ItemModal from "../ItemModal/index.js";
 import { categoriesOf } from "../CategoryFilter/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import FilterBox from "../FilterBox/index.js";
 import ItemPreview from "../ItemPreview/index.js";
+import MessageModal from "../MessageModal/index.js";
 import { itemPath } from "../../utils/stores.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
@@ -310,13 +311,31 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // the reader, and only the plane takes them anywhere.
   const region = useRegion();
   const [self, setSelf] = useState(null);
+  // Whether the device has been asked where the reader is and has answered,
+  // one way or the other — or was never going to be asked.
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
     // The capital is what stands in for a position that is not to be had, so
     // it is asked for whether or not the map itself needs it to open on.
     loadRegion();
-    return onPosition((found) => setSelf(found));
+    // And the capital waits its turn where the device is about to say where
+    // the reader is: named meanwhile, it would be the wrong place's name and
+    // list, shown for as long as the device takes.
+    let gone = false;
+    locationPermission()
+      .then((permission) => (permission === "granted" ? locate() : null))
+      .catch(() => null)
+      .then(() => {
+        if (!gone) setAsked(true);
+      });
+    const stop = onPosition((found) => setSelf(found));
+    return () => {
+      gone = true;
+      stop();
+    };
   }, []);
-  const stand = region.place ?? self ?? region.center ?? (region.ready ? DEFAULT_VIEW : null);
+  const fallback = asked ? (region.center ?? (region.ready ? DEFAULT_VIEW : null)) : null;
+  const stand = region.place ?? self ?? fallback;
   // To about a hundred metres: a step that leaves the reader in the same place
   // does not ask about the place again.
   const standLatitude = stand ? Math.round(stand.latitude * 1000) / 1000 : null;
@@ -377,6 +396,16 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     return () => window.removeEventListener(REQUESTED_EVENT, posted);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // The wordmark pressed: home is what is offered, so the map turns back to
+  // offers.
+  useEffect(() => {
+    const home = () => setKind("offers");
+    window.addEventListener(HOME_EVENT, home);
+    return () => window.removeEventListener(HOME_EVENT, home);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // The request whose maker is being written to, from its card.
+  const [writingAbout, setWritingAbout] = useState(null);
   // The request being read on a sheet.
   const [viewing, setViewing] = useState(null);
   // What its maker is changing, from the bubble's "Edit": a request, on the
@@ -1955,12 +1984,29 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                     {t("map.nav")}
                   </a>
                 )}
-                {/* An item is viewed; a request is answered — the same press
-                    puts up its sheet, where every way its maker gave of being
-                    reached can be pressed. */}
+                {/* Then the way to look at it: an item's sheet, or a
+                    request's. */}
                 <Link className={styles.cardLink} to={itemPath(open)} draggable={false} onClick={(event) => preview(open, event)}>
-                  {t(open.kind === "request" ? "request.contact" : "map.open")}
+                  {t("map.open")}
                 </Link>
+                {/* A request is answered by the way its maker wrote first: a
+                    phone number is called and an address written to,
+                    straight from here; a message here — or a way that cannot
+                    be pressed — is a message, written in the inbox. Nobody
+                    answers their own. */}
+                {open.kind === "request" &&
+                  !isMine(open) &&
+                  (contactHref(open.contacts?.[0], open.title) ? (
+                    <a className={styles.cardLink} href={contactHref(open.contacts[0], open.title)} draggable={false}>
+                      {t("request.contact")}
+                    </a>
+                  ) : (
+                    (open.owner || open.anonymous) && (
+                      <button type="button" className={`${styles.cardLink} ${styles.cardButton}`} onClick={() => (user ? setWritingAbout(open) : navigate(loginPath()))}>
+                        {t("request.contact")}
+                      </button>
+                    )
+                  ))}
                 {open.kind !== "request" && open.owner !== user?.username &&
                   // Something booked by asking is asked for the way its
                   // owner said first: a phone number is called and an
@@ -2035,10 +2081,25 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         />
       )}
 
+      {/* Written to from a request's card: the inbox, on the exchange with
+          its maker — by way of the request, where it was asked without a
+          name — headed by a line that leads to the request. */}
+      <MessageModal
+        username={writingAbout ? (writingAbout.anonymous ? `~${writingAbout.id}` : writingAbout.owner) : null}
+        about={writingAbout?.id ?? null}
+        aboutTitle={writingAbout?.title ?? ""}
+        onClose={() => setWritingAbout(null)}
+      />
+
       {/* A request opened from its pin or its row, on a sheet over the map. */}
       <RequestView
         request={viewing}
         onClose={() => setViewing(null)}
+        // Changed from its sheet: the sheet is put away and the form opened.
+        onEdit={(request) => {
+          setViewing(null);
+          setEditingRequest(request);
+        }}
         onGone={(gone) => {
           setRequests((current) => current?.filter((request) => request.id !== gone) ?? current);
           setSelectedId((current) => (current === gone ? null : current));

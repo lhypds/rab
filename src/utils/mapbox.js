@@ -115,7 +115,11 @@ export function onPosition(tell) {
   watchers.add(tell);
   if (self) tell(self);
   locationPermission().then((permission) => {
-    if (permission === "granted" && watchers.has(tell)) follow();
+    if (permission !== "granted" || !watchers.has(tell)) return;
+    // Found first, where it is not known yet, and then watched: the watch
+    // asks for a rough position only, which some browsers never give.
+    if (self) follow();
+    else locate();
   });
   return () => {
     watchers.delete(tell);
@@ -136,34 +140,91 @@ function position(options) {
   });
 }
 
+// How long a rough position is waited for before a precise one is asked for
+// beside it.
+const ROUGH_MS = 1500;
+
+// A rough position first, and a precise one beside it where the rough one is
+// slow or has nothing to give: whichever answers first is the answer, and an
+// error only where neither does.
+//
+// Asked for both ways because each fails somewhere the other works. iOS often
+// has nothing to give a request for a rough position — no answer in time, or
+// "position unavailable" — and answers at once when asked for a precise one;
+// Chrome on a Mac can leave a rough request unanswered until it times out
+// while a precise one comes straight back.
+function either(timeout) {
+  return new Promise((resolve) => {
+    let waiting = 0;
+    let settled = false;
+    let refusal = null;
+    let precise = null;
+    const ask = (options) => {
+      waiting += 1;
+      position(options).then((answer) => {
+        waiting -= 1;
+        if (settled) return;
+        if (answer.spot) {
+          settled = true;
+          window.clearTimeout(precise);
+          resolve(answer);
+          return;
+        }
+        // A refusal is the same answer either way, and is the one kept.
+        if (answer.error.code === answer.error.PERMISSION_DENIED) refusal = answer;
+        else if (precise !== null) {
+          // The rough one missed before its time was up: the precise one now.
+          window.clearTimeout(precise);
+          askPrecisely();
+        }
+        if (waiting === 0 && (refusal || precise === null)) {
+          settled = true;
+          resolve(refusal ?? answer);
+        }
+      });
+    };
+    const askPrecisely = () => {
+      precise = null;
+      if (settled || refusal) return;
+      ask({ enableHighAccuracy: true, timeout: Math.max(timeout, 10000), maximumAge: 0 });
+    };
+    precise = window.setTimeout(askPrecisely, ROUGH_MS);
+    ask({ enableHighAccuracy: false, timeout, maximumAge: 5 * 60 * 1000 });
+  });
+}
+
+// The attempt under way, shared by everybody who asks meanwhile: the map
+// opening and the panel beside it both want to know at once.
+let locating = null;
+
 // Where the device says it is, or null where it will not say (see
 // locateFailure for why).
-export async function locate({ timeout = 8000 } = {}) {
+export function locate({ timeout = 8000 } = {}) {
   // A browser gives a position only to a page it trusts: https, or localhost.
   // An iPhone opening a dev server by its LAN address is the usual way to
   // meet this.
   if (!navigator.geolocation || !window.isSecureContext) {
     failure = "insecure";
-    return null;
+    return Promise.resolve(null);
   }
-  let answer = await position({ enableHighAccuracy: false, timeout, maximumAge: 5 * 60 * 1000 });
-  // iOS often has nothing to give a request for a rough position — no answer
-  // in time, or "position unavailable" — and answers at once when asked for a
-  // precise one. So a miss that is not a refusal is asked again that way.
-  if (answer.error && answer.error.code !== answer.error.PERMISSION_DENIED) {
-    answer = await position({ enableHighAccuracy: true, timeout: Math.max(timeout, 10000), maximumAge: 0 });
-  }
-  if (answer.spot) {
-    failure = null;
-    remember("yes");
-    seen(answer.spot);
-    follow();
-    return answer.spot;
-  }
-  const denied = answer.error.code === answer.error.PERMISSION_DENIED;
-  failure = denied ? "denied" : "failed";
-  if (denied) remember("no");
-  return null;
+  locating ??= either(timeout)
+    .then((answer) => {
+      if (answer.spot) {
+        failure = null;
+        remember("yes");
+        seen(answer.spot);
+        follow();
+        return answer.spot;
+      }
+      const denied = answer.error.code === answer.error.PERMISSION_DENIED;
+      failure = denied ? "denied" : "failed";
+      if (denied) remember("no");
+      return null;
+    })
+    .finally(() => {
+      locating = null;
+    });
+  return locating;
 }
 
 // What the browser will do when asked where it is: answer ("granted"), ask the

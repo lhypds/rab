@@ -1449,6 +1449,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
         // not drop a form with a photograph half sent.
         onClose={busy ? undefined : onClose}
         large
+        // The sheet lays its form out to its full height (see .sheet), so the
+        // buttons at its foot are at the sheet's foot.
+        className={styles.sheet}
       >
         <form className={styles.form} onSubmit={save} autoComplete="off" data-save>
           <div className={styles.columns}>

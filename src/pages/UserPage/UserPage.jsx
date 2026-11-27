@@ -1,16 +1,23 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useListView } from "../../components/ListView.jsx";
+import { ItemCard } from "../../components/Rows/index.js";
 import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
 import { Header, ItemRow, CategoryTabs, MessageModal, Rating, loginPath, useAuth, useCategoryFilter } from "../../components/index.js";
-import { ActionButton, Skeleton, useNavigate } from "../../ui/index.js";
+import { ActionButton, Skeleton, useLocation, useNavigate, useSearchParams } from "../../ui/index.js";
 import { formatDate, formatUsername } from "../../utils/format.js";
+
+// The two things somebody has, in the order they stand down the left of the
+// page: their spots, and their items.
+const TABS = ["stores", "items"];
 
 // Who somebody is: how the people they have dealt with rate them, all the
 // pages they have — their default page, which every account has from the
 // first, and those they made of their items — what they have out for rent,
 // what was said about them, and the way to write to them. A new page is made
-// from the bar's Publish, as a new item is.
+// from the bar's Publish, as a new item is. Laid out as Mine is: what they
+// have down the left, and the one picked on the right.
 export default function UserPage({ username }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -35,6 +42,23 @@ export default function UserPage({ username }) {
       cancelled = true;
     };
   }, [username, t]);
+
+  // The two things of theirs, down the left, and the one of them shown on the
+  // right. Which one is in the address, so a step back from an item's page
+  // lands on the list that was left.
+  const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  const tabWanted = searchParams.get("tab");
+  const tab = TABS.includes(tabWanted) ? tabWanted : TABS[0];
+  const choose = (name) => {
+    const query = new URLSearchParams(searchParams);
+    if (name === TABS[0]) query.delete("tab");
+    else query.set("tab", name);
+    navigate(query.size > 0 ? `${pathname}?${query}` : pathname, { replace: true, scroll: false });
+  };
+  const counts = { stores: data?.stores?.length ?? 0, items: data?.items?.length ?? 0 };
+  const labels = { stores: t("store.title"), items: t("user.items") };
+  const { cards, viewPair } = useListView();
 
   const own = user?.username === data?.user.username;
   const items = (data?.items ?? []).filter((item) => itemsFilter.fits(item.category));
@@ -72,29 +96,53 @@ export default function UserPage({ username }) {
               )}
             </div>
 
-            {/* Their pages on the left, each the way to itself: the default one
-                first — there is always that one — then the rest as they were
-                made. Their items on the right, with what they are narrowed to
-                above them. On a narrow screen the items come after the pages. */}
-            <div className="others-columns">
-              <section>
-                <StoreList stores={data.stores} username={username} />
-              </section>
+            {/* The same two parts as Mine: down the left the things they
+                have — their spots, and their items — and on the right the
+                one picked, as rows or as cards. On a narrow screen the two
+                are a row over it. */}
+            <div className="mine-layout">
+              <nav className="mine-nav" aria-label={formatUsername(data.user.username)}>
+                {TABS.map((name) => (
+                  <button key={name} type="button" className={tab === name ? "mine-nav-item active" : "mine-nav-item"} aria-current={tab === name ? "page" : undefined} onClick={() => choose(name)}>
+                    <span>{labels[name]}</span>
+                    <span className="mine-nav-count">{counts[name]}</span>
+                  </button>
+                ))}
+              </nav>
 
-              <section>
-                <div className="part-heading">
-                  <h2>{t("user.items")}</h2>
-                  <span>{items.length}</span>
-                </div>
-                <CategoryTabs {...itemsFilter} />
-                {items.length === 0 ? (
-                  <p className="empty-state">{t(itemsFilter.everything ? "user.itemsEmpty" : "user.noneShown")}</p>
-                ) : (
-                  <ul className="row-list">
-                    {items.map((item) => (
-                      <ItemRow key={item.id} item={item} />
-                    ))}
-                  </ul>
+              <section className="mine-pane">
+                {/* Their spots, each the way to itself: the default one first
+                    — there is always that one — then the rest as they were
+                    made. */}
+                {tab === "stores" && <StoreList stores={data.stores} username={username} cards={cards} beside={viewPair} />}
+
+                {/* Their items, with what they are narrowed to above them. */}
+                {tab === "items" && (
+                  <>
+                    <div className="part-heading">
+                      <span className="part-head">
+                        <h2>{t("user.items")}</h2>
+                        {viewPair}
+                      </span>
+                      <span>{items.length}</span>
+                    </div>
+                    <CategoryTabs {...itemsFilter} />
+                    {items.length === 0 ? (
+                      <p className="empty-state">{t(itemsFilter.everything ? "user.itemsEmpty" : "user.noneShown")}</p>
+                    ) : cards ? (
+                      <ul className="item-cards">
+                        {items.map((item) => (
+                          <ItemCard key={item.id} item={item} />
+                        ))}
+                      </ul>
+                    ) : (
+                      <ul className="row-list">
+                        {items.map((item) => (
+                          <ItemRow key={item.id} item={item} />
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </section>
             </div>

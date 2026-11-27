@@ -573,6 +573,11 @@ export function writeRequest(userId, request) {
   writeJson(path.join(dir, REQUEST_FILE), request);
 }
 
+// A request's folder under another name — its new id — photographs and all.
+export function moveRequestDir(userId, from, to) {
+  fs.renameSync(requestDir(userId, from), requestDir(userId, to));
+}
+
 // A request's whole folder, gone: the request and its photographs.
 export function removeRequestDir(userId, id) {
   fs.rmSync(requestDir(userId, id), { recursive: true, force: true });

@@ -25,6 +25,9 @@ export const MESSAGES_EVENT = "rab:messages";
 // `detail`), for the map to show it.
 export const NEED_EVENT = "rab:need";
 export const REQUESTED_EVENT = "rab:requested";
+// Told when the wordmark is pressed: the map goes back to showing what is
+// offered (see MapView).
+export const HOME_EVENT = "rab:home";
 
 export default function Header({ back = false, view, onView, query = "", onQuery }) {
   const { t } = useTranslation();
@@ -119,7 +122,18 @@ export default function Header({ back = false, view, onView, query = "", onQuery
               </svg>
             </ActionButton>
           ) : (
-            <Link className="wordmark" to="/">
+            // The way home, and home is everything that is offered: the map
+            // is told to turn back to offers, where it was showing requests,
+            // and what was being searched for is let go of. (The category is
+            // in the address, and "/" is none.)
+            <Link
+              className="wordmark"
+              to="/"
+              onClick={() => {
+                window.dispatchEvent(new Event(HOME_EVENT));
+                (onQuery ?? setWritten)("");
+              }}
+            >
               {/* rab's own mark, as its icon has it: a glass with a plus in
                   it — what is looked for, and what is put out. */}
               <svg className="wordmark-icon" viewBox="0 0 512 512" aria-hidden="true">
@@ -132,13 +146,14 @@ export default function Header({ back = false, view, onView, query = "", onQuery
             </Link>
           )}
         </span>
-        {/* In the middle of the bar, the two things that add to the map rather
-            than read it. "I have", a button, puts something out. "I need" is
-            a box: what is written in it narrows the list on the page that has
-            one, as a search does, and Enter opens the form for asking for it,
-            already saying so. Not on a phone, where the bar is full — there
-            the two are marks among the buttons, and the box that narrows
-            stands over the list (see MapView). */}
+        {/* In the middle of the bar: the two buttons that add to the map
+            rather than read it — "Add", which puts something out, and
+            "Request", which asks for something — and a box that searches:
+            what is written in it narrows the list on the page that has one.
+            The request form opens already saying what is written in the
+            box. Not on a phone, where the bar is full — there the two are
+            marks among the buttons, and the box that narrows stands over the
+            list (see MapView). */}
         <span className="topbar-filter">
           <button type="button" className="topbar-have" onClick={post}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -147,16 +162,10 @@ export default function Header({ back = false, view, onView, query = "", onQuery
             </svg>
             {t("header.have")}
           </button>
-          <FilterBox
-            slash
-            value={onQuery ? query : written}
-            onChange={onQuery ?? setWritten}
-            placeholder={t("header.need")}
-            onEnter={(words) => {
-              need(words);
-              (onQuery ?? setWritten)("");
-            }}
-          />
+          <button type="button" className="topbar-have topbar-ask" onClick={() => need(onQuery ? query : written)}>
+            {t("header.need")}
+          </button>
+          <FilterBox slash value={onQuery ? query : written} onChange={onQuery ?? setWritten} placeholder={t("search.placeholder")} />
         </span>
         <span className="topbar-action-slot">
           {/* On a phone only, where the middle of the bar is put away: "I

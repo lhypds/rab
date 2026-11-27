@@ -1,11 +1,12 @@
 import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
-import { AuthPage, HomePage, ItemPage, MinePage, PreviewPage, UserPage } from "./pages/index.js";
+import { AuthPage, HomePage, ItemPage, MinePage, PreviewPage, RequestPage, UserPage } from "./pages/index.js";
 import { useRef } from "react";
 import { LocationScope, Navigate, useLocation } from "./ui/index.js";
 import { homeFilter, homePath } from "./utils/categories.js";
 
 // One segment after a prefix, decoded, or nothing where the path is not that
-// shape: /i/<id> is an item, /s/<id> a spot and /u/<name> a person.
+// shape: /i/<id> is an item, /s/<id> a spot, /r/<id> a request and /u/<name>
+// a person.
 function segment(pathname, prefix) {
   if (!pathname.startsWith(prefix)) return "";
   const rest = pathname.slice(prefix.length).replace(/\/$/, "");
@@ -58,7 +59,7 @@ function Page() {
 
 // An item's page or a spot's: what the map is kept standing under.
 function isItemPath(pathname) {
-  return Boolean(segment(pathname, "/i/") || segment(pathname, "/s/") || /^\/u\/[^/]+\/p\/[^/]+\/?$/.test(pathname));
+  return Boolean(segment(pathname, "/i/") || segment(pathname, "/s/") || segment(pathname, "/r/") || /^\/u\/[^/]+\/p\/[^/]+\/?$/.test(pathname));
 }
 
 // Whatever is open that is not the map: null on the map itself.
@@ -85,6 +86,11 @@ function otherPage(pathname, user) {
   // item like any other (see server/db.js), at an address of its own.
   const spotId = segment(pathname, "/s/");
   if (spotId) return <ItemPage key={spotId} id={spotId} />;
+
+  // /r/<id> is a request — what somebody needs ("I need"): a page of its own
+  // too, to be sent to whoever might have one.
+  const requestId = segment(pathname, "/r/");
+  if (requestId) return <RequestPage key={requestId} id={requestId} />;
 
   // /u/<name>/p/<id> is where a spot was before: opened, and put right to
   // /s/<id> (see ItemPage).

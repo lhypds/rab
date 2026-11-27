@@ -17,8 +17,8 @@
     "viewMap": "Map",
     "viewList": "List",
     "pinned": "On the map",
-    "have": "I have",
-    "need": "I need"
+    "have": "Add",
+    "need": "Request"
   },
   "auth": {
     "username": "Username",
@@ -106,6 +106,8 @@
       "declined": "Booking declined: {{item}} · {{dates}}",
       "cancelled": "Booking cancelled: {{item}} · {{dates}}",
       "gone": "an item that has been removed",
+      "wanted": "Request: {{item}}",
+      "goneRequest": "a deleted request",
       "cancelRequest": "Cancellation requested: {{item}} · {{dates}}",
       "cancelRefused": "Cancellation refused: {{item}} · {{dates}}",
       "deleteRequest": "Delete request: {{item}}",
@@ -652,6 +654,8 @@
     "storeLabel": "Add to spot"
   },
   "request": {
+    "missing": "This request could not be found.",
+    "edit": "Edit",
     "title": "I need",
     "what": "What are you looking for?",
     "whatPlaceholder": "e.g. A stroller, or help moving house",
@@ -679,7 +683,7 @@
     "saved": "Request posted",
     "titleRequired": "Say what you are looking for.",
     "placeRequired": "Choose a request area, or add a location.",
-    "offer": "Message",
+    "offer": "Contact them",
     "delete": "Delete",
     "deleteConfirm": "Delete this request?",
     "deleted": "Request deleted",

@@ -12,8 +12,10 @@ const FILTERS = ["all", "published"];
 // `carried`: an item being dragged from somewhere else on the screen, which
 // any store takes when it is let go over it (`onDropItem`). With `cards` the
 // stores are cards with their photographs rather than rows; `beside` stands
-// beside the heading.
-export default function StoreList({ stores, username, filterable = false, carried = null, onDropItem, cards = false, beside = null }) {
+// beside the heading. `onPress` is asked, with the store and the press,
+// before a store's row goes to its page, and keeps it from going by calling
+// preventDefault — as an item's row is (see ItemRow).
+export default function StoreList({ stores, username, filterable = false, carried = null, onDropItem, cards = false, beside = null, onPress }) {
   const { t } = useTranslation();
   const [dropOn, setDropOn] = useState(null);
   // Any store takes any item.
@@ -68,7 +70,7 @@ export default function StoreList({ stores, username, filterable = false, carrie
         <ul className="item-cards">
           {shown.map((store) => (
             <li key={store.id} className="item-card">
-              <Link className="item-card-link" to={storePath({ owner: username, id: store.id })} state={{ back: true }}>
+              <Link className="item-card-link" to={storePath({ owner: username, id: store.id })} state={{ back: true }} onClick={onPress && ((event) => onPress(store, event))}>
                 <span className="item-card-photo">{store.thumb && <img src={store.thumb} alt="" loading="lazy" />}</span>
                 <span className="item-card-lines">
                   <strong>{store.title}</strong>
@@ -100,7 +102,7 @@ export default function StoreList({ stores, username, filterable = false, carrie
               }}
             >
               <div className="row">
-                <Link className="row-copy" draggable={false} to={storePath({ owner: username, id: store.id })} state={{ back: true }}>
+                <Link className="row-copy" draggable={false} to={storePath({ owner: username, id: store.id })} state={{ back: true }} onClick={onPress && ((event) => onPress(store, event))}>
                   {store.thumb && <img className="row-thumb" src={store.thumb} alt="" width="40" height="40" loading="lazy" />}
                   <span className="row-lines">
                     <strong>

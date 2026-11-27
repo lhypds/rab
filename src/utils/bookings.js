@@ -25,14 +25,19 @@ export function bookingWhen(booking, locale) {
 // the kind, the item and, for a report, what kind of thing is wrong.
 export const ADMIN_KINDS = ["deleteRequest", "report"];
 
+// And the line at the head of an exchange about a request ("I need"): which
+// request it is about, and the way to its page (/r/<id>).
+export const REQUEST_KIND = "wanted";
+
 // Whether a line is one rab words itself rather than something typed.
 export function isBookingLine(message) {
-  return BOOKING_KINDS.includes(message?.kind) || ADMIN_KINDS.includes(message?.kind);
+  return BOOKING_KINDS.includes(message?.kind) || ADMIN_KINDS.includes(message?.kind) || message?.kind === REQUEST_KIND;
 }
 
 // Where such a line leads, where it is still there: the item's page, or the
 // store reported.
 export function linePath(message) {
+  if (message.kind === REQUEST_KIND) return message.request && !message.request.gone ? `/r/${encodeURIComponent(message.request.id)}` : null;
   const itemId = message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
   if (itemId) return `/i/${itemId}`;
   const store = message.store;
@@ -41,6 +46,9 @@ export function linePath(message) {
 }
 
 export function bookingLine(message, t, locale) {
+  if (message.kind === REQUEST_KIND) {
+    return t("messages.event.wanted", { item: message.request?.title ?? t("messages.event.goneRequest") });
+  }
   if (ADMIN_KINDS.includes(message.kind)) {
     return t(`messages.event.${message.kind}`, {
       item: message.item?.title ?? message.store?.name ?? t("messages.event.gone"),

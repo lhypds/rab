@@ -102,6 +102,9 @@ const {
   getUserById,
   answeredBy,
   getRequest,
+  getRequestHeld,
+  requestIdNow,
+  saidOfRequest,
   getRequests,
   getRequestsByUser,
   requestImageNames,
@@ -1857,7 +1860,9 @@ app.get("/api/messages", requireSession, (req, res) => {
 function messageTarget(req, res) {
   const handle = normalizeUsername(req.params.username);
   const cut = handle.indexOf("~");
-  const via = cut === -1 ? null : handle.slice(cut + 1);
+  // By the request's id as it is now: one addressed by an id from before ids
+  // were times is the same exchange.
+  const via = cut === -1 ? null : requestIdNow(handle.slice(cut + 1));
   const name = cut === -1 ? handle : handle.slice(0, cut);
   let target = null;
   if (via === null) {
@@ -1907,7 +1912,15 @@ app.post("/api/messages/:username", requireSession, (req, res) => {
   if (body.length > MESSAGE_MAX) {
     return res.status(400).json({ error: `A message is at most ${MESSAGE_MAX} characters` });
   }
-  res.status(201).json({ message: createMessage(req.user.id, target.id, body, { via, anonId }) });
+  // Written from a request — its page, or its sheet over the map — to whoever
+  // asked: the exchange first says which request, as a line that leads to its
+  // page, once, ahead of what is said about it.
+  const about = req.body?.requestId ? getRequestHeld(String(req.body.requestId)) : null;
+  const before =
+    about && about.ownerId === target.id && !saidOfRequest(req.user.id, target.id, via, about.id)
+      ? createMessage(req.user.id, target.id, "", { kind: "wanted", requestId: about.id, via, anonId })
+      : null;
+  res.status(201).json({ before, message: createMessage(req.user.id, target.id, body, { via, anonId }) });
 });
 
 app.delete("/api/messages/:username", requireSession, (req, res) => {
@@ -2234,7 +2247,7 @@ const escapeHtml = (value) =>
 // page's head rather than running it. So the one page with something to say
 // about itself is served with it already said: the item's name, its price and
 // its first photograph.
-function sharePage(html, req, item) {
+function sharePage(html, req, item, at = null) {
   const origin = `${req.protocol}://${req.get("host")}`;
   const title = `${item.title} — rab`;
   const price = item.price == null ? "" : `${item.price} ${item.currency}`;
@@ -2249,7 +2262,7 @@ function sharePage(html, req, item) {
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    `<meta property="og:url" content="${escapeHtml(`${origin}/${item.store ? "s" : "i"}/${item.id}`)}" />`,
+    `<meta property="og:url" content="${escapeHtml(`${origin}${at ?? `/${item.store ? "s" : "i"}/${item.id}`}`)}" />`,
     item.images[0] ? `<meta property="og:image" content="${escapeHtml(origin + item.images[0].src)}" />` : "",
     `<meta name="twitter:card" content="${item.images[0] ? "summary_large_image" : "summary"}" />`,
   ];
@@ -2265,10 +2278,19 @@ if (isProduction) {
     // or at its owner's /u/<name>/p/<id>, where it was before.
     const shared = /^\/[is]\/([a-z0-9]{1,32})\/?$/.exec(req.path) ?? /^\/u\/[^/]+\/p\/([a-z0-9]{1,32})\/?$/i.exec(req.path);
     const item = shared ? getItem(shared[1]) : null;
-    if (!item) return res.sendFile(indexPath);
+    // A request at /r/<id> says of itself what an item does: what is wanted,
+    // what would be paid for it and where — except one only an adult may see.
+    const asked = /^\/r\/([a-z0-9]{1,32})\/?$/.exec(req.path);
+    const wanted = asked ? getRequest(asked[1]) : null;
+    const said = item
+      ? [item, null]
+      : wanted && !isAdultCategory(wanted.category)
+        ? [{ ...wanted, price: wanted.budget ?? null, images: wanted.images ?? [] }, `/r/${wanted.id}`]
+        : null;
+    if (!said) return res.sendFile(indexPath);
     fs.readFile(indexPath, "utf8", (error, html) => {
       if (error) return next(error);
-      res.type("html").send(sharePage(html, req, item));
+      res.type("html").send(sharePage(html, req, ...said));
     });
   });
 } else {

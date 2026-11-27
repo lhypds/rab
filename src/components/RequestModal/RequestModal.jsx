@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { ActionButton, Checkbox, Modal, Select, TextArea, hideToast, showToast, useNavigate } from "../../ui/index.js";
-import { CURRENCIES, barePhone, currencyDigits, defaultCurrency, requestLine } from "../../utils/format.js";
-import { contactHref, dialCodeOf } from "../../utils/dialing.js";
+import { ActionButton, Checkbox, Modal, Select, TextArea, hideToast, showToast } from "../../ui/index.js";
+import { CURRENCIES, currencyDigits, defaultCurrency } from "../../utils/format.js";
+import { dialCodeOf } from "../../utils/dialing.js";
 import { uploadPhoto } from "../../utils/image.js";
 import { DEFAULT_VIEW, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, savedView } from "../../utils/mapbox.js";
 import { currentRegion, useRegion } from "../../utils/region.js";
-import { isAdmin } from "../../utils/admin.js";
-import { loginPath, useAuth } from "../AuthProvider/index.js";
+import { requestPath } from "../../utils/stores.js";
+import { useAuth } from "../AuthProvider/index.js";
 import { categoriesOf } from "../CategoryFilter/index.js";
 import ContactFields, { contactLines, keptContacts, noContacts } from "../ContactFields/index.js";
 import { AreaField } from "../ItemModal/index.js";
 import LocationField from "../LocationField/index.js";
-import MessageModal from "../MessageModal/index.js";
-import UserName from "../UserName/index.js";
+import preview from "../ItemPreview/preview.module.css";
+import RequestPageView from "./RequestPageView.jsx";
 import styles from "./request.module.css";
 
 const TITLE_MAX = 80;
@@ -411,20 +411,18 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
           <span className={styles.hint}>{t("request.regionHint")}</span>
         </div>
 
-        <div className="field">
-          <span className="field-label">{t("request.where")}</span>
-          <LocationField
-            key={opening}
-            value={fields}
-            onChange={(patch) => {
-              setFields((current) => ({ ...current, ...patch }));
-              setError("");
-            }}
-            locations={locations}
-            onSaved={(location) => setLocations((current) => [...current.filter((each) => each.id !== location.id), location])}
-            onError={setError}
-          />
-        </div>
+        <LocationField
+          key={opening}
+          label={t("request.where")}
+          value={fields}
+          onChange={(patch) => {
+            setFields((current) => ({ ...current, ...patch }));
+            setError("");
+          }}
+          locations={locations}
+          onSaved={(location) => setLocations((current) => [...current.filter((each) => each.id !== location.id), location])}
+          onError={setError}
+        />
 
         <ContactFields contacts={fields.contacts} saved={ownContacts} onChange={(next) => set("contacts", next)}>
           <span className={styles.hint}>{t("request.contactHint")}</span>
@@ -455,113 +453,33 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
   );
 }
 
-// A request read on a sheet over the map: what is wanted, what its maker would
-// pay and when, where, and how to reach them — a message here, or whatever
-// way they gave. Its maker, or the admin, may take it down.
-export function RequestView({ request, onClose, onGone }) {
-  const { t, i18n } = useTranslation();
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [messaging, setMessaging] = useState(false);
-  const [busy, setBusy] = useState(false);
+// A request read without leaving the map or the list it was picked from: its
+// page, on a sheet — as large a one as an item's is read on (see
+// ItemPreview), since a request may have photographs and a good deal written
+// too. The way to the page itself is in the sheet's bar.
+export function RequestView({ request, onClose, onGone, onEdit }) {
+  const { t } = useTranslation();
   if (!request) return null;
-  // Its maker is told so by the server: an anonymous one has no name to tell by.
-  const mine = request.mine ?? user?.username === request.owner;
-
-  async function remove() {
-    if (busy || !window.confirm(t("request.deleteConfirm"))) return;
-    setBusy(true);
-    try {
-      await api.deleteRequest(request.id);
-      showToast(t("request.deleted"), 2000);
-      onGone?.(request.id);
-    } catch (requestError) {
-      showToast(requestError.message, 3000);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <>
-      <Modal isOpen title={request.title} onClose={onClose} closeOnOverlay>
-        <div className={styles.view}>
-          {request.images?.length > 0 && (
-            <div className={styles.shots}>
-              {request.images.map((image) => (
-                <a key={image.src} href={image.src} target="_blank" rel="noopener">
-                  <img src={image.thumb} alt="" loading="lazy" />
-                </a>
-              ))}
-            </div>
-          )}
-          <p className={styles.line}>{requestLine(request, i18n.language, t)}</p>
-          <p className={styles.meta}>
-            {[request.category && request.category !== "other" && t(`category.${request.category}`, request.category), request.place, request.region?.name]
-              .filter(Boolean)
-              .join(" · ")}
-            {request.owner && (
-              <>
-                {" · "}
-                <UserName name={request.owner} />
-              </>
-            )}
-            {request.anonymous && ` · ${t("request.anonymousName")}`}
-          </p>
-          {request.description && <p className={styles.description}>{request.description}</p>}
-          {request.contacts?.length > 0 && (
-            <dl className={styles.contacts}>
-              {request.contacts.map((contact, index) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <div key={index}>
-                  <dt>{t(`item.contactTypes.${contact.type}`)}</dt>
-                  <dd>
-                    {contact.type === "message" ? (
-                      // Pressed to write one, by whoever is reading. To its
-                      // maker it is only words: nobody writes to themselves.
-                      mine ? (
-                        t("item.contactMessageNote")
-                      ) : (
-                        <button type="button" className={styles.contactWrite} onClick={() => (user ? setMessaging(true) : navigate(loginPath()))}>
-                          {t("item.contactMessageNote")}
-                        </button>
-                      )
-                    ) : contact.type === "phone" ? (
-                      <a href={contactHref(contact)}>
-                        {contact.code ? `${contact.code} ` : ""}
-                        {barePhone(contact.value)}
-                      </a>
-                    ) : contactHref(contact) ? (
-                      <a href={contactHref(contact, request.title)}>{contact.value}</a>
-                    ) : (
-                      contact.value
-                    )}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
-        <div className="modal-actions">
-          {(mine || isAdmin(user)) && (
-            <button type="button" className="outline-button" onClick={remove} disabled={busy}>
-              {t("request.delete")}
-            </button>
-          )}
-          {!mine && (request.owner || request.anonymous) && (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => (user ? setMessaging(true) : navigate(loginPath()))}
-            >
-              {t("request.offer")}
-            </button>
-          )}
-        </div>
-      </Modal>
-      {/* One asked without a name is written to by way of the request, so
-          its maker is not named. */}
-      {messaging && <MessageModal username={request.anonymous ? `~${request.id}` : request.owner} onClose={() => setMessaging(false)} onNavigate={onClose} />}
-    </>
+    <Modal
+      isOpen
+      title={request.title}
+      onClose={onClose}
+      closeOnOverlay
+      large
+      className={preview.sheet}
+      header={
+        <a className={preview.open} href={requestPath(request)} target="_blank" rel="noopener">
+          {t("map.open")}
+          <span aria-hidden="true"> ↗</span>
+        </a>
+      }
+    >
+      {/* As wide as the request's own page is and no wider, in the middle of
+          the sheet. */}
+      <div className={preview.page}>
+        <RequestPageView request={request} onGone={onGone} onEdit={onEdit} onLeave={onClose} />
+      </div>
+    </Modal>
   );
 }

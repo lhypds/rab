@@ -567,9 +567,13 @@
 }
 
 /* Offers or requests: two words in one ruled box, the one shown filled. */
+/* The two halves are as wide as each other — as wide as the longer word —
+   whatever the language says in them. */
 .kinds {
   flex: none;
-  display: inline-flex;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   height: 22px;
   border: 1px solid var(--ink);
   background: var(--paper);
@@ -757,6 +761,14 @@
    button, so it is stripped down to what the links beside it are. */
 .cardEdit {
   margin-left: auto;
+  padding: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: none;
+}
+
+/* A button among the links, where it stands: stripped down the same way. */
+.cardButton {
   padding: 0;
   border-width: 0 0 1px;
   border-radius: 0;
