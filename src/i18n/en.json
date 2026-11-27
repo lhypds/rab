@@ -1,5 +1,6 @@
 {
   "common": {
+    "clear": "Clear",
     "loading": "Loading",
     "cancel": "Cancel",
     "save": "Save"

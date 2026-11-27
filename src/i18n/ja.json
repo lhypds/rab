@@ -1,5 +1,6 @@
 {
   "common": {
+    "clear": "クリア",
     "loading": "読み込み中",
     "cancel": "キャンセル",
     "save": "保存"

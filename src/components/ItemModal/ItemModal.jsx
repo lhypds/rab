@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { ActionButton, Checkbox, Modal, Select, TextArea, showToast } from "../../ui/index.js";
+import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
 import { CURRENCIES, compactPrice, currencyDigits, durationName, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
@@ -17,7 +17,7 @@ import { currentRegion, loadRegion, useRegion } from "../../utils/region.js";
 import { useAuth } from "../AuthProvider/index.js";
 import Calendar from "../Calendar/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
-import ContactFields, { contactLines, keptContacts, noContacts } from "../ContactFields/index.js";
+import ContactFields, { FollowContacts, contactLines, keptContacts, noContacts } from "../ContactFields/index.js";
 import LocationField, { PLACE_MAX } from "../LocationField/index.js";
 import { WeekHours } from "../TimeTable/index.js";
 import styles from "./item.module.css";
@@ -2504,40 +2504,20 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   are shown — as they are on its sheet, to be changed there —
                   and the item writes none of its own. */}
               {!fields.shared && (
-                <div className="field">
-                  <span className="field-label">{t("item.contact")}</span>
-                  <Checkbox
-                    className={styles.follow}
-                    checked={fields.followContacts}
-                    onChange={(on) => {
-                      setError("");
-                      setFields((current) => ({
-                        ...current,
-                        followContacts: on,
-                        // Unticked, it starts from the account's own, there to
-                        // be written over.
-                        contacts: !on && !contactsTouched.current && ownContacts.length > 0 ? ownContacts.map((line) => ({ ...line })) : current.contacts,
-                      }));
-                    }}
-                  >
-                    <span>{t("item.contactFollow")}</span>
-                  </Checkbox>
-                  {following && (
-                    <>
-                      <ul className={styles.followed}>
-                        {ownContacts.map((line, index) => (
-                          <li key={index}>
-                            <span>{t(`item.contactNth.${index}`)}</span>
-                            {line.type === "message"
-                              ? t("item.contactTypes.message")
-                              : `${t(`item.contactTypes.${line.type}`)} · ${line.type === "phone" ? `${line.code ?? ""} ${line.value}`.trim() : line.value}`}
-                          </li>
-                        ))}
-                      </ul>
-                      <span className={styles.hint}>{t("item.contactFollowHint")}</span>
-                    </>
-                  )}
-                </div>
+                <FollowContacts
+                  checked={fields.followContacts}
+                  own={ownContacts}
+                  onChange={(on) => {
+                    setError("");
+                    setFields((current) => ({
+                      ...current,
+                      followContacts: on,
+                      // Unticked, it starts from the account's own, there to
+                      // be written over.
+                      contacts: !on && !contactsTouched.current && ownContacts.length > 0 ? ownContacts.map((line) => ({ ...line })) : current.contacts,
+                    }));
+                  }}
+                />
               )}
               {!following && (
                 <ContactFields

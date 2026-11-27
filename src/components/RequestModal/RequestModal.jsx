@@ -10,7 +10,8 @@ import { currentRegion, useRegion } from "../../utils/region.js";
 import { requestPath } from "../../utils/spots.js";
 import { useAuth } from "../AuthProvider/index.js";
 import { categoriesOf } from "../CategoryFilter/index.js";
-import ContactFields, { contactLines, keptContacts, noContacts } from "../ContactFields/index.js";
+import DateField from "../DateField/index.js";
+import ContactFields, { FollowContacts, contactLines, keptContacts, noContacts } from "../ContactFields/index.js";
 import { AreaField } from "../ItemModal/index.js";
 import LocationField from "../LocationField/index.js";
 import preview from "../ItemPreview/preview.module.css";
@@ -41,6 +42,9 @@ function startingFields(contacts) {
     anonymous: false,
     region: null,
     images: [],
+    // Reached the way the account is, to start with: the tick over the
+    // contacts (see FollowContacts).
+    followContacts: true,
     contacts: contacts.length > 0 ? contacts : noContacts(),
   };
 }
@@ -64,6 +68,7 @@ function fieldsOf(request) {
     anonymous: Boolean(request.anonymous),
     region: request.region ?? null,
     images: request.images ?? [],
+    followContacts: request.followContacts === true,
     contacts: request.contacts?.length > 0 ? contactLines(request.contacts) : noContacts(),
   };
 }
@@ -211,7 +216,7 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
     if (!fields.title.trim()) return setError(t("request.titleRequired"));
     // With no spot on the map, the area is what it is found by.
     if (!fields.located && !fields.region) return setError(t("request.placeRequired"));
-    if (contacts.length === 0) return setError(t("item.contactRequired"));
+    if (!fields.followContacts && contacts.length === 0) return setError(t("item.contactRequired"));
     setBusy(true);
     setError("");
     try {
@@ -230,6 +235,7 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
         region: fields.region,
         images: fields.images,
         contacts,
+        followContacts: fields.followContacts,
       };
       const { request } = await (editing ? api.updateRequest(editing.id, wanted) : api.createRequest(wanted));
       showToast(t(editing ? "request.updated" : "request.saved"), 2000);
@@ -352,22 +358,15 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
         <div className="field">
           <span className="field-label">{t("request.when")}</span>
           <div className={styles.row}>
-            <input
-              className="text-input"
-              type="date"
-              value={fields.start}
-              min={earliest}
-              onChange={(event) => set("start", event.target.value)}
-              aria-label={t("request.from")}
-            />
+            {/* The app's own month page, not the browser's date picker. */}
+            <DateField value={fields.start} min={earliest} onChange={(day) => set("start", day)} label={t("request.from")} placeholder={t("request.from")} />
             <span className={styles.dash}>–</span>
-            <input
-              className="text-input"
-              type="date"
+            <DateField
               value={fields.end}
               min={fields.start || earliest}
-              onChange={(event) => set("end", event.target.value)}
-              aria-label={t("request.until")}
+              onChange={(day) => set("end", day)}
+              label={t("request.until")}
+              placeholder={t("request.until")}
             />
           </div>
           <span className={styles.hint}>{t("request.whenHint")}</span>
@@ -424,9 +423,14 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
           onError={setError}
         />
 
-        <ContactFields contacts={fields.contacts} saved={ownContacts} onChange={(next) => set("contacts", next)}>
-          <span className={styles.hint}>{t("request.contactHint")}</span>
-        </ContactFields>
+        {/* Reached the way the account is, unless unticked: then the ways
+            are written here, for this request alone. */}
+        <FollowContacts checked={fields.followContacts} own={ownContacts} onChange={(on) => set("followContacts", on)} />
+        {!fields.followContacts && (
+          <ContactFields contacts={fields.contacts} saved={ownContacts} onChange={(next) => set("contacts", next)}>
+            <span className={styles.hint}>{t("request.contactHint")}</span>
+          </ContactFields>
+        )}
 
         {/* Without a name: nobody else is told whose request it is, in the
             messages written about it either. */}

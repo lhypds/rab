@@ -1800,8 +1800,11 @@ function parseRequest(body) {
   const images = parseImages(body?.images ?? []);
   if (!images || images.length > REQUEST_IMAGES_MAX) return { error: "Those photos could not be used", code: "IMAGES_INVALID" };
   const anonymous = body?.anonymous === true;
-  const contacts = readContacts(body?.contacts);
-  if (contacts.length === 0) return { error: "Say how you can be contacted", code: "CONTACT_REQUIRED" };
+  // Reached the way its account is — the tick in its form — it writes no
+  // ways of its own: the account's, as they are, are what it shows.
+  const followContacts = body?.followContacts === true;
+  const contacts = followContacts ? [] : readContacts(body?.contacts);
+  if (!followContacts && contacts.length === 0) return { error: "Say how you can be contacted", code: "CONTACT_REQUIRED" };
   return {
     request: {
       title,
@@ -1820,6 +1823,7 @@ function parseRequest(body) {
       end,
       budget,
       currency,
+      followContacts,
       contacts,
     },
   };

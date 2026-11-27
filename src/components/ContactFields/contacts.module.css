@@ -87,3 +87,41 @@
   color: var(--line);
   cursor: default;
 }
+
+/* The tick that has a thing follow its account's contacts: its words at the
+   size of the form's own. */
+.follow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+/* The account's own contacts, shown under the tick: which each is — the
+   primary, the secondary — and what it is. Not to be written in here: they
+   are the account's, changed on its own sheet. */
+.followed {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  font-size: 12px;
+}
+
+.followed li {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.followed li > span {
+  flex: none;
+  color: var(--muted);
+}
+
+.followHint {
+  color: var(--muted);
+  font-size: 12px;
+}

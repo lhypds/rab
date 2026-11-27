@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Select } from "../../ui/index.js";
 import { dialCodeOf, dialCodes, splitDialCode } from "../../utils/dialing.js";
 import { useRegion } from "../../utils/region.js";
+import { Checkbox } from "../../ui/index.js";
 import styles from "./contacts.module.css";
 
 // The ways somebody is reached, as a form writes them — an item's, a page's.
@@ -247,6 +248,38 @@ export default function ContactFields({ contacts, onChange, saved = [], noMessag
         />
       )}
       {children}
+    </div>
+  );
+}
+
+// The tick over a form's contacts that has the thing — an item, a request —
+// reached the way its account is: ticked, the account's own contacts (`own`,
+// as lines) are shown under it, as they are on the account's sheet and to be
+// changed there, and the form writes none of its own. Unticked, the fields
+// for its own stand under it instead (see ContactFields).
+export function FollowContacts({ checked, onChange, own }) {
+  const { t } = useTranslation();
+  return (
+    <div className="field">
+      <span className="field-label">{t("item.contact")}</span>
+      <Checkbox className={styles.follow} checked={checked} onChange={onChange}>
+        <span>{t("item.contactFollow")}</span>
+      </Checkbox>
+      {checked && (
+        <>
+          <ul className={styles.followed}>
+            {own.map((line, index) => (
+              <li key={index}>
+                <span>{t(`item.contactNth.${index}`)}</span>
+                {line.type === "message"
+                  ? t("item.contactTypes.message")
+                  : `${t(`item.contactTypes.${line.type}`)} · ${line.type === "phone" ? `${line.code ?? ""} ${line.value}`.trim() : line.value}`}
+              </li>
+            ))}
+          </ul>
+          <span className={styles.followHint}>{t("item.contactFollowHint")}</span>
+        </>
+      )}
     </div>
   );
 }

@@ -2026,6 +2026,10 @@ function servedRequest(request) {
   }));
   return {
     ...rest,
+    // One that follows its account's contacts says the account's, as they
+    // are now.
+    followContacts: request.followContacts === true,
+    contacts: request.followContacts === true ? getContacts(ownerId) : (request.contacts ?? []),
     images,
     thumb: images[0]?.thumb ?? null,
     pin: images[0] ? `${images[0].thumb}/pin` : null,
