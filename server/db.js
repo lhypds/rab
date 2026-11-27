@@ -783,8 +783,9 @@ export function getItemsInBox({ south, north, west, east }, limit = 4000) {
 // being looked at, whatever area they say, which is what lists an item from
 // before areas were asked for. `box` is the area being looked at, as { south,
 // north, west, east }, where it is known; without one only the items' own
-// areas decide.
-export function getItemsAt(latitude, longitude, box = null, limit = 4000) {
+// areas decide. All of them, however many: the page draws the list a part at
+// a time, and what it counts and narrows is the whole.
+export function getItemsAt(latitude, longitude, box = null) {
   return listedItems()
     .filter((item) => {
       for (const region of [item.region, ...(item.moreRegions ?? [])]) {
@@ -800,7 +801,6 @@ export function getItemsAt(latitude, longitude, box = null, limit = 4000) {
           between(item.longitude, box.west, box.east),
       );
     })
-    .slice(0, limit)
     .map(servedItem);
 }
 

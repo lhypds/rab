@@ -44,6 +44,10 @@ const DEFAULT_ZOOM = 13;
 // How long the map has to have stopped moving before the items in its window
 // are asked for, so a drag is one request rather than one per frame of it.
 const SETTLE_MS = 250;
+// The rows of a list drawn at a time, and how near its last drawn row the keys
+// or the wheel come before more are drawn (see drawn).
+const ROWS_STEP = 200;
+const ROWS_NEAR = 40;
 
 // How much ground past the window is asked for with it, as a share of the
 // window's own width and height on each side: half a window all round, so a
@@ -509,6 +513,45 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     // `passes` and `filtering` are derived afresh each render from these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offered, found, sought, category, query, t]);
+  // As lists, the item whose row was picked last — by the keys, the wheel or
+  // a first press — which a second press opens. Kept aside rather than in
+  // state: picking is done a row to every notch of the wheel, and drawing all
+  // the thousands of rows again for each would make the wheel stutter. The
+  // row picked has the keyboard, and is marked by that (see :focus-within).
+  const tileChosen = useRef(null);
+  // Of those listed, the rows drawn so far: an area can have tens of
+  // thousands, and drawing them all at once is what keeps the page waiting.
+  // The first few hundred are drawn at once, and more as the list is scrolled
+  // — or stepped through with the keys or the wheel — towards its end.
+  // Counted and narrowed is still the whole of it. A list worked out afresh
+  // starts over — drawn as far as the row picked in it, where that is still
+  // listed, for it to be picked again (see firstChosenId).
+  const [drawn, setDrawn] = useState(ROWS_STEP);
+  const [drawnOf, setDrawnOf] = useState(listed);
+  if (drawnOf !== listed) {
+    setDrawnOf(listed);
+    const at = listed?.findIndex((item) => item.id === tileChosen.current) ?? -1;
+    setDrawn(Math.max(ROWS_STEP, at + ROWS_NEAR + ROWS_STEP));
+  }
+  const drawnRows = useMemo(() => listed?.slice(0, drawn), [listed, drawn]);
+  // Drawn at least as far as the row at `at`, and a step beyond it. Nothing
+  // asked of React otherwise: the wheel picks a row every notch, and each ask
+  // has the page drawn again.
+  const drawTo = (at) => {
+    if (at + ROWS_NEAR < drawn) return;
+    setDrawn((now) => (at + ROWS_NEAR >= now ? at + ROWS_NEAR + ROWS_STEP : now));
+  };
+  // More rows wherever the list scrolled is within two of its frames of the
+  // last row drawn: down beside the map, sideways as columns.
+  const drawMore = (scroller, sideways) => {
+    if (!scroller || !listed || drawn >= listed.length) return;
+    const frame = sideways ? scroller.clientWidth : scroller.clientHeight;
+    if (!frame) return;
+    const left = sideways
+      ? scroller.scrollWidth - scroller.scrollLeft - frame
+      : scroller.scrollHeight - scroller.scrollTop - frame;
+    if (left < frame * 2) setDrawn((now) => now + ROWS_STEP);
+  };
   // The one whose bubble is up: the pin that was pressed. Resting the pointer
   // on a pin only lights it; the bubble waits for a press.
   const open = shown.find((item) => item.id === selectedId) ?? null;
@@ -880,12 +923,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // data-keyed in the styles) until the pointer is moved again. Beside the
   // map the row picked is the item chosen on it as well: the map goes to its
   // pin and puts its bubble up, or puts the bubble away for one with no pin.
-  // As lists, the item whose row was picked last — by the keys, the wheel or
-  // a first press — which a second press opens. Kept aside rather than in
-  // state: picking is done a row to every notch of the wheel, and drawing all
-  // the thousands of rows again for each would make the wheel stutter. The
-  // row picked has the keyboard, and is marked by that (see :focus-within).
-  const tileChosen = useRef(null);
 
   // The columns drawn sideways until `row` stands whole inside the frame,
   // a little of the way left to go at every frame. Asked again before they
@@ -948,11 +985,13 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     const list = tileRows.current;
     if (!list?.firstElementChild) return;
     const fresh = laidOut.current !== list;
-    laidOut.current = list;
     let at = listed.findIndex((item) => item.id === tileChosen.current);
     if (at >= 0 && !fresh) return;
     if (at < 0) at = 0;
+    // Drawn already, as far as the row picked (see drawn).
     const row = list.children[at];
+    if (!row) return;
+    laidOut.current = list;
     tileChosen.current = listed[at].id;
     const held = document.activeElement;
     const typing = held instanceof HTMLElement && (held.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(held.tagName));
@@ -966,6 +1005,8 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   }, [listing, listed, switching, fetching]);
   const pick = (list, row) => {
     if (!row) return;
+    // Near the last row drawn, more are drawn, for the next step to go to.
+    drawTo([...list.children].indexOf(row));
     // Marked only when it is not already: the mark changes how every one of
     // the thousands of rows is drawn, and setting it again, though to the
     // same, has them all looked over again — a stutter at every notch.
@@ -1448,16 +1489,31 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // not with it: a pin pressed puts its bubble up at once, and the list
   // catches up behind it.
   const listChosenId = useDeferredValue(selectedId);
+  // A pin chosen whose row is further on than the list is drawn: drawn to it,
+  // for the row to be marked.
+  useEffect(() => {
+    if (!listChosenId || !listed) return;
+    const at = listed.findIndex((item) => item.id === listChosenId);
+    if (at >= 0) drawTo(at);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listChosenId, listed]);
+  // More rows while the list showing does not yet reach two of its frames past
+  // what is in view — on a tall or wide screen the first few hundred may not.
+  const sideScroller = useRef(null);
+  useEffect(() => {
+    if (listing) drawMore(tileRows.current, true);
+    else drawMore(sideScroller.current, false);
+  });
   const sideList = useMemo(
     () =>
-      listed?.length > 0 && (
+      drawnRows?.length > 0 && (
         <ul
           ref={sideRows}
           className="row-list"
           onKeyDown={(event) => latest.current.rowKeys(event)}
           onMouseMove={(event) => latest.current.unkey(event)}
         >
-          {listed.map((item) => (
+          {drawnRows.map((item) => (
             <SideRow
               key={item.id}
               item={item}
@@ -1469,7 +1525,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
           ))}
         </ul>
       ),
-    [listed, listChosenId],
+    [drawnRows, listChosenId],
   );
 
   if (!MAPBOX_TOKEN) {
@@ -1579,7 +1635,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             ))}
           </ul>
         )}
-        <div className={styles.sideList} hidden={listing}>
+        <div ref={sideScroller} className={styles.sideList} hidden={listing} onScroll={(event) => drawMore(event.currentTarget, false)}>
           {/* A search that found nothing says so. An area with nothing in
               it says so too, and asks for the first thing: the way to put
               one out, here where it is missing. */}
@@ -1616,8 +1672,9 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             className={`row-list ${styles.tiles}`}
             onKeyDown={rowKeys}
             onMouseMove={unkey}
+            onScroll={(event) => drawMore(event.currentTarget, true)}
           >
-            {listed.map((item) => (
+            {drawnRows.map((item) => (
               <ItemRow
                 key={item.id}
                 item={item}
