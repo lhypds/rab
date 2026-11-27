@@ -256,6 +256,113 @@ export function readItem(userId, folder) {
   return { ...item, id: folder, ...(translations && { translations }) };
 }
 
+// An account's items as they were read the last time the server started, in
+// one file under data/cache/items/: reading tens of thousands of item.json
+// files one after another is what a start waits on (minutes, where the disk
+// is slow and nothing of it is in memory yet), and one file is read in a
+// moment. Each line is a folder, when the folder was last changed, and the
+// item read from it then; a folder that says the same time now is not read
+// again. Everything that writes an item — here, and the crawlers — writes a
+// file beside it and moves it into place, which changes the folder's time. An
+// item.json changed in place by hand does not: take the file under
+// data/cache/items/ away (or all of them) and the folders are read again.
+const SNAPSHOT_VERSION = 1;
+// An account with fewer items than this is read from its folders each time.
+const SNAPSHOT_MIN = 500;
+// A folder changed this short a while ago may be changed again within what
+// its clock can tell apart: it is read again the next time round.
+const SNAPSHOT_SETTLED_MS = 5000;
+
+const snapshotFile = (userId) => path.join(dataDir, "cache", "items", `${path.basename(userDir(userId))}.jsonl`);
+
+function readSnapshot(file) {
+  const kept = new Map();
+  let bytes;
+  try {
+    bytes = fs.readFileSync(file);
+  } catch {
+    return kept;
+  }
+  try {
+    let at = bytes.indexOf(10);
+    if (at === -1 || JSON.parse(bytes.toString("utf8", 0, at)).version !== SNAPSHOT_VERSION) return kept;
+    // A line at a time, so that the file is never held twice over as text.
+    for (let from = at + 1; from < bytes.length; from = at + 1) {
+      at = bytes.indexOf(10, from);
+      // A last line without its end is one half written: left out.
+      if (at === -1) break;
+      const [folder, changed, item] = JSON.parse(bytes.toString("utf8", from, at));
+      kept.set(folder, { changed, item });
+    }
+  } catch {
+    // What could be read of it stands; the rest is read from the folders.
+  }
+  return kept;
+}
+
+function writeSnapshot(file, lines) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const partial = `${file}.${process.pid}.tmp`;
+  const out = fs.openSync(partial, "w");
+  try {
+    fs.writeSync(out, `${JSON.stringify({ version: SNAPSHOT_VERSION })}\n`);
+    // Written a few hundred lines at a time, not as one text.
+    for (let from = 0; from < lines.length; from += 500) fs.writeSync(out, lines.slice(from, from + 500).join(""));
+  } finally {
+    fs.closeSync(out);
+  }
+  fs.renameSync(partial, file);
+}
+
+// The items in an account's items/, each read from its folder unless the
+// folder is as it was when it was read last (see above).
+function readItemsKept(userId) {
+  const folders = itemFolders(userId);
+  const items = [];
+  if (folders.length < SNAPSHOT_MIN) {
+    for (const folder of folders) {
+      const item = readItem(userId, folder);
+      if (item) items.push(item);
+    }
+    return items;
+  }
+  const file = snapshotFile(userId);
+  const kept = readSnapshot(file);
+  const settled = Date.now() - SNAPSHOT_SETTLED_MS;
+  const lines = [];
+  let same = kept.size;
+  for (const folder of folders) {
+    let changed;
+    try {
+      changed = fs.statSync(itemDir(userId, folder)).mtimeMs;
+    } catch {
+      continue;
+    }
+    const was = kept.get(folder);
+    let item;
+    if (was && was.changed === changed) {
+      item = was.item;
+      same -= 1;
+    } else {
+      item = readItem(userId, folder);
+      same = -1;
+    }
+    if (!item) continue;
+    items.push(item);
+    if (changed < settled) lines.push(`${JSON.stringify([folder, changed, item])}\n`);
+  }
+  // Written again only where a folder was read, or one kept is gone. Never
+  // a reason for the server not to start.
+  if (same !== 0) {
+    try {
+      writeSnapshot(file, lines);
+    } catch (error) {
+      console.warn(`rab: ${file} was not written: ${error.message}`);
+    }
+  }
+  return items;
+}
+
 // Every item an account has. A folder with no item.json in it is not an item
 // and is passed over; one that cannot be read is an error, as with a list.
 // The account's spots among them: each an item like any other, kept in its
@@ -263,11 +370,7 @@ export function readItem(userId, folder) {
 // ones it has deleted, under deleted/ — each with when it was deleted, which
 // one put there by hand without it is taken to be when it was last changed.
 export function readItems(userId) {
-  const items = [];
-  for (const folder of itemFolders(userId)) {
-    const item = readItem(userId, folder);
-    if (item) items.push(item);
-  }
+  const items = readItemsKept(userId);
   for (const folder of spotFolders(userId)) {
     const spot = readSpot(userId, folder);
     if (spot && isItemSpot(spot)) items.push({ ...spot, spot: true });

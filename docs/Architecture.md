@@ -50,3 +50,10 @@ in it changes, so one server process owns them; a file edited by hand is picked 
 the next start. A `db.sqlite` from before the folders is moved into them the first
 time the server starts, and a copy of it as it was is left at
 `db.sqlite.before-folders`. All of it is ignored by git.
+
+An account with hundreds of items or more is not read a folder at a time at each start:
+what was read is kept in `data/cache/items/<username>.jsonl`, and a folder is read again
+only where it has changed since (its own time of last change, which every write the
+server and the crawlers make moves). An `item.json` edited in place by hand does not move
+it: delete the `.jsonl` file and the next start reads every folder again. And the items'
+one-time migrations (ids, WebP) are done once and noted in `data/.items-migrated`.
