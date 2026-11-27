@@ -292,6 +292,13 @@
     },
     "saleRequired": "譲渡・販売・買い取り価格を入力してください。",
     "saleLine": "譲渡・販売・買い取り {{price}}",
+    "rent": "一時利用を提供する",
+    "rentOn": {
+      "no": "いいえ",
+      "yes": "はい"
+    },
+    "offerRequired": "販売と一時利用のどちらかは選んでください。",
+    "forSale": "販売中",
     "basePricing": "通常料金",
     "basePricingStep": "刻みごとの通常料金",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",

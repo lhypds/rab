@@ -896,8 +896,14 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // price — is one rule: that price, every day.
   // Somebody else's is booked by asking and no other way: a request made
   // here would be nobody's to answer.
-  const mode = body?.shared === true ? "inquiry" : MODES.has(body?.mode) ? body.mode : "day";
-  const sent = Array.isArray(body?.rates) && body.rates.length > 0 ? body.rates : [{ price: body?.price }];
+  // One that is not lent out at all — only for sale — is settled by asking
+  // too: it has no calendar, no rental price, and no request to answer.
+  const rentable = body?.store === true || body?.rentable !== false;
+  if (!rentable && readDeposit(body?.salePrice, currency) === null) {
+    return { error: "Offer it for sale, for temporary use, or both", code: "OFFER_REQUIRED" };
+  }
+  const mode = body?.shared === true || !rentable ? "inquiry" : MODES.has(body?.mode) ? body.mode : "day";
+  const sent = !rentable ? [{}] : Array.isArray(body?.rates) && body.rates.length > 0 ? body.rates : [{ price: body?.price }];
   // What it costs need not be said: it is then listed as priced on request,
   // and what is asked for here is asked for without a total.
   const unpriced = sent.length === 1 && (sent[0]?.price == null || sent[0].price === "");
@@ -949,7 +955,10 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // When a confirmed booking may still be called off by whoever made it.
       cancel: readCancel(body?.cancel),
       // The deposit asked for on top of the price, or null.
-      deposit: readDeposit(body?.deposit, currency),
+      deposit: rentable ? readDeposit(body?.deposit, currency) : null,
+      // Whether it is lent out — for temporary use — at all: one that is not
+      // is only for sale.
+      rentable,
       // What it is sold for, where it is for sale as well as for rent, or
       // null: a sum read as a deposit is.
       salePrice: readDeposit(body?.salePrice, currency),

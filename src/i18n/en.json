@@ -296,6 +296,13 @@
     },
     "saleRequired": "Enter the transfer, sale or buyout price.",
     "saleLine": "Transfer / sale / buyout {{price}}",
+    "rent": "Offer temporary use",
+    "rentOn": {
+      "no": "No",
+      "yes": "Yes"
+    },
+    "offerRequired": "Offer it for sale, for temporary use, or both.",
+    "forSale": "For sale",
     "basePricing": "Default pricing",
     "basePricingStep": "Default price per step",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",

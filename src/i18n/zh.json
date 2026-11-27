@@ -284,14 +284,21 @@
     },
     "depositRequired": "请填写押金金额。",
     "depositLine": "押金 {{price}}",
-    "sale": "是否转让、出售或买断",
-    "salePrice": "转让、出售或买断价格",
+    "sale": "是否出售、转让或买断",
+    "salePrice": "出售、转让或买断价格",
     "saleOn": {
       "no": "否",
       "yes": "是"
     },
-    "saleRequired": "请填写转让、出售或买断价格。",
-    "saleLine": "转让 / 出售 / 买断 {{price}}",
+    "saleRequired": "请填写出售、转让或买断价格。",
+    "saleLine": "出售 / 转让 / 买断 {{price}}",
+    "rent": "是否提供临时使用",
+    "rentOn": {
+      "no": "否",
+      "yes": "是"
+    },
+    "offerRequired": "出售和临时使用至少要选一项。",
+    "forSale": "出售",
     "basePricing": "默认价格",
     "basePricingStep": "默认步长价格",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",

@@ -209,6 +209,9 @@ function startingFieldsAsSaved(item, calendar, lang) {
     deposit: item?.deposit != null ? String(item.deposit) : "",
     // Whether it is for sale as well, and for how much — in its currency.
     saleOn: item?.salePrice != null,
+    // Whether it is lent out — for temporary use — at all: one that is not
+    // is only for sale, and has none of what follows about booking it.
+    rentOn: item?.rentable !== false,
     salePrice: item?.salePrice != null ? String(item.salePrice) : "",
     // What it costs — the base price, and the dates with one of their own —
     // and the rules for hours.
@@ -1067,7 +1070,12 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
 
   // What the form comes to, as the item its page would be drawn from: the
   // calendar in here and the preview are both this.
-  const { mode } = fields;
+  // A page is a collection of items, each with its own prices: it has none.
+  const priced = !fields.store;
+  // Whether it is lent out at all. One that is not — only for sale — is
+  // settled by asking: no calendar, no rental price, no request.
+  const rentable = !priced || fields.rentOn;
+  const mode = rentable ? fields.mode : "inquiry";
   const byTime = mode === "time";
   // Booked by asking: no calendar and no request, only how the owner is reached.
   const inquiry = mode === "inquiry";
@@ -1087,11 +1095,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // from abroad beside it. A message here is not a way to reach somebody
   // else's.
   const contacts = keptContacts(fields.contacts, dialCode, { noMessage: fields.shared });
-  // A page is a collection of items, each with its own prices: it has none.
-  const priced = !fields.store;
   // The prices as written, one step's each by the time — and as kept, for
   // the stretch it is priced by: a step's price times the steps in it.
-  const stepRates = priced ? cleanRates(fields, byTime) : [];
+  const stepRates = priced && rentable ? cleanRates(fields, byTime) : [];
   const stepRate = byTime ? fields.priceUnit / fields.unit : 1;
   const toKept = (price) => Math.round(price * stepRate * 100) / 100;
   const rates = stepRate === 1 ? stepRates : stepRates.map((rate) => ({ ...rate, price: toKept(rate.price) }));
@@ -1129,7 +1135,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // The deposit as it would be kept: a sum where one is asked for and written,
   // or null.
   const depositSum = priceOf(fields.deposit);
-  const deposit = priced && fields.depositOn && depositSum !== null && depositSum > 0 ? roundPrice(depositSum, fields.currency) : null;
+  const deposit = priced && rentable && fields.depositOn && depositSum !== null && depositSum > 0 ? roundPrice(depositSum, fields.currency) : null;
   // What it is sold for, kept the same way: a sum where it is for sale and
   // one is written, or null.
   const saleSum = priceOf(fields.salePrice);
@@ -1154,6 +1160,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     cancel,
     deposit,
     salePrice,
+    rentable,
     contacts,
     rates,
     hours,
@@ -1216,6 +1223,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   function fault() {
     const first = itemFault();
     if (first) return first;
+    // It has to be offered one way or the other.
+    if (priced && !fields.rentOn && !fields.saleOn) return t("item.offerRequired");
     if (byTime && hourRules.some((rule) => !timed(rule) || rule.start >= rule.end)) return t("item.ruleTimesWrong");
     if (byDay && dayRules.some((rule) => (rule.start || rule.end) && !(rule.start && rule.end && rule.start < rule.end))) {
       return t("item.dayHoursWrong");
@@ -1224,7 +1233,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     // Booked by asking, the first way to reach the owner has to be written.
     if (inquiry && contacts.length === 0) return t("item.contactRequired");
     // A deposit asked for has to say how much.
-    if (priced && fields.depositOn && deposit === null) return t("item.depositRequired");
+    if (priced && rentable && fields.depositOn && deposit === null) return t("item.depositRequired");
     // And one for sale, for how much.
     if (priced && fields.saleOn && salePrice === null) return t("item.saleRequired");
     return "";
@@ -1263,6 +1272,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       cancel,
       deposit,
       salePrice,
+      rentable,
       contacts,
       rates,
       hours,
@@ -1298,6 +1308,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       setError(
         requestError.code === "REGION_REQUIRED"
           ? t("item.regionRequired")
+          : requestError.code === "OFFER_REQUIRED"
+            ? t("item.offerRequired")
           : requestError.code === "HOURS_REQUIRED"
             ? t("item.hoursRequired")
             : requestError.code === "CONTACT_REQUIRED"
@@ -1799,6 +1811,36 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
             {shown === "availability" && (
             <>
             <div className={styles.column}>
+              {/* First of all, whether it is lent out — for temporary use — at
+                  all: only then is there a way to book it, a price for it
+                  and days it can be had, which is everything from here on. */}
+              {priced && (
+              <div className="field">
+                <span className="field-label">{t("item.rent")}</span>
+                <div className={styles.modeRow}>
+                  <Select
+                    className={styles.currency}
+                    label={t("item.rent")}
+                    value={fields.rentOn ? "yes" : "no"}
+                    onChange={(value) => {
+                      const on = value === "yes";
+                      // How the owner is reached starts over with the way it
+                      // is booked — by asking, where it is only for sale —
+                      // until it is written by hand.
+                      setFields((current) => ({
+                        ...current,
+                        rentOn: on,
+                        contacts: contactsTouched.current ? current.contacts : startingContacts(on ? current.mode : "inquiry", current.shared, ownContacts),
+                      }));
+                      setError("");
+                    }}
+                    options={["no", "yes"].map((each) => ({ value: each, label: t(`item.rentOn.${each}`) }))}
+                  />
+                </div>
+              </div>
+              )}
+
+              {rentable && (
               <div className="field">
                 <span className="field-label">{t("item.bookingType")}</span>
                 {/* The ways it can be booked: by the date, priced by the
@@ -1838,8 +1880,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </div>
                 <span className={styles.hint}>{t(fields.shared ? "item.modeHintShared" : `item.modeHint.${mode}`)}</span>
               </div>
+              )}
 
-              {priced && (
+              {priced && rentable && (
               <div className="field">
                 <span className="field-label">{t("item.pricing")}</span>
                 <div className={styles.modeRow}>
@@ -1943,40 +1986,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                       inputMode="decimal"
                       placeholder={t("item.price")}
                       aria-label={t("item.depositAmount")}
-                      maxLength={12}
-                    />
-                  </div>
-                )}
-                {/* Whether it is for sale as well as for rent, and then for
-                    how much: which the two sides settle themselves, as they
-                    do a deposit. */}
-                <div className={styles.modeRow}>
-                  <span className={styles.everyDay}>{t("item.sale")}</span>
-                  <Select
-                    className={styles.currency}
-                    label={t("item.sale")}
-                    value={fields.saleOn ? "yes" : "no"}
-                    onChange={(value) => {
-                      set("saleOn", value === "yes");
-                      setError("");
-                    }}
-                    options={["no", "yes"].map((each) => ({ value: each, label: t(`item.saleOn.${each}`) }))}
-                  />
-                </div>
-                {fields.saleOn && (
-                  <div className={styles.modeRow}>
-                    <span className={styles.everyDay}>{t("item.salePrice")}</span>
-                    <PriceInput
-                      currency={fields.currency}
-                      className={styles.rulePrice}
-                      value={shownPrice(fields.salePrice, fields.currency)}
-                      onChange={(event) => {
-                        set("salePrice", priceText(event.target.value, fields.currency));
-                        setError("");
-                      }}
-                      inputMode="decimal"
-                      placeholder={t("item.price")}
-                      aria-label={t("item.salePrice")}
                       maxLength={12}
                     />
                   </div>
@@ -2269,32 +2278,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </div>
               )}
 
-              {/* How the owner is reached, whichever way it is booked: the
-                  first way, the second, the third and so on, each a kind — a
-                  phone number, an email address, an address, a message here
-                  — and what is written for it. Booked by asking, the first
-                  has to be given; the others are added with the + under them
-                  and taken off with the cross beside them, and the ones
-                  after move up a place. */}
-              {(
-                <ContactFields
-                  contacts={fields.contacts}
-                  saved={ownContacts}
-                  noMessage={fields.shared}
-                  onChange={(next) => {
-                    contactsTouched.current = true;
-                    setFields((current) => ({ ...current, contacts: next }));
-                  }}
-                  onInput={() => setError("")}
-                >
-                  <span className={styles.hint}>{t("item.contactHint")}</span>
-                </ContactFields>
-              )}
-
               {/* The rule for calling a booking off, once the owner has said
                   yes to it: any time, never, or until so many days before it
-                  starts — and for the last, how many. Last of all on the
-                  sheet, under how the owner is reached. */}
+                  starts — and for the last, how many. */}
               {/* A page is not booked itself: it has no such rule. */}
               {!inquiry && !fields.store && (
               <div className="field">
@@ -2334,6 +2320,85 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 )}
                 <span className={styles.hint}>{cancelLine(cancel, t)}</span>
               </div>
+              )}
+
+              {/* After the rule for calling off, whether it is for sale as well —
+                  sold, handed on or bought out — and then for how much:
+                  which the two sides settle themselves, as they do a
+                  deposit. */}
+              {priced && (
+              <div className="field">
+                <span className="field-label">{t("item.sale")}</span>
+                <div className={styles.modeRow}>
+                  <Select
+                    className={styles.currency}
+                    label={t("item.sale")}
+                    value={fields.saleOn ? "yes" : "no"}
+                    onChange={(value) => {
+                      set("saleOn", value === "yes");
+                      setError("");
+                    }}
+                    options={["no", "yes"].map((each) => ({ value: each, label: t(`item.saleOn.${each}`) }))}
+                  />
+                </div>
+                {/* The currency is asked for with the rental prices below;
+                    with none of those, here. */}
+                {fields.saleOn && !rentable && (
+                  <div className={styles.modeRow}>
+                    <span className={styles.everyDay}>{t("item.currency")}</span>
+                    <Select
+                      className={styles.currency}
+                      label={t("item.currency")}
+                      value={fields.currency}
+                      onChange={(value) => {
+                        currencyPicked.current = true;
+                        set("currency", value);
+                      }}
+                      options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+                    />
+                  </div>
+                )}
+                {fields.saleOn && (
+                  <div className={styles.modeRow}>
+                    <span className={styles.everyDay}>{t("item.salePrice")}</span>
+                    <PriceInput
+                      currency={fields.currency}
+                      className={styles.rulePrice}
+                      value={shownPrice(fields.salePrice, fields.currency)}
+                      onChange={(event) => {
+                        set("salePrice", priceText(event.target.value, fields.currency));
+                        setError("");
+                      }}
+                      inputMode="decimal"
+                      placeholder={t("item.price")}
+                      aria-label={t("item.salePrice")}
+                      maxLength={12}
+                    />
+                  </div>
+                )}
+              </div>
+              )}
+              {/* How the owner is reached, whichever way it is booked: the
+                  first way, the second, the third and so on, each a kind — a
+                  phone number, an email address, an address, a message here
+                  — and what is written for it. Booked by asking, the first
+                  has to be given; the others are added with the + under them
+                  and taken off with the cross beside them, and the ones
+                  after move up a place. Last of all on the sheet, under the
+                  rule for calling off. */}
+              {(
+                <ContactFields
+                  contacts={fields.contacts}
+                  saved={ownContacts}
+                  noMessage={fields.shared}
+                  onChange={(next) => {
+                    contactsTouched.current = true;
+                    setFields((current) => ({ ...current, contacts: next }));
+                  }}
+                  onInput={() => setError("")}
+                >
+                  <span className={styles.hint}>{t("item.contactHint")}</span>
+                </ContactFields>
               )}
             </div>
             </>

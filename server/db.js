@@ -663,6 +663,8 @@ function servedItem(item) {
     deposit: item.deposit ?? null,
     // What it is sold for, where it is for sale as well: null where it is not.
     salePrice: item.salePrice ?? null,
+    // Whether it is lent out at all: one that is not is only for sale.
+    rentable: item.rentable !== false,
     // Whether it is somebody else's, put here by an account that does not
     // have it: anybody signed in may then change it or delete it.
     shared: item.shared === true,
@@ -866,6 +868,8 @@ function itemFields(item) {
     cancel: item.cancel ?? { mode: "any" },
     deposit: item.deposit ?? null,
     salePrice: item.salePrice ?? null,
+    // Whether it is lent out at all: one that is not is only for sale.
+    rentable: item.rentable !== false,
     contacts: item.contacts ?? [],
     shared: item.shared === true,
     openDays: item.openDays ?? null,

@@ -223,6 +223,8 @@ export default function ItemView({
   const todayPrices = bySlot ? cellsOn(item, today()).map((cell) => cell.price) : [];
   const lowToday = todayPrices.length > 0 ? Math.min(...todayPrices) : priceToday;
   const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
+  // Only for sale — not lent out at all: what it is sold for is its price.
+  const saleOnly = !item.store && item.rentable === false && item.salePrice != null;
   const priceOnRequest = priceToday == null;
   const priceHead =
     highToday === lowToday
@@ -373,7 +375,9 @@ export default function ItemView({
   const photoLimit = size?.width && size?.height ? Math.floor(Math.min(size.width, (size.height * 4) / 3)) : undefined;
   // Whether it can be had, which publishing has nothing to do with: that only
   // says who can see it, and is a tag of its own beside this one.
-  const status = inquiry
+  const status = saleOnly
+      ? t("item.forSale")
+      : inquiry
       ? t("item.byInquiry")
       : free === today()
       ? t("item.freeToday")
@@ -603,8 +607,8 @@ export default function ItemView({
               nor a way it is booked to say up here. */}
           {!item.store && (
           <p className={styles.price}>
-            <strong>{priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>
-            {!priceOnRequest && (
+            <strong>{saleOnly ? formatPrice(item.salePrice, item.currency, lang) : priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>
+            {!saleOnly && !priceOnRequest && (
               <span>
                 {bySlot
                   ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) })
@@ -614,7 +618,7 @@ export default function ItemView({
               </span>
             )}
             {item.deposit != null && <span>{t("item.depositLine", { price: formatPrice(item.deposit, item.currency, lang) })}</span>}
-            {item.salePrice != null && <span>{t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, lang) })}</span>}
+            {!saleOnly && item.salePrice != null && <span>{t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, lang) })}</span>}
             {statusTags}
           </p>
           )}

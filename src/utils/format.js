@@ -103,6 +103,10 @@ export function priceLine(item, locale, t) {
   if (item.kind === "request") return requestLine(item, locale, t);
   // A page (a store) has no price of its own: each item on it has its own.
   if (item.store) return "";
+  // One that is only for sale says what it is sold for.
+  if (item.rentable === false && item.salePrice != null) {
+    return t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, locale) });
+  }
   // One that says no price is asked about, however it is booked.
   const now = priceNow(item);
   if (now == null) return t("item.priceOnRequest");
