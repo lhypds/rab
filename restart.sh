@@ -30,8 +30,17 @@ fi
 echo "Installing dependencies with $PKG..."
 "$PKG" install
 
-echo "Building frontend..."
-"$PKG" run build
-
+# The server is stopped before the build, not after: it holds every item in
+# memory, and on a small machine the build is killed for want of what it
+# holds (exit code 137). Where the build fails, the server is started again
+# on the dist/ there was.
 "$ROOT/stop.sh"
+
+echo "Building frontend..."
+if ! "$PKG" run build; then
+  echo "The build failed; starting again on the dist/ there was." >&2
+  "$ROOT/start.sh"
+  exit 1
+fi
+
 "$ROOT/start.sh"

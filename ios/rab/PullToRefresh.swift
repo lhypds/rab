@@ -1,25 +1,65 @@
 import SwiftUI
 
-/// The small arrow that says a list is being asked for again.
+/// The small arrow that says a list is being asked for again. Drawn here, not
+/// the system's "arrow.clockwise": that one's ring does not sit in the middle
+/// of its own box, so it wobbles when it is turned. This ring is round the
+/// middle of the frame, which is what it turns about.
 struct RefreshIcon: View {
     static let side: CGFloat = 14
 
     var body: some View {
-        Image(systemName: "arrow.clockwise")
-            .font(.system(size: Self.side, weight: .semibold))
+        RefreshArrow()
             .frame(width: Self.side, height: Self.side)
     }
 }
 
-/// The arrow, going round for as long as it is on screen.
+/// A ring open at the upper right, with an arrowhead where it ends at the
+/// top, going clockwise — the look of the system's arrow.
+private struct RefreshArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        let side = min(rect.width, rect.height)
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = side * 0.37
+        let head = side * 0.2
+        let to = Angle.degrees(270)
+
+        var line = Path()
+        // false is clockwise on screen, y growing downwards.
+        line.addArc(center: center, radius: radius, startAngle: .degrees(0), endAngle: to, clockwise: false)
+
+        // The arrowhead: two strokes back from a point a little past the
+        // ring's end, either side of the way it goes.
+        let angle = CGFloat(to.radians)
+        let out = CGPoint(x: cos(angle), y: sin(angle))
+        let along = CGPoint(x: -sin(angle), y: cos(angle))
+        let tip = CGPoint(
+            x: center.x + out.x * radius + along.x * head * 0.5,
+            y: center.y + out.y * radius + along.y * head * 0.5
+        )
+        line.addLine(to: tip)
+        for way in [CGFloat(1), -1] {
+            line.move(to: tip)
+            line.addLine(to: CGPoint(
+                x: tip.x - along.x * head + out.x * head * way,
+                y: tip.y - along.y * head + out.y * head * way
+            ))
+        }
+        return line.strokedPath(StrokeStyle(lineWidth: side * 0.115, lineCap: .round, lineJoin: .round))
+    }
+}
+
+/// The arrow, going round for as long as it is on screen. The angle comes
+/// from the clock, not from an animation begun as it appears: such a one
+/// takes the icon's place in the layout along with it and swings it about.
 struct SpinningRefreshIcon: View {
-    @State private var turned = false
+    private static let turn: TimeInterval = 0.8
 
     var body: some View {
-        RefreshIcon()
-            .rotationEffect(.degrees(turned ? 360 : 0))
-            .animation(.linear(duration: 0.8).repeatForever(autoreverses: false), value: turned)
-            .onAppear { turned = true }
+        TimelineView(.animation) { timeline in
+            let part = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.turn) / Self.turn
+            RefreshIcon()
+                .rotationEffect(.degrees(part * 360))
+        }
     }
 }
 
