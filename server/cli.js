@@ -22,10 +22,13 @@ import { fileURLToPath } from "node:url";
 //                                      own data/users/_public
 //   rab public pull [-f <folder>] [-u <url>]
 //                                      bring what the server's _public has
-//                                      that the folder does not, here
+//                                      that the folder does not, here — and
+//                                      what it has changed more lately than
+//                                      here, to replace it
 //   rab public mirror [-f <folder>] [-u <url>] [--yes]
-//                                      push, and delete on the server what of
-//                                      its _public the folder does not have
+//                                      push; pull what the server has newer
+//                                      than here; and delete on the server, in
+//                                      one request, what the folder does not have
 //   rab public purge [-u <url>] [--yes]
 //                                      delete every item and store of the
 //                                      server's _public (its places stay)
@@ -65,9 +68,11 @@ const USAGE = `Usage:
                                      (data/users/_public here, without -f), to the server at <url>
                                      (this machine's, without -u, or RAB_HOST)
   rab public pull [-f <folder>] [-u <url>]
-                                     fetch the items and places the server has and the folder does not
+                                     fetch the items and places the server has and the folder does not,
+                                     and those it has with a newer updatedAt than here (replaced)
   rab public mirror [-f <folder>] [-u <url>] [--yes]
-                                     push, then delete on the server what the folder does not have
+                                     push, pull what the server has newer than here, then delete on
+                                     the server what the folder does not have
                                      (asks first, unless --yes)
   rab public purge [-u <url>] [--yes]
                                      delete every item and store in the server's _public
@@ -278,6 +283,20 @@ function olderIn(other, items) {
   });
 }
 
+// Which of what the server holds this folder has too, under the same id, but
+// changed longer ago than there: the ones pull fetches again, to replace its
+// own. Again, one whose time either side does not know is left as it is.
+function newerThere(here, held) {
+  const mine = new Map(here.items.map((each) => [each.id, each]));
+  return held.items.filter((each) => {
+    const local = mine.get(each.id);
+    if (!local) return false;
+    const ours = timeOf(local.updatedAt);
+    const theirs = timeOf(each.updatedAt);
+    return ours !== null && theirs !== null && ours < theirs;
+  });
+}
+
 // Signed in to the server as _admin for one command, and out again after,
 // unless the token was given — that one is whoever gave it's to keep. The
 // password is RAB_PASSWORD (in .env, say), or asked for here.
@@ -441,9 +460,49 @@ function counted({ items = [], locations }) {
   return parts.join(", ");
 }
 
+// What mirror deletes on the server, in one request (POST /api/public/delete)
+// that takes as long as it takes; a server from before it, one DELETE at a
+// time. The number that failed.
+async function deleteHeld(session, host, drop) {
+  const deleting = drop.items.length + drop.locations.length;
+  console.log(`Deleting ${counted(drop)} on ${host}…`);
+  const started = Date.now();
+  const response = await session.request("/api/public/delete", {
+    method: "POST",
+    headers: { ...session.auth, "Content-Type": "text/plain" },
+    body: JSON.stringify({ items: drop.items.map((each) => each.id), locations: drop.locations.map((each) => each.id) }),
+  });
+  if (response.status !== 404) {
+    const done = await answerOf(response);
+    const seconds = ((Date.now() - started) / 1000).toFixed(1);
+    console.log(`Deleted on ${host}: ${done.items.deleted} items and spots, ${done.locations.deleted} places, in ${seconds}s`);
+    const missing = done.items.missing.length + done.locations.missing.length;
+    if (missing) console.log(`${missing} were not there any more: ${[...done.items.missing, ...done.locations.missing].join(", ")}`);
+    return 0;
+  }
+  let deleted = 0;
+  let failed = 0;
+  const remove = async (what, id) => {
+    try {
+      await answerOf(await session.request(`/api/public/${what}/${encodeURIComponent(id)}`, { method: "DELETE", headers: session.auth }));
+      deleted += 1;
+    } catch (error) {
+      failed += 1;
+      console.log(`Deleting ${what === "items" ? "item" : "place"} ${id} failed: ${error.message}`);
+    }
+  };
+  for (const { id } of drop.items) await remove("items", id);
+  for (const { id } of drop.locations) await remove("locations", id);
+  console.log(`Deleted on ${host}: ${deleted} of ${deleting}`);
+  return failed;
+}
+
 // rab push / rab mirror [-f <folder>] [-u <url>]: what the server does not
-// have, sent; and for mirror, what it has that is not here, deleted there, so
-// that its _public is this folder's.
+// have, and what it has older than here, sent. Mirror then fetches what the
+// server has newer than here (a pull, of those it has under the same id only)
+// and deletes there what is not here — by the items/ and stores/ folders' ids,
+// keeping one the server holds under a key of an item here (it is that item,
+// merged under the server's id) — so that its _public is this folder's.
 async function sendPublic(args, { mirror = false } = {}) {
   const { file, host, yes } = remoteArgs(args);
   const fs = await import("node:fs");
@@ -461,6 +520,8 @@ async function sendPublic(args, { mirror = false } = {}) {
     const newer = olderIn(held, here.items);
     console.log(`To send: ${counted({ items: send.items })} new, ${counted({ items: newer })} newer than the server's, ${send.locations.length} places`);
     send.items = [...send.items, ...newer].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const take = mirror ? newerThere(here, held) : [];
+    if (mirror) console.log(`To fetch: ${counted({ items: take })} newer on ${host} than here`);
     const drop = mirror ? missingFrom(here, held) : { items: [], locations: [] };
     // The server keeps one place per address (see mergePublic), but may still
     // hold more from before: all but one go too — the one with an id here, or
@@ -478,22 +539,8 @@ async function sendPublic(args, { mirror = false } = {}) {
     }
 
     failed += await sendMissing(fs, session, folder, send);
-
-    if (deleting) {
-      let deleted = 0;
-      const remove = async (what, id) => {
-        try {
-          await answerOf(await session.request(`/api/public/${what}/${encodeURIComponent(id)}`, { method: "DELETE", headers: session.auth }));
-          deleted += 1;
-        } catch (error) {
-          failed += 1;
-          console.log(`Deleting ${what === "items" ? "item" : "place"} ${id} failed: ${error.message}`);
-        }
-      };
-      for (const { id } of drop.items) await remove("items", id);
-      for (const { id } of drop.locations) await remove("locations", id);
-      console.log(`Deleted on ${host}: ${deleted} of ${deleting}`);
-    }
+    if (take.length) failed += await fetchItems(fs, session, folder, here, take);
+    if (deleting) failed += await deleteHeld(session, host, drop);
   } catch (error) {
     console.error(error.message);
     failed += 1;
@@ -503,14 +550,78 @@ async function sendPublic(args, { mirror = false } = {}) {
   if (failed) process.exit(1);
 }
 
+// Each of `take` (ids the server holds) fetched into the folder, an item's
+// folder written beside the others and moved into place whole, the way a
+// crawler does, for a server running on this folder to take in — in the stead
+// of the one here, where there is one, which is set aside until the new one is
+// in. The number that failed.
+async function fetchItems(fs, session, folder, here, take) {
+  const { unzipSync } = await import("fflate");
+  const local = new Map(here.items.map((each) => [each.id, each]));
+  let fetched = 0;
+  let replaced = 0;
+  let failed = 0;
+  for (const [index, { id }] of take.entries()) {
+    const at = `[${index + 1}/${take.length}] ${id}`;
+    try {
+      const response = await session.request(`/api/public/items/${encodeURIComponent(id)}`, { headers: session.auth });
+      if (!response.ok) await answerOf(response);
+      const zip = new Uint8Array(await response.arrayBuffer());
+      const entries = unzipSync(zip);
+      // A store comes as stores/<id>/store.json and goes in stores/; an
+      // item in items/.
+      const under = Object.keys(entries).some((name) => name === `stores/${id}/store.json`) ? "stores" : "items";
+      const file = under === "stores" ? "store.json" : "item.json";
+      const dir = path.join(folder, under);
+      fs.mkdirSync(dir, { recursive: true });
+      const into = path.join(dir, `.${id}.${process.pid}.tmp`);
+      fs.rmSync(into, { recursive: true, force: true });
+      fs.mkdirSync(into, { recursive: true });
+      for (const [name, bytes] of Object.entries(entries)) {
+        const match = name.match(/^(items|stores)\/(\d+)\/([^/]+)$/);
+        if (!match || match[1] !== under || match[2] !== id || match[3].startsWith(".")) continue;
+        fs.writeFileSync(path.join(into, match[3]), bytes);
+      }
+      if (!fs.existsSync(path.join(into, file))) {
+        fs.rmSync(into, { recursive: true, force: true });
+        throw new Error(`the zip has no ${file} in it`);
+      }
+      // The one here — under items/ or stores/, whichever it was — set aside,
+      // and put back if the new one cannot be moved in.
+      const target = path.join(dir, id);
+      const was = local.has(id) ? path.join(folder, local.get(id).under, id) : target;
+      let aside = null;
+      if (fs.existsSync(was)) {
+        aside = path.join(path.dirname(was), `.${id}.${process.pid}.old`);
+        fs.rmSync(aside, { recursive: true, force: true });
+        fs.renameSync(was, aside);
+      }
+      try {
+        fs.renameSync(into, target);
+      } catch (error) {
+        if (aside) fs.renameSync(aside, was);
+        throw error;
+      }
+      if (aside) fs.rmSync(aside, { recursive: true, force: true });
+      if (aside) replaced += 1;
+      else fetched += 1;
+      console.log(`${at} ${aside ? "replaced" : "fetched"} (${megabytes(zip.length)})`);
+    } catch (error) {
+      failed += 1;
+      console.log(`${at} failed: ${error.message}`);
+    }
+  }
+  console.log(`Items fetched: ${fetched} new, ${replaced} replaced, ${failed} failed`);
+  return failed;
+}
+
 // rab pull [-f <folder>] [-u <url>]: what the server's _public has that this
-// folder does not, brought here — the places added to locations.json, each
-// item's folder written beside the others (and moved into place whole, the
-// way a crawler does, for a server running on this folder to take in).
+// folder does not, brought here — the places added to locations.json, the
+// items fetched (fetchItems) — and what it has too but changed more lately
+// than here, fetched again to replace what is here. What is newer here is left.
 async function receivePublic(args) {
   const { file, host } = remoteArgs(args);
   const fs = await import("node:fs");
-  const { unzipSync } = await import("fflate");
   const named = path.resolve(file);
   // A folder that is not there yet is made: pulling into it is how it starts.
   if (!fs.existsSync(named)) fs.mkdirSync(named, { recursive: true });
@@ -526,7 +637,8 @@ async function receivePublic(args) {
     const held = await session.held();
     console.log(`${host} has ${counted(held)}`);
     const take = missingFrom(here, held);
-    console.log(`To fetch: ${counted(take)}`);
+    const newer = newerThere(here, held);
+    console.log(`To fetch: ${counted({ items: take.items })} new, ${counted({ items: newer })} newer than here, ${take.locations.length} places`);
 
     if (take.locations.length) {
       const all = await answerOf(await session.request("/api/public/locations", { headers: session.auth }));
@@ -539,41 +651,8 @@ async function receivePublic(args) {
       console.log(`Places: ${added.length} added`);
     }
 
-    let fetched = 0;
-    for (const [index, { id }] of take.items.entries()) {
-      const at = `[${index + 1}/${take.items.length}] ${id}`;
-      try {
-        const response = await session.request(`/api/public/items/${encodeURIComponent(id)}`, { headers: session.auth });
-        if (!response.ok) await answerOf(response);
-        const zip = new Uint8Array(await response.arrayBuffer());
-        const entries = unzipSync(zip);
-        // A store comes as stores/<id>/store.json and goes in stores/; an
-        // item in items/.
-        const under = Object.keys(entries).some((name) => name === `stores/${id}/store.json`) ? "stores" : "items";
-        const file = under === "stores" ? "store.json" : "item.json";
-        const dir = path.join(folder, under);
-        fs.mkdirSync(dir, { recursive: true });
-        const into = path.join(dir, `.${id}.${process.pid}.tmp`);
-        fs.rmSync(into, { recursive: true, force: true });
-        fs.mkdirSync(into, { recursive: true });
-        for (const [name, bytes] of Object.entries(entries)) {
-          const match = name.match(/^(items|stores)\/(\d+)\/([^/]+)$/);
-          if (!match || match[1] !== under || match[2] !== id || match[3].startsWith(".")) continue;
-          fs.writeFileSync(path.join(into, match[3]), bytes);
-        }
-        if (!fs.existsSync(path.join(into, file))) {
-          fs.rmSync(into, { recursive: true, force: true });
-          throw new Error(`the zip has no ${file} in it`);
-        }
-        fs.renameSync(into, path.join(dir, id));
-        fetched += 1;
-        console.log(`${at} fetched (${megabytes(zip.length)})`);
-      } catch (error) {
-        failed += 1;
-        console.log(`${at} failed: ${error.message}`);
-      }
-    }
-    if (take.items.length) console.log(`Items: ${fetched} fetched, ${failed} failed`);
+    const fetching = [...take.items, ...newer].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    if (fetching.length) failed += await fetchItems(fs, session, folder, here, fetching);
   } catch (error) {
     console.error(error.message);
     failed += 1;

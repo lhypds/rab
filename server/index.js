@@ -92,6 +92,7 @@ const {
   mergePublic,
   heldPublic,
   purgePublicItem,
+  purgePublicLocations,
   publicLocations,
 } = await import("./db.js");
 const { heldDir, isStoreFolder } = await import("./files.js");
@@ -1942,6 +1943,39 @@ app.delete("/api/public/locations/:id", requireSession, requireAdmin, (req, res)
   if (!deleteLocation(PUBLIC_ID, req.params.id)) return res.status(404).json({ error: "_public has no such place" });
   res.status(204).end();
 });
+
+// All of what rab mirror deletes in one request: { items: [ids], locations:
+// [ids] }, as JSON sent as text/plain — a mirror's list of ids can be longer
+// than express.json's limit for everything else. Each item as DELETE
+// /api/public/items/:id does it; the places off the list in one write. What
+// comes back is how many went, and the ids that were not there to delete.
+app.post(
+  "/api/public/delete",
+  requireSession,
+  requireAdmin,
+  express.text({ type: "text/plain", limit: "32mb" }),
+  (req, res, next) => {
+    let asked;
+    try {
+      asked = JSON.parse(req.body);
+    } catch {
+      return res.status(400).json({ error: "Send { items, locations } as JSON" });
+    }
+    const ids = (list) => (Array.isArray(list) ? list.map(String) : []);
+    try {
+      const items = { deleted: 0, missing: [] };
+      for (const id of ids(asked?.items)) {
+        const live = getItem(id);
+        if (live && live.ownerId === PUBLIC_ID) removeItem(live);
+        if (purgePublicItem(id)) items.deleted += 1;
+        else items.missing.push(id);
+      }
+      res.json({ items, locations: purgePublicLocations(ids(asked?.locations)) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 // Public, because what they are pictures of is: an item's page is the thing
 // that gets shared, and a plain <img> has nowhere to put a session.

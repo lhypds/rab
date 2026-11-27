@@ -691,14 +691,28 @@ function servedItem(item) {
 
 // What the home page shows — the map, the lists beside it and the search in
 // its bar: stores (pages) only, never the items on them. Only the published
-// ones, newest first, each placed where it says it is — or, where it says
-// nothing, where the published items on it are (see placedStore).
+// ones, the most lately changed first — the store itself or anything published
+// on it — each placed where it says it is — or, where it says nothing, where
+// the published items on it are (see placedStore).
 function listedItems() {
   return [...itemsById.values()]
     .filter((item) => item.store && !item.deletedAt && item.active)
-    .map(placedStore)
-    .filter(Boolean)
-    .sort(newestFirst);
+    .map((store) => [placedStore(store), lastChanged(store)])
+    .filter(([placed]) => placed)
+    .sort(([a, aTime], [b, bTime]) => (aTime < bTime ? 1 : aTime > bTime ? -1 : newestFirst(a, b)))
+    .map(([placed]) => placed);
+}
+
+// When a store or one of the published items on it was last changed.
+function lastChanged(store) {
+  let latest = store.updatedAt ?? store.createdAt ?? "";
+  for (const id of store.itemIds ?? []) {
+    const item = itemsById.get(String(id));
+    if (!item || item.deletedAt || !item.active || item.store || item.ownerId !== store.ownerId) continue;
+    const time = item.updatedAt ?? item.createdAt ?? "";
+    if (time > latest) latest = time;
+  }
+  return latest;
 }
 
 // A store as the home page places it: its own pin, areas and photographs
@@ -1523,6 +1537,18 @@ export function purgePublicItem(id) {
   removeItemDir(PUBLIC_ID, id);
   if (publicKeys) for (const [key, at] of publicKeys) if (at === id) publicKeys.delete(key);
   return true;
+}
+
+// Some of the public account's places taken off its list in one write (rab
+// mirror): how many went, and the ids it did not have.
+export function purgePublicLocations(ids) {
+  const dropping = new Set(ids);
+  if (dropping.size === 0) return { deleted: 0, missing: [] };
+  const list = getLocations(PUBLIC_ID);
+  const found = new Set(list.map((each) => each.id));
+  const kept = list.filter((each) => !dropping.has(each.id));
+  if (kept.length !== list.length) writeList(PUBLIC_ID, LOCATIONS_FILE, kept);
+  return { deleted: list.length - kept.length, missing: [...dropping].filter((id) => !found.has(id)) };
 }
 
 // The public account's places, whole, for another source to take a copy of
