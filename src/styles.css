@@ -1215,7 +1215,7 @@ a {
 }
 
 .map-frame .mapboxgl-popup-content {
-  padding: 6px 10px;
+  padding: 10px;
   border: 1px solid var(--ink);
   border-radius: 0;
   box-shadow: none;

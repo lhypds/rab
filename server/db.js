@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -380,6 +380,9 @@ function load() {
     for (const item of readItems(userId)) {
       itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
       if (item.was) idByOldId.set(String(item.was), item.id);
+      // One deleted from before deleted items were moved to deleted/, still
+      // in items/ or stores/: written, and so moved, where it belongs.
+      if (item.deletedAt && !isInPlace(userId, item)) changedItem(itemsById.get(item.id));
     }
     // Its stores from before stores were items, made items, and written so.
     for (const old of readOldStores(userId)) {
@@ -1508,11 +1511,11 @@ export function mergePublic({ locations, items }) {
 
 // What the public account already holds, for a sender to compare with what it
 // has and send only the rest: each item's id and the crawler's key for it
-// (source.json) and when it was last changed, deleted ones too, and each
-// place's id and address.
+// (source.json) and when it was last changed, and each place's id and
+// address. Not the deleted ones, in deleted/: those are as good as not there.
 export function heldPublic() {
   const items = allItemFolders(PUBLIC_ID)
-    .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID)
+    .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID && !itemsById.get(folder).deletedAt)
     .map(({ folder: id, store }) => ({
       id,
       store,
@@ -1525,10 +1528,11 @@ export function heldPublic() {
   return { items, locations };
 }
 
-// Whether the public account holds an item under this id, deleted ones too —
-// what heldPublic lists, for one id, without reading every folder.
+// Whether the public account holds an item under this id, not deleted — what
+// heldPublic lists, for one id, without reading every folder.
 export function holdsPublic(id) {
-  return itemsById.get(id)?.ownerId === PUBLIC_ID;
+  const item = itemsById.get(id);
+  return item?.ownerId === PUBLIC_ID && !item.deletedAt;
 }
 
 // One of the public account's items taken away outright — its folder and all

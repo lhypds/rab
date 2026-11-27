@@ -135,6 +135,7 @@
     "count_one": "{{count}} item here",
     "count_other": "{{count}} items here",
     "open": "View",
+    "nav": "Directions",
     "searchClear": "Clear",
     "request": "Request"
   },

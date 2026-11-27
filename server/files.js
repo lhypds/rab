@@ -20,6 +20,13 @@ import { fileURLToPath } from "node:url";
 //                                                  with the ids of the items on it (`itemIds`), kept
 //                                                  apart from the items
 //   data/users/<username>/stores/<made>/<name>     that store's photographs, beside it
+//   data/users/<username>/deleted/items/<made>/    an item deleted, its folder moved here whole (item.json,
+//                                                  with deletedAt, and its photographs)
+//   data/users/<username>/deleted/spots/<made>/    a store deleted, the same (store.json)
+//
+// A deleted item is not served, listed or sent anywhere (rab public push
+// reads items/ and stores/ only), but it is still read when the server starts:
+// the bookings made of it and the messages about it still say what it was.
 //
 // <made> is when the item was made, in Unix time to the millisecond. It is the
 // item's id — what its address and everything else points at it by — and its
@@ -187,7 +194,9 @@ export function readItem(userId, folder) {
 // Every item an account has. A folder with no item.json in it is not an item
 // and is passed over; one that cannot be read is an error, as with a list.
 // The account's stores among them: each an item like any other, kept in its
-// own folder under stores/ rather than items/ (see the stores below).
+// own folder under stores/ rather than items/ (see the stores below). And the
+// ones it has deleted, under deleted/ — each with when it was deleted, which
+// one put there by hand without it is taken to be when it was last changed.
 export function readItems(userId) {
   const items = [];
   for (const folder of itemFolders(userId)) {
@@ -198,11 +207,64 @@ export function readItems(userId) {
     const store = readStore(userId, folder);
     if (store && isItemStore(store)) items.push({ ...store, store: true });
   }
+  for (const { folder, store } of deletedFolders(userId)) {
+    const read = readJsonObject(path.join(deletedItemDir(userId, folder, store), store ? STORE_FILE : ITEM_FILE));
+    if (!read || (store && !isItemStore(read))) continue;
+    const deletedAt = read.deletedAt || read.updatedAt || new Date().toISOString();
+    items.push({ ...read, id: folder, deletedAt, ...(store ? { store: true } : null) });
+  }
   return items;
 }
 
-// An item's folder: under stores/ for a store, under items/ for anything else.
-export const folderOf = (userId, item) => (item.store ? storeDir(userId, item.id) : itemDir(userId, item.id));
+/* ----------------------------------------------------------------- deleted */
+
+// Where an account's deleted items are moved to: deleted/items/ and, for its
+// stores, deleted/spots/.
+const deletedDir = (userId, store) => path.join(userDir(userId), "deleted", store ? "spots" : "items");
+
+export function deletedItemDir(userId, folder, store) {
+  const name = String(folder ?? "");
+  if (!ITEM_FOLDER_RE.test(name)) throw new Error(`not an item's folder: ${name}`);
+  return path.join(deletedDir(userId, store), name);
+}
+
+function foldersIn(dir) {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && ITEM_FOLDER_RE.test(entry.name))
+      .map((entry) => entry.name);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+// Every folder of an account's deleted items: { folder, store }.
+export function deletedFolders(userId) {
+  return [
+    ...foldersIn(deletedDir(userId, false)).map((folder) => ({ folder, store: false })),
+    ...foldersIn(deletedDir(userId, true)).map((folder) => ({ folder, store: true })),
+  ];
+}
+
+// An item's folder: under deleted/ for one deleted, under stores/ for a store,
+// under items/ for anything else.
+export const folderOf = (userId, item) =>
+  item.deletedAt ? deletedItemDir(userId, item.id, item.store) : item.store ? storeDir(userId, item.id) : itemDir(userId, item.id);
+
+// Every place a folder of that name can be in an account's folder: items/,
+// stores/, deleted/items/, deleted/spots/.
+const placesOf = (userId, folder) => [
+  itemDir(userId, folder),
+  storeDir(userId, folder),
+  deletedItemDir(userId, folder, false),
+  deletedItemDir(userId, folder, true),
+];
+
+// Whether an item's folder is where it belongs (folderOf) — not, say, one
+// deleted from before deleted items were moved, still in items/.
+export const isInPlace = (userId, item) => fs.existsSync(folderOf(userId, item));
 
 // Every folder an account keeps an item in, stores too: { folder, store }.
 export function allItemFolders(userId) {
@@ -221,16 +283,26 @@ export function readAnyItem(userId, folder) {
   return readItem(userId, folder);
 }
 
-// The folder an item is in on the disk, whichever of the two it is: stores/
-// where there is one of that name, items/ otherwise.
+// The folder an item is in on the disk, wherever it is: stores/ where there
+// is one of that name, then items/, then deleted/; items/ where there is none.
 export const isStoreFolder = (userId, folder) => fs.existsSync(storeDir(userId, folder));
 
 export function heldDir(userId, folder) {
-  return isStoreFolder(userId, folder) ? storeDir(userId, folder) : itemDir(userId, folder);
+  const [items, stores, deletedItems, deletedStores] = placesOf(userId, folder);
+  return [stores, items, deletedStores, deletedItems].find((dir) => fs.existsSync(dir)) ?? items;
 }
 
+// An item written where it belongs. Its folder, where it is somewhere else —
+// the item deleted since, so going to deleted/ — is moved there first, whole.
 export function writeItem(userId, item) {
   const dir = folderOf(userId, item);
+  if (!fs.existsSync(dir)) {
+    const was = placesOf(userId, item.id).find((each) => each !== dir && fs.existsSync(each));
+    if (was) {
+      fs.mkdirSync(path.dirname(dir), { recursive: true });
+      fs.renameSync(was, dir);
+    }
+  }
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, item.store ? STORE_FILE : ITEM_FILE);
   // A store from before stores were items is written over as the item it is
@@ -262,11 +334,12 @@ export function readItemSource(userId, folder) {
 // name: bytes }) — over whatever of those names was there. A folder that is
 // not there yet is written beside where it goes, under a name no item's
 // folder has, and moved into place, so nothing reading the folders sees half
-// of it. An item that was the other of the two before — an item now a store —
-// has its old folder taken away once the new one is in place.
+// of it. An item that was somewhere else before — an item now a store, one
+// deleted here and sent again — has its old folder taken away once the new one
+// is in place.
 export function writeItemFolder(userId, item, files) {
   const dir = folderOf(userId, item);
-  const other = item.store ? itemDir(userId, item.id) : storeDir(userId, item.id);
+  const others = placesOf(userId, item.id).filter((each) => each !== dir);
   const fresh = !fs.existsSync(dir);
   const into = fresh ? path.join(path.dirname(dir), `.${item.id}.${process.pid}.tmp`) : dir;
   if (fresh) fs.rmSync(into, { recursive: true, force: true });
@@ -274,25 +347,25 @@ export function writeItemFolder(userId, item, files) {
   for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(into, name), bytes);
   writeJson(path.join(into, item.store ? STORE_FILE : ITEM_FILE), item);
   if (fresh) fs.renameSync(into, dir);
-  fs.rmSync(other, { recursive: true, force: true });
+  for (const other of others) fs.rmSync(other, { recursive: true, force: true });
 }
 
-// An item's whole folder, gone, wherever it is: a public item taken away
-// outright (rab mirror), not the soft delete that leaves the folder with
-// deletedAt in it.
+// An item's whole folder, gone, wherever it is, deleted/ too: a public item
+// taken away outright (rab mirror), not the delete that moves it to deleted/.
 export function removeItemDir(userId, folder) {
-  fs.rmSync(itemDir(userId, folder), { recursive: true, force: true });
-  fs.rmSync(storeDir(userId, folder), { recursive: true, force: true });
+  for (const dir of placesOf(userId, folder)) fs.rmSync(dir, { recursive: true, force: true });
 }
 
 // An item's whole folder — the item and its photographs — from one account's
 // items (or stores) to another's: what is done when an item becomes the
 // public account's.
 export function moveItemDir(fromUserId, toUserId, folder) {
-  const isStore = isStoreFolder(fromUserId, folder);
-  const from = isStore ? storeDir(fromUserId, folder) : itemDir(fromUserId, folder);
-  const to = isStore ? storeDir(toUserId, folder) : itemDir(toUserId, folder);
-  if (from === to || !fs.existsSync(from)) return;
+  // The same place in the other account's folder: items/, stores/ or deleted/.
+  const at = placesOf(fromUserId, folder).findIndex((dir) => fs.existsSync(dir));
+  if (at === -1) return;
+  const from = placesOf(fromUserId, folder)[at];
+  const to = placesOf(toUserId, folder)[at];
+  if (from === to) return;
   fs.mkdirSync(path.dirname(to), { recursive: true });
   if (fs.existsSync(to)) {
     fs.cpSync(from, to, { recursive: true });

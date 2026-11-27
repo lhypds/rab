@@ -134,6 +134,7 @@
     "empty": "ここにはまだ掲載がありません",
     "count_other": "ここに{{count}}件",
     "open": "見る",
+    "nav": "ナビ",
     "searchClear": "クリア",
     "request": "リクエスト"
   },

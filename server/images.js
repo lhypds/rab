@@ -3,7 +3,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { dataDir, heldDir, itemDir, itemFolders, storeDir, storeFolders, userDir, userFolders } from "./files.js";
+import { dataDir, deletedFolders, deletedItemDir, heldDir, itemDir, itemFolders, storeDir, storeFolders, userDir, userFolders } from "./files.js";
 
 // Where photographs are kept: beside the item they are of, in the item's own
 // folder, data/users/<username>/items/<item id>/ (see files.js) — one file per picture, named
@@ -38,6 +38,8 @@ function survey() {
     const kept = [
       ...itemFolders(userId).map((folder) => itemDir(userId, folder)),
       ...storeFolders(userId).map((folder) => storeDir(userId, folder)),
+      // A deleted item's pictures still show where its bookings are listed.
+      ...deletedFolders(userId).map(({ folder, store }) => deletedItemDir(userId, folder, store)),
     ];
     for (const dir of [uploads, ...kept]) {
       let names;

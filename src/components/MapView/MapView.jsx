@@ -8,6 +8,7 @@ import { Link, Select, showToast, useLocation, useNavigate } from "../../ui/inde
 import { iconMarkup } from "../../utils/categoryIcons.js";
 import { priceLine } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
+import { directionsLink } from "../../utils/maps.js";
 import { homeFilter, homePath, sortLabel, categoriesOfItem } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
 import {
@@ -216,25 +217,6 @@ const SideRow = memo(
   ItemRow,
   (before, after) => before.item === after.item && before.chosen === after.chosen && before.pin === after.pin,
 );
-
-// The way an item's owner is reached first, as a small drawing beside the
-// word that asks for it: a telephone, a letter, or a message here on rab.
-// Nothing for an address, or where no way is said.
-const CONTACT_ICONS = {
-  phone: "M7 3h3l1.5 4.5-2 1.5a12 12 0 0 0 5.5 5.5l1.5-2L21 14v3a3 3 0 0 1-3 3A15 15 0 0 1 4 6a3 3 0 0 1 3-3z",
-  email: "M3 6h18v12H3zM3 7l9 7 9-7",
-  message: "M4 5h16v11H10l-5 4v-4H4z",
-};
-
-function ContactIcon({ type }) {
-  const path = CONTACT_ICONS[type];
-  if (!path) return null;
-  return (
-    <svg className={styles.cardIcon} viewBox="0 0 24 24" aria-hidden="true">
-      <path d={path} />
-    </svg>
-  );
-}
 
 export default function MapView({ view = "map", query = "", onQuery, active = true }) {
   // Read as lists rather than on the map: the same area and the same items,
@@ -1774,7 +1756,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                 {open.description && <span className={styles.cardLead}>{open.description}</span>}
                 {!open.store && <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>}
                 <span className={styles.cardMeta}>
-                  {dotted([sortLabel(open, t), open.place, open.owner && <UserName name={open.owner} inside />])}
+                  {/* No address: at the bubble's width it is cut off long
+                      before it says anything. It is on the item's page. */}
+                  {/* Beside what a spot is of, how many things are on it. */}
+                  {dotted([
+                    sortLabel(open, t),
+                    open.store && t("store.count", { count: open.count ?? 0 }),
+                    open.owner && <UserName name={open.owner} inside />,
+                  ])}
                 </span>
               </Link>
               {/* The two things to do about it, as lo's bubbles say theirs: small
@@ -1783,6 +1772,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                   calendar. Nobody
                   asks to rent their own, so on those there is only the one. */}
               <span className={styles.cardActions}>
+                {/* First, at the left, as lo's bubbles have it: the way there,
+                    handed to Google Maps — the question a pin raises before
+                    any other. */}
+                {open.located && (
+                  <a className={styles.cardLink} {...directionsLink(open)} draggable={false}>
+                    {t("map.nav")}
+                  </a>
+                )}
                 <Link className={styles.cardLink} to={itemPath(open)} draggable={false} onClick={(event) => preview(open, event)}>
                   {t("map.open")}
                 </Link>
@@ -1791,17 +1788,13 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                   // owner said first: a phone number is called and an
                   // email address is written to, straight from here. Any
                   // other goes to the page, on its calendar or its address.
-                  // Beside the word, the way its owner said first, drawn:
-                  // a telephone, a letter, a message here.
                   (open.mode === "inquiry" && contactHref(open.contacts?.[0], open.title) ? (
                     <a className={styles.cardLink} href={contactHref(open.contacts[0], open.title)} draggable={false}>
                       {t("map.request")}
-                      <ContactIcon type={open.contacts[0].type} />
                     </a>
                   ) : (
                     <Link className={styles.cardLink} to={`${itemPath(open)}?book=1`} draggable={false}>
                       {t("map.request")}
-                      <ContactIcon type={open.contacts?.[0]?.type} />
                     </Link>
                   ))}
               </span>

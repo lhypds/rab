@@ -634,12 +634,15 @@
 /* ------------------------------------------------------------------ card -- */
 
 /* The bubble over a pin: what the item is, and under it the two things to do
-   about it. */
+   about it. Its frame is 10px all round (see .mapboxgl-popup-content); inside,
+   the photograph stands 8px over the words, the name 4px over what it is,
+   the lead 6px under that, and the last line about 4px from the lead over it
+   and the links under it alike. */
 .card {
   width: 180px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   /* Nothing in the bubble is picked up or selected by a press that slips: the
      photograph and the links would otherwise be dragged off as a ghost, and
      the words marked blue. */
@@ -670,44 +673,30 @@
   align-items: baseline;
   justify-content: flex-start;
   gap: 10px;
+  /* As far under the last line as that line is under the lead, whose own
+     leading (11px at 1.4) adds about 2px to the 2px between them. */
+  margin-top: 2px;
 }
 
 .cardLink {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
   color: var(--muted);
   font-family: var(--sans);
   font-size: 10px;
   line-height: 1.2;
-  /* A rule under the whole of it rather than the text's own underline, which
-     stops at the last letter: this one runs on under the drawing beside the
-     word. */
+  /* Underlined by a rule rather than the text's own underline, set at the
+     foot of the line box. */
   text-decoration: none;
   border-bottom: 1px solid currentColor;
   white-space: nowrap;
   cursor: pointer;
 }
 
-/* How its owner is reached first, drawn beside the word: in the word's own
-   colour and about its height. */
-.cardIcon {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  fill: none;
-  stroke: currentColor;
-  /* Thicker in its own units as it is drawn smaller, so the line still
-     reads at this size. */
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .cardPhoto {
   width: calc(100% + 20px);
   height: 96px;
-  margin: -6px -10px 6px;
+  margin: -10px -10px 8px;
   display: block;
   border-bottom: 1px solid var(--ink);
   background: var(--soft);
@@ -725,7 +714,7 @@
 /* The few words for what it is, set close under the name they go with: the
    column's gap taken back, and the line no taller than the type. */
 .cardTitle + .cardMeta {
-  margin-top: -2px;
+  margin-top: 2px;
   line-height: 1.2;
 }
 
@@ -738,6 +727,7 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
+  margin-top: 4px;
   font-size: 11px;
   line-height: 1.4;
   /* The words are the owner's own, wrapped at the bubble's width: a pasted

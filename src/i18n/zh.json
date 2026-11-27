@@ -134,6 +134,7 @@
     "empty": "这里还没有任何发布",
     "count_other": "这里有 {{count}} 个项目",
     "open": "查看",
+    "nav": "导航",
     "searchClear": "清空",
     "request": "申请"
   },
