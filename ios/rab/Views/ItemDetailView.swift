@@ -31,24 +31,11 @@ struct ItemDetailView: View {
                     .listRowInsets(EdgeInsets())
             }
 
-            // Its few words for what it is, then its description, as the website shows them.
-            let what = item.what ?? "", description = item.description ?? ""
-            if !what.isEmpty || !description.isEmpty {
-                Section {
-                    if !what.isEmpty { Text(what).fontWeight(.semibold) }
-                    if !description.isEmpty { Text(description) }
-                }
+            ItemEditor(source: ItemDraft(title: item.title, what: item.what ?? "", description: item.description ?? "", category: item.category ?? "")) { draft in
+                try await model.save(draft, for: item)
             }
 
             Section {
-                // Always there; "None" where it has none.
-                LabeledContent("Category") {
-                    if let category = item.category, !category.isEmpty {
-                        Text(Categories.name(category))
-                    } else {
-                        Text("None")
-                    }
-                }
                 if let spot = model.spot(item.spotId) {
                     LabeledContent("Spot", value: spot.title)
                 }
@@ -84,8 +71,6 @@ struct ItemDetailView: View {
             } footer: {
                 if !item.isRecognized {
                     Text("Not recognized yet. The brain at the top says what it is, and it then goes onto rab.")
-                } else if item.remoteId == nil {
-                    Text("On this phone only, in your folder under data.")
                 }
             }
 

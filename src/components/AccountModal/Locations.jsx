@@ -26,7 +26,8 @@ export default function Locations({ isOpen }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // Whether the address was written by hand. Until it is, it follows the pin.
+  // Whether the address was written by hand since the pin was last put down.
+  // Until it is, it follows the pin — and moving the pin has it follow again.
   const addressTyped = useRef(false);
 
   useEffect(() => {
@@ -155,7 +156,12 @@ export default function Locations({ isOpen }) {
           latitude={draft.latitude}
           longitude={draft.longitude}
           zoom={draft.id ? 15 : 12}
-          onMove={(spot) => setDraft((current) => current && { ...current, ...spot, moved: true })}
+          onMove={(spot) => {
+            // Wherever the pin is put, the address is found again: one
+            // written by hand was for where the pin was, not where it is.
+            addressTyped.current = false;
+            setDraft((current) => current && { ...current, ...spot, moved: true });
+          }}
         />
       </div>
       <div className={styles.contactActions}>

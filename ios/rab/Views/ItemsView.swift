@@ -24,6 +24,8 @@ struct ItemsView: View {
     @State private var filter = Filter.all
     @State private var collecting = false
     @State private var account = false
+    /// The box that asks which spot things are collected onto is up.
+    @State private var choosingSpot = false
     /// What recognizing everything could not do, the last time it was asked.
     @State private var trouble: String?
 
@@ -174,16 +176,7 @@ struct ItemsView: View {
                     RabHeader(compact: true) {
                         // The marker: which spot things are collected onto.
                         // Chosen here, and nothing more — the tick says which.
-                        Menu {
-                            Picker("Collect onto", selection: Binding(
-                                get: { model.targetSpot?.id ?? "" },
-                                set: { model.setTargetSpot($0) }
-                            )) {
-                                ForEach(model.spots) { spot in
-                                    Text(spot.title).tag(spot.id)
-                                }
-                            }
-                        } label: {
+                        Button { choosingSpot = true } label: {
                             SpotIcon()
                         }
                         .disabled(model.spots.isEmpty)
@@ -229,6 +222,15 @@ struct ItemsView: View {
             }
             // The account, in the middle of the screen: whose it is, and the
             // way out of it.
+            // Which spot things are collected onto, asked the same way.
+            .compactChoice(
+                isPresented: $choosingSpot,
+                title: Text("Collect onto"),
+                choices: model.spots,
+                name: { $0.title },
+                chosen: { $0.id == model.targetSpot?.id },
+                choose: { model.setTargetSpot($0.id) }
+            )
             .compactDialog(
                 isPresented: $account,
                 title: Text(verbatim: model.username ?? ""),
@@ -337,25 +339,12 @@ struct ListingDetailView: View {
                 }
             }
 
-            // Its few words for what it is, then its description, as the website shows them.
-            let what = listing.what ?? "", description = listing.description ?? ""
-            if !what.isEmpty || !description.isEmpty {
-                Section {
-                    if !what.isEmpty { Text(what).fontWeight(.semibold) }
-                    if !description.isEmpty { Text(description) }
-                }
+            ItemEditor(source: ItemDraft(title: listing.title, what: listing.what ?? "", description: listing.description ?? "", category: listing.category ?? "")) { draft in
+                try await model.save(draft, for: listing)
             }
 
-            Section {
-                // Always there; "None" where it has none.
-                LabeledContent("Category") {
-                    if let category = listing.category, !category.isEmpty {
-                        Text(Categories.name(category))
-                    } else {
-                        Text("None")
-                    }
-                }
-                if let place = listing.place, !place.isEmpty {
+            if let place = listing.place, !place.isEmpty {
+                Section {
                     LabeledContent("Location", value: place)
                 }
             }
@@ -435,6 +424,112 @@ struct ListingDetailView: View {
             defer { deleting = false }
             do {
                 try await model.delete(listing)
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+}
+
+/// What an item says about itself, to be written over: its name, its few
+/// words for what it is, its description and its category, each under what
+/// it is — and Save, which keeps them on this phone and on rab. Save is grey
+/// until something has been changed.
+struct ItemEditor: View {
+    /// What the item says now. Where that changes under the page — the brain
+    /// has recognized it again — the page shows the new, unless something
+    /// has been typed here in the meantime.
+    let source: ItemDraft
+    let save: (ItemDraft) async throws -> Void
+
+    @State private var draft: ItemDraft
+    @State private var saving = false
+    @State private var error: String?
+
+    init(source: ItemDraft, save: @escaping (ItemDraft) async throws -> Void) {
+        self.source = source
+        self.save = save
+        _draft = State(initialValue: source)
+    }
+
+    private var changed: Bool { draft.tidy != source.tidy }
+    private var ready: Bool { changed && !saving && !draft.tidy.title.isEmpty }
+
+    /// The object categories, and whatever other one it is in already.
+    private var categories: [String] {
+        Categories.objects.contains(draft.category) || draft.category.isEmpty ? Categories.objects : [draft.category] + Categories.objects
+    }
+
+    var body: some View {
+        Section {
+            field("Name") {
+                TextField("Name", text: $draft.title, axis: .vertical)
+                    .lineLimit(1...3)
+            }
+            field("What is it") {
+                TextField("What is it", text: $draft.what)
+                    // The server keeps no more than this.
+                    .onChange(of: draft.what) { if draft.what.count > whatMax { draft.what = String(draft.what.prefix(whatMax)) } }
+            }
+            field("Description") {
+                TextField("Description", text: $draft.description, axis: .vertical)
+                    .lineLimit(2...10)
+            }
+            Picker(selection: $draft.category) {
+                Text("None").tag("")
+                ForEach(categories, id: \.self) { slug in
+                    Text(Categories.name(slug)).tag(slug)
+                }
+            } label: {
+                Text("Category")
+            }
+            .pickerStyle(.menu)
+        } footer: {
+            if let error { Text(error).foregroundStyle(.red) }
+        }
+        .textInputAutocapitalization(.sentences)
+        .onChange(of: source) { old, new in
+            // Only what was not being written over follows.
+            if draft.tidy == old.tidy { draft = new }
+        }
+
+        // White on black once there is something to save; grey until then.
+        Section {
+            Button(action: commit) {
+                HStack {
+                    Text("Save")
+                    Spacer()
+                    if saving { ProgressView().tint(.white) }
+                }
+                .foregroundStyle(.white)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(StillButtonStyle())
+            .allowsHitTesting(ready)
+            .listRowBackground(ready ? Color.black : Color(white: 0.78))
+        }
+    }
+
+    private func field(_ label: LocalizedStringKey, @ViewBuilder _ input: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(Compact.small)
+                .foregroundStyle(.secondary)
+            input()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func commit() {
+        guard ready else { return }
+        let tidy = draft.tidy
+        saving = true
+        error = nil
+        Task {
+            defer { saving = false }
+            do {
+                try await save(tidy)
+                draft = tidy
             } catch {
                 self.error = error.localizedDescription
             }

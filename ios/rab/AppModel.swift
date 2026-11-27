@@ -246,6 +246,56 @@ final class AppModel {
         try save(image: image, category: "", title: "", what: "", description: "", spotId: spotId)
     }
 
+    // MARK: - editing
+
+    /// What was written on an item's page, kept: on this phone, and on rab —
+    /// changed there where it is there already, and registered there where
+    /// it is not and now has a name.
+    func save(_ draft: ItemDraft, for item: SavedItem) async throws {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+        }
+        guard var fresh = self.item(item.id) else { return }
+        fresh.title = draft.title
+        fresh.what = draft.what
+        fresh.description = draft.description
+        fresh.category = draft.category.isEmpty ? nil : draft.category
+        try update(fresh)
+        if let remoteId = fresh.remoteId {
+            try await api.updateItem(remoteId, Self.body(draft))
+            await loadListings()
+        } else if fresh.isRecognized {
+            try await publish(fresh)
+        }
+    }
+
+    /// The same for an item on rab: written over there, and in the phone's
+    /// own copy of it where it has one.
+    func save(_ draft: ItemDraft, for listing: Listing) async throws {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+        }
+        try await api.updateItem(listing.id, Self.body(draft))
+        if let index = listings?.firstIndex(where: { $0.id == listing.id }) {
+            listings?[index].title = draft.title
+            listings?[index].what = draft.what
+            listings?[index].description = draft.description
+            listings?[index].category = draft.category
+            if let listings { store?.saveListings(listings) }
+        }
+        for var copy in items where copy.remoteId == listing.id {
+            copy.title = draft.title
+            copy.what = draft.what
+            copy.description = draft.description
+            copy.category = draft.category.isEmpty ? nil : draft.category
+            try? update(copy)
+        }
+    }
+
+    private static func body(_ draft: ItemDraft) -> RecognizedBody {
+        RecognizedBody(title: draft.title, what: draft.what, description: draft.description, category: draft.category)
+    }
+
     // MARK: - recognizing
 
     /// Says what a photographed thing is — its category among the objects, its

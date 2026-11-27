@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { MAPBOX_TOKEN, geocode } from "./mapbox.js";
 
 // Where in the world the reader is taken to be, for the two things that have to
@@ -30,7 +30,14 @@ const subscribe = (listener) => {
   return () => listeners.delete(listener);
 };
 
+// Whoever reads it has it asked for: it is not only the map that needs to
+// know. The account's own page has no map, and a place put on the map from
+// there — one of the account's locations — was named in English whatever
+// country the reader was in, nobody having asked which that was.
 export function useRegion() {
+  useEffect(() => {
+    loadRegion();
+  }, []);
   return useSyncExternalStore(subscribe, () => region);
 }
 

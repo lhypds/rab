@@ -81,9 +81,9 @@ struct BarIcon: View {
 }
 
 /// A question asked in the middle of the screen, at the app's compact measure
-/// rather than the system's: a small white box — what is asked, a line under
-/// it where there is more to say, and two buttons, the one that does nothing
-/// at the left.
+/// rather than the system's, in a box like the sign-in one: what is asked, a
+/// line under it where there is more to say, the button that does it, and
+/// the way out under that.
 private struct CompactDialog: ViewModifier {
     @Binding var isPresented: Bool
     let title: Text
@@ -100,46 +100,129 @@ private struct CompactDialog: ViewModifier {
                     Color.black.opacity(0.25)
                         .ignoresSafeArea()
                         .onTapGesture { isPresented = false }
-                    VStack(spacing: 0) {
-                        VStack(spacing: 4) {
-                            // Both in the app's one size of type.
+                    // Made as the sign-in box is: on the app's ground, what is
+                    // asked at the top where a field would be, the button
+                    // that does it under that — white on black, or on red
+                    // where it cannot be taken back — and under the button,
+                    // quietly, the way out.
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 4) {
                             title
-                                .font(Compact.font.weight(.semibold))
+                                .fontWeight(.semibold)
                             if let message {
                                 message
+                                    .font(Compact.small)
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .multilineTextAlignment(.center)
                         .padding(.horizontal, Compact.inset)
-                        .padding(.vertical, 12)
-                        Divider()
-                        HStack(spacing: 0) {
-                            Button {
-                                isPresented = false
-                            } label: {
-                                Text("Cancel")
-                                    .frame(maxWidth: .infinity, minHeight: Compact.row)
-                                    .contentShape(Rectangle())
-                            }
-                            Divider()
-                            Button {
-                                isPresented = false
-                                action()
-                            } label: {
-                                Text(confirm)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(destructive ? Color.red : Color.black)
-                                    .frame(maxWidth: .infinity, minHeight: Compact.row)
-                                    .contentShape(Rectangle())
+                        .padding(.top, 4)
+                        Button {
+                            isPresented = false
+                            action()
+                        } label: {
+                            Text(confirm)
+                                .foregroundStyle(.white)
+                                .compactRow()
+                                .background(destructive ? Color.red : Color.black, in: RoundedRectangle(cornerRadius: Compact.corner))
+                        }
+                        Button {
+                            isPresented = false
+                        } label: {
+                            Text("Cancel")
+                                .font(Compact.small)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, Compact.inset)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                    .buttonStyle(StillButtonStyle())
+                    .font(Compact.font)
+                    .padding(Compact.margin)
+                    .frame(width: 260)
+                    .background(Rab.background, in: RoundedRectangle(cornerRadius: Compact.corner + 4))
+                    // One shadow, round the box: not one under each thing in it.
+                    .compositingGroup()
+                    .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+                    .accessibilityAddTraits(.isModal)
+                }
+            }
+        }
+        // There at once and gone at once: nothing fades.
+        .transaction { $0.animation = nil }
+    }
+}
+
+/// A choice among a few things, asked the same way: the things in one white
+/// box, a line between each two and a tick by the one chosen — pressing one
+/// chooses it and closes the box — and the way out under them.
+private struct CompactChoice<Choice: Identifiable>: ViewModifier {
+    @Binding var isPresented: Bool
+    let title: Text
+    let choices: [Choice]
+    let name: (Choice) -> String
+    let chosen: (Choice) -> Bool
+    let choose: (Choice) -> Void
+
+    /// As many rows as stand without scrolling; more than that scroll.
+    private static var shown: Int { 8 }
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isPresented {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture { isPresented = false }
+                    VStack(alignment: .leading, spacing: 8) {
+                        title
+                            .font(Compact.small)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, Compact.inset)
+                            .padding(.top, 2)
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
+                                    if index > 0 { Divider().padding(.leading, Compact.inset) }
+                                    Button {
+                                        isPresented = false
+                                        choose(choice)
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Text(verbatim: name(choice)).lineLimit(1)
+                                            Spacer(minLength: 0)
+                                            if chosen(choice) {
+                                                Image(systemName: "checkmark")
+                                                    .font(Compact.small.weight(.semibold))
+                                            }
+                                        }
+                                        .compactRow()
+                                    }
+                                    .accessibilityAddTraits(chosen(choice) ? .isSelected : [])
+                                }
                             }
                         }
-                        .font(Compact.font)
-                        .buttonStyle(.plain)
-                        .frame(height: Compact.row)
+                        .scrollBounceBehavior(.basedOnSize)
+                        .frame(height: Compact.row * CGFloat(min(max(choices.count, 1), Self.shown)) + CGFloat(min(max(choices.count, 1), Self.shown) - 1))
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: Compact.corner))
+                        .clipShape(RoundedRectangle(cornerRadius: Compact.corner))
+                        Button {
+                            isPresented = false
+                        } label: {
+                            Text("Cancel")
+                                .font(Compact.small)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, Compact.inset)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
                     }
-                    .frame(width: 240)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: Compact.corner))
+                    .buttonStyle(StillButtonStyle())
+                    .font(Compact.font)
+                    .padding(Compact.margin)
+                    .frame(width: 260)
+                    .background(Rab.background, in: RoundedRectangle(cornerRadius: Compact.corner + 4))
                     // One shadow, round the box: not one under each thing in it.
                     .compositingGroup()
                     .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
@@ -153,6 +236,19 @@ private struct CompactDialog: ViewModifier {
 }
 
 extension View {
+    /// Has one of a few things chosen, in a small box in the middle of the
+    /// screen made as the sign-in box is.
+    func compactChoice<Choice: Identifiable>(
+        isPresented: Binding<Bool>,
+        title: Text,
+        choices: [Choice],
+        name: @escaping (Choice) -> String,
+        chosen: @escaping (Choice) -> Bool,
+        choose: @escaping (Choice) -> Void
+    ) -> some View {
+        modifier(CompactChoice(isPresented: isPresented, title: title, choices: choices, name: name, chosen: chosen, choose: choose))
+    }
+
     /// Asks before something is done, in a small box in the middle of the
     /// screen: `confirm` names what is done — in red where it cannot be taken
     /// back (`destructive`), as deleting cannot.

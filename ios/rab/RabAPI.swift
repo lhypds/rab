@@ -135,8 +135,30 @@ struct Spot: Codable, Identifiable, Hashable {
     }
 }
 
-/// What is changed of an item by recognizing it again (PATCH /api/items/:id):
-/// what it says it is, and nothing else — the rest stays as it was.
+/// What an item says it is, as its page has it written: its name, its few
+/// words for what it is, its description and its category. What is on the
+/// page, what is kept, and what is sent to rab.
+struct ItemDraft: Equatable {
+    var title: String
+    var what: String
+    var description: String
+    var category: String
+
+    /// As it is kept: nothing but blanks is nothing, and the few words are
+    /// no more than the server keeps.
+    var tidy: ItemDraft {
+        ItemDraft(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            what: String(what.trimmingCharacters(in: .whitespacesAndNewlines).prefix(whatMax)),
+            description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+            category: category
+        )
+    }
+}
+
+/// What is changed of an item by recognizing it again, or by saving its page
+/// (PATCH /api/items/:id): what it says it is, and nothing else — the rest
+/// stays as it was.
 struct RecognizedBody: Encodable {
     var title: String
     var what: String

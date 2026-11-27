@@ -118,12 +118,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有物品" } }
       }
     },
-    "On this phone only, in your folder under data." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone だけにあります。data の下の自分のフォルダに。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只在这台手机上，放在 data 下你的文件夹里。" } }
-      }
-    },
     "Open on rab" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab で開く" } },
@@ -749,6 +743,12 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld件できませんでした：%@" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 项未能完成：%@" } }
+      }
+    },
+    "What is it" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "これは何か" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这是什么" } }
       }
     }
   },
