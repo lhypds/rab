@@ -169,6 +169,11 @@ private struct CompactChoice<Choice: Identifiable>: ViewModifier {
     /// stays, to be closed with "Done" when the ticks are right.
     let several: Bool
     let choose: (Choice) -> Void
+    /// Asks for the choices again, where they can be: a small arrow at the
+    /// top right of the box then does it, going round until it is done.
+    let refresh: (() async -> Void)?
+
+    @State private var refreshing = false
 
     /// As many rows as stand without scrolling; more than that scroll.
     private static var shown: Int { 8 }
@@ -181,11 +186,39 @@ private struct CompactChoice<Choice: Identifiable>: ViewModifier {
                         .ignoresSafeArea()
                         .onTapGesture { isPresented = false }
                     VStack(alignment: .leading, spacing: 8) {
-                        title
-                            .font(Compact.small)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, Compact.inset)
-                            .padding(.top, 2)
+                        HStack(spacing: 8) {
+                            title
+                            Spacer(minLength: 0)
+                            if let refresh {
+                                Button {
+                                    guard !refreshing else { return }
+                                    refreshing = true
+                                    Task {
+                                        // Round for half a second at least: an
+                                        // answer that comes at once would
+                                        // otherwise show nothing.
+                                        async let shortest: Void? = try? Task.sleep(for: .milliseconds(500))
+                                        await refresh()
+                                        _ = await shortest
+                                        refreshing = false
+                                    }
+                                } label: {
+                                    Group {
+                                        if refreshing { SpinningRefreshIcon() } else { RefreshIcon() }
+                                    }
+                                    .scaleEffect(0.85)
+                                    // Easier to press than it is to see.
+                                    .padding(8)
+                                    .contentShape(Rectangle())
+                                    .padding(-8)
+                                }
+                                .accessibilityLabel("Refresh")
+                            }
+                        }
+                        .font(Compact.small)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, Compact.inset)
+                        .padding(.top, 2)
                         ScrollView {
                             VStack(spacing: 0) {
                                 ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
@@ -252,9 +285,10 @@ extension View {
         name: @escaping (Choice) -> String,
         chosen: @escaping (Choice) -> Bool,
         several: Bool = false,
+        refresh: (() async -> Void)? = nil,
         choose: @escaping (Choice) -> Void
     ) -> some View {
-        modifier(CompactChoice(isPresented: isPresented, title: title, choices: choices, name: name, chosen: chosen, several: several, choose: choose))
+        modifier(CompactChoice(isPresented: isPresented, title: title, choices: choices, name: name, chosen: chosen, several: several, choose: choose, refresh: refresh))
     }
 
     /// Asks before something is done, in a small box in the middle of the

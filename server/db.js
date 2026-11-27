@@ -479,12 +479,35 @@ function spotFromOld(old, userId) {
 // merged or purged — so that a public folder pushed an item at a time does
 // not read thousands of files for each one.
 let publicKeys = null;
+// The same the other way round — each folder's key, as JSON — for heldPublic
+// to list them without reading a file.
+let publicKeyOf = null;
+// The folders whose source.json has not been read into the index yet.
+let publicKeysPending = [];
+
+function startPublicKeys() {
+  if (publicKeys) return;
+  publicKeys = new Map();
+  publicKeyOf = new Map();
+  publicKeysPending = allItemFolders(PUBLIC_ID).map(({ folder }) => folder);
+}
 
 function publicKeyIndex() {
-  if (publicKeys) return publicKeys;
-  publicKeys = new Map();
-  for (const { folder } of allItemFolders(PUBLIC_ID)) notePublicKey(folder);
+  startPublicKeys();
+  while (publicKeysPending.length) notePublicKey(publicKeysPending.pop());
   return publicKeys;
+}
+
+// The index built a few folders at a time, the server answering in between:
+// called once it is up, so that the first rab public push after a restart
+// does not wait on every folder being read (tens of thousands of them take
+// longer than a proxy waits for an answer).
+export async function warmPublicKeys() {
+  startPublicKeys();
+  while (publicKeysPending.length) {
+    for (let i = 0; i < 200 && publicKeysPending.length; i += 1) notePublicKey(publicKeysPending.pop());
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 }
 
 // One folder's key put in the index (where it is built), read from its
@@ -492,7 +515,12 @@ function publicKeyIndex() {
 function notePublicKey(folder) {
   if (!publicKeys) return;
   const key = readItemSource(PUBLIC_ID, folder)?.key;
-  if (key) publicKeys.set(JSON.stringify(key), folder);
+  if (key) setPublicKey(JSON.stringify(key), folder);
+}
+
+function setPublicKey(key, folder) {
+  publicKeys.set(key, folder);
+  publicKeyOf.set(folder, key);
 }
 
 // The public item the crawler knows by `key`, where there still is one.
@@ -1589,7 +1617,10 @@ export function mergePublic({ locations, items }) {
     else delete kept.spot;
     writeItemFolder(PUBLIC_ID, kept, source ? { ...files, [SOURCE_FILE]: `${JSON.stringify(source, null, 2)}\n` } : files);
     itemsById.set(id, { ...perUnit(kept), ownerId: PUBLIC_ID });
-    if (key) publicKeyIndex().set(key, id);
+    if (key) {
+      publicKeyIndex();
+      setPublicKey(key, id);
+    }
     (existing ? things.replaced : things.added).push(id);
   }
   return { locations: places, items: things };
@@ -1600,12 +1631,16 @@ export function mergePublic({ locations, items }) {
 // (source.json) and when it was last changed, and each place's id and
 // address. Not the deleted ones, in deleted/: those are as good as not there.
 export function heldPublic() {
+  // The keys from the index, not from each folder's source.json again: that
+  // is a file read for every item, each time it is asked.
+  publicKeyIndex();
+  const keyOf = (id) => (publicKeyOf.has(id) ? JSON.parse(publicKeyOf.get(id)) : null);
   const items = allItemFolders(PUBLIC_ID)
     .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID && !itemsById.get(folder).deletedAt)
     .map(({ folder: id, spot }) => ({
       id,
       spot,
-      key: readItemSource(PUBLIC_ID, id)?.key ?? null,
+      key: keyOf(id),
       // When it was last changed, for a sender to send its own again where
       // that is newer (rab public push).
       updatedAt: itemsById.get(id)?.updatedAt ?? null,
@@ -1632,6 +1667,7 @@ export function purgePublicItem(id) {
   unsavedItems.delete(id);
   removeItemDir(PUBLIC_ID, id);
   if (publicKeys) for (const [key, at] of publicKeys) if (at === id) publicKeys.delete(key);
+  publicKeyOf?.delete(id);
   return true;
 }
 

@@ -120,7 +120,7 @@ struct ItemsView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
             }
-            .refreshable { await model.loadListings() }
+            .pullToRefresh { await model.loadListings() }
         }
     }
 
@@ -299,6 +299,8 @@ struct ItemsView: View {
                 chosen: { spot in model.targetSpots.contains { $0.id == spot.id } },
                 // Several, and one at least: the last tick does not come off.
                 several: true,
+                // The spots come with the items: asking for those again.
+                refresh: { await model.loadListings() },
                 choose: { model.toggleTargetSpot($0.id) }
             )
             .compactChoice(

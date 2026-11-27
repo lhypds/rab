@@ -83,6 +83,7 @@ const {
   transaction,
   updateItem, PUBLIC_ID, PUBLIC_NAME,
   adoptPublicItems,
+  warmPublicKeys,
   getBirthdate,
   isAdult,
   setBirthdate,
@@ -2398,4 +2399,7 @@ app.listen(port, "0.0.0.0", () => {
       console.log(`  Network: http://${iface.address}:${port}`);
     }
   }
+  // The crawler's keys read in the background, for rab public push to be
+  // answered at once (GET /api/public).
+  warmPublicKeys().catch((error) => console.error(error));
 });
