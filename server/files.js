@@ -176,9 +176,13 @@ const languageFile = (file, code) => file.replace(/\.json$/, `.${code}.json`);
 function readTranslations(file) {
   const kept = {};
   for (const code of TEXT_LANGUAGES) {
+    // Asked first whether it is there: most items have none, and a read that
+    // fails costs three times what asking does — for every item, at a start.
+    const from = languageFile(file, code);
+    if (!fs.existsSync(from)) continue;
     let words;
     try {
-      words = JSON.parse(fs.readFileSync(languageFile(file, code), "utf8"));
+      words = JSON.parse(fs.readFileSync(from, "utf8"));
     } catch {
       continue;
     }

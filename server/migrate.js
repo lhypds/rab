@@ -321,6 +321,25 @@ export async function storeAsWebp() {
   if (count > 0) console.log(`rab: stored ${count} photographs as WebP`);
 }
 
+/* ------------------------------------------------------------------ once */
+
+// renumberItems and storeAsWebp each read every item.json there is to find
+// the ones left to do, and there are none after the first time: with tens of
+// thousands of items that was most of what a start took. So that they have
+// been done is written down in the data folder, and a start that finds it
+// written does neither. Whatever is written since is written as it should be
+// (its folder's name for an id, its photographs WebP). Should items from
+// before be put in the folder by hand, take the file away and start again.
+const ITEMS_MIGRATED_FILE = path.join(dataDir, ".items-migrated");
+
+export async function migrateItemFiles() {
+  if (fs.existsSync(ITEMS_MIGRATED_FILE)) return;
+  renumberItems();
+  await storeAsWebp();
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(ITEMS_MIGRATED_FILE, `${new Date().toISOString()}\n`);
+}
+
 /* ---------------------------------------------------------- accounts' ids */
 
 // An account's id is the millisecond it was made, in Unix time, and its

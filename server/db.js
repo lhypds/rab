@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
-import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
+import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, migrateItemFiles, renumberAccounts } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const databasePath = process.env.RAB_DB || path.resolve(__dirname, "..", "db.sqlite");
@@ -179,15 +179,14 @@ export const ADMIN_ID = (usersById.get(idByName.get(ADMIN_NAME)) ?? addUser(ADMI
 
 // Items from when an account's were one list are given their own folders,
 // once; item folders from when they were named after a random id are named
-// after when the item was made, once; and the items take that for their id,
-// once.
+// after when the item was made, once.
 moveItemsIntoFolders();
 renameItemFolders();
-renumberItems();
 
-// And the photographs kept as JPEG or PNG from before every one was stored as
-// WebP are made WebP, once.
-await storeAsWebp();
+// And the items take that for their id, and the photographs kept as JPEG or
+// PNG from before every one was stored as WebP are made WebP — once, and
+// then never looked for again (see migrateItemFiles).
+await migrateItemFiles();
 
 const now = () => new Date().toISOString();
 
