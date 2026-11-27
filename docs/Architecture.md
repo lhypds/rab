@@ -26,12 +26,21 @@ Paths are relative to the repository root.
 a folder of its own, named after its username, and everything it has is in it:
 
     data/users/<username>/items/<made>/item.json   one thing they have out for rent, with its calendar's exceptions
+    data/users/<username>/items/<made>/item.en.json   its name, what it is and its description in English,
+    data/users/<username>/items/<made>/item.zh.json   in Chinese,
+    data/users/<username>/items/<made>/item.ja.json   and in Japanese — where it has been said in them
     data/users/<username>/items/<made>/<name>      that item's photographs, each named after its own bytes
     data/users/<username>/uploads/                 photographs sent and not yet saved with an item
     data/users/<username>/user.json                the account itself: its id (when it was made, in Unix
                                                    time), its password, its email address, how it is reached
     data/users/<username>/bookings.json            every rental they are one side of (the other side holds the same)
     data/users/<username>/messages.json            their side of every conversation
+
+`item.json` is the default, in English for what the phone's scanner names, and what is
+shown where a reader's language has no file. Only the name, the few words for what it is
+and the description are in the language files; nothing else about an item is translated.
+The website shows an item in its reader's language and saves what is written in the form
+into that language's file; `item.json`'s own words change only when written in English.
 
 `<made>` is when the item was made, in Unix time to the millisecond, and is the item's
 id: what its address is, and what a booking points at it by.

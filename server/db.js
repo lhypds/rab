@@ -626,6 +626,9 @@ function servedItem(item) {
     // How many of it its owner has: one, where nothing is said. (Not `count`,
     // which on a spot is how many items are on it.)
     quantity: item.quantity ?? 1,
+    // What it says of itself in each of rab's languages, where it has been
+    // said in more than one: { en, zh, ja }, each { title, what, description }.
+    translations: item.translations ?? null,
     description: item.description,
     price: item.price,
     currency: item.currency,
@@ -860,6 +863,8 @@ function itemFields(item) {
     what: item.what ?? "",
     // How many of it there are: one, where nothing is said.
     quantity: item.quantity ?? 1,
+    // What it says in rab's other languages, where it has been said in them.
+    translations: item.translations ?? null,
     description: item.description,
     // Its own pages somewhere else, as addresses, the first first.
     links: item.links ?? [],

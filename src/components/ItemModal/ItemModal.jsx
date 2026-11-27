@@ -1333,6 +1333,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     setSaving(true);
     setError("");
     const body = {
+      // The language the form's words are in: where the item says itself in
+      // several, what is written here is this language's (see api.js).
+      lang: api.itemLanguage(),
       title: fields.title.trim(),
       quantity: Math.max(1, Math.floor(Number(fields.quantity)) || 1),
       description: fields.description.trim(),

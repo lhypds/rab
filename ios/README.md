@@ -47,7 +47,9 @@ page.
   time; the number beside it is how many there are. Each photograph goes to
   rab's server, which says its category — one of the object categories only,
   not the places and services — its short category (a word or two: "Coffee
-  mug"; kept as the item's "what is it"), a name and a description. The item
+  mug"; kept as the item's "what is it"), a name and a description. All of
+  it in English, Chinese and Japanese at once: the grid and the item's page
+  show the language the app is in (the globe in the bar). The item
   is then registered on rab, on the spot it was collected for.
 - the person shows whose account it is, and signs out.
 

@@ -734,6 +734,9 @@ function listedItem(item, viewer) {
     // needed here.
     region: item.region ? { name: item.region.name } : null,
     thumb: item.thumb,
+    // What it says in other languages, where it says anything in them: a row
+    // and a pin's card are read in the reader's own.
+    ...(item.translations && { translations: item.translations }),
     pin: item.pin,
     active: item.active,
     shared: item.shared,
@@ -868,6 +871,28 @@ function readHomepage(value) {
   }
 }
 
+// What an item says of itself in each of rab's languages, where it has been
+// said in more than one — the phone's scanner has every thing it recognizes
+// named in all three: { en, zh, ja }, each { title, what, description }, cut
+// to what the item's own may be. A language with no name is left out; null
+// where none is left. The item's own title, what and description are the
+// default — English, for what the scanner names — and what it says where its
+// reader's language is not among them. On the disk each language is a file of
+// its own beside item.json (see files.js).
+const TEXT_LANGUAGES = ["en", "zh", "ja"];
+function readTranslations(value) {
+  if (!value || typeof value !== "object") return null;
+  const kept = {};
+  for (const code of TEXT_LANGUAGES) {
+    const words = value[code];
+    if (!words || typeof words !== "object") continue;
+    const title = text(words.title, TITLE_MAX);
+    if (!title) continue;
+    kept[code] = { title, what: text(words.what, WHAT_MAX).trim(), description: text(words.description, DESCRIPTION_MAX) };
+  }
+  return Object.keys(kept).length > 0 ? kept : null;
+}
+
 // A whole item, as the form sends it. Returns the fields or a sentence about
 // what is wrong with them.
 // `sharedMayBeOff`: somebody else's is on when it is first written down; one
@@ -942,6 +967,8 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // How many of it there are — the count on the phone's item page: a
       // whole number from one up, and one where nothing sensible is said.
       quantity: Math.min(QUANTITY_MAX, Math.max(1, Math.floor(Number(body?.quantity)) || 1)),
+      // The same said in rab's other languages, where it has been.
+      translations: readTranslations(body?.translations),
       description: text(body?.description, DESCRIPTION_MAX),
       // Its own pages somewhere else, where it has any.
       links: readLinks(body),
@@ -1261,6 +1288,30 @@ app.patch("/api/items/:id", requireSession, (req, res) => {
   const sent = current.shared
     ? { ...req.body, shared: true, active: admin && "active" in (req.body ?? {}) ? req.body.active : current.active }
     : { ...req.body, shared: false };
+  // An item that says itself in several languages, written over in one of
+  // them — `lang`, the language the form's reader was reading it in, which is
+  // the language of the words it showed and sends back: those words are that
+  // language's, and go in its file. The item's own — the default — are
+  // changed only by somebody writing in English, which is what the default
+  // is in; written in another language, they stand. (The phone sends every
+  // language's words itself, as `translations`, and is taken at its word.)
+  const lang = TEXT_LANGUAGES.includes(req.body?.lang) ? req.body.lang : null;
+  if (current.translations && lang && !("translations" in (req.body ?? {}))) {
+    const was = current.translations[lang] ?? { title: current.title, what: current.what ?? "", description: current.description };
+    sent.translations = {
+      ...current.translations,
+      [lang]: {
+        title: sent.title ?? was.title,
+        what: sent.what ?? was.what,
+        description: sent.description ?? was.description,
+      },
+    };
+    if (lang !== "en") {
+      delete sent.title;
+      delete sent.what;
+      delete sent.description;
+    }
+  }
   const parsed = parseItem(
     { ...stored, ...sent },
     { regionOptional: !current.region && !("region" in (req.body ?? {})), sharedMayBeOff: current.shared },
@@ -1960,12 +2011,13 @@ app.post(
       // `objects=1`: the photograph is of an object — the phone's scanner
       // took it — so only the object categories are chosen among, and its
       // short category comes back too, as `what` (see describeObject).
-      const listing = req.query.objects === "1" ? await describeObject(req.body, language) : await describeImage(req.body, language);
+      const listing = req.query.objects === "1" ? await describeObject(req.body) : await describeImage(req.body, language);
       if (!listing) return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
       res.json({
         ...listing,
         title: listing.title.slice(0, TITLE_MAX),
         ...("what" in listing && { what: listing.what.slice(0, WHAT_MAX) }),
+        ...(listing.translations && { translations: readTranslations(listing.translations) }),
       });
     } catch (error) {
       describeFault(error, res, "describing a photo");

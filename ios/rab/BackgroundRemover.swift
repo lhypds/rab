@@ -8,7 +8,7 @@ enum BackgroundRemover {
 
         var errorDescription: String? {
             switch self {
-            case .noImage: String(localized: "The photo could not be read")
+            case .noImage: Language.text("The photo could not be read")
             }
         }
     }

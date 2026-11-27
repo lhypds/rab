@@ -1,5 +1,5 @@
 import { unzipSync } from "fflate";
-import { ITEM_FILE, SOURCE_FILE, SPOT_FILE } from "./files.js";
+import { ITEM_FILE, SOURCE_FILE, SPOT_FILE, TEXT_LANGUAGES } from "./files.js";
 import { isStoredName } from "./images.js";
 
 // A public folder, or a piece of it, sent as a zip: data/users/_public/ as
@@ -12,6 +12,12 @@ import { isStoredName } from "./images.js";
 // folder may be at the top of the zip or inside one folder or more ("public/",
 // "_public/"); where it is, is wherever locations.json or the first item is.
 // Anything else in it is passed over, the Finder's own leavings included.
+//
+// An item's other languages come with it: item.en.json, item.zh.json and
+// item.ja.json beside item.json (spot.en.json and so on beside a spot's) —
+// each its name, what it is and its description in that language (see
+// files.js). They are read into the item as its `translations`, which is how
+// it is kept in memory, and written back out as the same files.
 //
 // What it comes to, as mergePublic (db.js) takes it: { locations, items:
 // [{ folder, item, source, files }] }, `files` being the photographs by name.
@@ -33,6 +39,13 @@ function json(bytes, name) {
 }
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+// The language a file beside an item's own is in — "ja" for item.ja.json —
+// or null for a file that is not one of them.
+function languageOf(file, own) {
+  const match = file.match(/^(.+)\.([a-z]{2})\.json$/);
+  return match && `${match[1]}.json` === own && TEXT_LANGUAGES.includes(match[2]) ? match[2] : null;
+}
 
 export function readPublicZip(buffer) {
   let entries;
@@ -68,7 +81,20 @@ export function readPublicZip(buffer) {
       if (!byFolder.has(folder)) byFolder.set(folder, { folder, item: null, source: null, files: {} });
       const entry = byFolder.get(folder);
       const isSpot = under !== "items";
-      if (file === (under === "items" ? ITEM_FILE : under === "spots" ? SPOT_FILE : under === "stores" ? "store.json" : "page.json")) {
+      const own = under === "items" ? ITEM_FILE : under === "spots" ? SPOT_FILE : under === "stores" ? "store.json" : "page.json";
+      const language = languageOf(file, own);
+      if (language) {
+        // One of its other languages: only the three things that are translated.
+        const words = json(bytes, name);
+        if (isRecord(words)) {
+          entry.translations ??= {};
+          entry.translations[language] = {
+            title: String(words.title ?? ""),
+            what: String(words.what ?? ""),
+            description: String(words.description ?? ""),
+          };
+        }
+      } else if (file === own) {
         const item = json(bytes, name);
         if (!isRecord(item)) throw new Error(`${name} is not an item`);
         const { page, store, ...rest } = item;
@@ -80,8 +106,15 @@ export function readPublicZip(buffer) {
         entry.files[file] = bytes;
       }
     }
-    // A folder with no item.json in it is not an item, as on the disk.
-    const items = [...byFolder.values()].filter((entry) => entry.item);
+    // A folder with no item.json in it is not an item, as on the disk. What
+    // it says in other languages is the files beside it, whatever item.json
+    // itself may say of them.
+    const items = [...byFolder.values()]
+      .filter((entry) => entry.item)
+      .map(({ translations, ...entry }) => {
+        const { translations: stale, ...item } = entry.item;
+        return { ...entry, item: translations ? { ...item, translations } : item };
+      });
     return { locations, items };
   } catch (error) {
     return { error: error.message };

@@ -93,15 +93,29 @@ export async function describeImage(buffer, language) {
 // object, so only the object categories are chosen among — and since those
 // are broad, the model also says in a word or two what sort of thing it is:
 // its short category, kept as the item's "what".
-const OBJECT = {
+// It is said in all three of rab's languages at once — English, Chinese and
+// Japanese — so that the item reads in whichever its reader has, and the
+// three say the same thing: one look at the photograph, not three.
+const WORDS = {
   type: "object",
   properties: {
-    category: { type: "string", enum: OBJECT_CATEGORIES },
     what: { type: "string" },
     title: { type: "string" },
     description: { type: "string" },
   },
-  required: ["category", "what", "title", "description"],
+  required: ["what", "title", "description"],
+  additionalProperties: false,
+};
+
+const OBJECT = {
+  type: "object",
+  properties: {
+    category: { type: "string", enum: OBJECT_CATEGORIES },
+    en: WORDS,
+    zh: WORDS,
+    ja: WORDS,
+  },
+  required: ["category", "en", "zh", "ja"],
   additionalProperties: false,
 };
 
@@ -111,15 +125,21 @@ The photograph is of one object. Where several things are in it, it is the one i
 
 Answer with:
 - category: one of these, exactly as written: ${OBJECT_CATEGORIES.join(", ")}. "other" where none fits. Do not stretch a category to cover something it is not: a pen is "other", not "electronics".
-- what: the short category — the sort of thing it is in one to three words, more exact than the category and with no make or model: "Coffee mug", "Folding chair", "Mirrorless camera", "Cordless drill". Capitalised like a label, no full stop.
-- title: what a renter would search for — the thing itself, with its make and model where they can be read off it. A few words, no full stop, nothing about renting.
-- description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photograph shows — no price, no promises, nothing invented.
+- en, zh, ja: what it is, said three times — in English, in Simplified Chinese and in Japanese — each with:
+  - what: the short category — the sort of thing it is in one to three words, more exact than the category and with no make or model: "Coffee mug", "Folding chair", "Mirrorless camera", "Cordless drill". Capitalised like a label where the language has capitals, no full stop.
+  - title: what a renter would search for — the thing itself, with its make and model where they can be read off it. A few words, no full stop, nothing about renting.
+  - description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photograph shows — no price, no promises, nothing invented.
 
-Write what, the title and the description in the language you are asked for.`;
+The three say the same thing, each as somebody writing in that language would put it — not word for word. A make or model is written as it is on the thing, in every language.`;
 
-// { category, what, title, description } for a photograph of an object, or
-// null where the model would not give one.
-export async function describeObject(buffer, language) {
+export const TEXT_LANGUAGES = Object.keys(LANGUAGES);
+
+// { category, what, title, description, translations } for a photograph of an
+// object, or null where the model would not give one. `translations` is the
+// three languages' words — { en, zh, ja }, each { what, title, description } —
+// and the three beside it are the English: the default, what item.json says
+// (see files.js), whatever language whoever asked is reading in.
+export async function describeObject(buffer) {
   const mediaType = MEDIA_TYPES.find(([, matches]) => matches(buffer))?.[0];
   if (!mediaType) return null;
   client ??= new OpenAI();
@@ -131,7 +151,7 @@ export async function describeObject(buffer, language) {
       {
         role: "user",
         content: [
-          { type: "text", text: `Say what this is. Write in ${LANGUAGES[language] ?? LANGUAGES.en}.` },
+          { type: "text", text: "Say what this is." },
           { type: "image_url", image_url: { url: `data:${mediaType};base64,${buffer.toString("base64")}` } },
         ],
       },
@@ -146,11 +166,19 @@ export async function describeObject(buffer, language) {
     return null;
   }
   if (!answer || typeof answer !== "object") return null;
+  const translations = {};
+  for (const code of TEXT_LANGUAGES) {
+    translations[code] = {
+      what: String(answer[code]?.what ?? "").trim(),
+      title: String(answer[code]?.title ?? "").trim(),
+      description: String(answer[code]?.description ?? "").trim(),
+    };
+  }
+  const own = translations.en;
   return {
     category: OBJECT_CATEGORIES.includes(answer.category) ? answer.category : "other",
-    what: String(answer.what ?? "").trim(),
-    title: String(answer.title ?? "").trim(),
-    description: String(answer.description ?? "").trim(),
+    ...own,
+    translations,
   };
 }
 

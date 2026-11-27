@@ -1,4 +1,46 @@
+import i18n from "./i18n/index.js";
+
 const tokenKey = "rab:session-token";
+
+// An item that says itself in several languages (the phone's scanner names a
+// thing in English, Chinese and Japanese) comes with `translations` — { en,
+// zh, ja }, each { title, what, description } — beside its own words, which
+// are the default. Everything read from the server is put into the reader's
+// language here, once, so that every row, pin and page shows it without
+// knowing: the item's title, what and description become that language's
+// where it has them, and stay its own where it has not. Nothing else about an
+// item is translated.
+let sawTranslations = false;
+
+function inReadersLanguage(value, lang, depth = 0) {
+  if (!value || typeof value !== "object" || depth > 6) return value;
+  if (Array.isArray(value)) {
+    for (const each of value) inReadersLanguage(each, lang, depth + 1);
+    return value;
+  }
+  const words = value.translations && typeof value.translations === "object" && typeof value.title === "string" ? value.translations[lang] : null;
+  if (value.translations && typeof value.title === "string") sawTranslations = true;
+  if (words?.title) {
+    value.title = words.title;
+    value.what = words.what ?? "";
+    value.description = words.description ?? "";
+  }
+  for (const key in value) {
+    const child = value[key];
+    if (child && typeof child === "object" && key !== "translations") inReadersLanguage(child, lang, depth + 1);
+  }
+  return value;
+}
+
+// The language items are read in: the page's, as one of the three.
+export const itemLanguage = () => String(i18n.language ?? "en").slice(0, 2);
+
+// What has been read is in the language it was read in. Another one chosen,
+// the page is loaded again in it — but only where something on it was in
+// more than one language: a page of things said once has nothing to change.
+i18n.on("languageChanged", () => {
+  if (sawTranslations) window.location.reload();
+});
 
 let sessionToken = "";
 try {
@@ -71,7 +113,7 @@ async function request(path, options = {}) {
       error.code = data.code;
       throw error;
     }
-    return data;
+    return inReadersLanguage(data, itemLanguage());
   } catch (error) {
     if (!timedOut) throw error;
     const timeout = new Error("Request timed out");

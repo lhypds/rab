@@ -33,14 +33,24 @@ struct SavedItem: Codable, Identifiable, Hashable {
     var photo: String
     var width: Int
     var height: Int
-    /// The place it was attached to, in the items from when the phone had
-    /// places. Nothing is made of it any more.
+    /// The one of the account's places it was collected at, by its id: the
+    /// nearest, where the phone was within a hundred metres of one.
     var locationId: String?
     /// rab's own id for it, once it is in "My items" there.
     var remoteId: String?
     /// The spot it was collected for with the scanner, if it was: where it
     /// goes on rab once it has a name.
     var spotId: String? = nil
+
+    /// What it says in each of rab's languages, by their codes: the brain
+    /// names a thing in all three at once.
+    var translations: [String: Words]? = nil
+
+    /// Its own words: the language it was first named in.
+    var own: Words { Words(title: title, what: what ?? "", description: description ?? "") }
+
+    /// What it says, in the language the app is in.
+    func words(in language: Language) -> Words { Words.of(own, translations, in: language) }
 
     /// Whether anything has said what it is yet. What the scanner collects is
     /// a photograph and nothing else until it is recognized.
@@ -59,6 +69,7 @@ struct SavedSession: Codable {
 ///     Documents/data/<username>/items.json      the items, newest first
 ///     Documents/data/<username>/listings.json   the items as rab last listed them
 ///     Documents/data/<username>/spots.json      the spots as rab last listed them
+///     Documents/data/<username>/places.json     the account's places as rab last listed them
 ///     Documents/data/<username>/photos/<id>.jpg the photographs
 ///
 /// Documents is shared with the Files app (see Info.plist), so the folder can
@@ -77,6 +88,7 @@ final class UserStore {
     private var itemsFile: URL { folder.appendingPathComponent("items.json") }
     private var listingsFile: URL { folder.appendingPathComponent("listings.json") }
     private var spotsFile: URL { folder.appendingPathComponent("spots.json") }
+    private var placesFile: URL { folder.appendingPathComponent("places.json") }
 
     init(username: String) {
         self.username = username
@@ -135,6 +147,12 @@ final class UserStore {
     /// shown at once on opening, until it has been asked again.
     func loadListings() -> [Listing]? { read(listingsFile) }
     func saveListings(_ listings: [Listing]) { try? write(listings, to: listingsFile) }
+
+    // MARK: - places
+
+    /// The account's places as the server last listed them.
+    func loadPlaces() -> [Place] { read(placesFile) ?? [] }
+    func savePlaces(_ places: [Place]) { try? write(places, to: placesFile) }
 
     // MARK: - spots
 

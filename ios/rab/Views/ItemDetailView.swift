@@ -31,11 +31,16 @@ struct ItemDetailView: View {
                     .listRowInsets(EdgeInsets())
             }
 
-            ItemEditor(source: ItemDraft(title: item.title, what: item.what ?? "", description: item.description ?? "", category: item.category ?? "")) { draft in
+            // In the language the app is in: what is written here is that language's.
+            ItemEditor(source: ItemDraft(item.words(in: model.language), category: item.category ?? "")) { draft in
                 try await model.save(draft, for: item)
             }
 
             Section {
+                // The one of the account's places it was collected at.
+                if let place = model.place(item.locationId) {
+                    LabeledContent("Location", value: place.name)
+                }
                 if let spot = model.spot(item.spotId) {
                     LabeledContent("Spot", value: spot.title)
                 }
@@ -93,7 +98,9 @@ struct ItemDetailView: View {
         // Compact, as the sign-in screen is: the same type, the same height
         // of row and button, the same margins.
         .compactList()
-        .navigationTitle(item.isRecognized ? Text(item.title) : Text("Not recognized yet"))
+        // Pulling the page down takes the keyboard with it.
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle(item.isRecognized ? Text(verbatim: item.words(in: model.language).title) : Text("Not recognized yet"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {

@@ -26,6 +26,8 @@ struct ItemsView: View {
     @State private var account = false
     /// The box that asks which spot things are collected onto is up.
     @State private var choosingSpot = false
+    /// And the one that asks which language the app is in.
+    @State private var choosingLanguage = false
     /// What recognizing everything could not do, the last time it was asked.
     @State private var trouble: String?
 
@@ -87,11 +89,11 @@ struct ItemsView: View {
                             .font(Compact.font)
                             .foregroundStyle(.red)
                     }
-                    LazyVGrid(columns: ItemGrid.columns, spacing: 6) {
+                    LazyVGrid(columns: ItemGrid.columns, spacing: ItemGrid.gap) {
                         // What is still on this phone only, marked with a dot.
                         ForEach(onPhone.filter { shows($0.category, recognized: $0.isRecognized) }) { item in
                             NavigationLink(value: Route.saved(item.id)) {
-                                ItemTile(name: item.title, busy: model.recognizing.contains(item.id), waiting: true) {
+                                ItemTile(name: item.words(in: model.language).title, busy: model.recognizing.contains(item.id), waiting: true) {
                                     PhotoView(item: item, maxPixel: 120, fills: true)
                                 }
                             }
@@ -99,7 +101,7 @@ struct ItemsView: View {
                         // What rab has: the user's items as the website lists them.
                         ForEach(listings.filter { shows($0.category, recognized: true) }) { listing in
                             NavigationLink(value: Route.listing(listing.id)) {
-                                ItemTile(name: listing.title, busy: model.recognizing.contains(listing.id), waiting: false) {
+                                ItemTile(name: listing.words(in: model.language).title, busy: model.recognizing.contains(listing.id), waiting: false) {
                                     RemotePhoto(path: listing.thumb ?? listing.images?.first?.thumb ?? listing.images?.first?.src, fills: true)
                                 }
                             }
@@ -177,7 +179,19 @@ struct ItemsView: View {
                         // The marker: which spot things are collected onto.
                         // Chosen here, and nothing more — the tick says which.
                         Button { choosingSpot = true } label: {
-                            SpotIcon()
+                            HStack(spacing: 3) {
+                                SpotIcon()
+                                // Which one it is, beside it: on one line, cut
+                                // short where the bar has no more room.
+                                if let spot = model.targetSpot {
+                                    Text(verbatim: spot.title)
+                                        .font(Compact.small)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .frame(maxWidth: 96, alignment: .leading)
+                                        .fixedSize(horizontal: true, vertical: false)
+                                }
+                            }
                         }
                         .disabled(model.spots.isEmpty)
                         .accessibilityLabel("Spot")
@@ -204,6 +218,11 @@ struct ItemsView: View {
                         }
                         .disabled(model.recognizingAll || model.waiting.isEmpty)
                         .accessibilityLabel("Recognize all (\(model.waiting.count))")
+                        // The globe: which language the app is in.
+                        Button { choosingLanguage = true } label: {
+                            BarIcon(name: "globe")
+                        }
+                        .accessibilityLabel("Language")
                         Button { account = true } label: {
                             BarIcon(name: "person", scale: 0.84)
                         }
@@ -231,6 +250,14 @@ struct ItemsView: View {
                 chosen: { $0.id == model.targetSpot?.id },
                 choose: { model.setTargetSpot($0.id) }
             )
+            .compactChoice(
+                isPresented: $choosingLanguage,
+                title: Text("Language"),
+                choices: Language.allCases,
+                name: { $0.name },
+                chosen: { $0 == model.language },
+                choose: { model.language = $0 }
+            )
             .compactDialog(
                 isPresented: $account,
                 title: Text(verbatim: model.username ?? ""),
@@ -252,7 +279,7 @@ struct ItemsView: View {
         trouble = nil
         Task {
             if let result = await model.recognizeAll() {
-                trouble = String(localized: "\(result.failed) could not be done: \(result.why)")
+                trouble = Language.text("\(result.failed) could not be done: \(result.why)")
             }
         }
     }
@@ -339,7 +366,8 @@ struct ListingDetailView: View {
                 }
             }
 
-            ItemEditor(source: ItemDraft(title: listing.title, what: listing.what ?? "", description: listing.description ?? "", category: listing.category ?? "")) { draft in
+            // In the language the app is in: what is written here is that language's.
+            ItemEditor(source: ItemDraft(listing.words(in: model.language), category: listing.category ?? "")) { draft in
                 try await model.save(draft, for: listing)
             }
 
@@ -381,7 +409,9 @@ struct ListingDetailView: View {
         // Compact, as the sign-in screen is: the same type, the same height
         // of row and button, the same margins.
         .compactList()
-        .navigationTitle(listing.title)
+        // Pulling the page down takes the keyboard with it.
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle(Text(verbatim: listing.words(in: model.language).title))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
@@ -443,6 +473,8 @@ struct ItemEditor: View {
     let save: (ItemDraft) async throws -> Void
 
     @State private var draft: ItemDraft
+    /// One of the fields is being written in: the keyboard is up.
+    @FocusState private var writing: Bool
     @State private var saving = false
     @State private var error: String?
 
@@ -462,28 +494,64 @@ struct ItemEditor: View {
 
     var body: some View {
         Section {
+            // No grey words inside the fields: each is under what it is.
             field("Name") {
-                TextField("Name", text: $draft.title, axis: .vertical)
+                TextField("", text: $draft.title, axis: .vertical)
                     .lineLimit(1...3)
+                    .accessibilityLabel("Name")
+                    .focused($writing)
+                    // Over the keyboard, the way to put it away: a field of
+                    // several lines has no key that does.
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { writing = false }
+                        }
+                    }
             }
             field("What is it") {
-                TextField("What is it", text: $draft.what)
+                TextField("", text: $draft.what)
+                    .accessibilityLabel("What is it")
+                    .focused($writing)
+                    .submitLabel(.done)
                     // The server keeps no more than this.
                     .onChange(of: draft.what) { if draft.what.count > whatMax { draft.what = String(draft.what.prefix(whatMax)) } }
             }
             field("Description") {
-                TextField("Description", text: $draft.description, axis: .vertical)
+                TextField("", text: $draft.description, axis: .vertical)
                     .lineLimit(2...10)
+                    .accessibilityLabel("Description")
+                    .focused($writing)
             }
-            Picker(selection: $draft.category) {
-                Text("None").tag("")
-                ForEach(categories, id: \.self) { slug in
-                    Text(Categories.name(slug)).tag(slug)
+            // A menu whose own label is the row: the system's picker writes
+            // what is chosen in its own size, larger than the page's.
+            Menu {
+                Picker("Category", selection: $draft.category) {
+                    Text("None").tag("")
+                    ForEach(categories, id: \.self) { slug in
+                        Text(Categories.name(slug)).tag(slug)
+                    }
                 }
             } label: {
-                Text("Category")
+                HStack(spacing: 4) {
+                    Text("Category")
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    Group {
+                        if draft.category.isEmpty {
+                            Text("None")
+                        } else {
+                            Text(Categories.name(draft.category))
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(Compact.small)
+                        .foregroundStyle(.secondary)
+                }
+                .font(Compact.font)
+                .contentShape(Rectangle())
             }
-            .pickerStyle(.menu)
         } footer: {
             if let error { Text(error).foregroundStyle(.red) }
         }
@@ -522,6 +590,7 @@ struct ItemEditor: View {
 
     private func commit() {
         guard ready else { return }
+        writing = false
         let tidy = draft.tidy
         saving = true
         error = nil

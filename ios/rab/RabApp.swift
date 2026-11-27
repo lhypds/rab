@@ -20,6 +20,8 @@ struct RabApp: App {
                 // not a monospaced one, which gets fewer words into a line.
                 // One size of type throughout, unless a thing says otherwise.
                 .font(Compact.font)
+                // In the language chosen from the top bar, not the phone's.
+                .environment(\.locale, model.language.locale)
                 .tint(.black)
                 .preferredColorScheme(.light)
         }

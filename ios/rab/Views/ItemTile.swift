@@ -3,13 +3,17 @@ import SwiftUI
 /// The grid items are shown in: four across on a phone held upright,
 /// close together: there are a great many of them.
 enum ItemGrid {
-    static let columns = [GridItem(.adaptive(minimum: 78), spacing: 6, alignment: .top)]
+    /// How round a photograph's corners are.
+    static let corner: CGFloat = 10
+    /// Between two photographs, across and down alike.
+    static let gap: CGFloat = 6
+    /// Four across, always: however wide the phone, not as many as will fit.
+    static let columns = Array(repeating: GridItem(.flexible(), spacing: gap, alignment: .top), count: 4)
 }
 
 /// A photograph in a grid of items — the user's items, a spot's — with its
-/// name under it where it has one. Small, name and all: the grid is for
-/// finding a thing among many, and its page says the rest. The name is in
-/// the app's one size of type, on one line.
+/// name on it, as a label, where it has one. Small, name and all: the grid
+/// is for finding a thing among many, and its page says the rest.
 struct ItemTile<Photo: View>: View {
     let name: String
     /// It is being recognized just now.
@@ -19,36 +23,47 @@ struct ItemTile<Photo: View>: View {
     @ViewBuilder var photo: Photo
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Color.white
-                .aspectRatio(1, contentMode: .fit)
-                .overlay { photo }
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.85)))
-                .overlay {
-                    if busy {
-                        ZStack {
-                            Color.white.opacity(0.6)
-                            ProgressView().controlSize(.small)
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
+        Color.white
+            .aspectRatio(1, contentMode: .fit)
+            .overlay { photo }
+            // The name is a label on the photograph, at its foot: white on a
+            // dark band, as many lines as it needs up to three. One with no
+            // name yet has no label.
+            .overlay(alignment: .bottom) {
+                if !name.isEmpty {
+                    Text(verbatim: name)
+                        // Small: it is a label on a small picture.
+                        .font(.system(size: 10))
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.black.opacity(0.55))
                 }
-                .overlay(alignment: .topTrailing) {
-                    // What rab does not have yet says so with a dot.
-                    if waiting && !busy {
-                        Circle()
-                            .fill(Color.black)
-                            .frame(width: 6, height: 6)
-                            .padding(5)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: ItemGrid.corner))
+            .overlay {
+                if busy {
+                    ZStack {
+                        Color.white.opacity(0.6)
+                        ProgressView().controlSize(.small)
                     }
+                    .clipShape(RoundedRectangle(cornerRadius: ItemGrid.corner))
                 }
-            // One line, kept for the name it does not have yet, so that the
-            // rows stay level.
-            Text(verbatim: name.isEmpty ? " " : name)
-                .font(Compact.font)
-                .lineLimit(1)
-        }
+            }
+            .overlay(alignment: .topTrailing) {
+                // What rab does not have yet says so with a dot.
+                if waiting && !busy {
+                    Circle()
+                        .fill(Color.black)
+                        .frame(width: 6, height: 6)
+                        .padding(5)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: name))
         .contentShape(Rectangle())
     }
 }

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 // named after the account's username, under data/users/.
 //
 //   data/users/<username>/items/<made>/item.json   one thing they have out for rent, calendar included
+//   data/users/<username>/items/<made>/item.<en|zh|ja>.json   its name, what it is and its description in that language
 //   data/users/<username>/items/<made>/<name>      that item's photographs, beside it
 //   data/users/<username>/uploads/                 photographs sent and not yet an item's (see images.js)
 //   data/users/<username>/user.json                the account itself: its id (when it was made, in
@@ -152,6 +153,62 @@ function writeJson(file, value) {
 // the item, and the pictures beside it are its own.
 export const ITEM_FILE = "item.json";
 
+// What an item says of itself — its name, its few words for what it is and
+// its description — is in item.json, in the language it was written in:
+// English, for what the phone's scanner names. That is the default, and what
+// is shown where a reader's language has no file of its own. Beside it, the
+// same said in each language it has been said in:
+//
+//   item.en.json   English
+//   item.zh.json   Chinese
+//   item.ja.json   Japanese
+//
+// each { title, what, description } and nothing else: nothing else about an
+// item is translated. A spot's are spot.en.json and so on. In memory they are
+// the item's `translations` — { en, zh, ja } — which is never written into
+// item.json itself.
+export const TEXT_LANGUAGES = ["en", "zh", "ja"];
+
+const languageFile = (file, code) => file.replace(/\.json$/, `.${code}.json`);
+
+// The languages an item's file has files beside it for, or null where it has
+// none. One that cannot be read is passed over: the default stands in.
+function readTranslations(file) {
+  const kept = {};
+  for (const code of TEXT_LANGUAGES) {
+    let words;
+    try {
+      words = JSON.parse(fs.readFileSync(languageFile(file, code), "utf8"));
+    } catch {
+      continue;
+    }
+    if (!words || typeof words !== "object" || Array.isArray(words)) continue;
+    kept[code] = {
+      title: String(words.title ?? ""),
+      what: String(words.what ?? ""),
+      description: String(words.description ?? ""),
+    };
+  }
+  return Object.keys(kept).length > 0 ? kept : null;
+}
+
+// Each language's file written beside the item's own, and the file of a
+// language it no longer says anything in taken away.
+function writeTranslations(file, translations) {
+  for (const code of TEXT_LANGUAGES) {
+    const words = translations?.[code];
+    if (words) {
+      writeJson(languageFile(file, code), {
+        title: words.title ?? "",
+        what: words.what ?? "",
+        description: words.description ?? "",
+      });
+    } else {
+      fs.rmSync(languageFile(file, code), { force: true });
+    }
+  }
+}
+
 // An item's folder's name: one piece of a path and nothing cleverer.
 const ITEM_FOLDER_RE = /^[A-Za-z0-9_-]+$/;
 
@@ -190,7 +247,9 @@ export function readItem(userId, folder) {
   }
   const item = JSON.parse(text);
   if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${file} is not an item`);
-  return { ...item, id: folder };
+  // With what it says in other languages, from the files beside it.
+  const translations = readTranslations(file);
+  return { ...item, id: folder, ...(translations && { translations }) };
 }
 
 // Every item an account has. A folder with no item.json in it is not an item
@@ -313,7 +372,10 @@ export function writeItem(userId, item) {
     const old = readJsonObject(file);
     if (old && !isItemSpot(old)) fs.copyFileSync(file, `${file}.moved`);
   }
-  writeJson(file, item);
+  // Its other languages go in their own files beside it, not in it.
+  const { translations, ...kept } = item;
+  writeJson(file, kept);
+  writeTranslations(file, translations);
 }
 
 // Where an item came from, as the crawler that wrote it down says
@@ -347,7 +409,9 @@ export function writeItemFolder(userId, item, files) {
   if (fresh) fs.rmSync(into, { recursive: true, force: true });
   fs.mkdirSync(into, { recursive: true });
   for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(into, name), bytes);
-  writeJson(path.join(into, item.spot ? SPOT_FILE : ITEM_FILE), item);
+  const { translations, ...kept } = item;
+  writeJson(path.join(into, item.spot ? SPOT_FILE : ITEM_FILE), kept);
+  writeTranslations(path.join(into, item.spot ? SPOT_FILE : ITEM_FILE), translations);
   if (fresh) fs.renameSync(into, dir);
   for (const other of others) fs.rmSync(other, { recursive: true, force: true });
 }

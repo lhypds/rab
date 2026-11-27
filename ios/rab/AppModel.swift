@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Observation
 import UIKit
@@ -20,6 +21,12 @@ final class AppModel {
         didSet { UserDefaults.standard.set(server, forKey: Self.serverKey) }
     }
 
+    /// The language the app is in (see Language): the screens', and the one
+    /// rab's server is asked to name things in.
+    var language = Language.chosen {
+        didSet { Language.choose(language) }
+    }
+
     private(set) var username: String?
     private(set) var items: [SavedItem] = []
     /// The user's items as rab lists them — what "My items" shows. Nil until
@@ -30,6 +37,9 @@ final class AppModel {
     /// The account's spots as rab lists them, the default one first: what the
     /// scanner collects things onto.
     private(set) var spots: [Spot] = []
+    /// The account's places as rab keeps them: what a thing collected near
+    /// one is said to be at.
+    private(set) var places: [Place] = []
     /// The items being recognized just now, by their ids — the phone's for
     /// one on the phone, rab's for one there.
     private(set) var recognizing: Set<String> = []
@@ -61,6 +71,7 @@ final class AppModel {
         items = store.loadItems()
         listings = store.loadListings()
         spots = store.loadSpots()
+        places = store.loadPlaces()
         targetSpotId = UserDefaults.standard.string(forKey: Self.targetKey(store.username))
         UserDefaults.standard.set(name, forKey: Self.userKey)
     }
@@ -69,7 +80,7 @@ final class AppModel {
 
     private func serverURL() throws -> URL {
         guard let url = RabAPI.url(from: server) else {
-            throw APIError(status: 0, code: "BAD_SERVER", message: String(localized: "That is not a web address"))
+            throw APIError(status: 0, code: "BAD_SERVER", message: Language.text("That is not a web address"))
         }
         return url
     }
@@ -91,7 +102,7 @@ final class AppModel {
 
     /// Has the code that opens a new account mailed to the address.
     func sendCode(username: String, password: String, email: String) async throws {
-        let language = Locale.current.language.languageCode?.identifier ?? "en"
+        let language = self.language.rawValue
         try await RabAPI(baseURL: try serverURL()).sendSignupCode(
             Self.normalize(username), password, email.trimmingCharacters(in: .whitespacesAndNewlines), language: language)
     }
@@ -113,6 +124,7 @@ final class AppModel {
         items = store.loadItems()
         listings = store.loadListings()
         spots = store.loadSpots()
+        places = store.loadPlaces()
         targetSpotId = UserDefaults.standard.string(forKey: Self.targetKey(store.username))
         UserDefaults.standard.set(username, forKey: Self.userKey)
     }
@@ -130,6 +142,7 @@ final class AppModel {
         listings = nil
         listingsError = nil
         spots = []
+        places = []
         recognizing = []
         recognizingAll = false
         targetSpotId = nil
@@ -158,6 +171,12 @@ final class AppModel {
                 spots = fresh.spots
                 store.saveSpots(fresh.spots)
             }
+            // The account's places too; where they cannot be asked for, the
+            // ones the phone knows stand.
+            if let fresh = try? await api.places(), self.store === store {
+                places = fresh
+                store.savePlaces(fresh)
+            }
         } catch is CancellationError {
         } catch let error as URLError where error.code == .cancelled {
         } catch {
@@ -169,7 +188,7 @@ final class AppModel {
     /// kept from when it was photographed here.
     func delete(_ listing: Listing) async throws {
         guard let api else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
         do {
             try await api.deleteItem(listing.id)
@@ -199,9 +218,9 @@ final class AppModel {
     /// and given its short category as well.
     func describe(_ image: UIImage, object: Bool = false) async throws -> Suggestion {
         guard let api, let small = image.jpeg(maxSide: 1024, quality: 0.7) else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        let code = Locale.current.language.languageCode?.identifier ?? "en"
+        let code = language.rawValue
         var suggestion = try await api.describe(small.data, language: ["zh", "ja"].contains(code) ? code : "en", object: object)
         guard object else { return suggestion }
         // A server from before it was asked for objects answers with any
@@ -209,7 +228,7 @@ final class AppModel {
         if !Categories.objects.contains(suggestion.category) { suggestion.category = "other" }
         suggestion.title = suggestion.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !suggestion.title.isEmpty else {
-            throw APIError(status: 422, code: "DESCRIBE_FAILED", message: String(localized: "The photo could not be recognized"))
+            throw APIError(status: 422, code: "DESCRIBE_FAILED", message: Language.text("The photo could not be recognized"))
         }
         return suggestion
     }
@@ -241,28 +260,56 @@ final class AppModel {
     /// Keeps a photograph the scanner took, for the spot things are being
     /// collected onto: an item with no name yet, on this phone, until it is
     /// recognized.
+    /// `position` is where the phone is, where it will say: the thing is then
+    /// at the nearest of the account's places, if one is within reach.
     @discardableResult
-    func collect(_ image: UIImage, forSpot spotId: String?) throws -> SavedItem {
-        try save(image: image, category: "", title: "", what: "", description: "", spotId: spotId)
+    func collect(_ image: UIImage, forSpot spotId: String?, at position: CLLocationCoordinate2D? = nil) throws -> SavedItem {
+        let near = position.flatMap { self.place(near: $0) }
+        return try save(image: image, category: "", title: "", what: "", description: "", spotId: spotId, locationId: near?.id)
+    }
+
+    // MARK: - places
+
+    /// How near one of the account's places the phone has to be for a thing
+    /// collected there to be said to be at it: a hundred metres.
+    nonisolated static let reach: CLLocationDistance = 100
+
+    func place(_ id: String?) -> Place? {
+        guard let id else { return nil }
+        return places.first { $0.id == id }
+    }
+
+    /// The nearest of the account's places to a spot, where one is within
+    /// `reach` of it; none otherwise.
+    func place(near position: CLLocationCoordinate2D) -> Place? {
+        let here = CLLocation(latitude: position.latitude, longitude: position.longitude)
+        let nearest = places
+            .map { ($0, here.distance(from: CLLocation(latitude: $0.latitude, longitude: $0.longitude))) }
+            .min { $0.1 < $1.1 }
+        guard let nearest, nearest.1 <= Self.reach else { return nil }
+        return nearest.0
     }
 
     // MARK: - editing
 
     /// What was written on an item's page, kept: on this phone, and on rab —
     /// changed there where it is there already, and registered there where
-    /// it is not and now has a name.
+    /// it is not and now has a name. What was written is in the language the
+    /// app is in: that language's words are changed, and the others stand.
     func save(_ draft: ItemDraft, for item: SavedItem) async throws {
         guard let api else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
         guard var fresh = self.item(item.id) else { return }
-        fresh.title = draft.title
-        fresh.what = draft.what
-        fresh.description = draft.description
+        let written = Words.written(draft.words, in: language, own: fresh.own, translations: fresh.translations)
+        fresh.title = written.own.title
+        fresh.what = written.own.what
+        fresh.description = written.own.description
+        fresh.translations = written.translations
         fresh.category = draft.category.isEmpty ? nil : draft.category
         try update(fresh)
         if let remoteId = fresh.remoteId {
-            try await api.updateItem(remoteId, Self.body(draft))
+            try await api.updateItem(remoteId, Self.body(written.own, written.translations, category: draft.category))
             await loadListings()
         } else if fresh.isRecognized {
             try await publish(fresh)
@@ -273,27 +320,30 @@ final class AppModel {
     /// own copy of it where it has one.
     func save(_ draft: ItemDraft, for listing: Listing) async throws {
         guard let api else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        try await api.updateItem(listing.id, Self.body(draft))
+        let written = Words.written(draft.words, in: language, own: listing.own, translations: listing.translations)
+        try await api.updateItem(listing.id, Self.body(written.own, written.translations, category: draft.category))
         if let index = listings?.firstIndex(where: { $0.id == listing.id }) {
-            listings?[index].title = draft.title
-            listings?[index].what = draft.what
-            listings?[index].description = draft.description
+            listings?[index].title = written.own.title
+            listings?[index].what = written.own.what
+            listings?[index].description = written.own.description
+            listings?[index].translations = written.translations
             listings?[index].category = draft.category
             if let listings { store?.saveListings(listings) }
         }
         for var copy in items where copy.remoteId == listing.id {
-            copy.title = draft.title
-            copy.what = draft.what
-            copy.description = draft.description
+            copy.title = written.own.title
+            copy.what = written.own.what
+            copy.description = written.own.description
+            copy.translations = written.translations
             copy.category = draft.category.isEmpty ? nil : draft.category
             try? update(copy)
         }
     }
 
-    private static func body(_ draft: ItemDraft) -> RecognizedBody {
-        RecognizedBody(title: draft.title, what: draft.what, description: draft.description, category: draft.category)
+    private static func body(_ own: Words, _ translations: [String: Words]?, category: String) -> RecognizedBody {
+        RecognizedBody(title: own.title, what: own.what, description: own.description, category: category, translations: translations)
     }
 
     // MARK: - recognizing
@@ -305,7 +355,7 @@ final class AppModel {
     /// there too.
     func recognize(_ item: SavedItem, refreshing: Bool = true) async throws {
         guard let api, let store else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
         guard !recognizing.contains(item.id) else { return }
         recognizing.insert(item.id)
@@ -318,6 +368,9 @@ final class AppModel {
         fresh.what = String((suggestion.what ?? "").prefix(whatMax))
         fresh.title = suggestion.title
         fresh.description = suggestion.description
+        // In all three languages, where the server said them: what it said
+        // before in any of them is written over with the rest.
+        fresh.translations = suggestion.translations
         try update(fresh)
         if let remoteId = fresh.remoteId {
             try await api.updateItem(remoteId, Self.recognized(suggestion))
@@ -331,7 +384,7 @@ final class AppModel {
     /// at, and what it says it is written over there.
     func recognize(_ listing: Listing) async throws {
         guard let api else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
         guard !recognizing.contains(listing.id) else { return }
         recognizing.insert(listing.id)
@@ -347,6 +400,7 @@ final class AppModel {
             copy.what = String((suggestion.what ?? "").prefix(whatMax))
             copy.title = suggestion.title
             copy.description = suggestion.description
+            copy.translations = suggestion.translations
             try? update(copy)
         }
         await loadListings()
@@ -357,7 +411,8 @@ final class AppModel {
             title: suggestion.title,
             what: String((suggestion.what ?? "").prefix(whatMax)),
             description: suggestion.description,
-            category: suggestion.category
+            category: suggestion.category,
+            translations: suggestion.translations
         )
     }
 
@@ -425,8 +480,8 @@ final class AppModel {
     }
 
     /// Keeps a photographed thing in the user's folder, newest first.
-    func save(image: UIImage, category: String, title: String, what: String, description: String, spotId: String? = nil) throws -> SavedItem {
-        guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
+    func save(image: UIImage, category: String, title: String, what: String, description: String, spotId: String? = nil, locationId: String? = nil) throws -> SavedItem {
+        guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in")) }
         guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
             throw BackgroundRemover.Failure.noImage
         }
@@ -447,7 +502,7 @@ final class AppModel {
             photo: photo,
             width: jpeg.width,
             height: jpeg.height,
-            locationId: nil,
+            locationId: locationId,
             remoteId: nil,
             spotId: spotId
         )
@@ -472,11 +527,12 @@ final class AppModel {
     /// copy go up first, then the item carrying their names, the way the
     /// website's form does it. What goes up is what the thing is and nothing
     /// more — its name, its few words, its category and its description: no
-    /// price, not for rent and not for sale, no way to reach anybody, no place
-    /// and no area. Those are its owner's to say on the website, if ever.
+    /// price, not for rent and not for sale, no way to reach anybody. Those
+    /// are its owner's to say on the website, if ever. Where it is goes up
+    /// only for a thing collected at one of the account's places.
     func publish(_ item: SavedItem, refreshing: Bool = true) async throws {
         guard let api, let store else {
-            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
         // The spot it was collected for, where rab still has it; where it is
         // gone, the item goes on the default one, as any other does.
@@ -486,6 +542,8 @@ final class AppModel {
               let thumb = image.jpeg(maxSide: 320, quality: 0.62)
         else { throw BackgroundRemover.Failure.noImage }
 
+        let at = self.place(item.locationId)
+
         let storedFull = try await api.uploadImage(full.data)
         let storedThumb = try await api.uploadImage(thumb.data)
         let body = ItemBody(
@@ -494,6 +552,12 @@ final class AppModel {
             description: item.description ?? "",
             category: item.category ?? "",
             currency: item.currency,
+            translations: item.translations,
+            // At the place it was collected at, where it was at one.
+            latitude: at?.latitude,
+            longitude: at?.longitude,
+            place: at.map { $0.address?.isEmpty == false ? $0.address! : $0.name },
+            region: at?.region,
             images: [ImageRef(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)],
             spotIds: spot.map { [$0.id] }
         )

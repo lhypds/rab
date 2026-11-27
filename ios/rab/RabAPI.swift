@@ -49,6 +49,15 @@ struct ItemBody: Encodable {
     var currency: String
     /// Not lent out — and, no sale price being sent, not for sale either.
     var rentable = false
+    /// The same in each of rab's languages, where the brain has said them.
+    var translations: [String: Words]?
+    /// Where it is: the one of the account's places it was collected at,
+    /// where it was within reach of one (see `Place`) — its pin, the line by
+    /// the pin and the area it is in. Left out for one collected anywhere else.
+    var latitude: Double?
+    var longitude: Double?
+    var place: String?
+    var region: Region?
     var images: [ImageRef]
     /// The spots it goes on, where any were chosen: the one it was collected
     /// for (see the scanner). Left out, the server puts it on the account's
@@ -74,6 +83,8 @@ struct Listing: Codable, Identifiable, Hashable {
     var what: String?
     var description: String?
     var category: String?
+    /// What it says in each of rab's languages, where it has been said in them.
+    var translations: [String: Words]?
     var price: Double?
     var currency: String?
     var place: String?
@@ -81,6 +92,14 @@ struct Listing: Codable, Identifiable, Hashable {
     var images: [Picture]?
     var thumb: String?
     var active: Bool?
+}
+
+extension Listing {
+    /// Its own words: the language it was first named in.
+    var own: Words { Words(title: title, what: what ?? "", description: description ?? "") }
+
+    /// What it says, in the language the app is in.
+    func words(in language: Language) -> Words { Words.of(own, translations, in: language) }
 }
 
 /// What the server made of a photograph (POST /api/describe): the listing's
@@ -92,6 +111,10 @@ struct Suggestion: Decodable {
     var what: String?
     var title: String
     var description: String
+    /// The same in all three of rab's languages, by their codes ("en", "zh",
+    /// "ja"): only said of a photograph sent as an object's, and missing from
+    /// a server from before it said them.
+    var translations: [String: Words]?
 }
 
 /// One of the account's spots as the server lists it (GET /api/mine): a
@@ -144,6 +167,20 @@ struct ItemDraft: Equatable {
     var description: String
     var category: String
 
+    /// The words of it, without the category.
+    var words: Words { Words(title: title, what: what, description: description) }
+
+    init(_ words: Words, category: String) {
+        self.init(title: words.title, what: words.what, description: words.description, category: category)
+    }
+
+    init(title: String, what: String, description: String, category: String) {
+        self.title = title
+        self.what = what
+        self.description = description
+        self.category = category
+    }
+
     /// As it is kept: nothing but blanks is nothing, and the few words are
     /// no more than the server keeps.
     var tidy: ItemDraft {
@@ -164,6 +201,64 @@ struct RecognizedBody: Encodable {
     var what: String
     var description: String
     var category: String
+    /// The same in each of rab's languages, where it has been said in them.
+    /// Left out, the server keeps what it had.
+    var translations: [String: Words]?
+}
+
+/// What an item says of itself in one language: its name, its few words for
+/// what it is, and its description.
+struct Words: Codable, Hashable {
+    var title: String
+    var what: String
+    var description: String
+
+    init(title: String, what: String, description: String) {
+        self.title = title
+        self.what = what
+        self.description = description
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        title = (try? values.decode(String.self, forKey: .title)) ?? ""
+        what = (try? values.decode(String.self, forKey: .what)) ?? ""
+        description = (try? values.decode(String.self, forKey: .description)) ?? ""
+    }
+
+    /// What an item says, in the language asked for: that language's words
+    /// where it has been said in it, and the item's own otherwise.
+    static func of(_ own: Words, _ translations: [String: Words]?, in language: Language) -> Words {
+        guard let words = translations?[language.rawValue], !words.title.isEmpty else { return own }
+        return words
+    }
+
+    /// What an item says once `new` has been written in `language`: its own
+    /// words, and its words in every language. The language written in is
+    /// changed. Its own words are the default, which is English (item.json
+    /// on the server): they follow only what is written in English — and
+    /// whatever is written, where the item is said in no other language.
+    static func written(_ new: Words, in language: Language, own: Words, translations: [String: Words]?) -> (own: Words, translations: [String: Words]?) {
+        guard var all = translations else { return (new, nil) }
+        all[language.rawValue] = new
+        return (language == .en ? new : own, all)
+    }
+}
+
+/// One of the account's places as rab keeps them (GET /api/locations) —
+/// "Home", "The shop": made on the website, and what a thing collected near
+/// one is said to be at.
+struct Place: Codable, Identifiable, Hashable {
+    var id: String
+    var name: String
+    var address: String?
+    var latitude: Double
+    var longitude: Double
+    var region: Region?
+}
+
+private struct PlacesReply: Decodable {
+    let locations: [Place]
 }
 
 private struct MineReply: Decodable {
@@ -228,7 +323,7 @@ final class RabAPI {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             let fault = try? JSONDecoder().decode(Fault.self, from: data)
-            let message = fault?.error ?? String(localized: "Request failed (\(status))")
+            let message = fault?.error ?? Language.text("Request failed (\(status))")
             throw APIError(status: status, code: fault?.code, message: message)
         }
         return data
@@ -298,15 +393,21 @@ final class RabAPI {
         return (reply.items, reply.spots ?? [])
     }
 
+    /// The account's places, in the order they were added.
+    func places() async throws -> [Place] {
+        let data = try await send("GET", "api/locations")
+        return try JSONDecoder().decode(PlacesReply.self, from: data).locations
+    }
+
     /// The bytes of a photograph the server keeps.
     func imageData(_ path: String) async throws -> Data {
         guard let url = imageURL(path) else {
-            throw APIError(status: 0, code: nil, message: String(localized: "The photo could not be read"))
+            throw APIError(status: 0, code: nil, message: Language.text("The photo could not be read"))
         }
         let (data, response) = try await URLSession.shared.data(from: url)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
-            throw APIError(status: status, code: nil, message: String(localized: "The photo could not be read"))
+            throw APIError(status: status, code: nil, message: Language.text("The photo could not be read"))
         }
         return data
     }

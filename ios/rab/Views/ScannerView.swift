@@ -12,6 +12,9 @@ struct ScannerView: View {
     let spot: Spot?
 
     @StateObject private var scanner = Scanner()
+    /// Where the phone is: what is collected is at the nearest of the
+    /// account's places, where one is within a hundred metres.
+    @StateObject private var locator = Locator()
     /// How many were collected since the camera was opened, and the last of them.
     @State private var count = 0
     @State private var last: UIImage?
@@ -65,11 +68,13 @@ struct ScannerView: View {
         .statusBarHidden()
         .onAppear {
             scanner.start()
+            locator.start()
             // The phone is held up at things for minutes: the screen stays on.
             UIApplication.shared.isIdleTimerDisabled = true
         }
         .onDisappear {
             scanner.stop()
+            locator.stop()
             UIApplication.shared.isIdleTimerDisabled = false
         }
     }
@@ -206,11 +211,11 @@ struct ScannerView: View {
         scanner.capture { image in
             taking = false
             guard let image else {
-                error = String(localized: "The photo could not be read")
+                error = Language.text("The photo could not be read")
                 return
             }
             do {
-                try model.collect(image, forSpot: spot?.id)
+                try model.collect(image, forSpot: spot?.id, at: locator.position)
                 error = nil
                 last = image
                 count += 1
