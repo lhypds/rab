@@ -288,6 +288,14 @@
     },
     "depositRequired": "Enter the deposit amount.",
     "depositLine": "Deposit {{price}}",
+    "sale": "Transfer, sale or buyout",
+    "salePrice": "Transfer, sale or buyout price",
+    "saleOn": {
+      "no": "No",
+      "yes": "Yes"
+    },
+    "saleRequired": "Enter the transfer, sale or buyout price.",
+    "saleLine": "Transfer / sale / buyout {{price}}",
     "basePricing": "Default pricing",
     "basePricingStep": "Default price per step",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",

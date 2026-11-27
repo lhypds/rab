@@ -284,6 +284,14 @@
     },
     "depositRequired": "请填写押金金额。",
     "depositLine": "押金 {{price}}",
+    "sale": "是否转让、出售或买断",
+    "salePrice": "转让、出售或买断价格",
+    "saleOn": {
+      "no": "否",
+      "yes": "是"
+    },
+    "saleRequired": "请填写转让、出售或买断价格。",
+    "saleLine": "转让 / 出售 / 买断 {{price}}",
     "basePricing": "默认价格",
     "basePricingStep": "默认步长价格",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",

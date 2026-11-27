@@ -284,6 +284,14 @@
     },
     "depositRequired": "保証金の金額を入力してください。",
     "depositLine": "保証金 {{price}}",
+    "sale": "譲渡・販売・買い取り",
+    "salePrice": "譲渡・販売・買い取り価格",
+    "saleOn": {
+      "no": "しない",
+      "yes": "する"
+    },
+    "saleRequired": "譲渡・販売・買い取り価格を入力してください。",
+    "saleLine": "譲渡・販売・買い取り {{price}}",
     "basePricing": "通常料金",
     "basePricingStep": "刻みごとの通常料金",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",

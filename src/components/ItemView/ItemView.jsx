@@ -614,6 +614,7 @@ export default function ItemView({
               </span>
             )}
             {item.deposit != null && <span>{t("item.depositLine", { price: formatPrice(item.deposit, item.currency, lang) })}</span>}
+            {item.salePrice != null && <span>{t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, lang) })}</span>}
             {statusTags}
           </p>
           )}

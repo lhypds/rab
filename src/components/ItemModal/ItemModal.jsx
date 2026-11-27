@@ -207,6 +207,9 @@ function startingFieldsAsSaved(item, calendar, lang) {
     // the item's currency.
     depositOn: item?.deposit != null,
     deposit: item?.deposit != null ? String(item.deposit) : "",
+    // Whether it is for sale as well, and for how much — in its currency.
+    saleOn: item?.salePrice != null,
+    salePrice: item?.salePrice != null ? String(item.salePrice) : "",
     // What it costs — the base price, and the dates with one of their own —
     // and the rules for hours.
     ...startingPricing(item, calendar),
@@ -1127,6 +1130,10 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // or null.
   const depositSum = priceOf(fields.deposit);
   const deposit = priced && fields.depositOn && depositSum !== null && depositSum > 0 ? roundPrice(depositSum, fields.currency) : null;
+  // What it is sold for, kept the same way: a sum where it is for sale and
+  // one is written, or null.
+  const saleSum = priceOf(fields.salePrice);
+  const salePrice = priced && fields.saleOn && saleSum !== null && saleSum > 0 ? roundPrice(saleSum, fields.currency) : null;
   // What the calendar's single dates say, where it still goes against the
   // rule: a date closed that the rule has, one opened that it leaves out.
   const closed = fields.closed.filter((day) => openByRule({ openDays }, day));
@@ -1146,6 +1153,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
     cancel,
     deposit,
+    salePrice,
     contacts,
     rates,
     hours,
@@ -1217,6 +1225,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     if (inquiry && contacts.length === 0) return t("item.contactRequired");
     // A deposit asked for has to say how much.
     if (priced && fields.depositOn && deposit === null) return t("item.depositRequired");
+    // And one for sale, for how much.
+    if (priced && fields.saleOn && salePrice === null) return t("item.saleRequired");
     return "";
   }
 
@@ -1252,6 +1262,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
       cancel,
       deposit,
+      salePrice,
       contacts,
       rates,
       hours,
@@ -1930,8 +1941,42 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                         setError("");
                       }}
                       inputMode="decimal"
-                      placeholder={t("item.depositAmount")}
+                      placeholder={t("item.price")}
                       aria-label={t("item.depositAmount")}
+                      maxLength={12}
+                    />
+                  </div>
+                )}
+                {/* Whether it is for sale as well as for rent, and then for
+                    how much: which the two sides settle themselves, as they
+                    do a deposit. */}
+                <div className={styles.modeRow}>
+                  <span className={styles.everyDay}>{t("item.sale")}</span>
+                  <Select
+                    className={styles.currency}
+                    label={t("item.sale")}
+                    value={fields.saleOn ? "yes" : "no"}
+                    onChange={(value) => {
+                      set("saleOn", value === "yes");
+                      setError("");
+                    }}
+                    options={["no", "yes"].map((each) => ({ value: each, label: t(`item.saleOn.${each}`) }))}
+                  />
+                </div>
+                {fields.saleOn && (
+                  <div className={styles.modeRow}>
+                    <span className={styles.everyDay}>{t("item.salePrice")}</span>
+                    <PriceInput
+                      currency={fields.currency}
+                      className={styles.rulePrice}
+                      value={shownPrice(fields.salePrice, fields.currency)}
+                      onChange={(event) => {
+                        set("salePrice", priceText(event.target.value, fields.currency));
+                        setError("");
+                      }}
+                      inputMode="decimal"
+                      placeholder={t("item.price")}
+                      aria-label={t("item.salePrice")}
                       maxLength={12}
                     />
                   </div>

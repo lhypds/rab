@@ -661,6 +661,8 @@ function servedItem(item) {
     cancel: item.cancel ?? { mode: "any" },
     // The deposit asked for on top of the price, in its currency: null for none.
     deposit: item.deposit ?? null,
+    // What it is sold for, where it is for sale as well: null where it is not.
+    salePrice: item.salePrice ?? null,
     // Whether it is somebody else's, put here by an account that does not
     // have it: anybody signed in may then change it or delete it.
     shared: item.shared === true,
@@ -863,6 +865,7 @@ function itemFields(item) {
     priceUnit: item.priceUnit ?? item.unit ?? 30,
     cancel: item.cancel ?? { mode: "any" },
     deposit: item.deposit ?? null,
+    salePrice: item.salePrice ?? null,
     contacts: item.contacts ?? [],
     shared: item.shared === true,
     openDays: item.openDays ?? null,

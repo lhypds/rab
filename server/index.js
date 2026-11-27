@@ -950,6 +950,9 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       cancel: readCancel(body?.cancel),
       // The deposit asked for on top of the price, or null.
       deposit: readDeposit(body?.deposit, currency),
+      // What it is sold for, where it is for sale as well as for rent, or
+      // null: a sum read as a deposit is.
+      salePrice: readDeposit(body?.salePrice, currency),
       contacts,
       // Whether it is somebody else's rather than the account's own: it is
       // then kept under the public account, which is nobody's, and anybody
