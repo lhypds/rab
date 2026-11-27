@@ -441,9 +441,23 @@ async function sendMissing(fs, session, folder, send) {
         for (let at = 0; at < items.length; at += most) await run(items.slice(at, at + most));
         return;
       }
+      // A proxy that gave up waiting for the server's answer (502, 504): the
+      // batch took it too long, so it goes again in two halves — what of it
+      // the server did take in is replaced by the same.
+      const status = /^(50[24]) /.exec(error.message)?.[1];
+      if (status && items.length > 1) {
+        console.log(`${items.length} at once took the server too long (${status}); sending them again in halves`);
+        const half = Math.ceil(items.length / 2);
+        await run(items.slice(0, half));
+        await run(items.slice(half));
+        return;
+      }
       failed += items.length;
       done += items.length;
-      console.log(`[${done}/${send.items.length}] ${items.map((each) => each.id).join(", ")} failed: ${error.message}`);
+      // The ids of a few, not of thousands; a proxy's page as its one line.
+      const ids = items.slice(0, 5).map((each) => each.id).join(", ") + (items.length > 5 ? `, … (${items.length})` : "");
+      const why = status ? `${status} the server took too long to answer` : error.message;
+      console.log(`[${done}/${send.items.length}] ${ids} failed: ${why}`);
     }
   };
   // A few batches on their way at once, each worker taking the next.

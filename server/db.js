@@ -1552,6 +1552,19 @@ export function saveLocation(userId, location) {
   return saved;
 }
 
+// Several new locations in one read and one write of the list — as many as
+// there is room for, each under a new id: the ones that were kept.
+export function addLocations(userId, locations) {
+  if (locations.length === 0) return [];
+  const list = getLocations(userId);
+  const room = (userId === PUBLIC_ID ? PUBLIC_LOCATIONS_MAX : LOCATIONS_MAX) - list.length;
+  const saved = locations.slice(0, Math.max(0, room)).map((location) => ({ ...location, id: newLocationId(), createdAt: now() }));
+  if (saved.length === 0) return [];
+  list.push(...saved);
+  writeList(userId, LOCATIONS_FILE, list);
+  return saved;
+}
+
 export function deleteLocation(userId, id) {
   const list = getLocations(userId);
   const kept = list.filter((each) => each.id !== id);

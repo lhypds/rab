@@ -43,6 +43,7 @@ const {
   getDays,
   getDaysBetween,
   getItem,
+  addLocations,
   getLocations,
   findSpot,
   findSharedSpot,
@@ -1161,22 +1162,26 @@ app.get("/api/items/:id", (req, res) => {
 function rememberPublicPlaces(items) {
   const near = (a, b) => Math.abs(a - b) < 1e-5;
   let places = null;
+  // The new ones, written together once every item has been looked at: a
+  // write of the whole list for each is what a zip of thousands waits on.
+  const fresh = [];
   for (const item of items) {
     if (!item.shared || !item.located || item.latitude == null || item.longitude == null) continue;
     places ??= getLocations(PUBLIC_ID);
     // One place per address too, as push and mirror count them (rab public).
     if (places.some((place) => (near(place.latitude, item.latitude) && near(place.longitude, item.longitude))
       || (item.place && place.address === item.place))) continue;
-    const saved = saveLocation(PUBLIC_ID, {
-      id: null,
+    const place = {
       name: text(item.place || item.title, LOCATION_NAME_MAX),
       address: item.place ?? "",
       latitude: item.latitude,
       longitude: item.longitude,
       region: item.region ?? null,
-    });
-    if (saved) places.push(saved);
+    };
+    places.push(place);
+    fresh.push(place);
   }
+  addLocations(PUBLIC_ID, fresh);
 }
 
 const rememberPublicPlace = (item) => rememberPublicPlaces([item]);
@@ -2162,14 +2167,17 @@ app.post(
     if (sent.error) return res.status(400).json({ error: sent.error });
     try {
       const merged = mergePublic(sent);
+      const kept = [];
       for (const id of [...merged.items.added, ...merged.items.replaced]) {
         const names = getItemImages(id).flatMap((image) => [image.name, image.thumb]);
         // One that came deleted is kept as it came, and is nowhere to be put.
         const item = getItem(id);
         if (isSpotFolder(PUBLIC_ID, id)) keepSpotImages(PUBLIC_ID, id, names);
         else keepImages(PUBLIC_ID, id, names);
-        if (item) rememberPublicPlace(item);
+        if (item) kept.push(item);
       }
+      // The places read once for the whole zip, not once for each item in it.
+      rememberPublicPlaces(kept);
       res.json(merged);
     } catch (error) {
       next(error);
