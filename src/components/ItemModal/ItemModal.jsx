@@ -6,7 +6,7 @@ import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } fro
 import { CURRENCIES, compactPrice, currencyDigits, durationName, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
 import PublishAsField from "../PublishAsField/index.js";
-import StoreField from "../StoreField/index.js";
+import SpotField from "../SpotField/index.js";
 import { categoriesFor, isAdultCategory } from "../../utils/categories.js";
 import { dialCodeOf } from "../../utils/dialing.js";
 import { AREA_TYPES, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, areasAt, geocode, locate, locationPermission, postcodeOf, savedView } from "../../utils/mapbox.js";
@@ -164,9 +164,9 @@ function startingFieldsAsSaved(item, calendar, lang) {
     // Whose it is: the account's own, or somebody else's that the account is
     // writing down — which anybody may then change or delete.
     shared: item?.shared === true,
-    // Whether it is a store — a collection of the account's items — rather
+    // Whether it is a spot — a collection of the account's items — rather
     // than one item (see PublishAsField). Everything else is asked the same.
-    store: item?.store === true,
+    spot: item?.spot === true,
     category: item?.category ?? "",
     title: item?.title ?? "",
     what: item?.what ?? "",
@@ -799,12 +799,12 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   const names = useMemo(() => weekdayNames(lang), [lang]);
   // The pages a new item goes on, ticked on the sheet: none ticked puts it on
   // the account's default page. Not asked of a page.
-  const [storeChoices, setStoreChoices] = useState([]);
+  const [spotChoices, setSpotChoices] = useState([]);
 
   useEffect(() => {
     if (!isOpen) return;
     const initial = startingFields(item, calendar, lang);
-    setStoreChoices([]);
+    setSpotChoices([]);
     setFields(initial);
     currencyPicked.current = false;
     setError("");
@@ -1071,7 +1071,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // What the form comes to, as the item its page would be drawn from: the
   // calendar in here and the preview are both this.
   // A page is a collection of items, each with its own prices: it has none.
-  const priced = !fields.store;
+  const priced = !fields.spot;
   // Whether it is lent out at all. One that is not — only for sale — is
   // settled by asking: no calendar, no rental price, no request.
   const rentable = !priced || fields.rentOn;
@@ -1152,7 +1152,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     links: fields.links.map(homepageOf).filter(Boolean),
     category: fields.category,
     shared: fields.shared,
-    store: fields.store,
+    spot: fields.spot,
     mode,
     unit: fields.unit,
     minDuration: wholeSteps(fields.minDuration, fields.unit),
@@ -1260,11 +1260,11 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       description: fields.description.trim(),
       what: fields.what.trim(),
       links: fields.links.map((link) => link.trim()).filter(Boolean),
-      ...(!editing && !fields.store && { storeIds: storeChoices }),
+      ...(!editing && !fields.spot && { spotIds: spotChoices }),
       category: fields.category,
       shared: fields.shared,
       // Said when it is made, and what it is from then on.
-      ...(!editing && { store: fields.store }),
+      ...(!editing && { spot: fields.spot }),
       mode,
       unit: fields.unit,
       minDuration: wholeSteps(fields.minDuration, fields.unit),
@@ -1303,7 +1303,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
         ? []
         : (calendar?.days ?? []).filter((day) => day.available && day.price != null && !closed.includes(day.day)).map((day) => day.day);
       if (editing && stale.length > 0) await api.setDays(item.id, { days: stale, available: true, price: null });
-      onSaved?.(data.item, data.store);
+      onSaved?.(data.item, data.spot);
     } catch (requestError) {
       setError(
         requestError.code === "REGION_REQUIRED"
@@ -1444,7 +1444,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     <>
       <Modal
         isOpen={isOpen}
-        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t(item.store ? "store.edit" : "item.editTitle") : t("item.newTitle")}
+        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t(item.spot ? "spot.edit" : "item.editTitle") : t("item.newTitle")}
         // Withheld while something is on its way up, so a stray Escape does
         // not drop a form with a photograph half sent.
         onClose={busy ? undefined : onClose}
@@ -1459,16 +1459,16 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
             {shown === "item" && (
             <>
             <div className={styles.column}>
-              {/* First, whether this is one item or a store of them. A store
+              {/* First, whether this is one item or a spot of them. A spot
                   is asked everything an item is; it is only kept apart,
                   with the items on it. */}
               {!editing && (
                 <PublishAsField
-                  value={fields.store ? "store" : "item"}
+                  value={fields.spot ? "spot" : "item"}
                   onChange={(as) =>
                     setFields((current) => ({
                       ...current,
-                      store: as === "store",
+                      spot: as === "spot",
                     }))
                   }
                   disabled={busy}
@@ -1476,8 +1476,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 />
               )}
               {/* And for an item, which pages it goes on. */}
-              {!editing && !fields.store && (
-                <StoreField value={storeChoices} onChange={setStoreChoices} disabled={busy} hintClassName={styles.hint} />
+              {!editing && !fields.spot && (
+                <SpotField value={spotChoices} onChange={setSpotChoices} disabled={busy} hintClassName={styles.hint} />
               )}
               {/* Then the photographs: they are what is taken before anything
                   is written. */}
@@ -1632,7 +1632,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </div>
                 {/* An item is in one category; a page may hold items of
                     several, and so may be left in none. */}
-                {fields.store && <span className={styles.hint}>{t("item.categoryStoreHint")}</span>}
+                {fields.spot && <span className={styles.hint}>{t("item.categorySpotHint")}</span>}
               </div>
 
               <label className="field">
@@ -2293,7 +2293,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   yes to it: any time, never, or until so many days before it
                   starts — and for the last, how many. */}
               {/* A page is not booked itself: it has no such rule. */}
-              {!inquiry && !fields.store && (
+              {!inquiry && !fields.spot && (
               <div className="field">
                 <span className="field-label">{t("item.cancelRule")}</span>
                 <div className="tabs" role="group" aria-label={t("item.cancelRule")}>

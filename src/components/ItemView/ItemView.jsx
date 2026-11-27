@@ -12,7 +12,7 @@ import Calendar, { dayStates, quote, reading, slotStates } from "../Calendar/ind
 import CategoryIcon from "../CategoryIcon/index.js";
 import { Rating } from "../ReviewModal/index.js";
 import { BookingRow, ItemCard, ItemRow } from "../Rows/index.js";
-import { itemPath } from "../../utils/stores.js";
+import { itemPath } from "../../utils/spots.js";
 import { sortLabel } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
 import ReportModal from "../ReportModal/index.js";
@@ -106,9 +106,9 @@ export default function ItemView({
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   // An item's page opens with no day picked: which day is asked for is the
-  // reader's to say. A store's page still opens on today, whose hours are
+  // reader's to say. A spot's page still opens on today, whose hours are
   // what is read first there.
-  const [selection, setSelection] = useState(() => (item.store ? { start: today(), end: today() } : null));
+  const [selection, setSelection] = useState(() => (item.spot ? { start: today(), end: today() } : null));
   // The stretch of the day picked, { start, end }, where the item is booked by
   // the time.
   const [picked, setPicked] = useState(null);
@@ -236,7 +236,7 @@ export default function ItemView({
   const lowToday = todayPrices.length > 0 ? Math.min(...todayPrices) : priceToday;
   const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
   // Only for sale — not lent out at all: what it is sold for is its price.
-  const saleOnly = !item.store && item.rentable === false && item.salePrice != null;
+  const saleOnly = !item.spot && item.rentable === false && item.salePrice != null;
   const priceOnRequest = priceToday == null;
   const priceHead =
     highToday === lowToday
@@ -358,19 +358,19 @@ export default function ItemView({
           count: countDays(selection.start, selection.end),
         })
     : "";
-  // On a store's page, the one day picked said back: its date, and the hours
+  // On a spot's page, the one day picked said back: its date, and the hours
   // it can be used in that day — or that it cannot be, or that it can all day
-  // where the store says no hours.
-  const storeDay = item.store && calendar && selection ? selection.start : null;
-  const storeState = storeDay ? reading(item, states, calendar, storeDay) : null;
-  const storeBands = storeDay ? (bySlot ? hoursOn(item, storeDay) : storeState.bands) : null;
-  const storeClosed = Boolean(storeDay) && (storeState.closed || (bySlot && storeBands.length === 0));
-  const storeHours = !storeDay
+  // where the spot says no hours.
+  const spotDay = item.spot && calendar && selection ? selection.start : null;
+  const spotState = spotDay ? reading(item, states, calendar, spotDay) : null;
+  const spotBands = spotDay ? (bySlot ? hoursOn(item, spotDay) : spotState.bands) : null;
+  const spotClosed = Boolean(spotDay) && (spotState.closed || (bySlot && spotBands.length === 0));
+  const spotHours = !spotDay
     ? ""
-    : storeClosed
+    : spotClosed
       ? t("calendar.closed")
-      : storeBands?.length
-        ? t("booking.dayHours", { hours: storeBands.map((band) => `${band.start}–${band.end}`).join(", ") })
+      : spotBands?.length
+        ? t("booking.dayHours", { hours: spotBands.map((band) => `${band.start}–${band.end}`).join(", ") })
         : t("calendar.allDay");
   const shownPhoto = item.images[Math.min(photo, item.images.length - 1)];
   // A photograph is never drawn larger than it is: stretched past its own
@@ -400,11 +400,11 @@ export default function ItemView({
           })
         : t("item.noDays");
   // The two tags, at the top right of the card: at the end of the price row,
-  // or of the share row on a store, which has no price.
+  // or of the share row on a spot, which has no price.
   const statusTags = (
     <span className={styles.statusTags}>
       <span className={`status ${inquiry || free?.now ? "status-confirmed" : "status-pending"}`}>{status}</span>
-      {!item.active && <span className="status status-off">{t("store.unpublished")}</span>}
+      {!item.active && <span className="status status-off">{t("spot.unpublished")}</span>}
     </span>
   );
 
@@ -424,7 +424,7 @@ export default function ItemView({
           {item.active ? t("item.unpublish") : t("item.publish")}
         </button>
       )}
-      {/* The default store, which every account has, is not deleted. */}
+      {/* The default spot, which every account has, is not deleted. */}
       {!item.default && (
         <button type="button" className={`small-button ${styles.danger}`} disabled={busy || preview} onClick={() => setConfirming(true)}>
           {t("item.delete")}
@@ -434,7 +434,7 @@ export default function ItemView({
   );
 
   // How the owner is reached: on an item, over its calendar — in its place,
-  // booked by asking; on a store, under it, over the button that does the
+  // booked by asking; on a spot, under it, over the button that does the
   // reaching.
   const contactPart = (inquiry || contacts.length > 0) && (
     <>
@@ -486,7 +486,7 @@ export default function ItemView({
     </>
   );
 
-  // The button that goes to whoever has it directly, on a store and on an
+  // The button that goes to whoever has it directly, on a spot and on an
   // item booked by asking: the way written first — a phone number called, an
   // address written to — or else a message to them here. Greyed for its own
   // account, and on a preview.
@@ -511,13 +511,13 @@ export default function ItemView({
   // The categories of the items on a spot, each with how many, the most
   // first (and where as many, in the order they first come).
   const spotCategories = [];
-  if (item.store) {
+  if (item.spot) {
     const counts = new Map();
     for (const each of item.items ?? []) counts.set(each.category ?? "", (counts.get(each.category ?? "") ?? 0) + 1);
     spotCategories.push(...[...counts].sort((a, b) => b[1] - a[1]));
   }
   // A spot's tags: its own category, then its items' others.
-  const spotTags = item.store ? [...new Set([item.category, ...spotCategories.map(([slug]) => slug)].filter(Boolean))] : [];
+  const spotTags = item.spot ? [...new Set([item.category, ...spotCategories.map(([slug]) => slug)].filter(Boolean))] : [];
 
   return (
     <article className={styles.page}>
@@ -526,7 +526,7 @@ export default function ItemView({
           {/* What it is, as tags over its name. An item: its category. A
               spot: the one chosen for it first, and then the others its
               items are in, the most first — none where it has neither. */}
-          {item.store ? (
+          {item.spot ? (
             spotTags.length > 0 && (
               <p className={styles.tags}>
                 {spotTags.map((slug) => (
@@ -620,7 +620,7 @@ export default function ItemView({
         <aside className={styles.card} ref={cardRef}>
           {/* A page has no price of its own — each item on it has its own —
               nor a way it is booked to say up here. */}
-          {!item.store && (
+          {!item.spot && (
           <p className={styles.price}>
             <strong>{saleOnly ? formatPrice(item.salePrice, item.currency, lang) : priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>
             {!saleOnly && !priceOnRequest && (
@@ -640,7 +640,7 @@ export default function ItemView({
 
           {/* Getting the page in front of people is half of what it is for, so
               the way to do it is the first control on the card and the one
-              drawn loudest. A store, with no price row, has its tags at the
+              drawn loudest. A spot, with no price row, has its tags at the
               far end of this one. */}
           <div className={styles.actions}>
             <button type="button" className="small-button filled" onClick={() => setSharing(true)} disabled={preview}>
@@ -682,7 +682,7 @@ export default function ItemView({
             >
               {t("item.report")}
             </button>
-            {item.store && statusTags}
+            {item.spot && statusTags}
           </div>
 
           {/* Somebody else's: said, with what follows from it. */}
@@ -732,23 +732,23 @@ export default function ItemView({
             </>
           )}
 
-          {/* The pages its owner put it on — a store, a space — each the way
+          {/* The pages its owner put it on — a spot, a space — each the way
               to that page, where the rest of what they have is. */}
-          {item.stores?.length > 0 && (
+          {item.spots?.length > 0 && (
             <>
               <div className={`${styles.calendarHead} ${styles.contactHead}`}>
-                <h2>{t("item.stores")}</h2>
+                <h2>{t("item.spots")}</h2>
               </div>
-              <ul className={styles.storeLinks}>
-                {item.stores.map((store) => (
-                  <li key={store.id}>
+              <ul className={styles.spotLinks}>
+                {item.spots.map((spot) => (
+                  <li key={spot.id}>
                     {preview ? (
                       <span>
-                        {store.name}
+                        {spot.name}
                       </span>
                     ) : (
-                      <Link to={itemPath({ ...store, store: true })}>
-                        {store.name}
+                      <Link to={itemPath({ ...spot, spot: true })}>
+                        {spot.name}
                       </Link>
                     )}
                   </li>
@@ -762,14 +762,14 @@ export default function ItemView({
               and an email address are pressed to call or to write. */}
           {/* One booked by the date or the time says how its owner is reached
               too, over its calendar, where it says any way at all. */}
-          {!item.store && contactPart}
+          {!item.spot && contactPart}
 
           {!inquiry && (
           <>
           <div className={styles.calendarHead}>
-            <h2>{t(item.store ? "calendar.storeTitle" : "calendar.title")}</h2>
+            <h2>{t(item.spot ? "calendar.spotTitle" : "calendar.title")}</h2>
             {/* What the figures on the squares are, which a page has none of. */}
-            <span>{item.store ? null : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
+            <span>{item.spot ? null : bySlot ? t("calendar.perHour", { unit: unitName(priceUnitOf(item), t) }) : t("calendar.perDay")}</span>
           </div>
           <Calendar
             item={item}
@@ -778,12 +778,12 @@ export default function ItemView({
             selection={selection}
             // Picked from the same way by its owner as by anybody else.
             // Published or not, its days are what they are: publishing only
-            // says who can see it. A store's are only read, one at a time.
+            // says who can see it. A spot's are only read, one at a time.
             onSelect={select}
-            single={item.store}
+            single={item.spot}
           />
           {/* By the time, what the prices on the squares above are for: one stretch of the item's pricing unit. */}
-          {bySlot && !item.store && <p className={`${styles.small} ${styles.tip}`}>{t("calendar.unit", { unit: unitName(priceUnitOf(item), t) })}</p>}
+          {bySlot && !item.spot && <p className={`${styles.small} ${styles.tip}`}>{t("calendar.unit", { unit: unitName(priceUnitOf(item), t) })}</p>}
 
           {/* The hours of the day picked, where the item goes by the time: a
               timetable of that day. The owner reads it; anybody else presses
@@ -798,14 +798,14 @@ export default function ItemView({
                 key={day}
                 cells={slots}
                 value={picked}
-                onChange={item.store ? undefined : setPicked}
+                onChange={item.spot ? undefined : setPicked}
                 unit={unitOf(item)}
                 least={minDuration}
                 today={day === today()}
               />
               {/* And the piece of the clock it is asked for in — which a
                   page, not booked itself, has none of. */}
-              {!item.store && (
+              {!item.spot && (
                 <p className={`${styles.small} ${styles.tip}`}>
                   {t("calendar.bookingUnit", { unit: unitName(unitOf(item), t) })}
                   {/* And the shortest it may be, where that is more than one step. */}
@@ -817,20 +817,20 @@ export default function ItemView({
           </>
           )}
 
-          {item.store ? (
-            // A store is not booked itself: under its calendar, the day
+          {item.spot ? (
+            // A spot is not booked itself: under its calendar, the day
             // picked and its hours; and the request button, which goes to
-            // whoever keeps the store directly — the way written first, a
+            // whoever keeps the spot directly — the way written first, a
             // phone number called or an address written to, or else a
-            // message to them here. Greyed for the store's own account, and
+            // message to them here. Greyed for the spot's own account, and
             // on a preview.
             <div className={styles.panel}>
-              {!inquiry && storeDay && (
+              {!inquiry && spotDay && (
                 <p className={styles.chosen}>
-                  <span>{formatDay(storeDay, lang, { weekday: "short", month: "short", day: "numeric" })}</span>
+                  <span>{formatDay(spotDay, lang, { weekday: "short", month: "short", day: "numeric" })}</span>
                   {/* Under it, on a line of its own, its hours in plain ink
                       — or, in grey, that it cannot be used. */}
-                  <span className={storeClosed ? styles.storeHours : `${styles.storeHours} ${styles.storeHoursOpen}`}>{storeHours}</span>
+                  <span className={spotClosed ? styles.spotHours : `${styles.spotHours} ${styles.spotHoursOpen}`}>{spotHours}</span>
                 </p>
               )}
               {contactPart}
@@ -953,7 +953,7 @@ export default function ItemView({
             <div className={styles.ownerTools}>
               <div className={styles.buttons}>
                 <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
-                  {t(item.store ? "store.edit" : "item.editTitle")}
+                  {t(item.spot ? "spot.edit" : "item.editTitle")}
                 </button>
                 {/* When it can be had and what it costs, which is a sheet of
                     its own apart from the one the item is edited on. */}
@@ -961,15 +961,15 @@ export default function ItemView({
                   {t("item.availabilityTitle")}
                 </button>
                 {/* Which of its owner's items are on a page. */}
-                {item.store && mine && onEditItems && (
+                {item.spot && mine && onEditItems && (
                   <button type="button" className="small-button" onClick={onEditItems} disabled={preview}>
-                    {t("store.editItems")}
+                    {t("spot.editItems")}
                   </button>
                 )}
               </div>
               {removal}
               {/* Where there is no request form above to say it in. */}
-              {(mine || inquiry || item.store || !item.active) && formError && <p className="form-message error">{formError}</p>}
+              {(mine || inquiry || item.spot || !item.active) && formError && <p className="form-message error">{formError}</p>}
             </div>
           )}
         </aside>
@@ -1001,16 +1001,16 @@ export default function ItemView({
 
           {/* ------------------------------------------ the items on it */}
           {/* A page: the items its owner put on it, in their order. */}
-          {item.store && !preview && (
+          {item.spot && !preview && (
             <>
               <div className="part-heading">
                 {/* The heading, and beside it the pair that lays the items
                     out as cards or as a list, as the top bar's map and lists. */}
                 <span className={styles.itemsHead}>
-                  <h2>{t("store.itemsHeading")}</h2>
+                  <h2>{t("spot.itemsHeading")}</h2>
                   {(item.items ?? []).length > 0 && (
-                    <span className="topbar-view" role="group" aria-label={t("store.itemsView")}>
-                      <ActionButton tooltip={t("store.viewCards")} tooltipLeft aria-pressed={itemsView === "cards"} onClick={() => chooseItemsView("cards")}>
+                    <span className="topbar-view" role="group" aria-label={t("spot.itemsView")}>
+                      <ActionButton tooltip={t("spot.viewCards")} tooltipLeft aria-pressed={itemsView === "cards"} onClick={() => chooseItemsView("cards")}>
                         <svg viewBox="0 0 24 24">
                           {/* 田: one square, crossed through the middle. */}
                           <path d="M4 4h16v16H4z" />
@@ -1018,7 +1018,7 @@ export default function ItemView({
                           <path d="M4 12h16" />
                         </svg>
                       </ActionButton>
-                      <ActionButton tooltip={t("store.viewList")} aria-pressed={itemsView === "list"} onClick={() => chooseItemsView("list")}>
+                      <ActionButton tooltip={t("spot.viewList")} aria-pressed={itemsView === "list"} onClick={() => chooseItemsView("list")}>
                         <svg viewBox="0 0 24 24">
                           <path d="M9 6h11" />
                           <path d="M9 12h11" />
@@ -1034,7 +1034,7 @@ export default function ItemView({
                 <span>{item.items?.length ?? 0}</span>
               </div>
               {(item.items ?? []).length === 0 ? (
-                <p className="part-note">{t("store.itemsEmpty")}</p>
+                <p className="part-note">{t("spot.itemsEmpty")}</p>
               ) : (
                 <>
                   {/* Where the items on it are of more than one category, a

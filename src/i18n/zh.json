@@ -207,7 +207,7 @@
     "openMaps": "在地图中打开",
     "category": "分类",
     "categoryNone": "不分类",
-    "categoryStoreHint": "据点的主要分类。当包含多个品类的项目时，可以选择「不分类」。",
+    "categorySpotHint": "据点的主要分类。当包含多个品类的项目时，可以选择「不分类」。",
     "uncategorized": "物品",
     "categorySearch": "搜索分类",
     "categoryNoMatch": "没有匹配的分类",
@@ -377,12 +377,12 @@
     "inquiryExplainShared": "请通过上面的联系方式直接商定。",
     "modeHintShared": "别人的物品只能用咨询预约：对方通过下面的联系方式直接联系。",
     "report": "报告",
-    "stores": "所在据点"
+    "spots": "所在据点"
   },
   "calendar": {
     "minDuration": "最短 {{duration}}",
     "title": "可利用时间",
-    "storeTitle": "营业时间",
+    "spotTitle": "营业时间",
     "perDay": "每天价格",
     "previous": "上个月",
     "next": "下个月",
@@ -610,7 +610,7 @@
     "send": "提交",
     "sent": "报告已发送"
   },
-  "store": {
+  "spot": {
     "title": "据点",
     "one": "据点",
     "edit": "编辑据点",
@@ -633,12 +633,12 @@
   "publish": {
     "as": "添加一个",
     "item": "项目",
-    "store": "据点",
+    "spot": "据点",
     "itemHint": "单个提供的物品、空间或服务，有自己的照片、价格和日历。",
     "pageHint": "一个据点是多个项目的集合，可以不是实际的地点。可以作为商店、场地或服务的主页使用。",
     "colon": "：",
-    "storeHint": "可勾选一个或多个你的据点。默认据点（以你的名字命名）一开始就已勾选，至少要保留一个。",
-    "storeLabel": "添加到据点"
+    "spotHint": "可勾选一个或多个你的据点。默认据点（以你的名字命名）一开始就已勾选，至少要保留一个。",
+    "spotLabel": "添加到据点"
   },
   "request": {
     "missing": "找不到这条需求。",

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Modal, Skeleton, showToast, useNavigate } from "../../ui/index.js";
-import { itemPath } from "../../utils/stores.js";
+import { itemPath } from "../../utils/spots.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
 import ItemModal from "../ItemModal/index.js";
 import ItemView from "../ItemView/index.js";
-import StoreItemsModal from "../StoreItemsModal/index.js";
+import SpotItemsModal from "../SpotItemsModal/index.js";
 import MessageModal from "../MessageModal/index.js";
 import styles from "./preview.module.css";
 
@@ -29,7 +29,7 @@ export default function ItemPreview({ id, onClose, onGone, onOpen }) {
   const [error, setError] = useState("");
   const [writingTo, setWritingTo] = useState(null);
   // The form opened from the sheet, once the sheet is put away: which of its
-  // parts ("item", "availability", or "items" for what is on a store), and
+  // parts ("item", "availability", or "items" for what is on a spot), and
   // the item and calendar it was opened on — the sheet lets go of its own
   // as it closes.
   const [editing, setEditing] = useState(null);
@@ -158,7 +158,7 @@ export default function ItemPreview({ id, onClose, onGone, onOpen }) {
         />
       )}
       {editing?.part === "items" && (
-        <StoreItemsModal isOpen store={editing.item} onClose={() => setEditing(null)} onSaved={saved} />
+        <SpotItemsModal isOpen spot={editing.item} onClose={() => setEditing(null)} onSaved={saved} />
       )}
     </>
   );

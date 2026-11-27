@@ -146,7 +146,7 @@ function stretches(slots) {
 //   for whatever the form is collecting dates for. With `onOpen`, each date
 //   has a pencil beside its price, which hands the date to the form to be
 //   given a price of its own.
-// - `onSelect` with `single`, on a store's page: a press picks that one day,
+// - `onSelect` with `single`, on a spot's page: a press picks that one day,
 //   and only ever one — any day ahead, closed ones included, since it is read
 //   for what its hours are.
 export default function Calendar({
@@ -318,7 +318,7 @@ export default function Calendar({
               ? t("calendar.taken")
               : state.closed
                 ? t("calendar.closed")
-                : item.store && state.bands
+                : item.spot && state.bands
                   ? bandsLabel(state.bands)
                   : priceLabel(state, item.currency, i18n.language);
           return (
@@ -444,7 +444,7 @@ export default function Calendar({
           {t("calendar.available")}
         </li>
         {/* A page is not booked itself: nothing on it is ever taken. */}
-        {!item.store && (
+        {!item.spot && (
           <li>
             <span className={`${styles.swatch} ${styles.taken}`} />
             {t("calendar.taken")}

@@ -6,7 +6,7 @@ import { isAdmin } from "../../utils/admin.js";
 import { contactHref } from "../../utils/dialing.js";
 import { barePhone, formatCoords, formatUsername, relativeTime, requestBudget, requestDates } from "../../utils/format.js";
 import { directionsUrl } from "../../utils/mapbox.js";
-import { requestPath } from "../../utils/stores.js";
+import { requestPath } from "../../utils/spots.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import view from "../ItemView/view.module.css";

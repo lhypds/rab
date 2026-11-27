@@ -22,7 +22,7 @@ pm2 start data/crawlers/kyoto_rentals/scarce.py --name rab-kyoto-scarce --interp
 pm2 logs rab-kyoto-scarce
 ```
 
-爬虫核验地点、联系电话和至少两张不同的图片，再将完整条目作为 store（页面上显示为 spot / 据点）写入数据根目录的 `users/_public/stores/`（`store.json`，`store: true`，`itemIds` 为空）。名称后不加分类标签，标签（或名称末尾的〈一棟貸し町家〉）写入 `what`；地址只写在 `place`，不再放在说明开头。之前写入的条目可用 `node server/tidy-stores.js --write` 整理。来源网址与分类用于去重。低于目标的分类在来源扫描成功后 24 小时再查；来源访问失败后 1 小时再试。详情页单独记录退避时间。调度和重试状态保存在数据根目录的 `crawlers/priority-state/`，重启后继续使用。
+爬虫核验地点、联系电话和至少两张不同的图片，再将完整条目作为 spot（据点）写入数据根目录的 `users/_public/spots/`（`spot.json`，`spot: true`，`itemIds` 为空）。名称后不加分类标签，标签（或名称末尾的〈一棟貸し町家〉）写入 `what`；地址只写在 `place`，不再放在说明开头。之前写入的条目可用 `node server/tidy-spots.js --write` 整理。来源网址与分类用于去重。低于目标的分类在来源扫描成功后 24 小时再查；来源访问失败后 1 小时再试。详情页单独记录退避时间。调度和重试状态保存在数据根目录的 `crawlers/priority-state/`，重启后继续使用。
 
 ## 在新检出的仓库恢复爬虫
 
@@ -228,7 +228,7 @@ def sources():
 
 def inventory(root):
     counts, keys, branches = Counter(), set(), set()
-    for file in [*root.parent.parent.glob('*/items/[0-9]*/item.json'), *root.parent.parent.glob('*/stores/[0-9]*/store.json')]:
+    for file in [*root.parent.parent.glob('*/items/[0-9]*/item.json'), *root.parent.parent.glob('*/spots/[0-9]*/spot.json')]:
         item = json.loads(file.read_text())
         category = (item.get('kind'), item.get('category'))
         if not item.get('deletedAt') and item.get('active', True):
@@ -374,12 +374,12 @@ INDEX = 'https://www.kyoto-kankou.or.jp/info_search'
 SHOPS = 'https://ewha-yifu.com/shops/'
 PHOTO = SHOPS + 'kyoto-area/planlist-kyoto/camera-plan/'
 WARD = r'京都市(?:北|上京|左京|中京|東山|下京|南|右京|伏見|山科|西京)区'
-# Every listing is a store of the public account — what the site shows as a
-# page (see server/files.js): its own folder under users/_public/stores/,
-# with store.json in it — an item with `store: true` and the ids of the items
+# Every listing is a spot of the public account — a collection of items, kept
+# apart (see server/files.js): its own folder under users/_public/spots/,
+# with spot.json in it — an item with `spot: true` and the ids of the items
 # on it, none to start with.
-OUTPUT = 'users/_public/stores'
-RECORD = 'store.json'
+OUTPUT = 'users/_public/spots'
+RECORD = 'spot.json'
 
 REGION = dict(name='Kyoto', detail='Kyoto, Japan', bbox=[135.5591, 34.8752, 135.8787, 35.3213])
 # Broad keywords need positive evidence on the result, especially for hotels
@@ -679,7 +679,7 @@ def publish(offer, root, stored):
             raise ValueError('fewer than two distinct facility photos')
         address, lat, lng, method = offer['location'] or (None, 0, 0, 'service area')
         ident = str(time.time_ns() // 1_000_000)
-        while any(root.parent.parent.glob(f'*/items/{ident}')) or any(root.parent.parent.glob(f'*/stores/{ident}')):
+        while any(root.parent.parent.glob(f'*/items/{ident}')) or any(root.parent.parent.glob(f'*/spots/{ident}')):
             ident = str(int(ident) + 1)
         now = datetime.fromtimestamp(int(ident)/1000, timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
         label = offer.get('label') or LABEL[offer['category']]
@@ -690,9 +690,9 @@ def publish(offer, root, stored):
         tagged = re.search(r'\s*〈([^〈〉]+)〉$', title)
         if tagged:
             title, what = title[:tagged.start()].strip(), tagged.group(1).strip()
-        # The address is the store's `place`, shown on its own, so the
+        # The address is the spot's `place`, shown on its own, so the
         # description does not start with it.
-        item = dict(id=ident, store=True, itemIds=[], title=title, **({'what': what} if what else {}),
+        item = dict(id=ident, spot=True, itemIds=[], title=title, **({'what': what} if what else {}),
                     description='料金・利用条件は公式サイトでご確認ください。' + offer.get('note', ''),
                     kind=offer['kind'], category=offer['category'], active=True, shared=True, mode='inquiry',
                     contacts=[dict(type='phone', code='+81', value=digits)], homepage=offer['homepage'],

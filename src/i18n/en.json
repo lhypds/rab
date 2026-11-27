@@ -210,7 +210,7 @@
     "openMaps": "Open in Maps",
     "category": "Category",
     "categoryNone": "No category",
-    "categoryStoreHint": "The spot's main category. When it holds items of several categories, you can choose \"No category\".",
+    "categorySpotHint": "The spot's main category. When it holds items of several categories, you can choose \"No category\".",
     "uncategorized": "Item",
     "categorySearch": "Search categories",
     "categoryNoMatch": "No matching category",
@@ -382,12 +382,12 @@
     "inquiryExplainShared": "Use the contact details above to arrange it.",
     "modeHintShared": "Someone else’s can only be booked by inquiry: people contact them directly with the details below.",
     "report": "Report",
-    "stores": "At spots"
+    "spots": "At spots"
   },
   "calendar": {
     "minDuration": "at least {{duration}}",
     "title": "Availability",
-    "storeTitle": "Opening hours",
+    "spotTitle": "Opening hours",
     "perDay": "price per day",
     "previous": "Previous month",
     "next": "Next month",
@@ -622,7 +622,7 @@
     "send": "Submit",
     "sent": "Report sent"
   },
-  "store": {
+  "spot": {
     "title": "Spots",
     "one": "Spot",
     "edit": "Edit spot",
@@ -646,12 +646,12 @@
   "publish": {
     "as": "Add a",
     "item": "Item",
-    "store": "Spot",
+    "spot": "Spot",
     "itemHint": "One thing, space or service to provide, with its own photos, price and calendar.",
     "pageHint": "A spot is a collection of several items, and need not be a real place. Use it as the home of a shop, a venue or a service.",
     "colon": ": ",
-    "storeHint": "Tick one or more of your spots. Your default spot, named after you, is ticked to start with, and at least one stays ticked.",
-    "storeLabel": "Add to spot"
+    "spotHint": "Tick one or more of your spots. Your default spot, named after you, is ticked to start with, and at least one stays ticked.",
+    "spotLabel": "Add to spot"
   },
   "request": {
     "missing": "This request could not be found.",

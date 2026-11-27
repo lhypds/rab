@@ -5,11 +5,11 @@ import { Checkbox, Modal, showToast } from "../../ui/index.js";
 import { priceLine } from "../../utils/format.js";
 import styles from "./items.module.css";
 
-// The sheet the items on a store are chosen on, apart from the one the store
+// The sheet the items on a spot are chosen on, apart from the one the spot
 // itself is changed on: the account's own items, one to a
 // line, ticked to be on it — in the order they were ticked. `onSaved` is told
-// the store as it was kept.
-export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
+// the spot as it was kept.
+export default function SpotItemsModal({ isOpen, spot, onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const [itemIds, setItemIds] = useState([]);
   // The account's items, null until they have been read.
@@ -17,10 +17,10 @@ export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Each opening starts from the store as it is.
+  // Each opening starts from the spot as it is.
   useEffect(() => {
-    if (!isOpen || !store) return undefined;
-    setItemIds(store.items.map((item) => item.id));
+    if (!isOpen || !spot) return undefined;
+    setItemIds(spot.items.map((item) => item.id));
     setError("");
     setItems(null);
     let cancelled = false;
@@ -31,10 +31,10 @@ export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
     return () => {
       cancelled = true;
     };
-  }, [isOpen, store?.id]);
+  }, [isOpen, spot?.id]);
 
-  if (!store) return null;
-  // A store takes any of the account's items.
+  if (!spot) return null;
+  // A spot takes any of the account's items.
   const choices = items ?? [];
 
   function toggle(id, on) {
@@ -48,12 +48,12 @@ export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
     setError("");
     const offered = new Set(choices.map((item) => item.id));
     try {
-      const answer = await api.setStoreItems(
-        store.id,
+      const answer = await api.setSpotItems(
+        spot.id,
         itemIds.filter((id) => offered.has(id)),
       );
-      showToast(t("store.saved"), 2000);
-      onSaved(answer.store);
+      showToast(t("spot.saved"), 2000);
+      onSaved(answer.spot);
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -62,16 +62,16 @@ export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
   }
 
   return (
-    <Modal isOpen={isOpen} title={t("store.editItems")} onClose={busy ? undefined : onClose}>
+    <Modal isOpen={isOpen} title={t("spot.editItems")} onClose={busy ? undefined : onClose}>
       <form onSubmit={submit} autoComplete="off">
         <div className="field">
           <span className="field-label">
-            {t("store.itemsHeading")}
+            {t("spot.itemsHeading")}
             <span className="field-count">
               {choices.filter((item) => itemIds.includes(item.id)).length}/{choices.length}
             </span>
           </span>
-          {items && choices.length === 0 && <span className={styles.hint}>{t("store.itemsNone")}</span>}
+          {items && choices.length === 0 && <span className={styles.hint}>{t("spot.itemsNone")}</span>}
           {choices.length > 0 && (
             <ul className={styles.items}>
               {choices.map((item) => (
@@ -84,7 +84,7 @@ export default function StoreItemsModal({ isOpen, store, onClose, onSaved }) {
                         <span className={styles.itemMeta}>
                           {" · "}
                           {priceLine(item, i18n.language, t)}
-                          {!item.active && ` · ${t("store.unpublished")}`}
+                          {!item.active && ` · ${t("spot.unpublished")}`}
                         </span>
                       </span>
                     </span>

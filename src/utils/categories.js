@@ -98,7 +98,7 @@ export function categoriesOfItem(item) {
 export function sortLabel(item, t) {
   if (item.category) return t(`category.${item.category}`, item.category);
   // A page with no category of its own is called what it is.
-  return item.store ? t("store.one") : t("item.uncategorized");
+  return item.spot ? t("spot.one") : t("item.uncategorized");
 }
 
 // The home page's address for a category ("" for all of them): /, /c/camera.

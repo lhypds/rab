@@ -104,16 +104,16 @@ export const createUser = (username, password, email, code) =>
 export const logout = () => send("POST", "/api/logout").finally(dropSession);
 export const getUser = (username) => request(`/api/users/${name(username)}`);
 export const getMine = () => request("/api/mine");
-// The stores somebody made of their items — what the site shows as pages: a
-// store of things, a page of spaces, their services. A store is an item
-// (made, read, changed and deleted as one, with `store: true`); what is its
+// The spots somebody made of their items — shops, pages of spaces, pages of services: a
+// collection of things, of spaces, of services. A spot is an item
+// (made, read, changed and deleted as one, with `spot: true`); what is its
 // own is which of the account's items are on it.
-export const addToStore = (id, itemId) => send("POST", `/api/stores/${name(id)}/items`, { itemId });
-export const setStoreItems = (id, itemIds) => send("PUT", `/api/stores/${name(id)}/items`, { itemIds });
+export const addToSpot = (id, itemId) => send("POST", `/api/spots/${name(id)}/items`, { itemId });
+export const setSpotItems = (id, itemIds) => send("PUT", `/api/spots/${name(id)}/items`, { itemIds });
 // The pages a new item can go on: the account's own, its default first — or,
 // with `shared`, somebody else's (the public account's) found by `q`.
-export const getStoreChoices = ({ shared = false, q = "" } = {}) =>
-  request(`/api/stores/choices${shared ? `?shared=1&q=${encodeURIComponent(q)}` : ""}`);
+export const getSpotChoices = ({ shared = false, q = "" } = {}) =>
+  request(`/api/spots/choices${shared ? `?shared=1&q=${encodeURIComponent(q)}` : ""}`);
 // The account's own address — { email, verify } — apart from the ways it says
 // it is reached: `verify` is whether a new one is proved by a code mailed to
 // it, which is then asked for first and sent back with the address.

@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Checkbox } from "../../ui/index.js";
-import { storePath } from "../../utils/stores.js";
+import { spotPath } from "../../utils/spots.js";
 import { useAuth } from "../AuthProvider/index.js";
-import styles from "./store.module.css";
+import styles from "./spot.module.css";
 
 // Which pages a new item goes on, asked on the sheet it is made on (ItemModal):
 // any number of one's own pages, ticked. Every item is on at least one page:
@@ -13,7 +13,7 @@ import styles from "./store.module.css";
 // unticked. `value` is the list of the pages' ids. Each line has at its right
 // end the way to the page itself, opened in a tab of its own so the form is
 // not lost.
-export default function StoreField({ value, onChange, disabled = false, hintClassName }) {
+export default function SpotField({ value, onChange, disabled = false, hintClassName }) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [own, setOwn] = useState(null);
@@ -22,8 +22,8 @@ export default function StoreField({ value, onChange, disabled = false, hintClas
   useEffect(() => {
     let cancelled = false;
     api
-      .getStoreChoices()
-      .then((answer) => !cancelled && setOwn(answer.stores ?? []))
+      .getSpotChoices()
+      .then((answer) => !cancelled && setOwn(answer.spots ?? []))
       .catch(() => !cancelled && setOwn([]));
     return () => {
       cancelled = true;
@@ -32,7 +32,7 @@ export default function StoreField({ value, onChange, disabled = false, hintClas
 
   // With nothing ticked — at the start, or after the form is opened afresh —
   // the default page is.
-  const fallback = (own ?? []).find((store) => store.default) ?? own?.[0];
+  const fallback = (own ?? []).find((spot) => spot.default) ?? own?.[0];
   useEffect(() => {
     if (fallback && value.length === 0) onChange([fallback.id]);
   }, [fallback, value.length, onChange]);
@@ -41,24 +41,24 @@ export default function StoreField({ value, onChange, disabled = false, hintClas
 
   return (
     <div className="field">
-      <span className="field-label">{t("publish.storeLabel")}</span>
+      <span className="field-label">{t("publish.spotLabel")}</span>
       {own && own.length > 0 && (
         <ul className={styles.found}>
-          {own.map((store) => (
-            <li key={store.id}>
+          {own.map((spot) => (
+            <li key={spot.id}>
               <Checkbox
                 className={styles.choice}
-                checked={value.includes(store.id)}
-                onChange={(on) => toggle(store.id, on)}
-                disabled={disabled || (value.length === 1 && value[0] === store.id)}
+                checked={value.includes(spot.id)}
+                onChange={(on) => toggle(spot.id, on)}
+                disabled={disabled || (value.length === 1 && value[0] === spot.id)}
               >
-                {store.thumb && <img src={store.thumb} alt="" loading="lazy" />}
-                <span>{store.default ? `${store.title} (${t("store.default")})` : store.title}</span>
+                {spot.thumb && <img src={spot.thumb} alt="" loading="lazy" />}
+                <span>{spot.default ? `${spot.title} (${t("spot.default")})` : spot.title}</span>
               </Checkbox>
               {user && (
                 <a
                   className={styles.open}
-                  href={storePath({ ...store, owner: user.username })}
+                  href={spotPath({ ...spot, owner: user.username })}
                   target="_blank"
                   rel="noopener"
                   aria-label={t("map.open")}
@@ -75,7 +75,7 @@ export default function StoreField({ value, onChange, disabled = false, hintClas
           ))}
         </ul>
       )}
-      <span className={hintClassName}>{t("publish.storeHint")}</span>
+      <span className={hintClassName}>{t("publish.spotHint")}</span>
     </div>
   );
 }

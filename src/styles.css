@@ -975,7 +975,7 @@ a {
   -webkit-user-select: none;
 }
 
-/* A number at the row's right end — a store's count of items. */
+/* A number at the row's right end — a spot's count of items. */
 .row-count {
   flex: 0 0 auto;
   color: var(--muted);
@@ -984,7 +984,7 @@ a {
   white-space: nowrap;
 }
 
-/* A store's count over its pin: one column, both centred in it, closer
+/* A spot's count over its pin: one column, both centred in it, closer
    together than the side's usual gap. */
 .row-marker {
   display: flex;

@@ -413,13 +413,13 @@
   font-size: 12px;
 }
 
-/* On a store's page, the hours of the day picked: a line of their own under
+/* On a spot's page, the hours of the day picked: a line of their own under
    its date, in ink where it can be used. */
-.storeHours {
+.spotHours {
   flex-basis: 100%;
 }
 
-.storeHoursOpen {
+.spotHoursOpen {
   color: var(--ink);
 }
 
@@ -611,7 +611,7 @@
 }
 
 /* The pages it is on, one to a line, each pressed to go there. */
-.storeLinks {
+.spotLinks {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -622,8 +622,8 @@
   overflow-wrap: anywhere;
 }
 
-.storeLinks a,
-.storeLinks span {
+.spotLinks a,
+.spotLinks span {
   display: inline-flex;
   align-items: center;
   gap: 6px;

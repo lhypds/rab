@@ -56,11 +56,11 @@ spot to `_public`'s places, so a mirror from a folder whose `locations.json` lac
 
 To empty `_public` on a server:
 
-    ./rab public purge             delete every item and store of the server's _public
+    ./rab public purge             delete every item and spot of the server's _public
     ./rab public purge -u rab.gcc3.com
 
 It deletes each one outright as `mirror` does (`DELETE /api/public/items/<id>`; open bookings
-are cancelled first) and leaves the places. It says how many items and stores it will delete
+are cancelled first) and leaves the places. It says how many items and spots it will delete
 and asks for `purge` to be typed; `--yes` skips the question, and without a terminal it is required.
 
 Without `./rab`, pushing is

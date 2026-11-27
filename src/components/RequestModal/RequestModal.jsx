@@ -7,7 +7,7 @@ import { dialCodeOf } from "../../utils/dialing.js";
 import { uploadPhoto } from "../../utils/image.js";
 import { DEFAULT_VIEW, MAPBOX_TOKEN, addressLanguage, areaAt, areaOf, savedView } from "../../utils/mapbox.js";
 import { currentRegion, useRegion } from "../../utils/region.js";
-import { requestPath } from "../../utils/stores.js";
+import { requestPath } from "../../utils/spots.js";
 import { useAuth } from "../AuthProvider/index.js";
 import { categoriesOf } from "../CategoryFilter/index.js";
 import ContactFields, { contactLines, keptContacts, noContacts } from "../ContactFields/index.js";

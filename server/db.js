@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -241,8 +241,8 @@ export function getUserById(id) {
 // where none is asked for.
 export function createUser(username, password, email = null) {
   const user = { ...addUser(username, { password: String(password), ...(email ? { email } : null) }) };
-  // Every account starts with its default store (see stores).
-  transaction(() => makeDefaultStore(user.id, { fresh: true }));
+  // Every account starts with its default spot (see spots).
+  transaction(() => makeDefaultSpot(user.id, { fresh: true }));
   return user;
 }
 
@@ -374,29 +374,29 @@ function load() {
   bookingsById.clear();
   messagesByUser.clear();
   for (const userId of userFolders()) {
-    // An account's stores from when they were pages, in pages/ or in one
-    // list, moved to stores/.
-    moveOldStores(userId);
+    // An account's spots from when they were stores or pages, in stores/,
+    // in pages/ or in one list, moved to spots/.
+    moveOldSpots(userId);
     for (const item of readItems(userId)) {
       itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
       if (item.was) idByOldId.set(String(item.was), item.id);
       // One deleted from before deleted items were moved to deleted/, still
-      // in items/ or stores/: written, and so moved, where it belongs.
+      // in items/ or spots/: written, and so moved, where it belongs.
       if (item.deletedAt && !isInPlace(userId, item)) changedItem(itemsById.get(item.id));
     }
-    // Its stores from before stores were items, made items, and written so.
-    for (const old of readOldStores(userId)) {
+    // Its spots from before spots were items, made items, and written so.
+    for (const old of readOldSpots(userId)) {
       let id = old.id;
       if (itemsById.has(id)) {
         let stamp = Number(id) || Date.now();
         while (itemsById.has(String(stamp))) stamp += 1;
-        moveStoreDir(userId, id, String(stamp));
+        moveSpotDir(userId, id, String(stamp));
         id = String(stamp);
       }
-      const store = storeFromOld({ ...old, id }, userId);
-      itemsById.set(id, store);
-      if (store.was) idByOldId.set(String(store.was), id);
-      changedItem(store);
+      const spot = spotFromOld({ ...old, id }, userId);
+      itemsById.set(id, spot);
+      if (spot.was) idByOldId.set(String(spot.was), id);
+      changedItem(spot);
     }
     // Both sides hold the booking; should the two ever differ, the one changed
     // last is the one that is right.
@@ -422,22 +422,22 @@ function load() {
   }
 }
 
-// A store as it was kept before stores were items — a name, a word about it,
+// A spot as it was kept before spots were items — a name, a word about it,
 // a copy of a saved location, how its owner is reached, its
 // photographs and the ids of its items — as the item it is now: priced on
 // request, booked by asking where it says how its owner is reached and by the
 // day where not, in the currency of its owner's newest item.
-function storeFromOld(old, userId) {
+function spotFromOld(old, userId) {
   const location = old.location ?? null;
   const contacts = Array.isArray(old.contacts) ? old.contacts : [];
   const currency =
     [...itemsById.values()]
-      .filter((item) => item.ownerId === userId && !item.store && item.currency)
+      .filter((item) => item.ownerId === userId && !item.spot && item.currency)
       .reduce((newest, item) => (!newest || item.createdAt > newest.createdAt ? item : newest), null)?.currency ?? "USD";
   return {
     id: old.id,
     ...(old.was ? { was: old.was } : null),
-    store: true,
+    spot: true,
     itemIds: Array.isArray(old.itemIds) ? old.itemIds.map(String) : [],
     title: old.name ?? "",
     description: old.description ?? "",
@@ -588,9 +588,9 @@ export function transaction(work) {
 }
 
 load();
-// An account from before every account had a default store is given one,
-// and every item on no store is put on it.
-ensureDefaultStores();
+// An account from before every account had a default spot is given one,
+// and every item on no spot is put on it.
+ensureDefaultSpots();
 // Whatever load() moved is written where it now belongs.
 save();
 
@@ -615,10 +615,10 @@ function servedItem(item) {
   const located = item.located === true;
   return {
     id: item.id,
-    // Whether it is a store: a collection of the owner's items (see stores).
-    store: item.store === true,
-    // Whether it is the account's default store: the one it has from the
-    // first, listed first among its pages on its profile (see defaultStore).
+    // Whether it is a spot: a collection of the owner's items (see spots).
+    spot: item.spot === true,
+    // Whether it is the account's default spot: the one it has from the
+    // first, listed first among its pages on its profile (see defaultSpot).
     default: item.default === true,
     title: item.title,
     // A few words for what it is, apart from its name; empty where not said.
@@ -699,47 +699,47 @@ function servedItem(item) {
 }
 
 // What the home page shows — the map, the lists beside it and the search in
-// its bar: stores (pages) only, never the items on them. Only the published
-// ones, the most lately changed first — the store itself or anything published
+// its bar: spots (pages) only, never the items on them. Only the published
+// ones, the most lately changed first — the spot itself or anything published
 // on it — each placed where it says it is — or, where it says nothing, where
-// the published items on it are (see placedStore).
+// the published items on it are (see placedSpot).
 function listedItems() {
   return [...itemsById.values()]
-    .filter((item) => item.store && !item.deletedAt && item.active)
-    .map((store) => [placedStore(store), lastChanged(store)])
+    .filter((item) => item.spot && !item.deletedAt && item.active)
+    .map((spot) => [placedSpot(spot), lastChanged(spot)])
     .filter(([placed]) => placed)
     .sort(([a, aTime], [b, bTime]) => (aTime < bTime ? 1 : aTime > bTime ? -1 : newestFirst(a, b)))
     .map(([placed]) => placed);
 }
 
-// When a store or one of the published items on it was last changed.
-function lastChanged(store) {
-  let latest = store.updatedAt ?? store.createdAt ?? "";
-  for (const id of store.itemIds ?? []) {
+// When a spot or one of the published items on it was last changed.
+function lastChanged(spot) {
+  let latest = spot.updatedAt ?? spot.createdAt ?? "";
+  for (const id of spot.itemIds ?? []) {
     const item = itemsById.get(String(id));
-    if (!item || item.deletedAt || !item.active || item.store || item.ownerId !== store.ownerId) continue;
+    if (!item || item.deletedAt || !item.active || item.spot || item.ownerId !== spot.ownerId) continue;
     const time = item.updatedAt ?? item.createdAt ?? "";
     if (time > latest) latest = time;
   }
   return latest;
 }
 
-// A store as the home page places it: its own pin, areas and photographs
+// A spot as the home page places it: its own pin, areas and photographs
 // where it has them, and otherwise those of the published items on it — the
 // pin of the first that has one, the areas of all of them, the first photo.
 // Null where it has neither a place of its own nor anything published on it
-// — an account's default store before anything is added, say.
-function placedStore(store) {
-  const items = (store.itemIds ?? [])
+// — an account's default spot before anything is added, say.
+function placedSpot(spot) {
+  const items = (spot.itemIds ?? [])
     .map((id) => itemsById.get(String(id)))
-    .filter((item) => item && !item.deletedAt && item.active && !item.store && item.ownerId === store.ownerId);
-  if (items.length === 0) return store.located || store.region ? store : null;
-  const placed = { ...store };
-  if (!store.located) {
+    .filter((item) => item && !item.deletedAt && item.active && !item.spot && item.ownerId === spot.ownerId);
+  if (items.length === 0) return spot.located || spot.region ? spot : null;
+  const placed = { ...spot };
+  if (!spot.located) {
     const pinned = items.find((item) => item.located);
-    if (pinned) Object.assign(placed, { located: true, latitude: pinned.latitude, longitude: pinned.longitude, place: store.place || pinned.place });
+    if (pinned) Object.assign(placed, { located: true, latitude: pinned.latitude, longitude: pinned.longitude, place: spot.place || pinned.place });
   }
-  if (!store.region) {
+  if (!spot.region) {
     const seen = new Map();
     for (const item of items) {
       for (const region of [item.region, ...(item.moreRegions ?? [])]) {
@@ -749,7 +749,7 @@ function placedStore(store) {
     const [first = null, ...rest] = seen.values();
     Object.assign(placed, { region: first, moreRegions: rest });
   }
-  if (!(store.images?.length > 0)) {
+  if (!(spot.images?.length > 0)) {
     const shown = items.find((item) => item.images?.length > 0);
     if (shown) placed.images = [shown.images[0]];
   }
@@ -827,10 +827,10 @@ export function getItemsAt(latitude, longitude, box = null) {
     .map(servedItem);
 }
 
-// An account's items — not its stores, which are items too but listed apart
-// (see getStores) — newest first.
+// An account's items — not its spots, which are items too but listed apart
+// (see getSpots) — newest first.
 export function getItemsByUser(userId, { publicOnly = false } = {}) {
-  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt && !item.store).sort(newestFirst);
+  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt && !item.spot).sort(newestFirst);
   if (publicOnly) return items.filter((item) => item.active).map(servedItem);
   const bookings = [...bookingsById.values()];
   return items.map((item) => ({
@@ -895,10 +895,10 @@ export function createItem(userId, item) {
     itemsById.set(id, {
       id,
       ...itemFields(item),
-      // A store is an item with the ids of other items of the account's on it,
-      // in the order it put them; it is kept under stores/ (see files.js). What
+      // A spot is an item with the ids of other items of the account's on it,
+      // in the order it put them; it is kept under spots/ (see files.js). What
       // an item is, it stays.
-      ...(item.store ? { store: true, itemIds: [] } : null),
+      ...(item.spot ? { spot: true, itemIds: [] } : null),
       // Off is an item not on the map: one taken down without being deleted,
       // or one made that way to be finished and published later (the phone's
       // are). Its page still opens for whoever holds the link, and nothing can
@@ -926,7 +926,7 @@ export function updateItem(userId, id, item) {
     Object.assign(current, itemFields(item), { active: Boolean(item.active), updatedAt: now() });
     // The one link from before there could be several is among `links` now.
     delete current.homepage;
-    // The default store is its account's from the first, and stays so.
+    // The default spot is its account's from the first, and stays so.
     if (current.default) current.shared = false;
     // Said to be somebody else's, it leaves the account's folder for the
     // public account's, and is nobody's from then on.
@@ -953,8 +953,8 @@ export function deleteItem(userId, id) {
     current.deletedAt = now();
     current.active = false;
     changedItem(current);
-    // A store gone, the items that were on it alone go on the default one.
-    if (current.store) keepItemsOnStores(userId);
+    // A spot gone, the items that were on it alone go on the default one.
+    if (current.spot) keepItemsOnSpots(userId);
   });
   return true;
 }
@@ -1265,9 +1265,9 @@ export const getRating = (userId) => ratingOf(getReviewsOf(userId));
 //
 // `read` is whether the one it was sent to has read it, on both copies: it is
 // what the receiver's unread count goes by and what the sender is shown.
-function storeOfLine({ ownerId, id }) {
-  const store = nameOf(ownerId) ? findStore(ownerId, id) : null;
-  return { owner: nameOf(ownerId), id: store?.id ?? id, name: store?.title ?? null, gone: !store };
+function spotOfLine({ ownerId, id }) {
+  const spot = nameOf(ownerId) ? findSpot(ownerId, id) : null;
+  return { owner: nameOf(ownerId), id: spot?.id ?? id, name: spot?.title ?? null, gone: !spot };
 }
 
 function servedMessage(line) {
@@ -1288,9 +1288,9 @@ function servedMessage(line) {
           gone: !itemsById.get(line.itemId) || Boolean(itemsById.get(line.itemId).deletedAt),
         }
       : null,
-    // And the store one is about: its name, and `gone` once it is deleted.
-    // (A line from before stores were called so says `page`.)
-    store: (line.store ?? line.page) ? storeOfLine(line.store ?? line.page) : null,
+    // And the spot one is about: its name, and `gone` once it is deleted.
+    // (A line from before spots were called so says `store`, or `page`.)
+    spot: (line.spot ?? line.store ?? line.page) ? spotOfLine(line.spot ?? line.store ?? line.page) : null,
     reason: line.reason ?? null,
     // The request an exchange is about, said at its head (see the "wanted"
     // line): what was asked for, and `gone` once it has been taken down.
@@ -1421,7 +1421,7 @@ export function createMessage(
   body,
   // `via` and `anonId`: the request an exchange is by way of, and which end of
   // it asked without a name (see inThread).
-  { kind = "text", bookingId = null, itemId = null, store = null, reason = null, via = null, anonId = null, requestId = null } = {},
+  { kind = "text", bookingId = null, itemId = null, spot = null, reason = null, via = null, anonId = null, requestId = null } = {},
 ) {
   // The clock, so a number is never handed out twice even after both ends have
   // deleted the lines that carried the highest ones.
@@ -1432,8 +1432,8 @@ export function createMessage(
     kind,
     bookingId,
     ...(itemId ? { itemId } : null),
-    // Or the store it is about, as whose it is and its id.
-    ...(store ? { store: { ownerId: store.ownerId, id: store.id } } : null),
+    // Or the spot it is about, as whose it is and its id.
+    ...(spot ? { spot: { ownerId: spot.ownerId, id: spot.id } } : null),
     ...(reason ? { reason } : null),
     ...(requestId ? { requestId } : null),
     ...(via ? { via } : null),
@@ -1567,10 +1567,11 @@ export function mergePublic({ locations, items }) {
     const kept = { ...item, id, shared: true, createdAt: existing?.createdAt ?? item.createdAt ?? time, updatedAt: item.updatedAt ?? time };
     delete kept.ownerId;
     delete kept.page;
-    // A store (stores/<id>/store.json in the zip) is kept under stores/, with the
+    delete kept.store;
+    // A spot (spots/<id>/spot.json in the zip) is kept under spots/, with the
     // ids of its items — none, where it came without.
-    if (kept.store === true) kept.itemIds = Array.isArray(kept.itemIds) ? kept.itemIds.map(String) : [];
-    else delete kept.store;
+    if (kept.spot === true) kept.itemIds = Array.isArray(kept.itemIds) ? kept.itemIds.map(String) : [];
+    else delete kept.spot;
     writeItemFolder(PUBLIC_ID, kept, source ? { ...files, [SOURCE_FILE]: `${JSON.stringify(source, null, 2)}\n` } : files);
     itemsById.set(id, { ...perUnit(kept), ownerId: PUBLIC_ID });
     if (key) publicKeyIndex().set(key, id);
@@ -1586,9 +1587,9 @@ export function mergePublic({ locations, items }) {
 export function heldPublic() {
   const items = allItemFolders(PUBLIC_ID)
     .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID && !itemsById.get(folder).deletedAt)
-    .map(({ folder: id, store }) => ({
+    .map(({ folder: id, spot }) => ({
       id,
-      store,
+      spot,
       key: readItemSource(PUBLIC_ID, id)?.key ?? null,
       // When it was last changed, for a sender to send its own again where
       // that is newer (rab public push).
@@ -1637,103 +1638,103 @@ export function publicLocations() {
   return getLocations(PUBLIC_ID);
 }
 
-/* ------------------------------------------------------------------- stores */
+/* ------------------------------------------------------------------- spots */
 
-// The stores an account makes of what it has out — "Liu's Music Gear Store".
-// A store is an item like any other — its photographs, its price, where it is,
-// when it can be had, booked as one is — with `store: true` and, in
+// The spots an account makes of what it has out — "Liu's Music Gear Spot".
+// A spot is an item like any other — its photographs, its price, where it is,
+// when it can be had, booked as one is — with `spot: true` and, in
 // `itemIds`, some of the account's own items, in the order it put them: the
-// site calls it a page, and everything behind it calls it a store. It is kept
-// in a folder of its own under its owner's stores/ rather than items/ (see
+// site calls it a page, and everything behind it calls it a spot. It is kept
+// in a folder of its own under its owner's spots/ rather than items/ (see
 // files.js). An item deleted since is left in the list and left out of what is
 // read.
-export const STORES_MAX = 50;
+export const SPOTS_MAX = 50;
 
-// Every account has one store from the first — its default store, made with
+// Every account has one spot from the first — its default spot, made with
 // the account and named after it, and listed first among its pages on its
-// profile: a store like any other, photographs, price, calendar and all,
+// profile: a spot like any other, photographs, price, calendar and all,
 // that is not deleted and not made somebody else's. An item goes on it where
-// the account picks no other store for it, and whenever it is left on none
-// (see keepItemsOnStores). An account from before there were default stores
+// the account picks no other spot for it, and whenever it is left on none
+// (see keepItemsOnSpots). An account from before there were default spots
 // is given one when the server starts, with every item it then had on it, the
 // newest first.
-function defaultStoreItem(userId) {
+function defaultSpotItem(userId) {
   for (const item of itemsById.values()) {
-    if (item.default && item.store && item.ownerId === userId && !item.deletedAt) return item;
+    if (item.default && item.spot && item.ownerId === userId && !item.deletedAt) return item;
   }
   return null;
 }
 
-export function defaultStore(userId) {
-  return servedItem(defaultStoreItem(userId));
+export function defaultSpot(userId) {
+  return servedItem(defaultSpotItem(userId));
 }
 
 // `fresh` is for an account just opened, which has said nothing of itself
-// yet: its store is not published until its owner publishes it, is reached by
+// yet: its spot is not published until its owner publishes it, is reached by
 // a message here and no other way, and is booked by asking.
-function makeDefaultStore(userId, { fresh = false } = {}) {
-  if (defaultStoreItem(userId)) return;
+function makeDefaultSpot(userId, { fresh = false } = {}) {
+  if (defaultSpotItem(userId)) return;
   const username = usersById.get(userId)?.username ?? "";
   const itemIds = [...itemsById.values()]
-    .filter((item) => item.ownerId === userId && !item.store && !item.shared && !item.deletedAt)
+    .filter((item) => item.ownerId === userId && !item.spot && !item.shared && !item.deletedAt)
     // Newest first (as newestFirst, which is not defined yet when this runs at
     // start).
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .map((item) => item.id);
-  const store = storeFromOld({ id: newItemId(now()), name: username, contacts: getContacts(userId), itemIds }, userId);
-  store.default = true;
+  const spot = spotFromOld({ id: newItemId(now()), name: username, contacts: getContacts(userId), itemIds }, userId);
+  spot.default = true;
   if (fresh) {
-    store.active = false;
-    store.contacts = [{ type: "message", value: "" }];
-    store.mode = "inquiry";
-    store.priceUnit = 1440;
+    spot.active = false;
+    spot.contacts = [{ type: "message", value: "" }];
+    spot.mode = "inquiry";
+    spot.priceUnit = 1440;
   }
-  itemsById.set(store.id, store);
-  changedItem(store);
+  itemsById.set(spot.id, spot);
+  changedItem(spot);
 }
 
-function ensureDefaultStores() {
+function ensureDefaultSpots() {
   transaction(() => {
     for (const userId of usersById.keys()) {
       if (userId !== PUBLIC_ID && userId !== ADMIN_ID) {
-        makeDefaultStore(userId);
-        keepItemsOnStores(userId);
+        makeDefaultSpot(userId);
+        keepItemsOnSpots(userId);
       }
     }
   });
 }
 
-// Every item of an account's is on at least one of its stores: one on none —
-// taken off the last store it was on, or left on none when that store was
-// deleted — is put on the account's default store, after what is there.
-export function keepItemsOnStores(userId) {
-  const store = defaultStoreItem(userId);
-  if (!store) return;
+// Every item of an account's is on at least one of its spots: one on none —
+// taken off the last spot it was on, or left on none when that spot was
+// deleted — is put on the account's default spot, after what is there.
+export function keepItemsOnSpots(userId) {
+  const spot = defaultSpotItem(userId);
+  if (!spot) return;
   const on = new Set();
   for (const each of itemsById.values()) {
-    if (each.store && !each.deletedAt && each.ownerId === userId) for (const id of each.itemIds ?? []) on.add(String(id));
+    if (each.spot && !each.deletedAt && each.ownerId === userId) for (const id of each.itemIds ?? []) on.add(String(id));
   }
   const loose = [...itemsById.values()]
-    .filter((item) => item.ownerId === userId && !item.store && !item.deletedAt && !on.has(item.id))
+    .filter((item) => item.ownerId === userId && !item.spot && !item.deletedAt && !on.has(item.id))
     .sort((a, b) => Number(a.id) - Number(b.id))
     .map((item) => item.id);
   if (loose.length === 0) return;
   transaction(() => {
-    store.itemIds = [...(store.itemIds ?? []), ...loose];
-    store.updatedAt = now();
-    changedItem(store);
+    spot.itemIds = [...(spot.itemIds ?? []), ...loose];
+    spot.updatedAt = now();
+    changedItem(spot);
   });
 }
 
-// Somebody else's stores — the public account's — whose title or place has
+// Somebody else's spots — the public account's — whose title or place has
 // all of `query` in it, as a list to choose from: the published ones, at most
 // `limit`, the ones with it in the title first.
-export function findSharedStores(query, limit = 20) {
+export function findSharedSpots(query, limit = 20) {
   const words = String(query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const found = [];
   for (const item of itemsById.values()) {
-    if (!item.store || item.ownerId !== PUBLIC_ID || item.deletedAt || !item.active) continue;
+    if (!item.spot || item.ownerId !== PUBLIC_ID || item.deletedAt || !item.active) continue;
     const title = String(item.title ?? "").toLowerCase();
     const text = `${title} ${String(item.place ?? "").toLowerCase()}`;
     if (!words.every((word) => text.includes(word))) continue;
@@ -1745,70 +1746,70 @@ export function findSharedStores(query, limit = 20) {
     .map(({ item }) => servedItem(item));
 }
 
-// One of the public account's stores by its id, for an item of somebody
+// One of the public account's spots by its id, for an item of somebody
 // else's to be put on. Null where there is none such.
-export function findSharedStore(id) {
-  const store = liveItem(String(id ?? ""));
-  return store?.store && store.ownerId === PUBLIC_ID ? servedItem(store) : null;
+export function findSharedSpot(id) {
+  const spot = liveItem(String(id ?? ""));
+  return spot?.spot && spot.ownerId === PUBLIC_ID ? servedItem(spot) : null;
 }
 
-// The account's stores, the one made first first, as items go out.
-export function getStores(userId) {
+// The account's spots, the one made first first, as items go out.
+export function getSpots(userId) {
   return [...itemsById.values()]
-    .filter((item) => item.store && item.ownerId === userId && !item.deletedAt)
-    // The default store first, then the rest as they were made.
+    .filter((item) => item.spot && item.ownerId === userId && !item.deletedAt)
+    // The default spot first, then the rest as they were made.
     .sort((a, b) => Number(b.default === true) - Number(a.default === true) || Number(a.id) - Number(b.id))
     .map(servedItem);
 }
 
-// The items on a store, as a list shows them: only the published ones where
+// The items on a spot, as a list shows them: only the published ones where
 // `publicOnly`, as for somebody else looking at it.
-export function storeItems(store, options) {
-  return keptStoreItems(store, options).map(servedItem);
+export function spotItems(spot, options) {
+  return keptSpotItems(spot, options).map(servedItem);
 }
 
 // The same, as little as the map's count of them needs — what each is of and
-// whose — for thousands of stores at a time, without making each item whole
+// whose — for thousands of spots at a time, without making each item whole
 // (its rating alone goes through every booking there is).
-export function storeItemKinds(store, options) {
-  return keptStoreItems(store, options).map((item) => ({ category: item.category, ownerId: item.ownerId }));
+export function spotItemKinds(spot, options) {
+  return keptSpotItems(spot, options).map((item) => ({ category: item.category, ownerId: item.ownerId }));
 }
 
-function keptStoreItems(store, { publicOnly = false } = {}) {
-  const kept = itemsById.get(store.id);
-  if (!kept?.store) return [];
+function keptSpotItems(spot, { publicOnly = false } = {}) {
+  const kept = itemsById.get(spot.id);
+  if (!kept?.spot) return [];
   return (kept.itemIds ?? [])
     .map((id) => liveItem(id))
     .filter(
       (item) =>
-        item && !item.store && item.ownerId === kept.ownerId && (!publicOnly || item.active),
+        item && !item.spot && item.ownerId === kept.ownerId && (!publicOnly || item.active),
     );
 }
 
-// The ids of the items on one of the account's stores, as they now are. Null
-// where it has no such store.
-export function setStoreItems(userId, id, itemIds) {
-  const store = liveItem(id);
-  if (!store?.store || store.ownerId !== userId) return null;
+// The ids of the items on one of the account's spots, as they now are. Null
+// where it has no such spot.
+export function setSpotItems(userId, id, itemIds) {
+  const spot = liveItem(id);
+  if (!spot?.spot || spot.ownerId !== userId) return null;
   transaction(() => {
-    store.itemIds = itemIds.map(String);
-    store.updatedAt = now();
-    changedItem(store);
+    spot.itemIds = itemIds.map(String);
+    spot.updatedAt = now();
+    changedItem(spot);
   });
-  return getItem(store.id);
+  return getItem(spot.id);
 }
 
-// One of an account's stores by its id — or the id it had before ids were
-// times, so a link from then still finds it. Null where it has no such store.
-export function findStore(userId, id) {
-  const store = liveItem(String(id ?? ""));
-  return store?.store && store.ownerId === userId ? servedItem(store) : null;
+// One of an account's spots by its id — or the id it had before ids were
+// times, so a link from then still finds it. Null where it has no such spot.
+export function findSpot(userId, id) {
+  const spot = liveItem(String(id ?? ""));
+  return spot?.spot && spot.ownerId === userId ? servedItem(spot) : null;
 }
 
-// The stores an item is on, of its owner's.
-export function storesWith(item) {
+// The spots an item is on, of its owner's.
+export function spotsWith(item) {
   return [...itemsById.values()]
-    .filter((store) => store.store && !store.deletedAt && store.ownerId === item.ownerId && (store.itemIds ?? []).includes(item.id))
+    .filter((spot) => spot.spot && !spot.deletedAt && spot.ownerId === item.ownerId && (spot.itemIds ?? []).includes(item.id))
     .map(servedItem);
 }
 

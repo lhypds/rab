@@ -9,7 +9,7 @@ import LanguageSwitcher from "../LanguageSwitcher/index.js";
 import MessagesModal from "../MessagesModal/index.js";
 import RequestModal from "../RequestModal/index.js";
 import TravelModal from "../TravelModal/index.js";
-import { itemPath } from "../../utils/stores.js";
+import { itemPath } from "../../utils/spots.js";
 
 // The bar on every page. `back` swaps the wordmark for the way back, on the
 // pages that are somewhere you went to rather than where you start: back to the

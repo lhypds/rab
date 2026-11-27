@@ -37,7 +37,7 @@ import CategoryIcon from "../CategoryIcon/index.js";
 import FilterBox from "../FilterBox/index.js";
 import ItemPreview from "../ItemPreview/index.js";
 import MessageModal from "../MessageModal/index.js";
-import { itemPath } from "../../utils/stores.js";
+import { itemPath } from "../../utils/spots.js";
 import UserName, { dotted } from "../UserName/index.js";
 import styles from "./map.module.css";
 
@@ -1707,7 +1707,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             {/* As lo's strip has it: the ward, then the prefecture. */}
             <span>{[area?.locality, area?.within].filter(Boolean).join(" · ")}</span>
             {/* At its right, how much is offered here: the items — on the
-                stores, and the ones on none — and the spots they are at, one
+                spots, and the ones on none — and the spots they are at, one
                 to a row of the list. */}
             {listed && (
               <span>
@@ -1716,7 +1716,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                 {requesting
                   ? t("map.requestTotals", { count: listed.length })
                   : t("map.areaTotals", {
-                      items: listed.reduce((sum, item) => sum + (item.store ? (item.count ?? 0) : 1), 0).toLocaleString(i18n.language),
+                      items: listed.reduce((sum, item) => sum + (item.spot ? (item.count ?? 0) : 1), 0).toLocaleString(i18n.language),
                       spots: listed.length.toLocaleString(i18n.language),
                     })}
               </span>
@@ -1956,7 +1956,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                       ))}
                   </span>
                 ) : (
-                  !open.store && <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>
+                  !open.spot && <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>
                 )}
                 <span className={styles.cardMeta}>
                   {/* No address: at the bubble's width it is cut off long
@@ -1964,7 +1964,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                   {/* Beside what a spot is of, how many things are on it. */}
                   {dotted([
                     sortLabel(open, t),
-                    open.store && t("store.count", { count: open.count ?? 0 }),
+                    open.spot && t("spot.count", { count: open.count ?? 0 }),
                     open.owner && <UserName name={open.owner} inside />,
                     open.kind === "request" && open.anonymous && !open.owner && t("request.anonymousName"),
                   ])}
@@ -2068,9 +2068,9 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
           item={editingItem.item}
           calendar={editingItem.calendar}
           onClose={() => setEditingItem(null)}
-          onSaved={(item, store) => {
+          onSaved={(item, spot) => {
             const id = editingItem.item.id;
-            const saved = [item, store].find((each) => each?.id === id);
+            const saved = [item, spot].find((each) => each?.id === id);
             setEditingItem(null);
             if (!saved) return;
             const renew = (list) => list?.map((each) => (each.id === id ? { ...each, ...saved } : each)) ?? list;

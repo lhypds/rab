@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 //                                      than here; and delete on the server, in
 //                                      one request, what the folder does not have
 //   rab public purge [-u <url>] [--yes]
-//                                      delete every item and store of the
+//                                      delete every item and spot of the
 //                                      server's _public (its places stay)
 //
 // The user commands read and write the same data/users/ and db.sqlite the
@@ -74,7 +74,7 @@ const USAGE = `Usage:
                                      the server what the folder does not have
                                      (asks first, unless --yes)
   rab public purge [-u <url>] [--yes]
-                                     delete every item and store in the server's _public
+                                     delete every item and spot in the server's _public
                                      (asks first, unless --yes)`;
 
 function fail(message) {
@@ -156,9 +156,9 @@ async function answerOf(response) {
 }
 
 // The public folder in what was named: the folder itself where locations.json
-// items/ or stores/ is in it, or the one folder inside it that has them
+// items/ or spots/ is in it, or the one folder inside it that has them
 // ("_public/").
-const isPublicFolder = (fs, at) => ["locations.json", "items", "stores"].some((name) => fs.existsSync(path.join(at, name)));
+const isPublicFolder = (fs, at) => ["locations.json", "items", "spots"].some((name) => fs.existsSync(path.join(at, name)));
 
 function publicFolder(fs, dir) {
   const isOne = (at) => isPublicFolder(fs, at);
@@ -172,7 +172,7 @@ function publicFolder(fs, dir) {
   if (isOne(dir)) return dir;
   const inside = entries.filter((entry) => entry.isDirectory() && isOne(path.join(dir, entry.name)));
   if (inside.length === 1) return path.join(dir, inside[0].name);
-  fail(`There is no locations.json, no items/ and no stores/ in ${dir}`);
+  fail(`There is no locations.json, no items/ and no spots/ in ${dir}`);
 }
 
 function readJson(fs, file) {
@@ -211,14 +211,14 @@ function remoteArgs(args) {
 }
 
 // What is here: the places, and each item folder with an item.json in it —
-// and each store folder (stores/) with a store.json in it — with the key the
+// and each spot folder (spots/) with a spot.json in it — with the key the
 // crawler knows it by, when it was last changed, and the folder it is in
-// (`under`: "items" or "stores").
+// (`under`: "items" or "spots").
 function localPublic(fs, folder) {
   const list = readJson(fs, path.join(folder, "locations.json"));
   const locations = Array.isArray(list) ? list.filter((each) => each && typeof each === "object" && !Array.isArray(each)) : [];
   const items = [];
-  for (const [under, file] of [["items", "item.json"], ["stores", "store.json"]]) {
+  for (const [under, file] of [["items", "item.json"], ["spots", "spot.json"]]) {
     const dir = path.join(folder, under);
     for (const entry of fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : []) {
       if (!entry.isDirectory() || !/^\d+$/.test(entry.name) || !fs.existsSync(path.join(dir, entry.name, file))) continue;
@@ -367,7 +367,7 @@ async function sendMissing(fs, session, folder, send) {
     }
   }
 
-  // Each item's folder as it is, item.json (store.json for a store),
+  // Each item's folder as it is, item.json (spot.json for a spot),
   // source.json and the photographs; the photographs stored as they are,
   // being compressed.
   const filesOf = ({ id, under }) => {
@@ -450,10 +450,10 @@ async function sendMissing(fs, session, folder, send) {
 }
 
 // "31840 items, 3415 spots, 3049 places": a spot is an item folder under
-// stores/ (`under` here, `store` as the server gives it), a place a saved
+// spots/ (`under` here, `spot` as the server gives it), a place a saved
 // location in locations.json.
 function counted({ items = [], locations }) {
-  const spots = items.filter((each) => each.under === "stores" || each.store).length;
+  const spots = items.filter((each) => each.under === "spots" || each.spot).length;
   const parts = [`${items.length - spots} items`, `${spots} spots`];
   if (locations) parts.push(`${locations.length} places`);
   return parts.join(", ");
@@ -499,7 +499,7 @@ async function deleteHeld(session, host, drop) {
 // rab push / rab mirror [-f <folder>] [-u <url>]: what the server does not
 // have, and what it has older than here, sent. Mirror then fetches what the
 // server has newer than here (a pull, of those it has under the same id only)
-// and deletes there what is not here — by the items/ and stores/ folders' ids,
+// and deletes there what is not here — by the items/ and spots/ folders' ids,
 // keeping one the server holds under a key of an item here (it is that item,
 // merged under the server's id) — so that its _public is this folder's.
 async function sendPublic(args, { mirror = false } = {}) {
@@ -560,17 +560,17 @@ const FETCH_PARALLEL = 4;
 // folder to take in — in the stead of the one here, where there is one, which
 // is set aside until the new one is in. Whether it replaced one.
 function placeItem(fs, folder, local, id, entries) {
-  // A store comes as stores/<id>/store.json and goes in stores/; an item in
+  // A spot comes as spots/<id>/spot.json and goes in spots/; an item in
   // items/.
-  const under = `stores/${id}/store.json` in entries ? "stores" : "items";
-  const file = under === "stores" ? "store.json" : "item.json";
+  const under = `spots/${id}/spot.json` in entries ? "spots" : "items";
+  const file = under === "spots" ? "spot.json" : "item.json";
   const dir = path.join(folder, under);
   fs.mkdirSync(dir, { recursive: true });
   const into = path.join(dir, `.${id}.${process.pid}.tmp`);
   fs.rmSync(into, { recursive: true, force: true });
   fs.mkdirSync(into, { recursive: true });
   for (const [name, bytes] of Object.entries(entries)) {
-    const match = name.match(/^(items|stores)\/(\d+)\/([^/]+)$/);
+    const match = name.match(/^(items|spots)\/(\d+)\/([^/]+)$/);
     if (!match || match[1] !== under || match[2] !== id || match[3].startsWith(".")) continue;
     fs.writeFileSync(path.join(into, match[3]), bytes);
   }
@@ -578,7 +578,7 @@ function placeItem(fs, folder, local, id, entries) {
     fs.rmSync(into, { recursive: true, force: true });
     throw new Error(`the server sent no ${file} for it`);
   }
-  // The one here — under items/ or stores/, whichever it was — set aside, and
+  // The one here — under items/ or spots/, whichever it was — set aside, and
   // put back if the new one cannot be moved in.
   const target = path.join(dir, id);
   const was = local.has(id) ? path.join(folder, local.get(id).under, id) : target;
@@ -707,7 +707,7 @@ async function receivePublic(args) {
   if (failed) process.exit(1);
 }
 
-// rab public purge [-u <url>] [--yes]: every item and store of the server's
+// rab public purge [-u <url>] [--yes]: every item and spot of the server's
 // _public deleted, after asking; its places are left as they are.
 async function purgePublic(args) {
   const { host, yes } = remoteArgs(args);
@@ -716,8 +716,8 @@ async function purgePublic(args) {
   try {
     const held = await session.held();
     const count = held.items.length;
-    const stores = held.items.filter((each) => each.store).length;
-    const what = `${count - stores} items and ${stores} stores`;
+    const spots = held.items.filter((each) => each.spot).length;
+    const what = `${count - spots} items and ${spots} spots`;
     console.log(`${host} has ${what} in _public`);
     if (count === 0) return;
     if (!yes) {

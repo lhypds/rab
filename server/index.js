@@ -44,16 +44,16 @@ const {
   getDaysBetween,
   getItem,
   getLocations,
-  findStore,
-  findSharedStore,
-  findSharedStores,
-  getStores,
-  defaultStore,
-  keepItemsOnStores,
-  storeItems,
-  storeItemKinds,
-  storesWith,
-  setStoreItems,
+  findSpot,
+  findSharedSpot,
+  findSharedSpots,
+  getSpots,
+  defaultSpot,
+  keepItemsOnSpots,
+  spotItems,
+  spotItemKinds,
+  spotsWith,
+  setSpotItems,
   getItemImages,
   getItemReviews,
   getItemsAt,
@@ -71,7 +71,7 @@ const {
   readConversation,
   saveContacts,
   saveLocation,
-  STORES_MAX,
+  SPOTS_MAX,
   saveSession,
   searchItems,
   setBookingStatus,
@@ -109,8 +109,8 @@ const {
   getRequestsByUser,
   requestImageNames,
 } = await import("./db.js");
-const { heldDir, isStoreFolder } = await import("./files.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepRequestImages, keepStoreImages, noteItemImages, pinImageFile, storeImage } = await import(
+const { heldDir, isSpotFolder } = await import("./files.js");
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepRequestImages, keepSpotImages, noteItemImages, pinImageFile, spotImage } = await import(
   "./images.js"
 );
 const { mailConfigured, sendMail } = await import("./mail.js");
@@ -604,95 +604,95 @@ app.get("/api/users/:username", (req, res) => {
     // Not somebody else's that this account wrote down: those are nobody's
     // by name, and are not listed as this account's.
     items: getItemsByUser(user.id, { publicOnly: true }).filter((item) => !item.shared && mayView(req.user, item)).map(publicItem),
-    // All their stores — the default one first, which every account has —
+    // All their spots — the default one first, which every account has —
     // each with how many of its items are shown and the first one's picture.
-    stores: storeSummaries(user, req.user),
+    spots: spotSummaries(user, req.user),
   });
 });
 
-/* -------------------------------------------------------------------- stores */
+/* -------------------------------------------------------------------- spots */
 
-// A store is an item (see db.js): made, changed, booked and deleted by the
-// item routes, with `store: true` when it is made. What is its own is which of
+// A spot is an item (see db.js): made, changed, booked and deleted by the
+// item routes, with `spot: true` when it is made. What is its own is which of
 // the account's items are on it.
-const STORE_ITEMS_MAX = 200;
+const SPOT_ITEMS_MAX = 200;
 
-// The items on a store, as whoever is looking may see them: its owner every
+// The items on a spot, as whoever is looking may see them: its owner every
 // one, anybody else the published ones they may see.
-function itemsInStore(store, viewer) {
-  const own = viewer?.id === store.ownerId;
-  return storeItems(store, { publicOnly: !own })
+function itemsInSpot(spot, viewer) {
+  const own = viewer?.id === spot.ownerId;
+  return spotItems(spot, { publicOnly: !own })
     .filter((item) => own || mayView(viewer, item))
     .map(publicItem);
 }
 
-// A store as a row in a list gets it: how many items it shows, not the items.
-function storeSummary(store, viewer) {
-  const items = itemsInStore(store, viewer);
+// A spot as a row in a list gets it: how many items it shows, not the items.
+function spotSummary(spot, viewer) {
+  const items = itemsInSpot(spot, viewer);
   return {
-    ...publicItem(store),
+    ...publicItem(spot),
     count: items.length,
     // How many of them are out for anybody to see.
     published: items.filter((item) => item.active).length,
     // Its row wears its own first photograph, or else its first item's.
-    thumb: store.thumb ?? items[0]?.thumb ?? null,
+    thumb: spot.thumb ?? items[0]?.thumb ?? null,
   };
 }
 
-// An account's stores, as a list gets them: to anybody but its owner only the
+// An account's spots, as a list gets them: to anybody but its owner only the
 // published ones they may see.
-function storeSummaries(user, viewer) {
+function spotSummaries(user, viewer) {
   const own = viewer?.id === user.id;
-  return getStores(user.id)
-    .filter((store) => own || (store.active && mayView(viewer, store)))
-    .map((store) => storeSummary(store, viewer));
+  return getSpots(user.id)
+    .filter((spot) => own || (spot.active && mayView(viewer, spot)))
+    .map((spot) => spotSummary(spot, viewer));
 }
 
-// Of the ids sent for a store's items, the account's own items — any of them:
-// a store takes things, spaces and services alike — each once, in the order
+// Of the ids sent for a spot's items, the account's own items — any of them:
+// a spot takes things, spaces and services alike — each once, in the order
 // sent.
-function storeItemIds(userId, ids) {
+function spotItemIds(userId, ids) {
   const own = new Set(getItemsByUser(userId).filter((item) => !item.shared).map((item) => item.id));
-  return [...new Set(ids.map(String))].filter((id) => own.has(id)).slice(0, STORE_ITEMS_MAX);
+  return [...new Set(ids.map(String))].filter((id) => own.has(id)).slice(0, SPOT_ITEMS_MAX);
 }
 
-// Which of the account's items are on one of its stores, and in what order:
+// Which of the account's items are on one of its spots, and in what order:
 // the whole list, as the sheet for it sends it.
-app.put("/api/stores/:id/items", requireSession, (req, res) => {
-  const store = findStore(req.user.id, req.params.id);
-  if (!store) return res.status(404).json({ error: "No such store" });
+app.put("/api/spots/:id/items", requireSession, (req, res) => {
+  const spot = findSpot(req.user.id, req.params.id);
+  if (!spot) return res.status(404).json({ error: "No such spot" });
   if (!Array.isArray(req.body?.itemIds)) return res.status(400).json({ error: "Send the items as a list" });
-  setStoreItems(req.user.id, store.id, storeItemIds(req.user.id, req.body.itemIds));
-  // An item taken off the last store it was on goes back on the default one
-  // — which is this one, where it is the default store being edited.
-  keepItemsOnStores(req.user.id);
-  const saved = findStore(req.user.id, store.id);
-  res.json({ store: { ...publicItem(saved), items: itemsInStore(saved, req.user) } });
+  setSpotItems(req.user.id, spot.id, spotItemIds(req.user.id, req.body.itemIds));
+  // An item taken off the last spot it was on goes back on the default one
+  // — which is this one, where it is the default spot being edited.
+  keepItemsOnSpots(req.user.id);
+  const saved = findSpot(req.user.id, spot.id);
+  res.json({ spot: { ...publicItem(saved), items: itemsInSpot(saved, req.user) } });
 });
 
-// One of the account's own items put on one of its stores — dragged onto it in
-// the list of stores — after what is there. `added` is false where it was on
-// the store already. The store answers as a row in the list does.
-app.post("/api/stores/:id/items", requireSession, (req, res) => {
-  const store = findStore(req.user.id, req.params.id);
-  if (!store) return res.status(404).json({ error: "No such store" });
+// One of the account's own items put on one of its spots — dragged onto it in
+// the list of spots — after what is there. `added` is false where it was on
+// the spot already. The spot answers as a row in the list does.
+app.post("/api/spots/:id/items", requireSession, (req, res) => {
+  const spot = findSpot(req.user.id, req.params.id);
+  if (!spot) return res.status(404).json({ error: "No such spot" });
   const item = getItemsByUser(req.user.id).find((each) => each.id === String(req.body?.itemId ?? ""));
   if (!item || item.shared) return res.status(400).json({ error: "Choose an item of your own" });
-  const itemIds = storeItems(store).map((each) => each.id);
-  if (itemIds.includes(item.id)) return res.json({ added: false, store: storeSummary(store, req.user) });
-  if (itemIds.length >= STORE_ITEMS_MAX) return res.status(409).json({ error: "This store is full" });
-  const saved = setStoreItems(req.user.id, store.id, [...itemIds, item.id]);
-  res.json({ added: true, store: storeSummary(saved, req.user) });
+  const itemIds = spotItems(spot).map((each) => each.id);
+  if (itemIds.includes(item.id)) return res.json({ added: false, spot: spotSummary(spot, req.user) });
+  if (itemIds.length >= SPOT_ITEMS_MAX) return res.status(409).json({ error: "This spot is full" });
+  const saved = setSpotItems(req.user.id, spot.id, [...itemIds, item.id]);
+  res.json({ added: true, spot: spotSummary(saved, req.user) });
 });
 
-// The stores a new item can be put on, for the list on the sheet it is made
+// The spots a new item can be put on, for the list on the sheet it is made
 // on: the account's own, its default first — or, with `shared=1`, those of
 // the public account whose title or place has `q` in it, for somebody
 // else's item.
-app.get("/api/stores/choices", requireSession, (req, res) => {
-  const pick = (store) => ({ id: store.id, title: store.title, place: store.place ?? null, default: store.default, thumb: store.thumb ?? null });
-  if (req.query.shared === "1") return res.json({ stores: findSharedStores(req.query.q).map(pick) });
-  res.json({ stores: getStores(req.user.id).map(pick) });
+app.get("/api/spots/choices", requireSession, (req, res) => {
+  const pick = (spot) => ({ id: spot.id, title: spot.title, place: spot.place ?? null, default: spot.default, thumb: spot.thumb ?? null });
+  if (req.query.shared === "1") return res.json({ spots: findSharedSpots(req.query.q).map(pick) });
+  res.json({ spots: getSpots(req.user.id).map(pick) });
 });
 
 /* -------------------------------------------------------------------- items */
@@ -707,7 +707,7 @@ function publicItem(item) {
 // An item as the map and the lists beside it get it, thousands at a time:
 // without its photographs, of which a pin and a row draw only the first — as
 // `thumb` and `pin` — and its own page asks for the item whole.
-// A store among them says how many items are on it that the viewer may see,
+// A spot among them says how many items are on it that the viewer may see,
 // and the categories it is in: the one chosen for it first, where there is
 // one, and then those of the items on it it is not already in, the most first.
 // The map counts it under each of them.
@@ -718,7 +718,7 @@ function publicItem(item) {
 function listedItem(item, viewer) {
   const listed = {
     id: item.id,
-    store: item.store,
+    spot: item.spot,
     title: item.title,
     what: item.what,
     description: item.description,
@@ -742,21 +742,21 @@ function listedItem(item, viewer) {
     // The bubble's Request goes the way its owner said first.
     contacts: item.contacts.slice(0, 1),
   };
-  if (!item.store) return listed;
+  if (!item.spot) return listed;
   const own = viewer?.id === item.ownerId;
-  const items = storeItemKinds(item, { publicOnly: !own }).filter((each) => own || mayView(viewer, each));
-  return { ...listed, count: items.length, categories: storeCategories(item, items) };
+  const items = spotItemKinds(item, { publicOnly: !own }).filter((each) => own || mayView(viewer, each));
+  return { ...listed, count: items.length, categories: spotCategories(item, items) };
 }
 
 // To the millionth of a degree — a hand's breadth — which is as near as a pin
 // is put.
 const roundDegree = (value) => (value == null ? value : Math.round(value * 1e6) / 1e6);
 
-function storeCategories(store, items) {
+function spotCategories(spot, items) {
   const counts = new Map();
   for (const each of items) if (each.category) counts.set(each.category, (counts.get(each.category) ?? 0) + 1);
   const theirs = [...counts].sort((a, b) => b[1] - a[1]).map(([category]) => category);
-  return [...new Set([store.category, ...theirs].filter(Boolean))];
+  return [...new Set([spot.category, ...theirs].filter(Boolean))];
 }
 
 function parseNumber(value, min, max) {
@@ -795,8 +795,8 @@ function parseImages(value) {
 // them: taken there once the item is saved and has a folder to take them to.
 function keepItemImages(item) {
   const names = getItemImages(item.id).flatMap((image) => [image.name, image.thumb]);
-  // A store's are in its folder under stores/ (see files.js).
-  if (item.store) keepStoreImages(item.ownerId, item.id, names);
+  // A spot's are in its folder under spots/ (see files.js).
+  if (item.spot) keepSpotImages(item.ownerId, item.id, names);
   else keepImages(item.ownerId, item.id, names);
 }
 
@@ -901,7 +901,7 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // here would be nobody's to answer.
   // One that is not lent out at all — only for sale — is settled by asking
   // too: it has no calendar, no rental price, and no request to answer.
-  const rentable = body?.store === true || body?.rentable !== false;
+  const rentable = body?.spot === true || body?.rentable !== false;
   if (!rentable && readDeposit(body?.salePrice, currency) === null) {
     return { error: "Offer it for sale, for temporary use, or both", code: "OFFER_REQUIRED" };
   }
@@ -972,9 +972,9 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // admin — which is its owner's to say and not whoever wrote it down — and it
       // is booked by asking (see below), there being nobody here to say yes.
       shared: body?.shared === true,
-      // Whether it is a store: a collection of the account's items (see
-      // stores). Said when it is made, and what it is from then on.
-      store: body?.store === true,
+      // Whether it is a spot: a collection of the account's items (see
+      // spots). Said when it is made, and what it is from then on.
+      spot: body?.spot === true,
       price: unpriced ? null : listPrice(mode, parsed.rates),
       currency,
       located,
@@ -1070,12 +1070,12 @@ app.get("/api/region", async (req, res) => {
 // An item's page: the item, its calendar, and — to the two people a rental is
 // between — where things stand. A stranger sees which days are taken; the
 // renter also sees their own requests; the owner sees all of them.
-// The stores an item is on, as the way to each from the item's own page: a
+// The spots an item is on, as the way to each from the item's own page: a
 // name, whose it is (null for somebody else's, which is on the
-// public account's stores, if any), and whether it is its owner's default.
-function storesOf(item) {
-  if (item.store) return [];
-  return storesWith(item).map((store) => ({ id: store.id, name: store.title, owner: store.owner ?? null, default: store.default }));
+// public account's spots, if any), and whether it is its owner's default.
+function spotsOf(item) {
+  if (item.spot) return [];
+  return spotsWith(item).map((spot) => ({ id: spot.id, name: spot.title, owner: spot.owner ?? null, default: spot.default }));
 }
 
 function itemAnswer(item, viewer) {
@@ -1084,9 +1084,9 @@ function itemAnswer(item, viewer) {
   return {
     // `bookmarked`: whether whoever is reading has kept it (see bookmarks).
     item: { ...publicItem(item), mine, bookmarked: Boolean(viewer && isBookmarked(viewer.id, item.id)),
-      stores: storesOf(item),
-      // On a store, the items on it.
-      ...(item.store ? { items: itemsInStore(item, viewer) } : null),
+      spots: spotsOf(item),
+      // On a spot, the items on it.
+      ...(item.spot ? { items: itemsInSpot(item, viewer) } : null),
     },
     // What the people who rented it said of it.
     reviews: getItemReviews(item.id).slice(0, REVIEWS_SHOWN),
@@ -1165,27 +1165,27 @@ app.post("/api/items", requireSession, (req, res) => {
   // Only an account old enough for a grown-up category puts anything in one.
   if (isAdultCategory(parsed.item.category) && !isAdult(req.user.id)) return res.status(403).json(AGE_FAULT);
   const ownerId = req.user.id;
-  // An account keeps only so many stores.
-  if (parsed.item.store && getStores(ownerId).length >= STORES_MAX) {
-    return res.status(409).json({ error: `An account keeps at most ${STORES_MAX} stores`, code: "STORES_FULL" });
+  // An account keeps only so many spots.
+  if (parsed.item.spot && getSpots(ownerId).length >= SPOTS_MAX) {
+    return res.status(409).json({ error: `An account keeps at most ${SPOTS_MAX} spots`, code: "SPOTS_FULL" });
   }
-  // An item goes on every one of the account's stores chosen (`storeIds`, or
-  // the one `storeId` from before several could be), after what is there on
-  // each — and on the default store where none is chosen: every item is on at
-  // least one. A store is put on none.
-  const stores = [];
-  if (!parsed.item.store) {
-    const ids = Array.isArray(req.body?.storeIds) ? req.body.storeIds : req.body?.storeId != null ? [req.body.storeId] : [];
+  // An item goes on every one of the account's spots chosen (`spotIds`, or
+  // the one `spotId` from before several could be), after what is there on
+  // each — and on the default spot where none is chosen: every item is on at
+  // least one. A spot is put on none.
+  const spots = [];
+  if (!parsed.item.spot) {
+    const ids = Array.isArray(req.body?.spotIds) ? req.body.spotIds : req.body?.spotId != null ? [req.body.spotId] : [];
     for (const id of new Set(ids.map(String))) {
-      const store = findStore(ownerId, id);
-      if (!store) return res.status(404).json({ error: "No such store" });
-      const itemIds = storeItems(store).map((entry) => entry.id);
-      if (itemIds.length >= STORE_ITEMS_MAX) return res.status(409).json({ error: "This store is full" });
-      stores.push({ store, itemIds });
+      const spot = findSpot(ownerId, id);
+      if (!spot) return res.status(404).json({ error: "No such spot" });
+      const itemIds = spotItems(spot).map((entry) => entry.id);
+      if (itemIds.length >= SPOT_ITEMS_MAX) return res.status(409).json({ error: "This spot is full" });
+      spots.push({ spot, itemIds });
     }
-    if (stores.length === 0) {
-      const store = defaultStore(ownerId);
-      if (store) stores.push({ store, itemIds: storeItems(store).map((entry) => entry.id) });
+    if (spots.length === 0) {
+      const spot = defaultSpot(ownerId);
+      if (spot) spots.push({ spot, itemIds: spotItems(spot).map((entry) => entry.id) });
     }
   }
   const item = createItem(ownerId, parsed.item);
@@ -1194,10 +1194,10 @@ app.post("/api/items", requireSession, (req, res) => {
     keepItemImages(item);
     applyClosed(item, req.body?.closed);
     applyOpened(item, req.body?.opened);
-    for (const { store, itemIds } of stores) {
-      const savedStore = setStoreItems(ownerId, store.id, [...itemIds, item.id]);
-      if (!savedStore) throw new Error("Could not save the store");
-      saved.push(savedStore);
+    for (const { spot, itemIds } of spots) {
+      const savedSpot = setSpotItems(ownerId, spot.id, [...itemIds, item.id]);
+      if (!savedSpot) throw new Error("Could not save the spot");
+      saved.push(savedSpot);
     }
   } catch (error) {
     deleteItem(ownerId, item.id);
@@ -1205,9 +1205,9 @@ app.post("/api/items", requireSession, (req, res) => {
   }
   res.status(201).json({
     item: { ...publicItem(item), mine: true },
-    stores: saved.map((store) => ({ ...publicItem(store), items: itemsInStore(store, req.user) })),
+    spots: saved.map((spot) => ({ ...publicItem(spot), items: itemsInSpot(spot, req.user) })),
     // The first of them, as one was answered before several could be chosen.
-    ...(saved[0] && { store: { ...publicItem(saved[0]), items: itemsInStore(saved[0], req.user) } }),
+    ...(saved[0] && { spot: { ...publicItem(saved[0]), items: itemsInSpot(saved[0], req.user) } }),
   });
 });
 
@@ -1282,9 +1282,9 @@ app.delete("/api/items/:id", requireSession, (req, res) => {
   if (item.shared && req.user.id !== ADMIN_ID) {
     return res.status(403).json({ error: "Ask the administrator to delete this item", code: "DELETE_BY_REQUEST" });
   }
-  // The default store is the account's from the first, and goes only with the
+  // The default spot is the account's from the first, and goes only with the
   // account.
-  if (item.default) return res.status(400).json({ error: "The default spot cannot be deleted", code: "DEFAULT_STORE" });
+  if (item.default) return res.status(400).json({ error: "The default spot cannot be deleted", code: "DEFAULT_SPOT" });
   removeItem(item);
   res.status(204).end();
 });
@@ -1648,7 +1648,7 @@ app.post("/api/bookings/:id/review", requireSession, (req, res) => {
 // for any of it, and what it has asked for itself.
 app.get("/api/mine", requireSession, (req, res) => {
   res.json({
-    stores: storeSummaries(req.user, req.user),
+    spots: spotSummaries(req.user, req.user),
     items: getItemsByUser(req.user.id).map(publicItem),
     requests: getBookingsForOwner(req.user.id).map((booking) => bookingFor(req.user, booking)),
     bookings: getBookingsByRenter(req.user.id).map((booking) => bookingFor(req.user, booking)),
@@ -2032,7 +2032,7 @@ app.post(
       return res.status(400).json({ error: "The image is empty" });
     }
     try {
-      const stored = await storeImage(req.user.id, req.body);
+      const stored = await spotImage(req.user.id, req.body);
       if (!stored) return res.status(415).json({ error: "Unsupported image format" });
       res.json(stored);
     } catch (error) {
@@ -2084,7 +2084,7 @@ app.post(
         const names = getItemImages(id).flatMap((image) => [image.name, image.thumb]);
         // One that came deleted is kept as it came, and is nowhere to be put.
         const item = getItem(id);
-        if (isStoreFolder(PUBLIC_ID, id)) keepStoreImages(PUBLIC_ID, id, names);
+        if (isSpotFolder(PUBLIC_ID, id)) keepSpotImages(PUBLIC_ID, id, names);
         else keepImages(PUBLIC_ID, id, names);
         if (item) rememberPublicPlace(item);
       }
@@ -2101,8 +2101,8 @@ app.get("/api/public/locations", requireSession, requireAdmin, (req, res) => {
   res.json(publicLocations());
 });
 
-// One item's folder as zip entries: a store's as stores/<id>/, with its
-// store.json; an item's as items/<id>/. The photographs stored as they are.
+// One item's folder as zip entries: a spot's as spots/<id>/, with its
+// spot.json; an item's as items/<id>/. The photographs stored as they are.
 function publicItemFiles(id, files) {
   const dir = heldDir(PUBLIC_ID, id);
   const under = path.basename(path.dirname(dir));
@@ -2262,7 +2262,7 @@ function sharePage(html, req, item, at = null) {
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    `<meta property="og:url" content="${escapeHtml(`${origin}${at ?? `/${item.store ? "s" : "i"}/${item.id}`}`)}" />`,
+    `<meta property="og:url" content="${escapeHtml(`${origin}${at ?? `/${item.spot ? "s" : "i"}/${item.id}`}`)}" />`,
     item.images[0] ? `<meta property="og:image" content="${escapeHtml(origin + item.images[0].src)}" />` : "",
     `<meta name="twitter:card" content="${item.images[0] ? "summary_large_image" : "summary"}" />`,
   ];
@@ -2274,7 +2274,7 @@ if (isProduction) {
   app.use(express.static(dist, { index: false }));
   app.use((req, res, next) => {
     if (req.method !== "GET") return next();
-    // An item at /i/<id>, or a store (a spot, as the site says) at /s/<id> —
+    // An item at /i/<id>, or a spot at /s/<id> —
     // or at its owner's /u/<name>/p/<id>, where it was before.
     const shared = /^\/[is]\/([a-z0-9]{1,32})\/?$/.exec(req.path) ?? /^\/u\/[^/]+\/p\/([a-z0-9]{1,32})\/?$/i.exec(req.path);
     const item = shared ? getItem(shared[1]) : null;

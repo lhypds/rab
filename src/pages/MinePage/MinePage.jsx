@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import StoreList from "../../components/StoreList.jsx";
+import SpotList from "../../components/SpotList.jsx";
 import * as api from "../../api.js";
 import { ItemCard } from "../../components/Rows/index.js";
 import { BookingRow, CategoryFilter, CategoryTabs, categoriesOf, Header, ItemRow, MessageModal, useAuth, useCategoryFilter } from "../../components/index.js";
@@ -16,7 +16,7 @@ const FILTERS = ["all", "published"];
 
 // The five things that are an account's, in the order they stand down the
 // left of the page.
-const TABS = ["items", "stores", "requests", "rentals", "bookmarks"];
+const TABS = ["items", "spots", "requests", "rentals", "bookmarks"];
 
 // When a booking starts, as text that sorts: its day, then its time — the first
 // slot's where it is for slots, the pickup's otherwise.
@@ -138,8 +138,8 @@ export default function MinePage() {
     else query.set("tab", name);
     navigate(query.size > 0 ? `/mine?${query}` : "/mine", { replace: true, scroll: false });
   };
-  const counts = { items: data?.items?.length, stores: data?.stores?.length, requests: data?.wanted?.length, rentals: data?.bookings?.length, bookmarks: bookmarks?.length };
-  const labels = { items: t("mine.items"), stores: t("store.title"), requests: t("mine.wanted"), rentals: t("others.rentals"), bookmarks: t("others.bookmarks") };
+  const counts = { items: data?.items?.length, spots: data?.spots?.length, requests: data?.wanted?.length, rentals: data?.bookings?.length, bookmarks: bookmarks?.length };
+  const labels = { items: t("mine.items"), spots: t("spot.title"), requests: t("mine.wanted"), rentals: t("others.rentals"), bookmarks: t("others.bookmarks") };
   // How the one on the right is drawn: rows, or cards with their photographs.
   // Kept by the browser, the same for every one of them. What you have booked
   // is always rows: each has things to press that a card has no room for.
@@ -207,7 +207,7 @@ export default function MinePage() {
               </>
             )}
 
-            {tab === "stores" && (data ? <StoreList stores={data.stores} username={user.username} filterable cards={cards} beside={viewPair} onPress={preview} /> : !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />)}
+            {tab === "spots" && (data ? <SpotList spots={data.spots} username={user.username} filterable cards={cards} beside={viewPair} onPress={preview} /> : !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />)}
 
             {/* What you are looking for. Here they can be taken down — the
                 ones whose dates have gone as well. */}

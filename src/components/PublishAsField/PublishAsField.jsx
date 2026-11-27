@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
 
-export const PUBLISH_AS = ["item", "store"];
+export const PUBLISH_AS = ["item", "spot"];
 
 // What is being published, asked first on the sheet the bar's Publish opens
-// (ItemModal): one item — a thing, a space, a service — or a store, which the
+// (ItemModal): one item — a thing, a space, a service — or a spot, which the
 // site calls a spot: a collection of items already posted — a shop of
 // things, a venue of spaces, someone's services. Everything else on the sheet
-// is asked of both alike; a store is kept apart, with the items on it.
+// is asked of both alike; a spot is kept apart, with the items on it.
 export default function PublishAsField({ value, onChange, disabled = false, hintClassName }) {
   const { t } = useTranslation();
   return (
@@ -26,25 +26,25 @@ export default function PublishAsField({ value, onChange, disabled = false, hint
             </svg>
             {t("publish.item")}
           </button>
-          <button type="button" className="pair-button" aria-pressed={value === "store"} onClick={() => onChange("store")} disabled={disabled}>
+          <button type="button" className="pair-button" aria-pressed={value === "spot"} onClick={() => onChange("spot")} disabled={disabled}>
             {/* A pin: a spot, with things at it. */}
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z" />
               <path d="M12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
             </svg>
-            {t("publish.store")}
+            {t("publish.spot")}
           </button>
         </span>
       </div>
       {/* What each of the two is, both said whichever is picked, each under
-          its name. (publish.storeHint is the spot boxes' own, under
-          StoreField.) */}
+          its name. (publish.spotHint is the spot boxes' own, under
+          SpotField.) */}
       <div className="field-hints">
         <span className={hintClassName}>
           <strong>{t("publish.item")}</strong>{t("publish.colon")}{t("publish.itemHint")}
         </span>
         <span className={hintClassName}>
-          <strong>{t("publish.store")}</strong>{t("publish.colon")}{t("publish.pageHint")}
+          <strong>{t("publish.spot")}</strong>{t("publish.colon")}{t("publish.pageHint")}
         </span>
       </div>
     </div>

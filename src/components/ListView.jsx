@@ -29,8 +29,8 @@ export function useListView() {
   };
   const cards = view === "cards";
   const viewPair = (
-    <span className="topbar-view" role="group" aria-label={t("store.itemsView")}>
-      <ActionButton tooltip={t("store.viewCards")} tooltipLeft aria-pressed={cards} onClick={() => setView("cards")}>
+    <span className="topbar-view" role="group" aria-label={t("spot.itemsView")}>
+      <ActionButton tooltip={t("spot.viewCards")} tooltipLeft aria-pressed={cards} onClick={() => setView("cards")}>
         <svg viewBox="0 0 24 24">
           {/* 田: one square, crossed through the middle. */}
           <path d="M4 4h16v16H4z" />
@@ -38,7 +38,7 @@ export function useListView() {
           <path d="M4 12h16" />
         </svg>
       </ActionButton>
-      <ActionButton tooltip={t("store.viewList")} aria-pressed={!cards} onClick={() => setView("list")}>
+      <ActionButton tooltip={t("spot.viewList")} aria-pressed={!cards} onClick={() => setView("list")}>
         <svg viewBox="0 0 24 24">
           <path d="M9 6h11" />
           <path d="M9 12h11" />

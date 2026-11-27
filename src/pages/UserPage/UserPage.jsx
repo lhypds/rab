@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useListView } from "../../components/ListView.jsx";
 import { ItemCard } from "../../components/Rows/index.js";
-import StoreList from "../../components/StoreList.jsx";
+import SpotList from "../../components/SpotList.jsx";
 import * as api from "../../api.js";
 import { Header, ItemRow, CategoryTabs, MessageModal, Rating, loginPath, useAuth, useCategoryFilter } from "../../components/index.js";
 import { ActionButton, Skeleton, useLocation, useNavigate, useSearchParams } from "../../ui/index.js";
@@ -10,7 +10,7 @@ import { formatDate, formatUsername } from "../../utils/format.js";
 
 // The two things somebody has, in the order they stand down the left of the
 // page: their spots, and their items.
-const TABS = ["stores", "items"];
+const TABS = ["spots", "items"];
 
 // Who somebody is: how the people they have dealt with rate them, all the
 // pages they have — their default page, which every account has from the
@@ -56,8 +56,8 @@ export default function UserPage({ username }) {
     else query.set("tab", name);
     navigate(query.size > 0 ? `${pathname}?${query}` : pathname, { replace: true, scroll: false });
   };
-  const counts = { stores: data?.stores?.length ?? 0, items: data?.items?.length ?? 0 };
-  const labels = { stores: t("store.title"), items: t("user.items") };
+  const counts = { spots: data?.spots?.length ?? 0, items: data?.items?.length ?? 0 };
+  const labels = { spots: t("spot.title"), items: t("user.items") };
   const { cards, viewPair } = useListView();
 
   const own = user?.username === data?.user.username;
@@ -114,7 +114,7 @@ export default function UserPage({ username }) {
                 {/* Their spots, each the way to itself: the default one first
                     — there is always that one — then the rest as they were
                     made. */}
-                {tab === "stores" && <StoreList stores={data.stores} username={username} cards={cards} beside={viewPair} />}
+                {tab === "spots" && <SpotList spots={data.spots} username={username} cards={cards} beside={viewPair} />}
 
                 {/* Their items, with what they are narrowed to above them. */}
                 {tab === "items" && (

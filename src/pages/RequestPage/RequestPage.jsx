@@ -4,7 +4,7 @@ import * as api from "../../api.js";
 import { Header, useAuth } from "../../components/index.js";
 import RequestModal, { RequestPageView } from "../../components/RequestModal/index.js";
 import { Skeleton, useNavigate } from "../../ui/index.js";
-import { requestPath } from "../../utils/stores.js";
+import { requestPath } from "../../utils/spots.js";
 
 // A request's own page (/r/<id>): what somebody needs, at an address that can
 // be sent to whoever might have one — as an item has at /i/<id> and a spot at

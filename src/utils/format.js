@@ -101,8 +101,8 @@ export function durationName(minutes, t) {
 export function priceLine(item, locale, t) {
   // A request says what its maker would pay, and when they need it.
   if (item.kind === "request") return requestLine(item, locale, t);
-  // A page (a store) has no price of its own: each item on it has its own.
-  if (item.store) return "";
+  // A page (a spot) has no price of its own: each item on it has its own.
+  if (item.spot) return "";
   // One that is only for sale says what it is sold for.
   if (item.rentable === false && item.salePrice != null) {
     return t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, locale) });

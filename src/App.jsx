@@ -82,7 +82,7 @@ function otherPage(pathname, user) {
   const itemId = segment(pathname, "/i/");
   if (itemId) return <ItemPage key={itemId} id={itemId} />;
 
-  // /s/<id> is a spot — one of the stores somebody made of their items: an
+  // /s/<id> is a spot — one of the spots somebody made of their items: an
   // item like any other (see server/db.js), at an address of its own.
   const spotId = segment(pathname, "/s/");
   if (spotId) return <ItemPage key={spotId} id={spotId} />;

@@ -6,7 +6,7 @@ import { bookingEnded, bookingWhen, canCancel, cancelLine } from "../../utils/bo
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
 import { iconParts, markOf } from "../../utils/categoryIcons.js";
 import { sortLabel } from "../../utils/categories.js";
-import { itemPath } from "../../utils/stores.js";
+import { itemPath } from "../../utils/spots.js";
 import { PIN_PATH } from "../../utils/mapbox.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import ReviewModal from "../ReviewModal/index.js";
@@ -60,11 +60,11 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
           </span>
         </Link>
         <span className="row-side">
-          {/* A store's count of items over its pin, the two in a column as
+          {/* A spot's count of items over its pin, the two in a column as
               wide as the wider of them and each centred in it. */}
           <span className="row-marker">
-            {/* A store says how many items are on it — nothing where there are none. */}
-            {item.store && item.count > 0 && <span className="row-count">{t("store.count", { count: item.count })}</span>}
+            {/* A spot says how many items are on it — nothing where there are none. */}
+            {item.spot && item.count > 0 && <span className="row-count">{t("spot.count", { count: item.count })}</span>}
             {pin && item.located && (
               <svg className="row-pin" viewBox="0 0 24 21.6" role="img" aria-label={t("header.pinned")}>
                 <path d={PIN_PATH} />

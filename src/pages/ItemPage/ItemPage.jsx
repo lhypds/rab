@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Header, ItemModal, ItemView, MessageModal, loginPath, useAuth } from "../../components/index.js";
-import StoreItemsModal from "../../components/StoreItemsModal/index.js";
+import SpotItemsModal from "../../components/SpotItemsModal/index.js";
 import { Skeleton, showToast, useLocation, useNavigate, useSearchParams } from "../../ui/index.js";
-import { itemPath } from "../../utils/stores.js";
+import { itemPath } from "../../utils/spots.js";
 import { isAdmin } from "../../utils/admin.js";
 
 // How often an open page asks again where things stand. An item's page is what
@@ -157,10 +157,10 @@ export default function ItemPage({ id }) {
           }}
         />
       )}
-      {item?.store && item.mine && (
-        <StoreItemsModal
+      {item?.spot && item.mine && (
+        <SpotItemsModal
           isOpen={choosing}
-          store={item}
+          spot={item}
           onClose={() => setChoosing(false)}
           onSaved={() => {
             setChoosing(false);
