@@ -199,6 +199,7 @@
     "bookmarked": "ブックマーク済み",
     "freeToday": "現在利用可能",
     "freeFrom": "{{date}} から空き",
+    "today": "今日",
     "noDays": "空きなし",
     "access": "アクセス",
     "openMaps": "マップで開く",

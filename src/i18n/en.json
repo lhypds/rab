@@ -202,6 +202,7 @@
     "bookmarked": "Bookmarked",
     "freeToday": "Available now",
     "freeFrom": "Free from {{date}}",
+    "today": "today",
     "noDays": "No free days",
     "access": "Access",
     "openMaps": "Open in Maps",

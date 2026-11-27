@@ -204,7 +204,7 @@
 /* ------------------------------------------------ the week, to be painted -- */
 
 .week {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink);
 }
 
 /* The seven days, over their columns. */

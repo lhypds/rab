@@ -199,6 +199,7 @@
     "bookmarked": "已收藏",
     "freeToday": "现在可利用",
     "freeFrom": "{{date}} 起可利用",
+    "today": "今天",
     "noDays": "暂无可利用日期",
     "access": "交通位置",
     "openMaps": "在地图中打开",

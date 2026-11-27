@@ -40,17 +40,34 @@ const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, index) => {
   return { value: time, label: time };
 });
 
-// The first day from today on which something can still be had, or null where
-// the calendar has none left: the one-line answer to "is it free?".
-function nextFreeDay(item, calendar) {
+// When something of it can next be had — { day, time, now } — or null where
+// the calendar has none left: the one-line answer to "is it free?". `time` is
+// the hour of that day it starts at, null where any time will do, and `now`
+// says it can be had this minute. Of today, only what the clock has not
+// reached counts: an hour that has started is not one to be asked for, and
+// neither is a day whose hours are over.
+function nextFree(item, calendar) {
   const states = dayStates(calendar);
+  const at = new Date();
+  const clock = clockOf(at.getHours() * 60 + at.getMinutes());
   for (let day = today(); day <= calendar.until; day = addDays(day, 1)) {
     const state = states.get(day) ?? {};
     if (state.closed) continue;
+    const late = day === today();
     if (item.mode === "time") {
-      if (slotStates(item, states, day).some((slot) => !slot.taken)) return day;
+      const open = slotStates(item, states, day).filter((slot) => !slot.taken);
+      // The stretch the clock is in, where nobody has it: it is free now.
+      if (late && open.some((slot) => slot.start <= clock && clock < slot.end)) return { day, time: null, now: true };
+      const first = open.find((slot) => !(late && slot.start < clock));
+      if (first) return { day, time: first.start, now: false };
     } else if (!state.taken) {
-      return day;
+      const bands = dayBands(item, day);
+      // Any time will do: today is now, another day is the day.
+      if (!bands) return { day, time: null, now: late };
+      if (!late) return { day, time: bands[0].start, now: false };
+      if (bands.some((band) => band.start <= clock && clock < band.end)) return { day, time: null, now: true };
+      const first = bands.find((band) => band.start > clock);
+      if (first) return { day, time: first.start, now: false };
     }
   }
   return null;
@@ -88,15 +105,10 @@ export default function ItemView({
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
-  // The page opens with today picked, since today is what is asked about
-  // first, where today can still be had — for the owner as for anybody else — a day that cannot be asked for
-  // is not one to start them on. A store's page always opens on today, whose
-  // hours are what is read first there.
-  const [selection, setSelection] = useState(() => {
-    const day = today();
-    const pickable = item.store || (calendar && nextFreeDay(item, calendar) === day);
-    return pickable ? { start: day, end: day } : null;
-  });
+  // An item's page opens with no day picked: which day is asked for is the
+  // reader's to say. A store's page still opens on today, whose hours are
+  // what is read first there.
+  const [selection, setSelection] = useState(() => (item.store ? { start: today(), end: today() } : null));
   // The stretch of the day picked, { start, end }, where the item is booked by
   // the time.
   const [picked, setPicked] = useState(null);
@@ -207,7 +219,7 @@ export default function ItemView({
   // one that can be pressed (an address).
   const askHref = contactHref(contacts[0], item.title);
   const states = useMemo(() => dayStates(calendar, bookings), [calendar, bookings]);
-  const free = useMemo(() => nextFreeDay(item, calendar), [item, calendar]);
+  const free = useMemo(() => nextFree(item, calendar), [item, calendar]);
   // The figure at the head of the card: what it costs today, at this hour.
   // The calendar is asked first for a price the owner gave today's date, since
   // it is kept fresh as they change it and the item's own copy is not.
@@ -379,16 +391,19 @@ export default function ItemView({
       ? t("item.forSale")
       : inquiry
       ? t("item.byInquiry")
-      : free === today()
+      : free?.now
       ? t("item.freeToday")
       : free
-        ? t("item.freeFrom", { date: formatDay(free, lang) })
+        ? // The day, said as today where it is, and the hour it starts at.
+          t("item.freeFrom", {
+            date: [free.day === today() ? t("item.today") : formatDay(free.day, lang), free.time].filter(Boolean).join(" "),
+          })
         : t("item.noDays");
   // The two tags, at the top right of the card: at the end of the price row,
   // or of the share row on a store, which has no price.
   const statusTags = (
     <span className={styles.statusTags}>
-      <span className={`status ${inquiry || free === today() ? "status-confirmed" : "status-pending"}`}>{status}</span>
+      <span className={`status ${inquiry || free?.now ? "status-confirmed" : "status-pending"}`}>{status}</span>
       {!item.active && <span className="status status-off">{t("store.unpublished")}</span>}
     </span>
   );

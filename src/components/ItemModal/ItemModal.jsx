@@ -2058,20 +2058,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </div>
               )}
 
-              {/* The dates stand here, under the price, however it is
-                  booked; by the time the column beside is the hours'. */}
-              {(byDay || byTime) && datesField}
-            </div>
-
-            {/* This sheet has two columns too: how it is booked, what it
-                costs and the dates it can be had on the left; by the time,
-                the hours on the right. */}
-            <div className={styles.column}>
-              {/* The hours it can be had, where it is booked by the time: under
-                  the dates. First the usual hours — these hours, on these
-                  days of the week — and then one week of what they come to,
-                  the week turned to with the arrows over it, where a date can
-                  be painted to have hours of its own. */}
+              {/* By the time, the piece of the clock it is booked in, the
+                  shortest booking and what one step costs: here at the left,
+                  under the price, so the column beside is the hours' alone. */}
               {byTime && (
                 <div className="field">
                   <span className="field-label">
@@ -2115,17 +2104,36 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   </div>
                   <span className={styles.hint}>{t("item.minDurationHint")}</span>
                   {/* Under the step, what one step costs: worked out from the
-                      default price in the column at the left. */}
+                      default price above. */}
                   {priced && (
                     <>
                       {basePriceRow}
                       <span className={styles.hint}>{t("item.pricingHint.time")}</span>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* The dates stand here, under the price, however it is
+                  booked; by the time the column beside is the hours'. */}
+              {(byDay || byTime) && datesField}
+            </div>
+
+            {/* This sheet has two columns too: how it is booked, what it
+                costs and the dates it can be had on the left; by the time,
+                the hours on the right. */}
+            <div className={styles.column}>
+              {/* The hours it can be had, where it is booked by the time: under
+                  the dates. First the usual hours — these hours, on these
+                  days of the week — and then one week of what they come to,
+                  the week turned to with the arrows over it, where a date can
+                  be painted to have hours of its own. */}
+              {byTime && (
+                <div className="field">
                   {/* First the usual hours: these hours, on these days of the
                       week, and what they cost where that is not the base
                       price. */}
-                  <span className={`field-label ${styles.sub}`}>{t("item.usualHours")}</span>
+                  <span className="field-label">{t("item.usualHours")}</span>
                   <ul className={styles.rules}>
                     {hourRules.map((rule) => (
                       <li key={rule.id} className={styles.rule}>
