@@ -21,10 +21,9 @@ import { fileURLToPath } from "node:url";
 //                                      to replace it; without -f, this source's
 //                                      own data/users/_public
 //   rab public pull [-f <folder>] [-u <url>]
-//                                      bring what the server's _public has
-//                                      that the folder does not, here — and
-//                                      what it has changed more lately than
-//                                      here, to replace it
+//                                      fetch what the server's _public has
+//                                      changed more lately than here (same
+//                                      id), to replace it — mirror's 2nd step
 //   rab public mirror [-f <folder>] [-u <url>] [--yes]
 //                                      push; pull what the server has newer
 //                                      than here; and delete on the server, in
@@ -68,8 +67,8 @@ const USAGE = `Usage:
                                      (data/users/_public here, without -f), to the server at <url>
                                      (this machine's, without -u, or RAB_HOST)
   rab public pull [-f <folder>] [-u <url>]
-                                     fetch the items and places the server has and the folder does not,
-                                     and those it has with a newer updatedAt than here (replaced)
+                                     fetch the items the server has with a newer updatedAt than here,
+                                     to replace them (what the folder does not have is not fetched)
   rab public mirror [-f <folder>] [-u <url>] [--yes]
                                      push, pull what the server has newer than here, then delete on
                                      the server what the folder does not have
@@ -263,9 +262,9 @@ function missingFrom(other, { items, locations }) {
 }
 
 // Which of `items` the other side has too — by id, or by the crawler's key —
-// but changed longer ago than here: the ones to send again, to replace what is
-// there. One whose time either side does not know (a server from before it
-// said) is left as it is.
+// but changed longer ago than here, or with no time there where here has one:
+// the ones to send again, to replace what is there. One whose time is not
+// known here is left as it is.
 const timeOf = (value) => {
   const time = Date.parse(value ?? "");
   return Number.isFinite(time) ? time : null;
@@ -279,7 +278,7 @@ function olderIn(other, items) {
     if (!there) return false;
     const mine = timeOf(each.updatedAt);
     const theirs = timeOf(there.updatedAt);
-    return mine !== null && theirs !== null && theirs < mine;
+    return mine !== null && (theirs === null || theirs < mine);
   });
 }
 
@@ -520,6 +519,7 @@ async function sendPublic(args, { mirror = false } = {}) {
     const newer = olderIn(held, here.items);
     console.log(`To send: ${counted({ items: send.items })} new, ${counted({ items: newer })} newer than the server's, ${send.locations.length} places`);
     send.items = [...send.items, ...newer].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    // The same as rab public pull.
     const take = mirror ? newerThere(here, held) : [];
     if (mirror) console.log(`To fetch: ${counted({ items: take })} newer on ${host} than here`);
     const drop = mirror ? missingFrom(here, held) : { items: [], locations: [] };
@@ -615,19 +615,15 @@ async function fetchItems(fs, session, folder, here, take) {
   return failed;
 }
 
-// rab pull [-f <folder>] [-u <url>]: what the server's _public has that this
-// folder does not, brought here — the places added to locations.json, the
-// items fetched (fetchItems) — and what it has too but changed more lately
-// than here, fetched again to replace what is here. What is newer here is left.
+// rab pull [-f <folder>] [-u <url>]: push the other way round, and the same as
+// mirror's second step — what the server's _public has under the same id as
+// here but changed more lately, fetched to replace what is here (fetchItems).
+// What is newer here is left; what the server has and this folder does not,
+// items, spots and places, is left there too.
 async function receivePublic(args) {
   const { file, host } = remoteArgs(args);
   const fs = await import("node:fs");
-  const named = path.resolve(file);
-  // A folder that is not there yet is made: pulling into it is how it starts.
-  if (!fs.existsSync(named)) fs.mkdirSync(named, { recursive: true });
-  const folder = isPublicFolder(fs, named) || fs.readdirSync(named).length === 0
-    ? named
-    : publicFolder(fs, named);
+  const folder = publicFolder(fs, path.resolve(file));
   const here = localPublic(fs, folder);
   console.log(`${folder}: ${counted(here)}`);
 
@@ -636,23 +632,9 @@ async function receivePublic(args) {
   try {
     const held = await session.held();
     console.log(`${host} has ${counted(held)}`);
-    const take = missingFrom(here, held);
-    const newer = newerThere(here, held);
-    console.log(`To fetch: ${counted({ items: take.items })} new, ${counted({ items: newer })} newer than here, ${take.locations.length} places`);
-
-    if (take.locations.length) {
-      const all = await answerOf(await session.request("/api/public/locations", { headers: session.auth }));
-      const wanted = new Set(take.locations.map((each) => each.id));
-      const added = all.filter((each) => wanted.has(each.id));
-      const file = path.join(folder, "locations.json");
-      const partial = `${file}.${process.pid}.tmp`;
-      fs.writeFileSync(partial, `${JSON.stringify([...here.locations, ...added], null, 2)}\n`);
-      fs.renameSync(partial, file);
-      console.log(`Places: ${added.length} added`);
-    }
-
-    const fetching = [...take.items, ...newer].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    if (fetching.length) failed += await fetchItems(fs, session, folder, here, fetching);
+    const take = newerThere(here, held);
+    console.log(`To fetch: ${counted({ items: take })} newer on ${host} than here`);
+    if (take.length) failed += await fetchItems(fs, session, folder, here, take);
   } catch (error) {
     console.error(error.message);
     failed += 1;

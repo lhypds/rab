@@ -40,19 +40,17 @@ The server and the password can be kept in `.env`, so that nothing needs to be t
 
 Two more go the same way, with the same `-f` and `-u`:
 
-    ./rab public pull              fetch what the server's _public has and the folder does not, or has newer
+    ./rab public pull              fetch what the server's _public has newer than the folder
     ./rab public mirror            push, pull what the server has newer, then delete there what the folder does not have
 
-`pull` is `push` the other way round: it adds the server's missing places to the folder's
-`locations.json` and writes each missing item's folder (`GET /api/public/locations`,
-`GET /api/public/items/<id>`, a zip), and fetches again each item the server has under the same
-id with a newer `updatedAt` than here, replacing the folder here; one newer here is left as it is.
-A folder that is not there yet is made. `mirror` sends what `push` sends, fetches what the server
-has newer than here (as `pull` does, but not what the folder lacks), then deletes outright on the
-server each item, spot and place that the folder has under neither the same id, nor the same key or
-address — all in one request, `POST /api/public/delete`, which takes as long as it takes (a server
-from before it is sent `DELETE /api/public/items/<id>` and `DELETE /api/public/locations/<id>`
-one at a time); open bookings on an item are cancelled first. It says how many it will delete and asks for `yes`; `--yes` skips the
+`pull` is `push` the other way round: it fetches again each item and spot the server has under
+the same id as the folder with a newer `updatedAt` (`GET /api/public/items/<id>`, a zip),
+replacing the folder here; one newer here is left as it is, and what the server has and the
+folder does not — items, spots, places — is not fetched. `mirror` sends what `push` sends, does
+what `pull` does, then deletes outright on the server each item, spot and place that the folder
+has under neither the same id, nor the same key or address — all in one request,
+`POST /api/public/delete`, which takes as long as it takes (a server from before it is sent
+`DELETE /api/public/items/<id>` and `DELETE /api/public/locations/<id>` one at a time); open bookings on an item are cancelled first. It says how many it will delete and asks for `yes`; `--yes` skips the
 question, and without a terminal it is required. Note that the server adds each new item's
 spot to `_public`'s places, so a mirror from a folder whose `locations.json` lacks them deletes them.
 
