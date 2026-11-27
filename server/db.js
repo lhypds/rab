@@ -242,7 +242,7 @@ export function getUserById(id) {
 export function createUser(username, password, email = null) {
   const user = { ...addUser(username, { password: String(password), ...(email ? { email } : null) }) };
   // Every account starts with its default store (see stores).
-  transaction(() => makeDefaultStore(user.id));
+  transaction(() => makeDefaultStore(user.id, { fresh: true }));
   return user;
 }
 
@@ -1668,7 +1668,10 @@ export function defaultStore(userId) {
   return servedItem(defaultStoreItem(userId));
 }
 
-function makeDefaultStore(userId) {
+// `fresh` is for an account just opened, which has said nothing of itself
+// yet: its store is not published until its owner publishes it, is reached by
+// a message here and no other way, and is booked by asking.
+function makeDefaultStore(userId, { fresh = false } = {}) {
   if (defaultStoreItem(userId)) return;
   const username = usersById.get(userId)?.username ?? "";
   const itemIds = [...itemsById.values()]
@@ -1679,6 +1682,12 @@ function makeDefaultStore(userId) {
     .map((item) => item.id);
   const store = storeFromOld({ id: newItemId(now()), name: username, contacts: getContacts(userId), itemIds }, userId);
   store.default = true;
+  if (fresh) {
+    store.active = false;
+    store.contacts = [{ type: "message", value: "" }];
+    store.mode = "inquiry";
+    store.priceUnit = 1440;
+  }
   itemsById.set(store.id, store);
   changedItem(store);
 }
