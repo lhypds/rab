@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { CATEGORIES } from "../src/utils/categories.js";
+import { CATEGORIES, OBJECT_CATEGORIES } from "../src/utils/categories.js";
 
 // What a photograph is of, said the way a listing says it: which category it
 // is in, a name for it and a few lines about it. The phone asks this the moment a photo is taken, so that its form opens
@@ -82,6 +82,73 @@ export async function describeImage(buffer, language) {
   if (!answer || typeof answer !== "object") return null;
   return {
     category: CATEGORIES.includes(answer.category) ? answer.category : "other",
+    title: String(answer.title ?? "").trim(),
+    description: String(answer.description ?? "").trim(),
+  };
+}
+
+// What a scanned object is: the phone's scanner collects photographs of
+// things onto a spot, and this names each of them afterwards (the brain
+// button there). Like describeImage, but the photograph is known to be of an
+// object, so only the object categories are chosen among — and since those
+// are broad, the model also says in a word or two what sort of thing it is:
+// its short category, kept as the item's "what".
+const OBJECT = {
+  type: "object",
+  properties: {
+    category: { type: "string", enum: OBJECT_CATEGORIES },
+    what: { type: "string" },
+    title: { type: "string" },
+    description: { type: "string" },
+  },
+  required: ["category", "what", "title", "description"],
+  additionalProperties: false,
+};
+
+const SCANNED = `rab is a marketplace where people rent out what they have. Somebody is going through the things they have with their phone's camera, photographing them one by one, and you say what each one is.
+
+The photograph is of one object. Where several things are in it, it is the one in the middle, or the one that fills most of the picture.
+
+Answer with:
+- category: one of these, exactly as written: ${OBJECT_CATEGORIES.join(", ")}. "other" where none fits. Do not stretch a category to cover something it is not: a pen is "other", not "electronics".
+- what: the short category — the sort of thing it is in one to three words, more exact than the category and with no make or model: "Coffee mug", "Folding chair", "Mirrorless camera", "Cordless drill". Capitalised like a label, no full stop.
+- title: what a renter would search for — the thing itself, with its make and model where they can be read off it. A few words, no full stop, nothing about renting.
+- description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photograph shows — no price, no promises, nothing invented.
+
+Write what, the title and the description in the language you are asked for.`;
+
+// { category, what, title, description } for a photograph of an object, or
+// null where the model would not give one.
+export async function describeObject(buffer, language) {
+  const mediaType = MEDIA_TYPES.find(([, matches]) => matches(buffer))?.[0];
+  if (!mediaType) return null;
+  client ??= new OpenAI();
+  const completion = await client.chat.completions.create({
+    model: MODEL,
+    response_format: { type: "json_schema", json_schema: { name: "object", strict: true, schema: OBJECT } },
+    messages: [
+      { role: "system", content: SCANNED },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `Say what this is. Write in ${LANGUAGES[language] ?? LANGUAGES.en}.` },
+          { type: "image_url", image_url: { url: `data:${mediaType};base64,${buffer.toString("base64")}` } },
+        ],
+      },
+    ],
+  });
+  const message = completion.choices[0]?.message;
+  if (!message || message.refusal || !message.content) return null;
+  let answer;
+  try {
+    answer = JSON.parse(message.content);
+  } catch {
+    return null;
+  }
+  if (!answer || typeof answer !== "object") return null;
+  return {
+    category: OBJECT_CATEGORIES.includes(answer.category) ? answer.category : "other",
+    what: String(answer.what ?? "").trim(),
     title: String(answer.title ?? "").trim(),
     description: String(answer.description ?? "").trim(),
   };

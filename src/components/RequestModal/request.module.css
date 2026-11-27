@@ -166,5 +166,5 @@
 /* The brain is drawn of many short strokes, which run together at the house
    weight in a box this small: thinner. */
 .whatRow svg {
-  stroke-width: 1.5;
+  stroke-width: 1.2;
 }

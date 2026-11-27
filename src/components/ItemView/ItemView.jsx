@@ -237,6 +237,9 @@ export default function ItemView({
   const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
   // Only for sale — not lent out at all: what it is sold for is its price.
   const saleOnly = !item.spot && item.rentable === false && item.salePrice != null;
+  // Offered neither way — not lent out, not for sale: only written down (what
+  // the phone's scanner registers is, to start with). No price, nothing to ask.
+  const notOffered = !item.spot && item.rentable === false && item.salePrice == null;
   const priceOnRequest = priceToday == null;
   const priceHead =
     highToday === lowToday
@@ -387,7 +390,9 @@ export default function ItemView({
   const photoLimit = size?.width && size?.height ? Math.floor(Math.min(size.width, (size.height * 4) / 3)) : undefined;
   // Whether it can be had, which publishing has nothing to do with: that only
   // says who can see it, and is a tag of its own beside this one.
-  const status = saleOnly
+  const status = notOffered
+      ? t("item.notOffered")
+      : saleOnly
       ? t("item.forSale")
       : inquiry
       ? t("item.byInquiry")
@@ -403,7 +408,7 @@ export default function ItemView({
   // or of the share row on a spot, which has no price.
   const statusTags = (
     <span className={styles.statusTags}>
-      <span className={`status ${inquiry || free?.now ? "status-confirmed" : "status-pending"}`}>{status}</span>
+      <span className={`status ${!notOffered && (inquiry || free?.now) ? "status-confirmed" : "status-pending"}`}>{status}</span>
       {!item.active && <span className="status status-off">{t("spot.unpublished")}</span>}
     </span>
   );
@@ -482,7 +487,7 @@ export default function ItemView({
           ))}
         </dl>
       ) : null}
-      {inquiry && item.active && <p className={styles.small}>{shared || !item.owner ? t("item.inquiryExplainShared") : t("item.inquiryExplain", { name: formatUsername(item.owner) })}</p>}
+      {inquiry && !notOffered && item.active && <p className={styles.small}>{shared || !item.owner ? t("item.inquiryExplainShared") : t("item.inquiryExplain", { name: formatUsername(item.owner) })}</p>}
     </>
   );
 
@@ -548,6 +553,8 @@ export default function ItemView({
           <h1 className={styles.title}>{item.title}</h1>
           {/* A few words for what it is, under its name. */}
           {item.what && <p className={styles.what}>{item.what}</p>}
+          {/* How many of it there are, where there is more than one. */}
+          {!item.spot && item.quantity > 1 && <p className={styles.small}>{t("item.countLine", { n: item.quantity })}</p>}
           <p className={styles.meta}>
             {/* Whose account it is under — not said of somebody else's,
                 which is nobody's by name. */}
@@ -622,7 +629,7 @@ export default function ItemView({
               nor a way it is booked to say up here. */}
           {!item.spot && (
           <p className={styles.price}>
-            <strong>{saleOnly ? formatPrice(item.salePrice, item.currency, lang) : priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>
+            {!notOffered && <strong>{saleOnly ? formatPrice(item.salePrice, item.currency, lang) : priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>}
             {!saleOnly && !priceOnRequest && (
               <span>
                 {bySlot

@@ -1,31 +1,31 @@
-import PhotosUI
 import SwiftUI
 
-/// A photo on its way to becoming an item.
-private struct Capture: Identifiable {
-    let id = UUID()
-    /// Nil opens the camera; a picture skips it.
-    let image: UIImage?
-}
-
-/// Where a row of the list leads: an item on rab, or one on this phone only.
-private enum Route: Hashable {
+/// Where a tile of the grid leads: an item on rab, or one on this phone only.
+enum Route: Hashable {
     case listing(String)
     case saved(String)
 }
 
-/// The user's items — loaded from rab, with whatever is still on this phone
-/// only under them — and the camera.
+/// Which of the items the grid shows: all of them, the ones of one category,
+/// or the ones nothing has said the category of yet.
+private enum Filter: Hashable {
+    case all
+    case category(String)
+    case unrecognized
+}
+
+/// The user's items, as a grid: what is still on this phone only first, then
+/// what rab has. Over it, the bar — which spot things are collected onto, the
+/// camera that collects them, the brain that has them recognized, and the
+/// account — and the categories, to narrow the grid to one.
 struct ItemsView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.scenePhase) private var scenePhase
 
-    @State private var capture: Capture?
-    @State private var picked: PhotosPickerItem?
-    @State private var signingOut = false
-    /// The phone will not say where it is, which rab needs to say where an
-    /// item is offered: said under the bar until Settings says otherwise.
-    @State private var locationDenied = false
+    @State private var filter = Filter.all
+    @State private var collecting = false
+    @State private var account = false
+    /// What recognizing everything could not do, the last time it was asked.
+    @State private var trouble: String?
 
     private var listings: [Listing] { model.listings ?? [] }
 
@@ -33,61 +33,130 @@ struct ItemsView: View {
     /// of them until the server has answered, and after that the ones that
     /// were never put on rab.
     private var onPhone: [SavedItem] {
-        model.listings == nil ? model.items : model.items.filter { $0.remoteId == nil }
+        model.listings == nil ? model.items : model.waiting
     }
 
-    /// The list, or what stands in its place while there is nothing to list.
+    /// How many items each category has, for the bar: only the categories
+    /// that have any are offered.
+    private var counts: [String: Int] {
+        var counts: [String: Int] = [:]
+        for category in onPhone.filter(\.isRecognized).map({ $0.category ?? "" }) + listings.map({ $0.category ?? "" }) {
+            counts[category.isEmpty ? "other" : category, default: 0] += 1
+        }
+        return counts
+    }
+
+    private func shows(_ category: String?, recognized: Bool) -> Bool {
+        switch filter {
+        case .all: true
+        case .unrecognized: !recognized
+        case .category(let slug): recognized && ((category ?? "").isEmpty ? "other" : category) == slug
+        }
+    }
+
+    /// The grid, or what stands in its place while there is nothing to show.
     @ViewBuilder
-    private var list: some View {
-        if listings.isEmpty && onPhone.isEmpty && model.listingsError == nil {
+    private var grid: some View {
+        if !model.isSignedIn {
+            // Nobody's items: the way in is over this (see RootView).
+            Color.clear
+        } else if listings.isEmpty && onPhone.isEmpty && model.listingsError == nil {
             ContentUnavailableView {
                 Text("Nothing yet")
                     .fontWeight(.bold)
                     .padding(.bottom, 6)
             } description: {
-                Text("Take a photo of something you have. You can give it a plain background, and it goes into your items.")
-                    .font(.subheadline)
+                Text("Open the camera and point it at one thing after another. The brain then says what each of them is.")
+                    .font(Compact.font)
             } actions: {
-                if CameraPicker.isAvailable {
-                    Button("Take a photo") { capture = Capture(image: nil) }
-                        .buttonStyle(.borderedProminent)
-                }
+                Button("Start collecting") { collecting = true }
+                    .buttonStyle(.borderedProminent)
             }
         } else {
-            List {
-                if let problem = model.listingsError {
-                    Text("Your items could not be loaded from rab: \(problem)")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                        .listRowBackground(Rab.background)
-                }
-                // What rab has: the user's items as the website lists them.
-                ForEach(listings) { listing in
-                    NavigationLink(value: Route.listing(listing.id)) {
-                        ListingRow(listing: listing)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let problem = model.listingsError {
+                        Text("Your items could not be loaded from rab: \(problem)")
+                            .font(Compact.font)
+                            .foregroundStyle(.red)
                     }
-                }
-                .listRowBackground(Rab.background)
-                // And what is still on this phone only.
-                ForEach(onPhone) { item in
-                    NavigationLink(value: Route.saved(item.id)) {
-                        ItemRow(item: item)
+                    if let trouble {
+                        Text(trouble)
+                            .font(Compact.font)
+                            .foregroundStyle(.red)
                     }
+                    LazyVGrid(columns: ItemGrid.columns, spacing: 6) {
+                        // What is still on this phone only, marked with a dot.
+                        ForEach(onPhone.filter { shows($0.category, recognized: $0.isRecognized) }) { item in
+                            NavigationLink(value: Route.saved(item.id)) {
+                                ItemTile(name: item.title, busy: model.recognizing.contains(item.id), waiting: true) {
+                                    PhotoView(item: item, maxPixel: 120, fills: true)
+                                }
+                            }
+                        }
+                        // What rab has: the user's items as the website lists them.
+                        ForEach(listings.filter { shows($0.category, recognized: true) }) { listing in
+                            NavigationLink(value: Route.listing(listing.id)) {
+                                ItemTile(name: listing.title, busy: model.recognizing.contains(listing.id), waiting: false) {
+                                    RemotePhoto(path: listing.thumb ?? listing.images?.first?.thumb ?? listing.images?.first?.src, fills: true)
+                                }
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
-                .onDelete { offsets in
-                    for item in offsets.map({ onPhone[$0] }) { model.delete(item) }
-                }
-                .listRowBackground(Rab.background)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
             }
-            .listStyle(.plain)
-            .rabBackground()
             .refreshable { await model.loadListings() }
         }
     }
 
+    /// The categories, in one line that scrolls sideways: all of them first,
+    /// then what is not recognized yet, then each category that has items.
+    private var categories: some View {
+        let counts = counts
+        let unrecognized = onPhone.filter { !$0.isRecognized }.count
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                chip(Text("All"), count: onPhone.count + listings.count, for: .all)
+                if unrecognized > 0 {
+                    chip(Text("Not recognized yet"), count: unrecognized, for: .unrecognized)
+                }
+                ForEach(Categories.all.filter { counts[$0] != nil }, id: \.self) { slug in
+                    chip(Text(Categories.name(slug)), count: counts[slug] ?? 0, for: .category(slug))
+                }
+            }
+            .padding(.horizontal, 8)
+            // Room over them as well as under: the line scrolls sideways, and
+            // cuts off whatever stands against its top edge.
+            .padding(.top, 2)
+            .padding(.bottom, 6)
+        }
+        .background(Rab.background)
+    }
+
+    private func chip(_ name: Text, count: Int, for choice: Filter) -> some View {
+        let chosen = filter == choice
+        return Button {
+            filter = choice
+        } label: {
+            (name + Text(verbatim: " \(count)").foregroundStyle(chosen ? Color.white.opacity(0.7) : Color.secondary))
+                .font(Compact.font)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .foregroundStyle(chosen ? Color.white : Color.black)
+                // No line round it: white on the ground, black when chosen.
+                .background(chosen ? Color.black : Color.white, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+
     var body: some View {
         NavigationStack {
-            list
+            grid
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Rab.background.ignoresSafeArea())
             .navigationTitle("My items")
@@ -97,109 +166,92 @@ struct ItemsView: View {
                 case .saved(let id): ItemDetailView(itemId: id)
                 }
             }
-            // Asked each time the list comes on screen.
-            .task { await model.loadListings() }
-            .task { await model.loadLocations() }
-            // Where the phone is, rab has to know: it is the area a new item is
-            // offered in. So the system's question is put as soon as somebody
-            // is signed in, not first met in the middle of a form — and where
-            // the answer is no, the list says so until Settings says yes.
-            .task {
-                await Area.ask()
-                locationDenied = Area.denied
-            }
-            .onChange(of: scenePhase) { _, phase in
-                // Back from Settings, say.
-                if phase == .active { locationDenied = Area.denied }
-            }
+            // Asked each time the grid comes on screen, and when somebody
+            // signs in.
+            .task(id: model.username) { await model.loadListings() }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
-                    RabHeader {
-                        PhotosPicker(selection: $picked, matching: .images) {
-                            Image(systemName: "photo")
-                        }
-                        .accessibilityLabel("Choose a photo")
-                        if CameraPicker.isAvailable {
-                            Button { capture = Capture(image: nil) } label: {
-                                Image(systemName: "camera")
-                            }
-                            .accessibilityLabel("Take a photo")
-                        }
+                    RabHeader(compact: true) {
+                        // The marker: which spot things are collected onto.
+                        // Chosen here, and nothing more — the tick says which.
                         Menu {
-                            Text(model.username ?? "")
-                            Button("Sign out", role: .destructive) { signingOut = true }
+                            Picker("Collect onto", selection: Binding(
+                                get: { model.targetSpot?.id ?? "" },
+                                set: { model.setTargetSpot($0) }
+                            )) {
+                                ForEach(model.spots) { spot in
+                                    Text(spot.title).tag(spot.id)
+                                }
+                            }
                         } label: {
-                            Image(systemName: "person")
+                            SpotIcon()
                         }
+                        .disabled(model.spots.isEmpty)
+                        .accessibilityLabel("Spot")
+                        // The camera that collects, one thing after another.
+                        Button { collecting = true } label: {
+                            BarIcon(name: "camera.viewfinder")
+                        }
+                        .accessibilityLabel("Start collecting")
+                        // The brain: everything not on rab yet is recognized
+                        // and sent up. How many there are stands by it.
+                        Button(action: recognizeAll) {
+                            HStack(spacing: 3) {
+                                if model.recognizingAll {
+                                    ProgressView().controlSize(.small).frame(width: BarIcon.side, height: BarIcon.side)
+                                } else {
+                                    BarIcon(name: "brain")
+                                }
+                                if !model.waiting.isEmpty {
+                                    Text(verbatim: "\(model.waiting.count)")
+                                        .font(Compact.font.weight(.semibold))
+                                        .monospacedDigit()
+                                }
+                            }
+                        }
+                        .disabled(model.recognizingAll || model.waiting.isEmpty)
+                        .accessibilityLabel("Recognize all (\(model.waiting.count))")
+                        Button { account = true } label: {
+                            BarIcon(name: "person", scale: 0.84)
+                        }
+                        .accessibilityLabel(Text(verbatim: model.username ?? ""))
                     }
-                    if locationDenied {
-                        LocationNotice()
+                    if !listings.isEmpty || !onPhone.isEmpty {
+                        categories
                     }
                 }
             }
             // The header is the bar here; the title is still what the item's
             // page calls the way back.
             .toolbar(.hidden, for: .navigationBar)
-            .fullScreenCover(item: $capture) { capture in
-                CaptureFlow(image: capture.image)
+            .fullScreenCover(isPresented: $collecting) {
+                ScannerView(spot: model.targetSpot)
             }
-            .onChange(of: picked) { _, item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                        capture = Capture(image: image)
-                    }
-                    picked = nil
-                }
+            // The account, in the middle of the screen: whose it is, and the
+            // way out of it.
+            .compactDialog(
+                isPresented: $account,
+                title: Text(verbatim: model.username ?? ""),
+                message: Text("Your items stay in your folder on this phone."),
+                confirm: "Sign out",
+                // Signing in again is all it takes to undo: not in red.
+                destructive: false
+            ) {
+                Task { await model.signOut() }
             }
-            .confirmationDialog("Sign out?", isPresented: $signingOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) { Task { await model.signOut() } }
-            } message: {
-                Text("Your items stay in your folder on this phone.")
-            }
-        }
-    }
-}
-
-/// What stands under the bar while the phone may not say where it is: why rab
-/// asks, and the way to Settings, which is the only place the answer changes.
-private struct LocationNotice: View {
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("rab needs your location: it is the area a new item is offered in.")
-            Spacer(minLength: 0)
-            if let settings = URL(string: UIApplication.openSettingsURLString) {
-                Link("Open Settings", destination: settings)
-                    .fixedSize()
+            // A category whose last item went leaves the grid showing all.
+            .onChange(of: counts) { _, counts in
+                if case .category(let slug) = filter, counts[slug] == nil { filter = .all }
             }
         }
-        .font(.footnote)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(white: 0.96))
-        .overlay(alignment: .bottom) { Divider() }
-    }
-}
-
-/// The camera, then the new item's form, in one presentation: a photo taken
-/// goes straight on to its form without the screen going back in between.
-private struct CaptureFlow: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var image: UIImage?
-
-    init(image: UIImage?) {
-        _image = State(initialValue: image)
     }
 
-    var body: some View {
-        if let image {
-            NewItemView(original: image)
-        } else {
-            CameraPicker { taken in
-                if let taken { image = taken } else { dismiss() }
+    private func recognizeAll() {
+        trouble = nil
+        Task {
+            if let result = await model.recognizeAll() {
+                trouble = String(localized: "\(result.failed) could not be done: \(result.why)")
             }
-            .ignoresSafeArea()
         }
     }
 }
@@ -251,36 +303,6 @@ struct PhotoPlaceholder: View {
     }
 }
 
-/// One of the user's items on rab, as a row.
-struct ListingRow: View {
-    let listing: Listing
-
-    var body: some View {
-        HStack(spacing: 12) {
-            RemotePhoto(path: listing.thumb ?? listing.images?.first?.thumb ?? listing.images?.first?.src, fills: true)
-                .frame(width: 56, height: 56)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.85)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(listing.title).lineLimit(1)
-                // The price only where the item has one.
-                ((listing.price ?? 0) > 0
-                    ? Text(priceText(listing.price ?? 0, listing.currency ?? "")) + Text(verbatim: " · ") + Text(Categories.label(listing.category))
-                    : Text(Categories.label(listing.category)))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            // Said of the ones that are on the map; one that is not says nothing.
-            if listing.active != false {
-                Text("Published").font(.caption2)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 /// One of the user's items on rab: its photograph, what it says about itself,
 /// and the way to its page.
 struct ListingDetailView: View {
@@ -319,7 +341,7 @@ struct ListingDetailView: View {
             let what = listing.what ?? "", description = listing.description ?? ""
             if !what.isEmpty || !description.isEmpty {
                 Section {
-                    if !what.isEmpty { Text(what).font(.headline) }
+                    if !what.isEmpty { Text(what).fontWeight(.semibold) }
                     if !description.isEmpty { Text(description) }
                 }
             }
@@ -367,19 +389,41 @@ struct ListingDetailView: View {
         }
         .listStyle(.insetGrouped)
         .rabBackground()
-        // Spaced as the new item's form is: the same gap between the cards,
-        // and the photograph as far under the bar.
-        .listSectionSpacing(12)
-        .contentMargins(.top, 16, for: .scrollContent)
+        // Compact, as the sign-in screen is: the same type, the same height
+        // of row and button, the same margins.
+        .compactList()
         .navigationTitle(listing.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            // Only a photograph can be looked at again.
+            if listing.images?.isEmpty == false {
+                ToolbarItem(placement: .topBarTrailing) {
+                    RecognizeButton(busy: model.recognizing.contains(listing.id)) { recognize(listing) }
+                }
+            }
+        }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
-        .alert("Delete this item?", isPresented: $confirming) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) { delete(listing) }
-        } message: {
-            Text("It is deleted from rab for good, and any open bookings of it are cancelled.")
+        .compactDialog(
+            isPresented: $confirming,
+            title: Text("Delete this item?"),
+            message: Text("It is deleted from rab for good, and any open bookings of it are cancelled."),
+            confirm: "Delete"
+        ) {
+            delete(listing)
+        }
+    }
+
+    /// Has its photograph looked at again, and what it says it is — its
+    /// category, its few words, its name and its description — written over.
+    private func recognize(_ listing: Listing) {
+        error = nil
+        Task {
+            do {
+                try await model.recognize(listing)
+            } catch {
+                self.error = error.localizedDescription
+            }
         }
     }
 
@@ -398,30 +442,20 @@ struct ListingDetailView: View {
     }
 }
 
-struct ItemRow: View {
-    let item: SavedItem
+/// The brain: has a photographed thing recognized again. It turns while the
+/// server is looking.
+struct RecognizeButton: View {
+    let busy: Bool
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            PhotoView(item: item, maxPixel: 96, fills: true)
-                .frame(width: 56, height: 56)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.85)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).lineLimit(1)
-                // The price only where the item has one: the form asks for none.
-                (item.price > 0
-                    ? Text(priceText(item.price, item.currency)) + Text(verbatim: " · ") + Text(Categories.label(item.category))
-                    : Text(Categories.label(item.category)))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+        if busy {
+            ProgressView()
+        } else {
+            Button(action: action) {
+                Image(systemName: "brain")
             }
-            Spacer()
-            Text(item.remoteId == nil ? "on this phone" : "Published")
-                .font(.caption2)
-                .foregroundStyle(item.remoteId == nil ? .secondary : .primary)
+            .accessibilityLabel("Recognize again")
         }
-        .padding(.vertical, 4)
     }
 }

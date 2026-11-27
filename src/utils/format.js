@@ -107,6 +107,8 @@ export function priceLine(item, locale, t) {
   if (item.rentable === false && item.salePrice != null) {
     return t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, locale) });
   }
+  // One offered neither way — not lent out, not for sale — has no price.
+  if (item.rentable === false) return "";
   // One that says no price is asked about, however it is booked.
   const now = priceNow(item);
   if (now == null) return t("item.priceOnRequest");

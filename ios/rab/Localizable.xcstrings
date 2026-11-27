@@ -34,12 +34,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置密码" } }
       }
     },
-    "Choose a photo" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を選ぶ" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择照片" } }
-      }
-    },
     "Continue" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "次へ" } },
@@ -82,18 +76,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入发送到 %@ 的 6 位验证码。" } }
       }
     },
-    "Give it a name" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前を入れてください" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请填写名称" } }
-      }
-    },
-    "It is not in your items on rab yet: %@. You can add it from the item's page." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab のマイアイテムにはまだ登録されていません：%@。アイテムのページから登録できます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有登记到 rab 的我的物品：%@。可以在物品页面里再登记。" } }
-      }
-    },
     "Description" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "説明" } },
@@ -118,12 +100,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "名称" } }
       }
     },
-    "New item" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいアイテム" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新物品" } }
-      }
-    },
     "No account is called %@. Choose a password of 6 characters or more to create it." : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ というアカウントはありません。6文字以上のパスワードを決めて作成します。" } },
@@ -136,22 +112,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有叫 %@ 的账号。请设置 6 位以上的密码并填写邮箱，验证码会发到这个邮箱。" } }
       }
     },
-    "No subject was found in the photo" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真の中に被写体が見つかりません" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "照片里没有找到主体" } }
-      }
-    },
     "Nothing yet" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだ何もありません" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有物品" } }
-      }
-    },
-    "OK" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
       }
     },
     "On this phone only, in your folder under data." : {
@@ -178,12 +142,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先登录" } }
       }
     },
-    "Price" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "料金" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "价格" } }
-      }
-    },
     "Published" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "公開中" } },
@@ -192,12 +150,6 @@
     },
     "rab" : {
       "shouldTranslate" : false
-    },
-    "Removing the background…" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を消しています…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在去除背景…" } }
-      }
     },
     "Request failed (%lld)" : {
       "localizations" : {
@@ -209,12 +161,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } }
-      }
-    },
-    "Saved on this phone" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone に保存しました" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存到这台手机" } }
       }
     },
     "Advanced" : {
@@ -253,12 +199,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享照片" } }
       }
     },
-    "Short description" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "短い説明" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "简短描述" } }
-      }
-    },
     "Sign in" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインイン" } },
@@ -271,18 +211,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出登录" } }
       }
     },
-    "Sign out?" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインアウトしますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出登录？" } }
-      }
-    },
-    "Take a photo" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を撮る" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
-      }
-    },
     "Taken" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影" } },
@@ -293,12 +221,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "ウェブアドレスではありません" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这不是一个网址" } }
-      }
-    },
-    "The background could not be removed: %@" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を消せませんでした：%@" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法去除背景：%@" } }
       }
     },
     "The photo could not be read" : {
@@ -331,12 +253,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的物品会留在这台手机上你的文件夹里。" } }
       }
     },
-    "rab could not tell which area you are in. Allow location and try again." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のエリアがわかりませんでした。位置情報を許可して、もう一度お試しください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 无法确定你所在的地区。请允许使用位置后再试。" } }
-      }
-    },
     "Location" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所" } },
@@ -349,34 +265,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无" } }
       }
     },
-    "Add a new location" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しい場所を追加" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加新位置" } }
-      }
-    },
-    "New location" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しい場所" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新位置" } }
-      }
-    },
     "Add" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "追加" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加" } }
-      }
-    },
-    "A location needs a name" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所には名前が必要です" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "位置需要一个名称" } }
-      }
-    },
-    "Move the map until the pin is on the place. What is attached to it is shown there on rab's map." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ピンがその場所に重なるまで地図を動かしてください。この場所に紐づけたものは rab の地図上でそこに表示されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移动地图，让图钉落在这个地点上。附加到它的东西会显示在 rab 地图上的这个位置。" } }
       }
     },
     "Your items could not be loaded from rab: %@" : {
@@ -395,24 +287,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "背景" } }
-      }
-    },
-    "Original" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "元の写真" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原图" } }
-      }
-    },
-    "Other colour" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "その他の色" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他颜色" } }
-      }
-    },
-    "Take a photo of something you have. You can give it a plain background, and it goes into your items." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "持っているものを撮ってください。背景を単色に変えることもでき、マイアイテムに入ります。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "给你的东西拍张照。可以给它换一个纯色背景，然后登记到你的物品里。" } }
       }
     },
     "Car" : {
@@ -751,34 +625,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分类" } }
       }
     },
-    "Recognizing the photo…" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を認識しています…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在识别照片…" } }
-      }
-    },
-    "This could not be filled in from the photo. Fill it in yourself." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真から自動入力できませんでした。手動で入力してください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法根据照片自动填写，请手动填写。" } }
-      }
-    },
-    "This server is not set up to fill this in from the photo." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このサーバーでは写真からの自動入力が設定されていません。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这台服务器还没有设置根据照片自动填写。" } }
-      }
-    },
     "on this phone" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone のみ" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在手机" } }
-      }
-    },
-    "Chosen for you: you are within 100 m of it." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自動で選びました。この場所から 100 m 以内にいます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已为你自动选择：你在它 100 米以内。" } }
       }
     },
     "Open Settings" : {
@@ -787,34 +637,118 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开设置" } }
       }
     },
-    "The area the location is in." : {
+    "The photo could not be recognized" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "その場所のあるエリアです。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "该位置所在的地区。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を認識できませんでした" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法识别这张照片" } }
       }
     },
-    "The area you are in. Attach a location to offer it somewhere else." : {
+    "rab may not use the camera. Allow it in Settings to collect things." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今いるエリアです。別のエリアで提供するには、場所を指定してください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你当前所在的地区。要在别处提供，请指定一个位置。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab はカメラを使えません。集めるには「設定」で許可してください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 无法使用相机。请在“设置”中允许后再收集。" } }
       }
     },
-    "rab needs to know where you are to say which area it is offered in. Allow location in Settings, or attach a location." : {
+    "This device has no camera." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "提供エリアを決めるには現在地が必要です。設定で位置情報を許可するか、場所を指定してください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 需要你的位置来确定服务地区。请在设置中允许位置，或指定一个位置。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この端末にはカメラがありません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此设备没有相机。" } }
       }
     },
-    "rab could not tell which area you are in. Attach a location, or try again." : {
+    "Done" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のエリアがわかりませんでした。場所を指定するか、もう一度お試しください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 无法确定你所在的地区。请指定一个位置，或重试。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
       }
     },
-    "rab needs your location: it is the area a new item is offered in." : {
+    "Point the camera at a thing" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab には現在地が必要です。新しいアイテムの提供エリアになります。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "rab 需要你的位置：它是新物品的服务地区。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カメラを物に向けてください" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把相机对准一件物品" } }
+      }
+    },
+    "Press the button to collect it" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボタンを押して集める" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按下按钮收集" } }
+      }
+    },
+    "Collected: %lld" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "集めた数：%lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已收集：%lld" } }
+      }
+    },
+    "Collect" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "集める" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收集" } }
+      }
+    },
+    "Spots" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スポット" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "据点" } }
+      }
+    },
+    "Spot" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スポット" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "据点" } }
+      }
+    },
+    "Start collecting" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "集め始める" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始收集" } }
+      }
+    },
+    "Recognize all (%lld)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべて認識（%lld）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部识别（%lld）" } }
+      }
+    },
+    "Recognize again" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "もう一度認識" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新识别" } }
+      }
+    },
+    "Not recognized yet" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "未認識" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别" } }
+      }
+    },
+    "Not recognized yet. The brain at the top says what it is, and it then goes onto rab." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだ認識されていません。上の脳のボタンで何であるかを判定し、rab に登録されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别。点上方的大脑按钮识别它是什么，然后它会登记到 rab。" } }
+      }
+    },
+    "All" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべて" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部" } }
+      }
+    },
+    "Open the camera and point it at one thing after another. The brain then says what each of them is." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カメラを開いて、物にひとつずつ向けてください。そのあと脳のボタンで、それぞれが何かを判定します。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开相机，逐一对准物品。之后点大脑按钮，识别每件是什么。" } }
+      }
+    },
+    "Collect onto" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "集める先" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收集到" } }
+      }
+    },
+    "%lld could not be done: %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld件できませんでした：%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 项未能完成：%@" } }
       }
     }
   },

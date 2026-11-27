@@ -95,7 +95,9 @@ div.sheet .form {
   height: 14px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  /* Many short strokes in a small box: thinner than the house weight, so
+     that they do not run together. */
+  stroke-width: 1.2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -745,9 +747,88 @@ div.sheet .form {
   --action-icon: 16px;
 }
 
+/* The brain's many short strokes run together at the house weight: thinner. */
+.categoryRow > button svg {
+  stroke-width: 1.2;
+}
+
 .categorySelect {
   flex: 1;
   min-width: 0;
+}
+
+/* How many of it there are: a short, low box — a count is a few digits —
+   with its two arrows at its right edge, one over the other. The box's line is
+   drawn round both, so the arrows stand against the edge itself. */
+.count {
+  display: flex;
+  width: 96px;
+  height: 24px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+/* Shorter still, where what is counted is said after it: minutes. */
+.countShort {
+  width: 72px;
+}
+
+.count > input {
+  flex: 1;
+  height: 100%;
+  border: 0;
+  padding-right: 0;
+  background: none;
+  /* The browser's own arrows are not shown: the app's are beside it. */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.count > input::-webkit-inner-spin-button,
+.count > input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.countArrows {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 20px;
+  border-left: 1px solid var(--ink);
+}
+
+.countArrows > button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.countArrows > button + button {
+  border-top: 1px solid var(--ink);
+}
+
+/* Turned over under the pointer, as everything chosen in this app is. */
+.countArrows > button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.countArrows svg {
+  width: 8px;
+  height: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* A number of minutes, short, with what it counts after it. */
@@ -756,16 +837,4 @@ div.sheet .form {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-}
-
-.minutes > input {
-  width: 72px;
-  height: 24px;
-  /* The arrows stand inside the padding: none, and they are at the edge. */
-  padding-right: 0;
-}
-
-.minutes > input::-webkit-inner-spin-button {
-  height: 100%;
-  margin: 0;
 }

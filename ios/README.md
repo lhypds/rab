@@ -1,19 +1,20 @@
 rab for iPhone
 ==============
 
-A small companion to rab: photograph a thing, stand it on a plain background if you like,
-and put it in your items on rab. Sign in with your rab account; everything you
-make is kept in a folder of your own on the phone.
+A small companion to rab: go through the things you have with the camera, one
+after another, and have them registered on rab — each a photograph with a
+name, a few words for what it is, a category and a description. Sign in with
+your rab account; everything you make is kept in a folder of your own on the
+phone.
 
     ios/rab.xcodeproj          open in Xcode 16 or later; runs on iOS 17 or later
-    ios/rab/RabApp.swift       the app and its look (black monospace on white)
-    ios/rab/AppModel.swift     who is signed in, their items, saving and publishing
+    ios/rab/RabApp.swift       the app and its look (black on white, compact)
+    ios/rab/AppModel.swift     who is signed in, their items, collecting, recognizing and registering
     ios/rab/UserStore.swift    the user's folder: session, items, photographs
     ios/rab/RabAPI.swift       rab's HTTP API, the same one the website uses
-    ios/rab/BackgroundRemover.swift   Vision finds the subject; Core Image clears what is behind it
-    ios/rab/Area.swift         the area an item is offered in, from the phone's position or a name
-    ios/rab/Pickers.swift      the camera
-    ios/rab/Views/             SignInView, ItemsView, NewItemView, ItemDetailView
+    ios/rab/Scan/              the scanner: Scanner (the live camera), ObjectDetector (where the object is)
+    ios/rab/Views/             SignInView, ItemsView (the grid and its bar), ItemTile,
+                               ScannerView (collecting), ItemDetailView
     ios/rab/Localizable.xcstrings     English, Chinese, Japanese
     ios/build.sh               build it: for the simulator, or `./build.sh device` for an iPhone
     ios/deploy.sh              build, install on a connected iPhone and open it
@@ -28,26 +29,39 @@ has is offered as a new account. The server is `https://rab.gcc3.com` unless the
 field at the bottom says otherwise (a dev server on the same network, say
 `http://192.168.0.79:3016`, works too).
 
-**Take a photo.** The camera button in the top bar (or the photo button, for a
-picture already taken). While the form is open, the subject is cut out of its
-background; the swatches under the picture stand it on a colour — white, grey,
-black or any other — or leave the photo as it was taken, which is how it
-starts. Where no subject is found the photo is kept as it is, and the form
-says so.
+**The items.** One screen: your items as a grid of photographs, four across,
+each with its name small under it — what is still on this phone only first,
+marked with a dot, then what rab has. Over the grid, the categories that have
+items, in a line: one of them narrows the grid to it. A tile opens the item's
+page.
 
-**Put it in your items.** Its kind and category, a name and a description — filled
-in from the photo by rab's server, and yours to change — and the location it is
-kept at, one of your own places or none. The area it is offered in is not asked
-for: it is the city the phone is in, or the city the location is in once one is
-attached, and the form shows which. So the app asks for your location as soon as
-you are signed in, and will not put an item in your items without knowing the
-area; where location is refused, the list says so, with the way to Settings. If
-the phone is within 100 m of one of your places when the form opens, that place
-is chosen for you. Save keeps it on the phone and publishes it to rab exactly as
-the website's form would: the photograph and a small copy are uploaded, then the
-item carrying their names. It then shows in "My items" on rab and, with a
-location, on the map there. If publishing fails (no network, say), the item is
-still saved, and the item's own page has a button to add it to rab later.
+**The bar.** Four buttons, from the left:
+
+- the marker chooses the spot things are collected onto — one of your spots on
+  rab, your default one to start with. It only chooses; the tick says which.
+- the camera starts collecting: it stays open, a white border is drawn round
+  the object it sees, and the round button keeps a photograph of that object —
+  cut down to it, with a little room round — for the spot. One thing after
+  another, no form in between.
+- the brain has everything that is not on rab yet recognized, a few at a
+  time; the number beside it is how many there are. Each photograph goes to
+  rab's server, which says its category — one of the object categories only,
+  not the places and services — its short category (a word or two: "Coffee
+  mug"; kept as the item's "what is it"), a name and a description. The item
+  is then registered on rab, on the spot it was collected for.
+- the person shows whose account it is, and signs out.
+
+**What is registered.** What the thing is and nothing more: no price, not for
+rent and not for sale, no way to reach you, no place and no area, and not
+published. Those are said on the website, by whoever wants the thing offered.
+
+**An item's page.** Its photograph and what it says about itself. The brain at
+the top has that one recognized again, and what it says written over — on rab
+too, where it is there.
+
+The border is Vision's foreground instance mask, looked for in the camera's
+video several times a second; the photograph is a frame of that same video
+(4K where the phone has it), so the box that was drawn is the box that is cut.
 
 
 Where the data is
@@ -57,8 +71,9 @@ All of a user's data is in one folder named after them, under `data` in the app'
 documents:
 
     Documents/data/<username>/session.json    the signed-in session and its server
-    Documents/data/<username>/items.json      the items, newest first
-    Documents/data/<username>/photos/<id>.jpg the photographs, on the background chosen
+    Documents/data/<username>/items.json      the items, newest first (what was collected for a spot too)
+    Documents/data/<username>/spots.json      the spots as rab last listed them
+    Documents/data/<username>/photos/<id>.jpg the photographs
 
 The documents folder is shared with the Files app (On My iPhone › rab), so the
 folder can be looked at, copied off, or deleted by hand. Signing out keeps the
@@ -76,11 +91,11 @@ From the command line:
     ios/deploy.sh                build, install on the connected iPhone, open it
     ios/build.sh [sim|device]    only build, into ios/build/
 
-The simulator has no camera; use the photo button there. For an iPhone the app is
+The simulator has no camera, so nothing can be collected there. For an iPhone the app is
 signed with the team of the Apple Development certificate in the keychain
 (`DEVELOPMENT_TEAM=<id>` picks another), and the phone has to be paired, unlocked
 and in Developer Mode. Or open `ios/rab.xcodeproj`, set your team under Signing &
 Capabilities, and run from Xcode.
 
-Background removal uses `VNGenerateForegroundInstanceMaskRequest`, which is why
+Finding the object uses `VNGenerateForegroundInstanceMaskRequest`, which is why
 iOS 17 is the floor.

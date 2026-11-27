@@ -300,6 +300,9 @@
       "no": "いいえ",
       "yes": "はい"
     },
+    "count": "数量",
+    "countLine": "数量：{{n}}",
+    "notOffered": "提供していません",
     "offerRequired": "販売と一時利用のどちらかは選んでください。",
     "forSale": "販売中",
     "basePricing": "通常料金",

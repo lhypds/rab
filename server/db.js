@@ -623,6 +623,9 @@ function servedItem(item) {
     title: item.title,
     // A few words for what it is, apart from its name; empty where not said.
     what: item.what ?? "",
+    // How many of it its owner has: one, where nothing is said. (Not `count`,
+    // which on a spot is how many items are on it.)
+    quantity: item.quantity ?? 1,
     description: item.description,
     price: item.price,
     currency: item.currency,
@@ -855,6 +858,8 @@ function itemFields(item) {
     title: item.title,
     // A few words for what it is, kept apart from its name: "Film camera".
     what: item.what ?? "",
+    // How many of it there are: one, where nothing is said.
+    quantity: item.quantity ?? 1,
     description: item.description,
     // Its own pages somewhere else, as addresses, the first first.
     links: item.links ?? [],

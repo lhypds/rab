@@ -16,8 +16,10 @@ struct RabApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                // rab's look: black monospace type on white.
-                .fontDesign(.monospaced)
+                // rab's look: black type on white, in the system's own face —
+                // not a monospaced one, which gets fewer words into a line.
+                // One size of type throughout, unless a thing says otherwise.
+                .font(Compact.font)
                 .tint(.black)
                 .preferredColorScheme(.light)
         }
@@ -31,7 +33,151 @@ enum Rab {
     static let background = Color(red: 0.96, green: 0.96, blue: 0.94)
 }
 
+/// The app's compact measure: the type, the height of a row or a button, and
+/// the margins — the same on the sign-in screen and on an item's page, so
+/// that as much as can be is on the screen.
+enum Compact {
+    /// The app's one size of type: what the sign-in box is written in, and
+    /// every page and every item's name with it.
+    static let font = Font.subheadline
+    /// What is said under or beside that, more quietly: a hint, a reason.
+    static let small = Font.footnote
+    /// A field, a button, a row of a page: all this tall.
+    static let row: CGFloat = 32
+    /// From the edge of the screen to a box.
+    static let margin: CGFloat = 12
+    /// From the edge of a box to what is written in it.
+    static let inset: CGFloat = 12
+    static let corner: CGFloat = 10
+    /// Between two boxes.
+    static let gap: CGFloat = 8
+}
+
+/// A button that looks the same pressed as not: nothing fades or moves under
+/// the finger.
+struct StillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.contentShape(Rectangle())
+    }
+}
+
+/// One of the bar's icons: whatever the symbol, drawn inside the same square,
+/// so that the four of them are one size.
+struct BarIcon: View {
+    static let side: CGFloat = 18
+    let name: String
+    /// How much of the square it fills: a symbol that is all outline to its
+    /// edges — the person — looks larger than the others at the same size.
+    var scale: CGFloat = 1
+
+    var body: some View {
+        Image(systemName: name)
+            .resizable()
+            .scaledToFit()
+            .fontWeight(.regular)
+            .frame(width: Self.side * scale, height: Self.side * scale)
+            .frame(width: Self.side, height: Self.side)
+    }
+}
+
+/// A question asked in the middle of the screen, at the app's compact measure
+/// rather than the system's: a small white box — what is asked, a line under
+/// it where there is more to say, and two buttons, the one that does nothing
+/// at the left.
+private struct CompactDialog: ViewModifier {
+    @Binding var isPresented: Bool
+    let title: Text
+    let message: Text?
+    let confirm: LocalizedStringKey
+    /// Whether what is confirmed cannot be taken back: it is then in red.
+    let destructive: Bool
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isPresented {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture { isPresented = false }
+                    VStack(spacing: 0) {
+                        VStack(spacing: 4) {
+                            // Both in the app's one size of type.
+                            title
+                                .font(Compact.font.weight(.semibold))
+                            if let message {
+                                message
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Compact.inset)
+                        .padding(.vertical, 12)
+                        Divider()
+                        HStack(spacing: 0) {
+                            Button {
+                                isPresented = false
+                            } label: {
+                                Text("Cancel")
+                                    .frame(maxWidth: .infinity, minHeight: Compact.row)
+                                    .contentShape(Rectangle())
+                            }
+                            Divider()
+                            Button {
+                                isPresented = false
+                                action()
+                            } label: {
+                                Text(confirm)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(destructive ? Color.red : Color.black)
+                                    .frame(maxWidth: .infinity, minHeight: Compact.row)
+                                    .contentShape(Rectangle())
+                            }
+                        }
+                        .font(Compact.font)
+                        .buttonStyle(.plain)
+                        .frame(height: Compact.row)
+                    }
+                    .frame(width: 240)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: Compact.corner))
+                    // One shadow, round the box: not one under each thing in it.
+                    .compositingGroup()
+                    .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+                    .accessibilityAddTraits(.isModal)
+                }
+            }
+        }
+        // There at once and gone at once: nothing fades.
+        .transaction { $0.animation = nil }
+    }
+}
+
 extension View {
+    /// Asks before something is done, in a small box in the middle of the
+    /// screen: `confirm` names what is done — in red where it cannot be taken
+    /// back (`destructive`), as deleting cannot.
+    func compactDialog(isPresented: Binding<Bool>, title: Text, message: Text? = nil, confirm: LocalizedStringKey, destructive: Bool = true, action: @escaping () -> Void) -> some View {
+        modifier(CompactDialog(isPresented: isPresented, title: title, message: message, confirm: confirm, destructive: destructive, action: action))
+    }
+
+    /// A field or a button's label as one compact row: as tall as every
+    /// other, and as far in from its box's edge.
+    func compactRow() -> some View {
+        padding(.horizontal, Compact.inset)
+            .frame(maxWidth: .infinity, minHeight: Compact.row, alignment: .leading)
+            .contentShape(Rectangle())
+    }
+
+    /// A page that is a grouped list, at the compact measure: its type, its
+    /// rows' height, its margins and the gaps between its boxes.
+    func compactList() -> some View {
+        font(Compact.font)
+            .environment(\.defaultMinListRowHeight, Compact.row)
+            .listSectionSpacing(Compact.gap)
+            .contentMargins(.horizontal, Compact.margin, for: .scrollContent)
+            .contentMargins(.top, Compact.gap, for: .scrollContent)
+    }
+
     /// A list or form on rab's ground instead of the system's grey or white.
     func rabBackground() -> some View {
         scrollContentBackground(.hidden)
@@ -43,11 +189,26 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if model.isSignedIn {
-            ItemsView()
-        } else {
-            SignInView()
-        }
+        // The items' screen is the app; where nobody is signed in, the way in
+        // stands over it, in the middle, until somebody is.
+        ItemsView()
+            .overlay {
+                if !model.isSignedIn {
+                    // In the middle as it first stands — a name and a button —
+                    // and held by its top from then on: what opens in it
+                    // (the password, the server's address) opens downwards,
+                    // and nothing above that moves. Nor does anything glide.
+                    GeometryReader { window in
+                        ZStack(alignment: .top) {
+                            Color.black.opacity(0.25).ignoresSafeArea()
+                            SignInView()
+                                .padding(.top, max(Compact.margin, (window.size.height - SignInView.closedHeight) / 2))
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    }
+                    .transaction { $0.animation = nil }
+                }
+            }
     }
 }
 
@@ -55,32 +216,34 @@ struct RootView: View {
 /// Sans Bold, and whatever the screen can do at the right.
 struct RabHeader<Actions: View>: View {
     var background = Rab.background
+    /// Lower and tighter: over a screen that is all items, where every line
+    /// the bar takes is a row of them not shown.
+    var compact = false
     @ViewBuilder var actions: Actions
 
     @ScaledMetric private var titleSize = 34
+    @ScaledMetric private var compactTitleSize = 24
 
     var body: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: compact ? 18 : 20) {
             Text(verbatim: "rab")
-                .font(.custom("GillSans-Bold", fixedSize: titleSize))
-                // The app's monospaced design would otherwise replace the face.
-                .fontDesign(nil)
+                .font(.custom("GillSans-Bold", fixedSize: compact ? compactTitleSize : titleSize))
                 .fixedSize()
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 12)
             actions
-                .font(.system(size: 20))
+                .font(.system(size: compact ? 18 : 20))
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 36)
-        .padding(.bottom, 12)
+        .padding(.horizontal, compact ? 12 : 20)
+        .padding(.top, compact ? 6 : 36)
+        .padding(.bottom, compact ? 6 : 12)
         .background(background)
     }
 }
 
 extension RabHeader where Actions == EmptyView {
-    init(background: Color = Rab.background) {
-        self.init(background: background) { EmptyView() }
+    init(background: Color = Rab.background, compact: Bool = false) {
+        self.init(background: background, compact: compact) { EmptyView() }
     }
 }
 

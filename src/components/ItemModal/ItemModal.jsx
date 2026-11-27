@@ -170,6 +170,8 @@ function startingFieldsAsSaved(item, calendar, lang) {
     category: item?.category ?? "",
     title: item?.title ?? "",
     what: item?.what ?? "",
+    // How many of it there are: one, to start with.
+    quantity: String(item?.quantity ?? 1),
     description: item?.description ?? "",
     // Its own pages somewhere else, as addresses: one empty line to start.
     links: item?.links?.length > 0 ? item.links : [""],
@@ -342,6 +344,27 @@ function withSlotPrice(slots, { day, start, end, price }) {
 const wholeSteps = (minutes, unit) =>
   Math.min(Math.floor(1440 / unit) * unit, Math.max(unit, Math.ceil((Number(minutes) || 0) / unit) * unit));
 
+// The two arrows at the right edge of a number's box, one over the other: the
+// app's own — the menu's chevron — not the browser's, which look like whatever
+// system it runs on. `onTurn` is told 1 for the upper and -1 for the lower.
+function NumberArrows({ onTurn }) {
+  return (
+    <span className={styles.countArrows}>
+      {/* Not stops for the keyboard: its own arrow keys turn the box. */}
+      <button type="button" tabIndex={-1} aria-label="+" onClick={() => onTurn(1)}>
+        <svg viewBox="0 0 12 8" aria-hidden="true">
+          <path d="M1 7l5-5 5 5" />
+        </svg>
+      </button>
+      <button type="button" tabIndex={-1} aria-label="-" onClick={() => onTurn(-1)}>
+        <svg viewBox="0 0 12 8" aria-hidden="true">
+          <path d="M1 1l5 5 5-5" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
 // A number of minutes, turned a `step` at a time by its arrows, the arrow
 // keys or the mouse wheel over it; `onDone` is told what it came to once it
 // is left, which may be something typed between steps.
@@ -361,7 +384,9 @@ function MinutesInput({ value, step, max, onChange, onDone, label, suffix }) {
   const turnRef = useRef(turn);
   turnRef.current = turn;
   useEffect(() => {
+    // Over the arrows as well as over the number.
     const input = ref.current;
+    const box = input.parentElement;
     // One click of the wheel can come as a run of events — a smooth-scrolling
     // wheel or a trackpad sends dozens — so a step is taken for the first
     // event after a pause, and in a run that goes on, one more for each
@@ -388,11 +413,12 @@ function MinutesInput({ value, step, max, onChange, onDone, label, suffix }) {
       if (document.activeElement !== input) input.focus();
       turnRef.current(-steps);
     };
-    input.addEventListener("wheel", wheel, { passive: false });
-    return () => input.removeEventListener("wheel", wheel);
+    box.addEventListener("wheel", wheel, { passive: false });
+    return () => box.removeEventListener("wheel", wheel);
   }, []);
   return (
     <span className={styles.minutes}>
+      <span className={`${styles.count} ${styles.countShort}`}>
       <input
         ref={ref}
         type="number"
@@ -413,6 +439,8 @@ function MinutesInput({ value, step, max, onChange, onDone, label, suffix }) {
           onDone(value);
         }}
       />
+        <NumberArrows onTurn={turn} />
+      </span>
       <span>{suffix}</span>
     </span>
   );
@@ -726,6 +754,54 @@ function moved(list, index, by) {
   const next = [...list];
   [next[index], next[to]] = [next[to], next[index]];
   return next;
+}
+
+// How many of the item there are: a short box with its up and down arrows at
+// its right edge. The mouse's wheel turns it too, while the pointer is over
+// it — up for more — and the page behind stays where it is meanwhile.
+const COUNT_MAX = 9999;
+
+function CountInput({ value, onChange }) {
+  const ref = useRef(null);
+  // The wheel's listener is put on once, and reads what is current from here.
+  const latest = useRef({ value, onChange });
+  latest.current = { value, onChange };
+  useEffect(() => {
+    // Over the arrows as well as over the number.
+    const input = ref.current;
+    if (!input) return undefined;
+    // React's own wheel handler cannot stop the page scrolling: this one can.
+    function turn(event) {
+      if (event.deltaY === 0) return;
+      event.preventDefault();
+      const now = Math.max(1, Math.floor(Number(latest.current.value)) || 1);
+      const next = Math.min(COUNT_MAX, Math.max(1, now + (event.deltaY < 0 ? 1 : -1)));
+      if (next !== now || String(next) !== latest.current.value) latest.current.onChange(String(next));
+    }
+    input.addEventListener("wheel", turn, { passive: false });
+    return () => input.removeEventListener("wheel", turn);
+  }, []);
+  // One more or one fewer, from whatever is written there now.
+  function step(by) {
+    const now = Math.max(1, Math.floor(Number(value)) || 1);
+    onChange(String(Math.min(COUNT_MAX, Math.max(1, now + by))));
+  }
+  // The box and its two arrows are one box (see NumberArrows).
+  return (
+    <span className={styles.count} ref={ref}>
+      <input
+        className="text-input"
+        type="number"
+        inputMode="numeric"
+        min="1"
+        max={COUNT_MAX}
+        step="1"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <NumberArrows onTurn={step} />
+    </span>
+  );
 }
 
 export default function ItemModal({ isOpen, item = null, calendar = null, part = "item", onClose, onSaved }) {
@@ -1147,6 +1223,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   const draft = {
     id: item?.id ?? "preview",
     title: fields.title.trim() || t("item.titlePlaceholder"),
+    quantity: Math.max(1, Math.floor(Number(fields.quantity)) || 1),
     description: fields.description.trim(),
     what: fields.what.trim(),
     links: fields.links.map(homepageOf).filter(Boolean),
@@ -1223,15 +1300,15 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   function fault() {
     const first = itemFault();
     if (first) return first;
-    // It has to be offered one way or the other.
-    if (priced && !fields.rentOn && !fields.saleOn) return t("item.offerRequired");
+    // It need be offered neither way — not for temporary use, not for sale:
+    // it is then only written down, and says no way to reach anybody.
     if (byTime && hourRules.some((rule) => !timed(rule) || rule.start >= rule.end)) return t("item.ruleTimesWrong");
     if (byDay && dayRules.some((rule) => (rule.start || rule.end) && !(rule.start && rule.end && rule.start < rule.end))) {
       return t("item.dayHoursWrong");
     }
     if (byTime && hours.length === 0) return t("item.hoursRequired");
     // Booked by asking, the first way to reach the owner has to be written.
-    if (inquiry && contacts.length === 0) return t("item.contactRequired");
+    if (inquiry && (rentable || fields.saleOn) && contacts.length === 0) return t("item.contactRequired");
     // A deposit asked for has to say how much.
     if (priced && rentable && fields.depositOn && deposit === null) return t("item.depositRequired");
     // And one for sale, for how much.
@@ -1257,6 +1334,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     setError("");
     const body = {
       title: fields.title.trim(),
+      quantity: Math.max(1, Math.floor(Number(fields.quantity)) || 1),
       description: fields.description.trim(),
       what: fields.what.trim(),
       links: fields.links.map((link) => link.trim()).filter(Boolean),
@@ -1592,6 +1670,15 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 <input className="text-input" value={fields.what} onChange={(event) => set("what", event.target.value)} maxLength={WHAT_MAX} />
                 <span className={styles.hint}>{t("item.whatHint")}</span>
               </label>
+
+              {/* How many of it there are — one, unless said otherwise. A
+                  spot is a collection, and has no count of its own. */}
+              {!fields.spot && (
+                <label className="field">
+                  <span className="field-label">{t("item.count")}</span>
+                  <CountInput value={fields.quantity} onChange={(value) => set("quantity", value)} />
+                </label>
+              )}
 
               {/* Under them, its category — and beside it the button that
                   has it chosen from what is written above and the main

@@ -304,6 +304,9 @@
       "no": "No",
       "yes": "Yes"
     },
+    "count": "Count",
+    "countLine": "Count: {{n}}",
+    "notOffered": "Not on offer",
     "offerRequired": "Offer it for sale, for temporary use, or both.",
     "forSale": "For sale",
     "basePricing": "Default pricing",

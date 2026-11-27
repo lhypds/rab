@@ -10,24 +10,6 @@ struct Region: Codable, Hashable {
     var bbox: [Double]
 }
 
-/// A place of the user's that things can be attached to — "Home", "The
-/// studio": a name, and where the phone was when it was added, if it could say.
-struct SavedLocation: Codable, Identifiable, Hashable {
-    var id: String
-    var name: String
-    var latitude: Double?
-    var longitude: Double?
-    /// The area the spot is in.
-    var region: Region?
-    /// The address the spot came to, as a line.
-    var address: String?
-    var createdAt: Date
-    /// It is in the account's list on rab, or has been. One that is and is no
-    /// longer there was deleted from it — on the website, say — and goes from
-    /// the phone too; one that never was is still to be sent up.
-    var onRab: Bool?
-}
-
 /// One thing photographed on this phone.
 struct SavedItem: Codable, Identifiable, Hashable {
     var id: String
@@ -43,16 +25,26 @@ struct SavedItem: Codable, Identifiable, Hashable {
     /// Nothing, for an item made since the form stopped asking for one.
     var price: Double
     var currency: String
+    /// The area it was photographed in: kept by the items from when the phone
+    /// asked where it was. Nothing is made of it any more.
     var region: Region?
     var createdAt: Date
     /// The file under photos/.
     var photo: String
     var width: Int
     var height: Int
-    /// The location it is attached to, if any (see SavedLocation).
+    /// The place it was attached to, in the items from when the phone had
+    /// places. Nothing is made of it any more.
     var locationId: String?
     /// rab's own id for it, once it is in "My items" there.
     var remoteId: String?
+    /// The spot it was collected for with the scanner, if it was: where it
+    /// goes on rab once it has a name.
+    var spotId: String? = nil
+
+    /// Whether anything has said what it is yet. What the scanner collects is
+    /// a photograph and nothing else until it is recognized.
+    var isRecognized: Bool { !title.isEmpty }
 }
 
 /// The session kept between launches, with the server it is for.
@@ -66,7 +58,7 @@ struct SavedSession: Codable {
 ///     Documents/data/<username>/session.json    the signed-in session
 ///     Documents/data/<username>/items.json      the items, newest first
 ///     Documents/data/<username>/listings.json   the items as rab last listed them
-///     Documents/data/<username>/locations.json  the places items are attached to
+///     Documents/data/<username>/spots.json      the spots as rab last listed them
 ///     Documents/data/<username>/photos/<id>.jpg the photographs
 ///
 /// Documents is shared with the Files app (see Info.plist), so the folder can
@@ -84,7 +76,7 @@ final class UserStore {
     private var sessionFile: URL { folder.appendingPathComponent("session.json") }
     private var itemsFile: URL { folder.appendingPathComponent("items.json") }
     private var listingsFile: URL { folder.appendingPathComponent("listings.json") }
-    private var locationsFile: URL { folder.appendingPathComponent("locations.json") }
+    private var spotsFile: URL { folder.appendingPathComponent("spots.json") }
 
     init(username: String) {
         self.username = username
@@ -144,10 +136,11 @@ final class UserStore {
     func loadListings() -> [Listing]? { read(listingsFile) }
     func saveListings(_ listings: [Listing]) { try? write(listings, to: listingsFile) }
 
-    // MARK: - locations
+    // MARK: - spots
 
-    func loadLocations() -> [SavedLocation] { read(locationsFile) ?? [] }
-    func saveLocations(_ locations: [SavedLocation]) throws { try write(locations, to: locationsFile) }
+    /// The account's spots as the server last listed them.
+    func loadSpots() -> [Spot] { read(spotsFile) ?? [] }
+    func saveSpots(_ spots: [Spot]) { try? write(spots, to: spotsFile) }
 
     // MARK: - photos
 

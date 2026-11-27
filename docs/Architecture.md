@@ -16,7 +16,8 @@ Paths are relative to the repository root.
                        Calendar, TimeTable (a day's hours, the week's hours), ShareModal, TravelModal, the message sheets, the top bar
     src/ui/            Modal, ActionButton, Select, TextArea, Toast, Router — lo's own
     src/i18n/          English, Chinese, Japanese
-    ios/               the iPhone app: photograph a thing, background to white, into My items
+    ios/               the iPhone app: photograph a thing, background to white, into My items;
+                       scan things one after another onto a spot, recognized afterwards
                        (its own README is in there)
 
 ## Data on disk

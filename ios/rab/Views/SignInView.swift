@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Signing in, in two goes like the website: the name first, which says
+/// Signing in, in a box over the items' screen, in two goes like the website: the name first, which says
 /// whether it is an account at all, then the password — to open it or, for a
 /// name nobody has, to create it. Creating one takes an email address as
 /// well, and then the code that is mailed to it.
@@ -29,13 +29,14 @@ struct SignInView: View {
 
     private enum Field { case username, password, email, code }
 
-    /// Around "Advanced" and "Server": at the fields' left edge, "Advanced" as
-    /// far under the button as the button is under the field, and "Server"
-    /// close above its own field. A line of text is taller than its letters,
-    /// which is what the small numbers allow for; measured on screen.
-    private static let headingInsets = EdgeInsets(top: -3, leading: 0, bottom: 4, trailing: 0)
-    /// The space between the field, the button and the heading under it.
-    private static let gap: CGFloat = 20
+    /// How tall the box is as it first stands: the name, the button and
+    /// "Advanced", with the gaps between and the margin round them. What it
+    /// is put in the middle of the window by (see RootView).
+    static let closedHeight: CGFloat = Compact.row * 2 + 16 + 8 * 2 + Compact.margin * 2
+
+    /// The space between the wordmark, the fields, the button and what is
+    /// under it.
+    private static let gap: CGFloat = 8
 
     private var buttonTitle: LocalizedStringKey {
         if !checked { return "Continue" }
@@ -55,132 +56,146 @@ struct SignInView: View {
 
     var body: some View {
         @Bindable var model = model
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Username", text: $username)
+        // A small box in the middle of the window, over the items' screen:
+        // the fields, the button, and what is under it. Nothing in it moves
+        // into place — what appears is there at once.
+        VStack(alignment: .leading, spacing: Self.gap) {
+            // The fields, in one white box, a line between each two.
+            VStack(spacing: 0) {
+                TextField("Username", text: $username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textContentType(.username)
+                    .focused($focus, equals: .username)
+                    .submitLabel(.next)
+                    .onSubmit(go)
+                    .onChange(of: username) {
+                        checked = false
+                        creating = false
+                        codeSent = false
+                        code = ""
+                        error = nil
+                    }
+                    .compactRow()
+                if checked {
+                    Divider().padding(.leading, Compact.inset)
+                    SecureField(creating ? "Choose a password" : "Password", text: $password)
+                        .textContentType(creating ? .newPassword : .password)
+                        .focused($focus, equals: .password)
+                        .submitLabel(creating && needsEmail ? .next : .go)
+                        .onSubmit { if creating && needsEmail { focus = .email } else { go() } }
+                        .compactRow()
+                }
+                if checked && creating && needsEmail {
+                    Divider().padding(.leading, Compact.inset)
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .textContentType(.username)
-                        .focused($focus, equals: .username)
-                        .submitLabel(.next)
+                        .textContentType(.emailAddress)
+                        .focused($focus, equals: .email)
+                        .submitLabel(.go)
                         .onSubmit(go)
-                        .onChange(of: username) {
-                            checked = false
-                            creating = false
+                        // Another address is another code.
+                        .onChange(of: email) {
                             codeSent = false
                             code = ""
-                            error = nil
                         }
-                    if checked {
-                        SecureField(creating ? "Choose a password" : "Password", text: $password)
-                            .textContentType(creating ? .newPassword : .password)
-                            .focused($focus, equals: .password)
-                            .submitLabel(creating && needsEmail ? .next : .go)
-                            .onSubmit { if creating && needsEmail { focus = .email } else { go() } }
-                    }
-                    if checked && creating && needsEmail {
-                        TextField("Email", text: $email)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .textContentType(.emailAddress)
-                            .focused($focus, equals: .email)
-                            .submitLabel(.go)
-                            .onSubmit(go)
-                            // Another address is another code.
-                            .onChange(of: email) {
-                                codeSent = false
-                                code = ""
+                        .compactRow()
+                    if codeSent {
+                        Divider().padding(.leading, Compact.inset)
+                        TextField("Verification code", text: $code)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                            .focused($focus, equals: .code)
+                            .onChange(of: code) {
+                                code = String(code.filter(\.isNumber).prefix(6))
                             }
-                        if codeSent {
-                            TextField("Verification code", text: $code)
-                                .keyboardType(.numberPad)
-                                .textContentType(.oneTimeCode)
-                                .focused($focus, equals: .code)
-                                .onChange(of: code) {
-                                    code = String(code.filter(\.isNumber).prefix(6))
-                                }
-                        }
+                            .compactRow()
                     }
-                } footer: {
-                    if creating && codeSent {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Enter the 6-digit code sent to \(email).")
-                            Button("Send again") { sendCode() }
-                                .disabled(busy)
-                        }
-                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                    } else if creating && needsEmail {
-                        Text("No account is called \(username). Choose a password of 6 characters or more, and give an email address: a verification code is sent to it.")
-                            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                    } else if creating {
-                        Text("No account is called \(username). Choose a password of 6 characters or more to create it.")
-                            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                    } else if checked {
-                        Text("Welcome back, \(username).")
-                            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                    }
-                }
-
-                Section {
-                    Button(action: go) {
-                        HStack {
-                            Text(buttonTitle)
-                            Spacer()
-                            if busy { ProgressView().tint(.white) }
-                        }
-                        .foregroundStyle(.white)
-                    }
-                    .disabled(!ready)
-                    // White on black once it can be pressed; grey until then.
-                    .listRowBackground(ready ? Color.black : Color(white: 0.78))
-                }
-
-                if let error {
-                    Section {
-                        Text(error).foregroundStyle(.red)
-                    }
-                }
-
-                // "Advanced" is always there; pressing it opens what is under
-                // it — the server's address — and pressing it again closes it.
-                Section {
-                    if showingServer {
-                        TextField(AppModel.defaultServer, text: $model.server)
-                            .keyboardType(.URL)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .onChange(of: model.server) {
-                                checked = false
-                                creating = false
-                            }
-                    }
-                } header: {
-                    VStack(alignment: .leading, spacing: Self.gap - 6.5) {
-                        Button("Advanced") { showingServer.toggle() }
-                        // The field's label: close to its field, not a gap away.
-                        if showingServer { Text("Server") }
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    // As written, not in capitals.
-                    .textCase(nil)
-                    .listRowInsets(Self.headingInsets)
                 }
             }
-            .listSectionSpacing(Self.gap)
-            .rabBackground()
-            // The field sits close under the wordmark, not a section's gap below it.
-            .contentMargins(.top, 8, for: .scrollContent)
-            // A heading is as tall as its text and its insets, no taller.
-            .environment(\.defaultMinListHeaderHeight, 0)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                RabHeader()
+            .background(Color.white, in: RoundedRectangle(cornerRadius: Compact.corner))
+
+            // What the fields are being asked for, said under them.
+            Group {
+                if creating && codeSent {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Enter the 6-digit code sent to \(email).")
+                        Button("Send again") { sendCode() }
+                            .disabled(busy)
+                    }
+                } else if creating && needsEmail {
+                    Text("No account is called \(username). Choose a password of 6 characters or more, and give an email address: a verification code is sent to it.")
+                } else if creating {
+                    Text("No account is called \(username). Choose a password of 6 characters or more to create it.")
+                } else if checked {
+                    Text("Welcome back, \(username).")
+                }
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .onAppear { focus = .username }
+            .font(Compact.small)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Compact.inset)
+
+            // White on black once it can be pressed; grey until then.
+            Button(action: go) {
+                HStack {
+                    Text(buttonTitle)
+                    Spacer()
+                    if busy { ProgressView().tint(.white) }
+                }
+                .foregroundStyle(.white)
+                .compactRow()
+                .background(ready ? Color.black : Color(white: 0.78), in: RoundedRectangle(cornerRadius: Compact.corner))
+            }
+            .buttonStyle(.plain)
+            // Not `disabled`, which would fade the grey and its word
+            // further: it only takes no presses (and `go` checks).
+            .allowsHitTesting(ready)
+
+            if let error {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, Compact.inset)
+            }
+
+            // "Advanced" is always there; pressing it opens what is under
+            // it — the server's address — and pressing it again closes it.
+            VStack(alignment: .leading, spacing: 6) {
+                Button("Advanced") { showingServer.toggle() }
+                    // No fading under the finger either.
+                    .buttonStyle(StillButtonStyle())
+                // The field's label: close to its field.
+                if showingServer { Text("Server") }
+            }
+            .font(Compact.small)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Compact.inset)
+            if showingServer {
+                TextField(AppModel.defaultServer, text: $model.server)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: model.server) {
+                        checked = false
+                        creating = false
+                    }
+                    .compactRow()
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: Compact.corner))
+                    // Close under its own label: nearer than two boxes stand.
+                    .padding(.top, 4 - Self.gap)
+            }
         }
+        .font(Compact.font)
+        .padding(Compact.margin)
+        // A name and a password are short: the box is no wider than they need.
+        .frame(width: 260)
+        .background(Rab.background, in: RoundedRectangle(cornerRadius: Compact.corner + 4))
+        // One shadow, round the box: not one under each thing in it.
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+        .transaction { $0.animation = nil }
+        .onAppear { focus = .username }
     }
 
     private func go() {

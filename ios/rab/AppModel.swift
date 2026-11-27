@@ -13,6 +13,7 @@ final class AppModel {
 
     private static let serverKey = "rab:server"
     private static let userKey = "rab:user"
+    private static func targetKey(_ username: String) -> String { "rab:spot:\(username)" }
 
     /// The server the sign-in screen talks to, as typed.
     var server: String {
@@ -26,8 +27,17 @@ final class AppModel {
     private(set) var listings: [Listing]?
     /// Why the last asking failed, if it did.
     private(set) var listingsError: String?
-    /// The places the user's things can be attached to, in the order added.
-    private(set) var locations: [SavedLocation] = []
+    /// The account's spots as rab lists them, the default one first: what the
+    /// scanner collects things onto.
+    private(set) var spots: [Spot] = []
+    /// The items being recognized just now, by their ids — the phone's for
+    /// one on the phone, rab's for one there.
+    private(set) var recognizing: Set<String> = []
+    /// Everything not on rab yet is being gone through (see `recognizeAll`).
+    private(set) var recognizingAll = false
+    /// The spot things are collected onto, by its id: chosen from the top
+    /// bar, and remembered for the user. Nil is the account's default spot.
+    private(set) var targetSpotId: String?
     private(set) var store: UserStore?
     private var api: RabAPI?
 
@@ -50,7 +60,8 @@ final class AppModel {
         api = RabAPI(baseURL: url, token: session.token)
         items = store.loadItems()
         listings = store.loadListings()
-        locations = store.loadLocations()
+        spots = store.loadSpots()
+        targetSpotId = UserDefaults.standard.string(forKey: Self.targetKey(store.username))
         UserDefaults.standard.set(name, forKey: Self.userKey)
     }
 
@@ -101,7 +112,8 @@ final class AppModel {
         username = reply.user.username
         items = store.loadItems()
         listings = store.loadListings()
-        locations = store.loadLocations()
+        spots = store.loadSpots()
+        targetSpotId = UserDefaults.standard.string(forKey: Self.targetKey(store.username))
         UserDefaults.standard.set(username, forKey: Self.userKey)
     }
 
@@ -117,7 +129,10 @@ final class AppModel {
         items = []
         listings = nil
         listingsError = nil
-        locations = []
+        spots = []
+        recognizing = []
+        recognizingAll = false
+        targetSpotId = nil
     }
 
     // MARK: - listings
@@ -134,9 +149,15 @@ final class AppModel {
             let fresh = try await api.mine()
             // Signed out, or somebody else signed in, while it was away.
             guard self.store === store else { return }
-            listings = fresh
+            listings = fresh.items
             listingsError = nil
-            store.saveListings(fresh)
+            store.saveListings(fresh.items)
+            // A server from before there were spots lists none, and the ones
+            // the phone knows are then not forgotten.
+            if !fresh.spots.isEmpty {
+                spots = fresh.spots
+                store.saveSpots(fresh.spots)
+            }
         } catch is CancellationError {
         } catch let error as URLError where error.code == .cancelled {
         } catch {
@@ -173,12 +194,178 @@ final class AppModel {
     /// What rab's server makes of a photograph — its category, name and
     /// description, in the phone's language. It throws where the server cannot
     /// say: no key on it, no connection, a picture it would not describe.
-    func describe(_ image: UIImage) async throws -> Suggestion {
+    /// With `object`, the photograph is one the scanner took, or is being
+    /// recognized as one: an object, to be put in one of the object categories
+    /// and given its short category as well.
+    func describe(_ image: UIImage, object: Bool = false) async throws -> Suggestion {
         guard let api, let small = image.jpeg(maxSide: 1024, quality: 0.7) else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
         }
         let code = Locale.current.language.languageCode?.identifier ?? "en"
-        return try await api.describe(small.data, language: ["zh", "ja"].contains(code) ? code : "en")
+        var suggestion = try await api.describe(small.data, language: ["zh", "ja"].contains(code) ? code : "en", object: object)
+        guard object else { return suggestion }
+        // A server from before it was asked for objects answers with any
+        // category, and no short one.
+        if !Categories.objects.contains(suggestion.category) { suggestion.category = "other" }
+        suggestion.title = suggestion.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !suggestion.title.isEmpty else {
+            throw APIError(status: 422, code: "DESCRIBE_FAILED", message: String(localized: "The photo could not be recognized"))
+        }
+        return suggestion
+    }
+
+    // MARK: - spots
+
+    func spot(_ id: String?) -> Spot? {
+        guard let id else { return nil }
+        return spots.first { $0.id == id }
+    }
+
+    /// The spot things are collected onto: the one chosen, where rab still
+    /// has it, and the account's default one otherwise.
+    var targetSpot: Spot? {
+        spot(targetSpotId) ?? spots.first { $0.isDefault == true } ?? spots.first
+    }
+
+    func setTargetSpot(_ id: String) {
+        targetSpotId = id
+        if let username { UserDefaults.standard.set(id, forKey: Self.targetKey(username)) }
+    }
+
+    /// What is on this phone and not on rab yet: photographs still to be
+    /// recognized, and whatever could not be sent up. Newest first.
+    var waiting: [SavedItem] {
+        items.filter { $0.remoteId == nil }
+    }
+
+    /// Keeps a photograph the scanner took, for the spot things are being
+    /// collected onto: an item with no name yet, on this phone, until it is
+    /// recognized.
+    @discardableResult
+    func collect(_ image: UIImage, forSpot spotId: String?) throws -> SavedItem {
+        try save(image: image, category: "", title: "", what: "", description: "", spotId: spotId)
+    }
+
+    // MARK: - recognizing
+
+    /// Says what a photographed thing is — its category among the objects, its
+    /// short category, a name and a description, all from rab's server — and
+    /// writes that over whatever it said before. It then goes onto rab — onto
+    /// the spot it was collected for; one that is there already is changed
+    /// there too.
+    func recognize(_ item: SavedItem, refreshing: Bool = true) async throws {
+        guard let api, let store else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+        }
+        guard !recognizing.contains(item.id) else { return }
+        recognizing.insert(item.id)
+        defer { recognizing.remove(item.id) }
+        guard let image = store.loadPhoto(item) else { throw BackgroundRemover.Failure.noImage }
+        let suggestion = try await describe(image, object: true)
+        // Deleted while the server was looking at it.
+        guard var fresh = self.item(item.id) else { return }
+        fresh.category = suggestion.category
+        fresh.what = String((suggestion.what ?? "").prefix(whatMax))
+        fresh.title = suggestion.title
+        fresh.description = suggestion.description
+        try update(fresh)
+        if let remoteId = fresh.remoteId {
+            try await api.updateItem(remoteId, Self.recognized(suggestion))
+            if refreshing { await loadListings() }
+        } else {
+            try await publish(fresh, refreshing: refreshing)
+        }
+    }
+
+    /// The same for an item on rab: its first photograph is fetched, looked
+    /// at, and what it says it is written over there.
+    func recognize(_ listing: Listing) async throws {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
+        }
+        guard !recognizing.contains(listing.id) else { return }
+        recognizing.insert(listing.id)
+        defer { recognizing.remove(listing.id) }
+        guard let path = listing.images?.first?.src,
+              let image = UIImage(data: try await api.imageData(path))
+        else { throw BackgroundRemover.Failure.noImage }
+        let suggestion = try await describe(image, object: true)
+        try await api.updateItem(listing.id, Self.recognized(suggestion))
+        // The phone's own copy of it, where it has one, says the same.
+        for var copy in items where copy.remoteId == listing.id {
+            copy.category = suggestion.category
+            copy.what = String((suggestion.what ?? "").prefix(whatMax))
+            copy.title = suggestion.title
+            copy.description = suggestion.description
+            try? update(copy)
+        }
+        await loadListings()
+    }
+
+    private static func recognized(_ suggestion: Suggestion) -> RecognizedBody {
+        RecognizedBody(
+            title: suggestion.title,
+            what: String((suggestion.what ?? "").prefix(whatMax)),
+            description: suggestion.description,
+            category: suggestion.category
+        )
+    }
+
+    /// Goes through everything on this phone that is not on rab yet: what has
+    /// no name is recognized and sent up, and what has one and could not be
+    /// sent before is sent now. A few at a time. It answers with how many it
+    /// could not do, and why the last of them — nothing where all went.
+    func recognizeAll() async -> (failed: Int, why: String)? {
+        guard !recognizingAll else { return nil }
+        recognizingAll = true
+        defer { recognizingAll = false }
+        let ids = waiting.map(\.id)
+        var failed = 0
+        var why = ""
+        var rest = ids[...]
+        while !rest.isEmpty {
+            let batch = rest.prefix(3)
+            rest = rest.dropFirst(batch.count)
+            let faults = await withTaskGroup(of: Error?.self) { group -> [Error] in
+                for id in batch {
+                    group.addTask { await self.recognizeOrPublish(id) }
+                }
+                var faults: [Error] = []
+                for await fault in group {
+                    if let fault { faults.append(fault) }
+                }
+                return faults
+            }
+            failed += faults.count
+            if let last = faults.last { why = last.localizedDescription }
+            // A server that cannot recognize anything, or that nobody is
+            // signed in to, will not do the rest either.
+            let hopeless = faults.contains { fault in
+                guard let fault = fault as? APIError else { return fault is URLError }
+                return fault.code == "DESCRIBE_UNAVAILABLE" || fault.status == 401 || fault.status == 0
+            }
+            if hopeless {
+                failed += rest.count
+                break
+            }
+        }
+        await loadListings()
+        return failed == 0 ? nil : (failed, why)
+    }
+
+    /// One of them: nil where it went, and what went wrong where it did not.
+    private func recognizeOrPublish(_ id: String) async -> Error? {
+        guard let item = item(id), item.remoteId == nil else { return nil }
+        do {
+            if item.isRecognized {
+                try await publish(item, refreshing: false)
+            } else {
+                try await recognize(item, refreshing: false)
+            }
+            return nil
+        } catch {
+            return error
+        }
     }
 
     // MARK: - items
@@ -188,7 +375,7 @@ final class AppModel {
     }
 
     /// Keeps a photographed thing in the user's folder, newest first.
-    func save(image: UIImage, category: String, title: String, what: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
+    func save(image: UIImage, category: String, title: String, what: String, description: String, spotId: String? = nil) throws -> SavedItem {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
         guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
             throw BackgroundRemover.Failure.noImage
@@ -201,17 +388,18 @@ final class AppModel {
             title: title,
             what: what.isEmpty ? nil : what,
             description: description,
-            // The phone asks for no price: it is published at none, and set
+            // The phone asks for no price: it is registered at none, and set
             // on the website by whoever wants one.
             price: 0,
             currency: "JPY",
-            region: region,
+            region: nil,
             createdAt: Date(),
             photo: photo,
             width: jpeg.width,
             height: jpeg.height,
-            locationId: locationId,
-            remoteId: nil
+            locationId: nil,
+            remoteId: nil,
+            spotId: spotId
         )
         items.insert(item, at: 0)
         try store.saveItems(items)
@@ -230,111 +418,19 @@ final class AppModel {
         try? store?.saveItems(items)
     }
 
-    // MARK: - locations
-
-    func location(_ id: String?) -> SavedLocation? {
-        guard let id else { return nil }
-        return locations.first { $0.id == id }
-    }
-
-    /// A new place, called `name`, at the spot picked on the map, with the
-    /// address as the form had it — the one looked up from the spot, or what
-    /// the user wrote over it. Its area is looked up from the spot.
-    func addLocation(name: String, address: String, latitude: Double, longitude: Double) async throws -> SavedLocation {
-        guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
-        let found = await Area.describe(latitude: latitude, longitude: longitude)
-        var location = SavedLocation(
-            id: UUID().uuidString.lowercased(),
-            name: name,
-            latitude: latitude,
-            longitude: longitude,
-            region: found.region,
-            address: address.isEmpty ? found.address : address,
-            createdAt: Date()
-        )
-        // Into the account's list on rab too, where the website's form finds
-        // it. Should that fail, it goes up the next time the list is loaded.
-        if (try? await api?.saveLocation(Self.remote(location))) != nil { location.onRab = true }
-        locations.append(location)
-        try store.saveLocations(locations)
-        return location
-    }
-
-    private static func remote(_ location: SavedLocation) -> RemoteLocation {
-        RemoteLocation(
-            id: location.id,
-            name: location.name,
-            address: location.address,
-            latitude: location.latitude ?? 0,
-            longitude: location.longitude ?? 0,
-            region: location.region
-        )
-    }
-
-    /// The account's places are kept on rab — one list, the phone's and the
-    /// website's. This brings the phone's copy up to it: what the phone made
-    /// and has not yet sent is sent up, and then rab's list is the list. Where
-    /// rab cannot be asked, the phone's copy stays as it is.
-    func loadLocations() async {
-        guard let api, let store else { return }
-        guard var remote = try? await api.locations() else { return }
-        let known = Set(remote.compactMap(\.id))
-        // Only what has never been on rab is sent: a place that was there and
-        // is gone was deleted there, and is not put back.
-        for local in locations where local.onRab != true && !known.contains(local.id) && local.latitude != nil && local.longitude != nil {
-            if let saved = try? await api.saveLocation(Self.remote(local)) { remote.append(saved) }
-        }
-        // Signed out, or somebody else signed in, while it was away.
-        guard self.store === store else { return }
-        let before = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0) })
-        var fresh = remote.compactMap { place -> SavedLocation? in
-            guard let id = place.id else { return nil }
-            return SavedLocation(
-                id: id,
-                name: place.name,
-                latitude: place.latitude,
-                longitude: place.longitude,
-                region: place.region,
-                address: place.address,
-                createdAt: before[id]?.createdAt ?? Date(),
-                onRab: true
-            )
-        }
-        // A place the phone made without a spot cannot be on rab; it stays here.
-        let listed = Set(fresh.map(\.id))
-        fresh += locations.filter { !listed.contains($0.id) && ($0.latitude == nil || $0.longitude == nil) }
-        locations = fresh
-        try? store.saveLocations(fresh)
-    }
-
-    /// Forgets a place. What was attached to it is attached to nothing.
-    func delete(_ location: SavedLocation) {
-        locations.removeAll { $0.id == location.id }
-        try? store?.saveLocations(locations)
-        // And from the account's list on rab.
-        let api = api
-        Task { try? await api?.deleteLocation(location.id) }
-    }
-
     /// Puts an item in the user's items on rab: the photograph and its small
     /// copy go up first, then the item carrying their names, the way the
-    /// website's form does it.
-    func publish(_ item: SavedItem) async throws {
+    /// website's form does it. What goes up is what the thing is and nothing
+    /// more — its name, its few words, its category and its description: no
+    /// price, not for rent and not for sale, no way to reach anybody, no place
+    /// and no area. Those are its owner's to say on the website, if ever.
+    func publish(_ item: SavedItem, refreshing: Bool = true) async throws {
         guard let api, let store else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in"))
         }
-        // The area is where the phone is: the item's own where it was found
-        // when the photo was taken, and looked up now where it was not.
-        var item = item
-        let location = location(item.locationId)
-        if item.region == nil, location?.region == nil {
-            item.region = await Area.here()
-            try update(item)
-        }
-        // An item attached to a location is offered where the location is.
-        guard let region = location?.region ?? item.region else {
-            throw APIError(status: 0, code: "REGION_REQUIRED", message: String(localized: "rab could not tell which area you are in. Allow location and try again."))
-        }
+        // The spot it was collected for, where rab still has it; where it is
+        // gone, the item goes on the default one, as any other does.
+        let spot = spot(item.spotId)
         guard let image = store.loadPhoto(item),
               let full = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.82),
               let thumb = image.jpeg(maxSide: 320, quality: 0.62)
@@ -348,21 +444,16 @@ final class AppModel {
             description: item.description ?? "",
             category: item.category ?? "",
             currency: item.currency,
-            price: item.price,
-            region: region,
-            latitude: location?.longitude == nil ? nil : location?.latitude,
-            longitude: location?.latitude == nil ? nil : location?.longitude,
-            // What the website shows by the pin and after the item's name: the
-            // address of the place, and its name only where it has no address.
-            place: location?.latitude == nil || location?.longitude == nil ? nil : location?.address ?? location?.name,
-            images: [ImageRef(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)]
+            images: [ImageRef(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)],
+            spotIds: spot.map { [$0.id] }
         )
         let created = try await api.createItem(body)
-        var published = item
+        // Changed, perhaps, while it was going up: only where it is now is new.
+        var published = self.item(item.id) ?? item
         published.remoteId = created.id
         try update(published)
         // It is in the server's list now, and so in the phone's.
-        await loadListings()
+        if refreshing { await loadListings() }
     }
 
     /// Where a published item is on the website.

@@ -1,20 +1,13 @@
-import CoreImage
-import CoreImage.CIFilterBuiltins
 import UIKit
-import Vision
 
-/// Cuts the subject out of a photograph, so that it can be stood on a plain
-/// colour: the picture a listing wants, from a kitchen table. Vision finds the
-/// subject (iOS 17's foreground instance mask); Core Image clears what is
-/// behind it; the colour goes under it after (see UIImage.over).
+/// What a photograph is kept at, and what is said when one cannot be read.
+/// (The name is from when the phone cut a subject out of its background.)
 enum BackgroundRemover {
     enum Failure: LocalizedError {
-        case noSubject
         case noImage
 
         var errorDescription: String? {
             switch self {
-            case .noSubject: String(localized: "No subject was found in the photo")
             case .noImage: String(localized: "The photo could not be read")
             }
         }
@@ -22,51 +15,9 @@ enum BackgroundRemover {
 
     /// The longest side a photo is kept at, as the website keeps it.
     static let maxSide: CGFloat = 1600
-
-    /// The photo's subject alone, with nothing behind it: clear where the
-    /// background was.
-    static func cutOut(_ image: UIImage) async throws -> UIImage {
-        let source = image.normalized(maxSide: maxSide)
-        return try await Task.detached(priority: .userInitiated) {
-            guard let cgImage = source.cgImage else { throw Failure.noImage }
-            let request = VNGenerateForegroundInstanceMaskRequest()
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try handler.perform([request])
-            guard let result = request.results?.first, !result.allInstances.isEmpty else {
-                throw Failure.noSubject
-            }
-            let maskBuffer = try result.generateScaledMaskForImage(forInstances: result.allInstances, from: handler)
-
-            let subject = CIImage(cgImage: cgImage)
-            let mask = CIImage(cvPixelBuffer: maskBuffer)
-            let nothing = CIImage(color: .clear).cropped(to: subject.extent)
-            let blend = CIFilter.blendWithMask()
-            blend.inputImage = subject
-            blend.backgroundImage = nothing
-            blend.maskImage = mask
-            guard let output = blend.outputImage,
-                  let rendered = CIContext().createCGImage(output, from: subject.extent)
-            else { throw Failure.noImage }
-            return UIImage(cgImage: rendered)
-        }.value
-    }
 }
 
 extension UIImage {
-    /// A cut-out subject stood on a colour: the colour over the whole picture,
-    /// and the subject on it.
-    func over(_ color: UIColor) -> UIImage {
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = scale
-        format.opaque = true
-        let whole = CGRect(origin: .zero, size: size)
-        return UIGraphicsImageRenderer(size: size, format: format).image { context in
-            color.setFill()
-            context.fill(whole)
-            draw(in: whole)
-        }
-    }
-
     /// The same picture drawn upright at scale 1 — a camera photo carries its
     /// rotation as a flag, which Vision and JPEG writers do not all read — and
     /// no longer than `maxSide` on its longer side.

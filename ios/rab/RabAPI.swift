@@ -34,27 +34,28 @@ struct ImageRef: Encodable {
 /// The most the server keeps of an item's few words for what it is (WHAT_MAX).
 let whatMax = 40
 
-/// An item as the server's parseItem reads it. The bare `price` is the one
-/// rule it needs: that price, every day.
+/// An item as the phone registers it, for the server's parseItem: what the
+/// thing is — its name, its few words, its category, its description and its
+/// photograph — and nothing about having it: no price, not lent out, not for
+/// sale, nobody to reach, no place and no area.
 struct ItemBody: Encodable {
     var title: String
     /// A few words for what it is (at most `whatMax` characters).
     var what = ""
     var description = ""
     var category = ""
+    /// What a price would be in, were there one: the server keeps one for
+    /// every item.
     var currency: String
-    var mode = "day"
-    var price: Double
-    var region: Region
-    /// The pin, and what the place is called: only for an item attached to a
-    /// location that knows where it is. Left out of the request otherwise.
-    var latitude: Double?
-    var longitude: Double?
-    var place: String?
+    /// Not lent out — and, no sale price being sent, not for sale either.
+    var rentable = false
     var images: [ImageRef]
+    /// The spots it goes on, where any were chosen: the one it was collected
+    /// for (see the scanner). Left out, the server puts it on the account's
+    /// default spot.
+    var spotIds: [String]?
     /// Not on the map yet: what the phone sends is a start, and its owner
-    /// finishes it — a price, the rest — in their items on the website and
-    /// publishes it from there.
+    /// finishes it in their items on the website and publishes it from there.
     var active = false
 }
 
@@ -86,31 +87,67 @@ struct Listing: Codable, Identifiable, Hashable {
 /// category, and a name and a description for it.
 struct Suggestion: Decodable {
     var category: String
+    /// The short category — the sort of thing it is in a word or two — which
+    /// is only said of a photograph sent as an object's (see `describe`).
+    var what: String?
     var title: String
     var description: String
 }
 
-/// One of the account's places as the server keeps it (GET /api/locations):
-/// the same list the website's form chooses from.
-struct RemoteLocation: Codable {
-    var id: String?
-    var name: String
-    var address: String?
-    var latitude: Double
-    var longitude: Double
+/// One of the account's spots as the server lists it (GET /api/mine): a
+/// collection of its items — a shop, a shelf, a room — that the scanner
+/// collects things onto.
+struct Spot: Codable, Identifiable, Hashable {
+    var id: String
+    var title: String
+    /// The line under its pin, where it has one.
+    var place: String?
     var region: Region?
+    var latitude: Double?
+    var longitude: Double?
+    /// Whether it has a pin at all: the two numbers above mean nothing otherwise.
+    var located: Bool?
+    /// How many items are on it.
+    var count: Int?
+    var thumb: String?
+    /// The spot every account has from the first, named after it.
+    var isDefault: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, place, region, latitude, longitude, located, count, thumb
+        case isDefault = "default"
+    }
+
+    /// Read leniently: a spot is a whole item on the server, and nothing but
+    /// its id and its name is needed to list it.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        title = (try? values.decode(String.self, forKey: .title)) ?? ""
+        place = try? values.decodeIfPresent(String.self, forKey: .place)
+        region = try? values.decodeIfPresent(Region.self, forKey: .region)
+        latitude = try? values.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try? values.decodeIfPresent(Double.self, forKey: .longitude)
+        located = try? values.decodeIfPresent(Bool.self, forKey: .located)
+        count = try? values.decodeIfPresent(Int.self, forKey: .count)
+        thumb = try? values.decodeIfPresent(String.self, forKey: .thumb)
+        isDefault = try? values.decodeIfPresent(Bool.self, forKey: .isDefault)
+    }
 }
 
-private struct LocationsReply: Decodable {
-    let locations: [RemoteLocation]
-}
-
-private struct LocationReply: Decodable {
-    let location: RemoteLocation
+/// What is changed of an item by recognizing it again (PATCH /api/items/:id):
+/// what it says it is, and nothing else — the rest stays as it was.
+struct RecognizedBody: Encodable {
+    var title: String
+    var what: String
+    var description: String
+    var category: String
 }
 
 private struct MineReply: Decodable {
     let items: [Listing]
+    /// Missing from a server from before there were spots.
+    let spots: [Spot]?
 }
 
 struct RemoteItem: Decodable {
@@ -231,10 +268,25 @@ final class RabAPI {
         return try JSONDecoder().decode(StoredImage.self, from: reply)
     }
 
-    /// The user's items on rab, newest first.
-    func mine() async throws -> [Listing] {
+    /// The user's items on rab, newest first, and their spots, the default
+    /// one first.
+    func mine() async throws -> (items: [Listing], spots: [Spot]) {
         let data = try await send("GET", "api/mine")
-        return try JSONDecoder().decode(MineReply.self, from: data).items
+        let reply = try JSONDecoder().decode(MineReply.self, from: data)
+        return (reply.items, reply.spots ?? [])
+    }
+
+    /// The bytes of a photograph the server keeps.
+    func imageData(_ path: String) async throws -> Data {
+        guard let url = imageURL(path) else {
+            throw APIError(status: 0, code: nil, message: String(localized: "The photo could not be read"))
+        }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            throw APIError(status: status, code: nil, message: String(localized: "The photo could not be read"))
+        }
+        return data
     }
 
     /// A photograph the server keeps, from the path an item gives for it.
@@ -243,31 +295,23 @@ final class RabAPI {
         return URL(string: path, relativeTo: baseURL)?.absoluteURL
     }
 
-    // MARK: - locations
-
-    /// The account's places, in the order they were added.
-    func locations() async throws -> [RemoteLocation] {
-        let data = try await send("GET", "api/locations")
-        return try JSONDecoder().decode(LocationsReply.self, from: data).locations
-    }
-
-    /// Keeps a place in the account's list, under the id it is sent with.
-    func saveLocation(_ location: RemoteLocation) async throws -> RemoteLocation {
-        let reply: LocationReply = try await post("api/locations", location)
-        return reply.location
-    }
-
-    func deleteLocation(_ id: String) async throws {
-        _ = try await send("DELETE", "api/locations/\(id)")
-    }
-
     // MARK: - describing
 
     /// Asks the server what a photograph is of, in the language given ("en",
     /// "zh", "ja"). The bytes are a JPEG reduced on the phone; nothing is kept.
-    func describe(_ data: Data, language: String) async throws -> Suggestion {
-        let reply = try await send("POST", "api/describe", query: [URLQueryItem(name: "lang", value: language)], body: data, type: "image/jpeg")
+    /// With `object`, the photograph is said to be of an object: the server
+    /// then chooses among the object categories only, and says its short
+    /// category too.
+    func describe(_ data: Data, language: String, object: Bool = false) async throws -> Suggestion {
+        var query = [URLQueryItem(name: "lang", value: language)]
+        if object { query.append(URLQueryItem(name: "objects", value: "1")) }
+        let reply = try await send("POST", "api/describe", query: query, body: data, type: "image/jpeg")
         return try JSONDecoder().decode(Suggestion.self, from: reply)
+    }
+
+    /// Writes over what an item on rab says it is, leaving the rest of it.
+    func updateItem(_ id: String, _ body: RecognizedBody) async throws {
+        _ = try await send("PATCH", "api/items/\(id)", body: try JSONEncoder().encode(body), type: "application/json")
     }
 
     /// Takes an item off rab for good, with whatever was still open on it.

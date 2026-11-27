@@ -31,8 +31,6 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>rab takes the photograph of the thing you are putting out for rent.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>rab finds the area an item is offered in, and opens the map for a new location, from where you are.</string>
 	<!-- A dev server on the same network is plain http. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

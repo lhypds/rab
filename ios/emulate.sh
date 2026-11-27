@@ -4,7 +4,7 @@
 #   ./emulate.sh               the simulator already running, else an iPhone 17
 #   ./emulate.sh "iPhone Air"  a particular one, by name or identifier
 #
-# The simulator has no camera; use the photo button there.
+# The simulator has no camera, so nothing can be collected there.
 set -e
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"

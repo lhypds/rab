@@ -300,6 +300,9 @@
       "no": "否",
       "yes": "是"
     },
+    "count": "数量",
+    "countLine": "数量：{{n}}",
+    "notOffered": "未提供",
     "offerRequired": "出售和临时使用至少要选一项。",
     "forSale": "出售",
     "basePricing": "默认价格",

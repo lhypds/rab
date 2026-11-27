@@ -117,7 +117,7 @@ const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDeposit, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
-const { OpenAI, canDescribe, classifyListing, describeImage, describeRequest } = await import("./describe.js");
+const { OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -843,6 +843,7 @@ const HOMEPAGE_MAX = 500;
 // How many links an item keeps, and how long its few words for what it is.
 const LINKS_MAX = 10;
 const WHAT_MAX = 40;
+const QUANTITY_MAX = 9999;
 
 // An item's own page somewhere else, as its address: http or https, with
 // "https://" put in front of one written without. Empty where there is none,
@@ -878,8 +879,12 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // The area it is offered in, which every item says — it is what lists an
   // item for the people looking there, and the only place an item without a
   // pin has.
+  // One that is offered neither way — not lent out, not for sale — is only
+  // written down: what the phone's scanner registers is, until its owner says
+  // otherwise. It need say no area, and no way to reach anybody.
+  const offered = body?.spot === true || body?.rentable !== false || readDeposit(body?.salePrice, String(body?.currency ?? "")) !== null;
   const region = parseRegion(body?.region);
-  if (!region && !regionOptional) {
+  if (!region && !regionOptional && offered) {
     return { error: "Say which area it is offered in", code: "REGION_REQUIRED" };
   }
   // The areas it is offered in besides: something that stands between two is
@@ -901,10 +906,8 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // here would be nobody's to answer.
   // One that is not lent out at all — only for sale — is settled by asking
   // too: it has no calendar, no rental price, and no request to answer.
+  // Neither is allowed too (see `offered` above).
   const rentable = body?.spot === true || body?.rentable !== false;
-  if (!rentable && readDeposit(body?.salePrice, currency) === null) {
-    return { error: "Offer it for sale, for temporary use, or both", code: "OFFER_REQUIRED" };
-  }
   const mode = body?.shared === true || !rentable ? "inquiry" : MODES.has(body?.mode) ? body.mode : "day";
   const sent = !rentable ? [{}] : Array.isArray(body?.rates) && body.rates.length > 0 ? body.rates : [{ price: body?.price }];
   // What it costs need not be said: it is then listed as priced on request,
@@ -919,7 +922,7 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // How the owner is reached, whichever way it is booked. Somebody else's has
   // no account to send a message to, so that way is not one of its.
   const contacts = readContacts(body?.contacts).filter((contact) => body?.shared !== true || contact.type !== "message");
-  if (mode === "inquiry" && contacts.length === 0) {
+  if (mode === "inquiry" && offered && contacts.length === 0) {
     return { error: "Say how you can be contacted", code: "CONTACT_REQUIRED" };
   }
 
@@ -936,6 +939,9 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       title,
       // A few words for what it is, kept apart from its name.
       what: text(body?.what, WHAT_MAX).trim(),
+      // How many of it there are — the count on the phone's item page: a
+      // whole number from one up, and one where nothing sensible is said.
+      quantity: Math.min(QUANTITY_MAX, Math.max(1, Math.floor(Number(body?.quantity)) || 1)),
       description: text(body?.description, DESCRIPTION_MAX),
       // Its own pages somewhere else, where it has any.
       links: readLinks(body),
@@ -1950,9 +1956,17 @@ app.post(
       return res.status(400).json({ error: "The image is empty" });
     }
     try {
-      const listing = await describeImage(req.body, String(req.query.lang ?? "en").slice(0, 2));
+      const language = String(req.query.lang ?? "en").slice(0, 2);
+      // `objects=1`: the photograph is of an object — the phone's scanner
+      // took it — so only the object categories are chosen among, and its
+      // short category comes back too, as `what` (see describeObject).
+      const listing = req.query.objects === "1" ? await describeObject(req.body, language) : await describeImage(req.body, language);
       if (!listing) return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
-      res.json(listing);
+      res.json({
+        ...listing,
+        title: listing.title.slice(0, TITLE_MAX),
+        ...("what" in listing && { what: listing.what.slice(0, WHAT_MAX) }),
+      });
     } catch (error) {
       describeFault(error, res, "describing a photo");
     }

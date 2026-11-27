@@ -35,7 +35,7 @@ struct ItemDetailView: View {
             let what = item.what ?? "", description = item.description ?? ""
             if !what.isEmpty || !description.isEmpty {
                 Section {
-                    if !what.isEmpty { Text(what).font(.headline) }
+                    if !what.isEmpty { Text(what).fontWeight(.semibold) }
                     if !description.isEmpty { Text(description) }
                 }
             }
@@ -49,8 +49,8 @@ struct ItemDetailView: View {
                         Text("None")
                     }
                 }
-                if let location = model.location(item.locationId) {
-                    LabeledContent("Location", value: location.name)
+                if let spot = model.spot(item.spotId) {
+                    LabeledContent("Spot", value: spot.title)
                 }
                 LabeledContent("Taken", value: item.createdAt.formatted(date: .abbreviated, time: .shortened))
             }
@@ -73,7 +73,8 @@ struct ItemDetailView: View {
                             if publishing { ProgressView() }
                         }
                     }
-                    .disabled(publishing)
+                    // What has no name yet has nothing to be listed as.
+                    .disabled(publishing || !item.isRecognized || model.recognizing.contains(item.id))
                 }
                 if let url = model.store?.photoURL(item) {
                     ShareLink(item: url) {
@@ -81,7 +82,9 @@ struct ItemDetailView: View {
                     }
                 }
             } footer: {
-                if item.remoteId == nil {
+                if !item.isRecognized {
+                    Text("Not recognized yet. The brain at the top says what it is, and it then goes onto rab.")
+                } else if item.remoteId == nil {
                     Text("On this phone only, in your folder under data.")
                 }
             }
@@ -102,19 +105,33 @@ struct ItemDetailView: View {
         }
         .listStyle(.insetGrouped)
         .rabBackground()
-        // Spaced as the new item's form is: the same gap between the cards,
-        // and the photograph as far under the bar.
-        .listSectionSpacing(12)
-        .contentMargins(.top, 16, for: .scrollContent)
-        .navigationTitle(item.title)
+        // Compact, as the sign-in screen is: the same type, the same height
+        // of row and button, the same margins.
+        .compactList()
+        .navigationTitle(item.isRecognized ? Text(item.title) : Text("Not recognized yet"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                RecognizeButton(busy: model.recognizing.contains(item.id)) { recognize(item) }
+            }
+        }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
-        .alert("Delete this item?", isPresented: $deleting) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                model.delete(item)
-                dismiss()
+        .compactDialog(isPresented: $deleting, title: Text("Delete this item?"), confirm: "Delete") {
+            model.delete(item)
+            dismiss()
+        }
+    }
+
+    /// Has the photograph looked at again, and what the item says it is
+    /// written over; one collected for a spot goes onto rab with it.
+    private func recognize(_ item: SavedItem) {
+        error = nil
+        Task {
+            do {
+                try await model.recognize(item)
+            } catch {
+                self.error = error.localizedDescription
             }
         }
     }

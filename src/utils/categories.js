@@ -61,6 +61,33 @@ export const CATEGORIES = [
   "other",
 ];
 
+// The categories that are objects — things that can be picked up, or at least
+// photographed whole: what the phone's scanner chooses among when it says what
+// a photographed thing is (see describeObject in server/describe.js). No
+// places and nobody's time: a camera pointed at a thing is not looking at one.
+export const OBJECT_CATEGORIES = [
+  "car",
+  "bike",
+  "camera",
+  "video-camera",
+  "drone",
+  "binoculars",
+  "projector",
+  "audio",
+  "musical-instrument",
+  "computer",
+  "game-console",
+  "electronics",
+  "kitchen-appliance",
+  "cleaning-appliance",
+  "beauty-appliance",
+  "tools",
+  "camping",
+  "sports",
+  "clothing",
+  "other",
+];
+
 // Categories only grown-ups are shown: an account that has said when it was
 // born and is ADULT_AGE or older (see the account sheet). The server leaves
 // them out of everything it sends anybody else, and the lists here leave them
