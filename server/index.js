@@ -1162,15 +1162,42 @@ app.get("/api/items/:id", (req, res) => {
 function rememberPublicPlaces(items) {
   const near = (a, b) => Math.abs(a - b) < 1e-5;
   let places = null;
+  // The places by address, and by the square of the map they are in — as wide
+  // as two spots may be apart and be one — so that an item is held against
+  // the few places near it and not against every one: with tens of thousands
+  // of items and thousands of places that was seconds of every start.
+  const addresses = new Set();
+  const squares = new Map();
+  const square = (value) => Math.round(value * 1e5);
+  const note = (place) => {
+    if (place.address) addresses.add(place.address);
+    if (typeof place.latitude !== "number" || typeof place.longitude !== "number") return;
+    const key = `${square(place.latitude)},${square(place.longitude)}`;
+    if (!squares.has(key)) squares.set(key, []);
+    squares.get(key).push(place);
+  };
+  const isNear = (item) => {
+    const row = square(item.latitude);
+    const column = square(item.longitude);
+    for (let y = row - 1; y <= row + 1; y += 1) {
+      for (let x = column - 1; x <= column + 1; x += 1) {
+        const there = squares.get(`${y},${x}`);
+        if (there?.some((place) => near(place.latitude, item.latitude) && near(place.longitude, item.longitude))) return true;
+      }
+    }
+    return false;
+  };
   // The new ones, written together once every item has been looked at: a
   // write of the whole list for each is what a zip of thousands waits on.
   const fresh = [];
   for (const item of items) {
     if (!item.shared || !item.located || item.latitude == null || item.longitude == null) continue;
-    places ??= getLocations(PUBLIC_ID);
+    if (!places) {
+      places = getLocations(PUBLIC_ID);
+      for (const place of places) note(place);
+    }
     // One place per address too, as push and mirror count them (rab public).
-    if (places.some((place) => (near(place.latitude, item.latitude) && near(place.longitude, item.longitude))
-      || (item.place && place.address === item.place))) continue;
+    if ((item.place && addresses.has(item.place)) || isNear(item)) continue;
     const place = {
       name: text(item.place || item.title, LOCATION_NAME_MAX),
       address: item.place ?? "",
@@ -1179,6 +1206,7 @@ function rememberPublicPlaces(items) {
       region: item.region ?? null,
     };
     places.push(place);
+    note(place);
     fresh.push(place);
   }
   addLocations(PUBLIC_ID, fresh);
