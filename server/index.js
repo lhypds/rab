@@ -51,6 +51,7 @@ const {
   defaultStore,
   keepItemsOnStores,
   storeItems,
+  storeItemKinds,
   storesWith,
   setStoreItems,
   getItemImages,
@@ -695,12 +696,46 @@ function publicItem(item) {
 // and the categories it is in: the one chosen for it first, where there is
 // one, and then those of the items on it it is not already in, the most first.
 // The map counts it under each of them.
+// Only what the map, its bubble, the rows and the filter read: the booking
+// rules, calendar and the rest are on the item's own page. Thousands at a
+// time, every field left out is megabytes not written, hashed, squeezed and
+// read again in the browser.
 function listedItem(item, viewer) {
-  const { images, ...rest } = publicItem(item);
-  if (!item.store) return rest;
-  const items = itemsInStore(item, viewer);
-  return { ...rest, count: items.length, categories: storeCategories(item, items) };
+  const listed = {
+    id: item.id,
+    store: item.store,
+    title: item.title,
+    what: item.what,
+    description: item.description,
+    category: item.category,
+    mode: item.mode,
+    price: item.price,
+    currency: item.currency,
+    located: item.located,
+    latitude: roundDegree(item.latitude),
+    longitude: roundDegree(item.longitude),
+    place: item.place,
+    // A row says the area's name where there is no place; its box is not
+    // needed here.
+    region: item.region ? { name: item.region.name } : null,
+    thumb: item.thumb,
+    pin: item.pin,
+    active: item.active,
+    shared: item.shared,
+    owner: item.owner,
+    rating: item.rating,
+    // The bubble's Request goes the way its owner said first.
+    contacts: item.contacts.slice(0, 1),
+  };
+  if (!item.store) return listed;
+  const own = viewer?.id === item.ownerId;
+  const items = storeItemKinds(item, { publicOnly: !own }).filter((each) => own || mayView(viewer, each));
+  return { ...listed, count: items.length, categories: storeCategories(item, items) };
 }
+
+// To the millionth of a degree — a hand's breadth — which is as near as a pin
+// is put.
+const roundDegree = (value) => (value == null ? value : Math.round(value * 1e6) / 1e6);
 
 function storeCategories(store, items) {
   const counts = new Map();

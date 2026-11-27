@@ -1648,7 +1648,18 @@ export function getStores(userId) {
 
 // The items on a store, as a list shows them: only the published ones where
 // `publicOnly`, as for somebody else looking at it.
-export function storeItems(store, { publicOnly = false } = {}) {
+export function storeItems(store, options) {
+  return keptStoreItems(store, options).map(servedItem);
+}
+
+// The same, as little as the map's count of them needs — what each is of and
+// whose — for thousands of stores at a time, without making each item whole
+// (its rating alone goes through every booking there is).
+export function storeItemKinds(store, options) {
+  return keptStoreItems(store, options).map((item) => ({ category: item.category, ownerId: item.ownerId }));
+}
+
+function keptStoreItems(store, { publicOnly = false } = {}) {
   const kept = itemsById.get(store.id);
   if (!kept?.store) return [];
   return (kept.itemIds ?? [])
@@ -1656,8 +1667,7 @@ export function storeItems(store, { publicOnly = false } = {}) {
     .filter(
       (item) =>
         item && !item.store && item.ownerId === kept.ownerId && (!publicOnly || item.active),
-    )
-    .map(servedItem);
+    );
 }
 
 // The ids of the items on one of the account's stores, as they now are. Null
