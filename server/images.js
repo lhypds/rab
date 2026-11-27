@@ -3,7 +3,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { dataDir, deletedFolders, deletedItemDir, heldDir, itemDir, itemFolders, storeDir, storeFolders, userDir, userFolders } from "./files.js";
+import { dataDir, deletedFolders, deletedItemDir, heldDir, itemDir, itemFolders, storeDir, storeFolders, userDir, userFolders, requestDir, requestFolders } from "./files.js";
 
 // Where photographs are kept: beside the item they are of, in the item's own
 // folder, data/users/<username>/items/<item id>/ (see files.js) — one file per picture, named
@@ -40,6 +40,8 @@ function survey() {
       ...storeFolders(userId).map((folder) => storeDir(userId, folder)),
       // A deleted item's pictures still show where its bookings are listed.
       ...deletedFolders(userId).map(({ folder, store }) => deletedItemDir(userId, folder, store)),
+      // A request's are beside it in its folder, as an item's are.
+      ...requestFolders(userId).map((folder) => requestDir(userId, folder)),
     ];
     for (const dir of [uploads, ...kept]) {
       let names;
@@ -245,6 +247,12 @@ export function keepImages(userId, itemId, names) {
 // its store.json in its own folder (see files.js).
 export function keepStoreImages(userId, storeId, names) {
   keepImagesIn(storeDir(userId, storeId), names);
+}
+
+// And for a request ("I need"), whose photographs are kept beside its
+// request.json in its own folder.
+export function keepRequestImages(userId, requestId, names) {
+  keepImagesIn(requestDir(userId, requestId), names);
 }
 
 function keepImagesIn(dir, names) {

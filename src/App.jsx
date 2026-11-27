@@ -1,5 +1,5 @@
 import { Loading, ReviewPrompt, useAuth } from "./components/index.js";
-import { AuthPage, HomePage, ItemPage, MinePage, OthersPage, PreviewPage, UserPage } from "./pages/index.js";
+import { AuthPage, HomePage, ItemPage, MinePage, PreviewPage, UserPage } from "./pages/index.js";
 import { useRef } from "react";
 import { LocationScope, Navigate, useLocation } from "./ui/index.js";
 import { homeFilter, homePath } from "./utils/categories.js";
@@ -74,9 +74,9 @@ function otherPage(pathname, user) {
   if (pathname === "/login") return <AuthPage />;
   if (pathname === "/mine") return user ? <MinePage /> : <Navigate to="/login?next=/mine" replace />;
   if (pathname === "/preview") return <PreviewPage />;
-  if (pathname === "/others") return user ? <OthersPage /> : <Navigate to="/login?next=/others" replace />;
-  // What /others used to be called.
-  if (pathname === "/rentals") return <Navigate to="/others" replace />;
+  // What you asked other people for and what you kept had a page of their
+  // own once (/others, and /rentals before that): they are on /mine now.
+  if (pathname === "/others" || pathname === "/rentals") return <Navigate to="/mine" replace />;
 
   const itemId = segment(pathname, "/i/");
   if (itemId) return <ItemPage key={itemId} id={itemId} />;

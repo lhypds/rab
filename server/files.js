@@ -20,6 +20,8 @@ import { fileURLToPath } from "node:url";
 //                                                  with the ids of the items on it (`itemIds`), kept
 //                                                  apart from the items
 //   data/users/<username>/stores/<made>/<name>     that store's photographs, beside it
+//   data/users/<username>/requests/<id>/request.json  one thing they are looking for ("I need")
+//   data/users/<username>/requests/<id>/<name>     that request's photographs, beside it
 //   data/users/<username>/deleted/items/<made>/    an item deleted, its folder moved here whole (item.json,
 //                                                  with deletedAt, and its photographs)
 //   data/users/<username>/deleted/spots/<made>/    a store deleted, the same (store.json)
@@ -531,6 +533,71 @@ function writeStore(userId, store) {
   const dir = storeDir(userId, store.id);
   fs.mkdirSync(dir, { recursive: true });
   writeJson(path.join(dir, STORE_FILE), store);
+}
+
+/* ---------------------------------------------------------------- requests */
+
+// Every request ("I need") has a folder of its own in its maker's requests/,
+// named after the request's id, in which request.json is the request and the
+// pictures beside it are its own — as an item has.
+export const REQUEST_FILE = "request.json";
+// What they were all kept in once, one list to an account: read the first
+// time and put into folders (see readRequests).
+const OLD_REQUESTS_FILE = "requests.json";
+const REQUEST_FOLDER_RE = /^[a-z0-9]+$/;
+
+export const requestsDir = (userId) => path.join(userDir(userId), "requests");
+
+export function requestDir(userId, id) {
+  const name = String(id ?? "");
+  if (!REQUEST_FOLDER_RE.test(name)) throw new Error(`not a request's folder: ${name}`);
+  return path.join(requestsDir(userId), name);
+}
+
+// The names of the request folders an account has.
+export function requestFolders(userId) {
+  try {
+    return fs
+      .readdirSync(requestsDir(userId), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && REQUEST_FOLDER_RE.test(entry.name))
+      .map((entry) => entry.name);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+export function writeRequest(userId, request) {
+  const dir = requestDir(userId, request.id);
+  fs.mkdirSync(dir, { recursive: true });
+  writeJson(path.join(dir, REQUEST_FILE), request);
+}
+
+// A request's whole folder, gone: the request and its photographs.
+export function removeRequestDir(userId, id) {
+  fs.rmSync(requestDir(userId, id), { recursive: true, force: true });
+}
+
+// Every request an account has. A folder with no request.json in it is not a
+// request and is passed over; one that cannot be read is an error. The
+// folder's name is the request's id, whatever the file says. An account still
+// keeping them as one list has each put into a folder of its own first, and
+// the list set aside (requests.json.moved) rather than thrown away.
+export function readRequests(userId) {
+  const old = path.join(userDir(userId), OLD_REQUESTS_FILE);
+  if (fs.existsSync(old)) {
+    for (const request of readList(userId, OLD_REQUESTS_FILE)) {
+      if (!REQUEST_FOLDER_RE.test(String(request?.id ?? ""))) continue;
+      if (!fs.existsSync(path.join(requestDir(userId, request.id), REQUEST_FILE))) writeRequest(userId, request);
+    }
+    fs.renameSync(old, `${old}.moved`);
+  }
+  const requests = [];
+  for (const folder of requestFolders(userId)) {
+    const request = readJsonObject(path.join(requestDir(userId, folder), REQUEST_FILE));
+    if (request) requests.push({ ...request, id: folder });
+  }
+  return requests;
 }
 
 /* ------------------------------------------------------------------- lists */

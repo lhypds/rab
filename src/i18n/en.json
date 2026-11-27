@@ -14,10 +14,11 @@
     "mine": "Mine",
     "account": "User",
     "signIn": "Sign in",
-    "others": "Others",
     "viewMap": "Map",
     "viewList": "List",
-    "pinned": "On the map"
+    "pinned": "On the map",
+    "have": "I have",
+    "need": "I need"
   },
   "auth": {
     "username": "Username",
@@ -135,9 +136,22 @@
     "count_one": "{{count}} item here",
     "count_other": "{{count}} items here",
     "open": "View",
-    "nav": "Directions",
+    "nav": "Nav",
+    "edit": "Edit",
     "searchClear": "Clear",
-    "request": "Request"
+    "request": "Request",
+    "kind": "Show",
+    "kinds": {
+      "offers": "Offers",
+      "requests": "Requests"
+    },
+    "requestsEmpty": "Nobody is asking for anything in this area yet.",
+    "requestsEmptyAsk": "Looking for something? Say so here.",
+    "requestTotals_one": "{{count}} request",
+    "requestTotals_other": "{{count}} requests",
+    "requestCount_one": "{{count}} request here",
+    "requestCount_other": "{{count}} requests here",
+    "requestsNone": "No requests here yet"
   },
   "item": {
     "minDurationHint": "The shortest one booking can be: a whole number of steps.",
@@ -423,7 +437,8 @@
     "title": "Mine",
     "itemsEmpty": "You have nothing listed. Press + to publish something.",
     "noneShown": "Nothing here.",
-    "items": "Items"
+    "items": "Items",
+    "wanted": "Requests"
   },
   "user": {
     "missing": "There is nobody by that name.",
@@ -564,10 +579,9 @@
     "explainRental": "This booking is complete. How was it with {{name}}, and how was the item? Your ratings and comment are shown on their profile and on the item's page."
   },
   "others": {
-    "title": "Others",
     "empty": "You have not booked anything yet.",
-    "rentals": "My Rentals",
-    "bookmarks": "My Bookmarks",
+    "rentals": "Rentals",
+    "bookmarks": "Bookmarks",
     "noBookmarks": "Nothing bookmarked yet.",
     "noneShown": "Nothing here."
   },
@@ -614,10 +628,51 @@
     "as": "Add a",
     "item": "Item",
     "store": "Spot",
-    "itemHint": "One thing, space or service to rent out, with its own photos, price and calendar.",
+    "itemHint": "One thing, space or service to provide, with its own photos, price and calendar.",
     "pageHint": "A spot is a collection of several items, and need not be a real place. Use it as the home of a shop, a venue or a service.",
     "colon": ": ",
     "storeHint": "Tick one or more of your spots. Your default spot, named after you, is ticked to start with, and at least one stays ticked.",
     "storeLabel": "Add to spot"
+  },
+  "request": {
+    "title": "I need",
+    "what": "What are you looking for?",
+    "whatPlaceholder": "e.g. A stroller, or help moving house",
+    "categoryNone": "Any category",
+    "where": "Where",
+    "when": "When",
+    "from": "From",
+    "until": "Until",
+    "whenHint": "Leave empty if any time works.",
+    "budget": "Budget",
+    "budgetPlaceholder": "Leave empty if open",
+    "budgetLine": "Up to {{price}}",
+    "budgetOpen": "Budget open",
+    "budgetOpenShort": "Open",
+    "fillIn": "Smart fill",
+    "fillingIn": "Generating…",
+    "fillInUnavailable": "This server is not set up to fill this in.",
+    "fillInFailed": "This could not be filled in. Fill it in yourself.",
+    "editTitle": "Edit request",
+    "updated": "Request saved",
+    "contactHint": "Shown on the request, so anyone who can help can reach you.",
+    "note": "Details",
+    "notePlaceholder": "Anything else worth knowing",
+    "post": "Post request",
+    "saved": "Request posted",
+    "titleRequired": "Say what you are looking for.",
+    "placeRequired": "Choose where you need it.",
+    "offer": "Message",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this request?",
+    "deleted": "Request deleted",
+    "anonymous": "Post anonymously",
+    "anonymousHint": "Your username is not shown — not on the request, and not in the messages people send you about it on rab.",
+    "anonymousName": "Anonymous",
+    "anyTime": "Any time",
+    "contact": "Contact",
+    "photosHint": "Optional. A photo of the kind of thing you are looking for.",
+    "region": "Request area",
+    "regionHint": "Filled in with the city the map is on. Anyone looking at this area sees the request in the list."
   }
 }

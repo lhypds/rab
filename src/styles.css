@@ -264,8 +264,22 @@ a {
 }
 
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 18px;
   text-decoration: none;
+}
+
+/* rab's mark before its name, drawn in the bar's own ink. */
+.wordmark-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 40;
+  stroke-linecap: round;
 }
 
 .topbar-action-slot {
@@ -288,7 +302,7 @@ a {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: clamp(140px, calc(100vw - 640px), 480px);
+    width: clamp(140px, calc(100vw - 860px), 480px);
     display: block;
     transform: translate(-50%, -50%);
   }
@@ -312,6 +326,51 @@ a {
 .button-pair [aria-pressed="true"] {
   background: var(--ink);
   color: var(--paper);
+}
+
+/* A button of the bar that says what it is in a word beside its mark: drawn
+   as the others are, and as wide as its word. */
+.topbar-word {
+  flex: none;
+  height: var(--action-h);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topbar-word svg {
+  flex: none;
+  width: var(--action-icon);
+  height: var(--action-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Where the bar is full — a phone, or a window narrow enough that the words
+   would run into the box in the middle — the marks alone, at the others' size. */
+@media (max-width: 959px) {
+  .topbar-word {
+    width: var(--action-w);
+    justify-content: center;
+    padding: 2px;
+  }
+
+  .topbar-word span {
+    display: none;
+  }
 }
 
 .topbar-badge {
@@ -429,6 +488,11 @@ a {
   --column-min: 508px;
 }
 
+/* Mine has two such pairs, one under the other. */
+.mine-page .others-columns + .others-columns {
+  margin-top: 32px;
+}
+
 /* Every column's heading is as tall as a small button, so the rules under
    them line up whether or not a heading carries one. */
 .others-columns .part-heading {
@@ -439,8 +503,7 @@ a {
 }
 
 .mine-page .others-columns > section > .tabs,
-.user-page .others-columns > section > .tabs,
-.others-page > section > .tabs {
+.user-page .others-columns > section > .tabs {
   margin: 12px 0;
 }
 

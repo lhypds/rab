@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Link, Modal, Skeleton, TextArea } from "../../ui/index.js";
 import { bookingLine, isBookingLine, linePath } from "../../utils/bookings.js";
-import { formatUsername, relativeTime } from "../../utils/format.js";
+import { formatUsername, relativeTime, threadName } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
 import UserName from "../UserName/index.js";
 import styles from "./message.module.css";
@@ -168,6 +168,10 @@ export function MessageThread({ username, onLeave }) {
   // The last of the reader's own lines the far side has had in front of them.
   const readTo = messages.reduce((last, message) => (message.mine && message.read ? message.id : last), null);
   const me = user?.username ?? "";
+  // Whose lines the other side's are: nobody's by name, in an exchange with
+  // whoever asked for something without one.
+  const them = threadName(username);
+  const themShown = them ? formatUsername(them) : t("request.anonymousName");
 
   return (
     <div className={styles.sheet}>
@@ -184,18 +188,22 @@ export function MessageThread({ username, onLeave }) {
             <Skeleton rows={3} lines={1} label={t("common.loading")} />
           ) : (
             !error && (
-              <p className={styles.empty}>{t("messages.emptyThread", { name: formatUsername(username ?? "") })}</p>
+              <p className={styles.empty}>{t("messages.emptyThread", { name: themShown })}</p>
             )
           )
         ) : (
           <ul className={styles.lines}>
             {messages.map((message) => {
-              const who = message.mine ? me : username;
+              const who = message.mine ? me : them;
               const event = isBookingLine(message);
               const about = event ? linePath(message) : null;
               return (
                 <li key={message.id} className={message.mine ? `${styles.line} ${styles.mine}` : styles.line}>
-                  {who && <UserName name={who} className={styles.who} state={BACK} onClick={onLeave} />}
+                  {who ? (
+                    <UserName name={who} className={styles.who} state={BACK} onClick={onLeave} />
+                  ) : (
+                    !message.mine && <span className={styles.who}>{themShown}</span>
+                  )}
                   {event ? (
                     // What became of a booking — or what the administrator
                     // was sent about an item — and the way to the item it
@@ -275,6 +283,8 @@ export function MessageThread({ username, onLeave }) {
 // the sheet is about to leave for a page, so whatever is holding sheets open
 // over this one can put them away too.
 export default function MessageModal({ username, onClose, onNavigate }) {
+  const { t } = useTranslation();
+  const them = threadName(username);
   function leave() {
     onClose();
     onNavigate?.();
@@ -285,11 +295,15 @@ export default function MessageModal({ username, onClose, onNavigate }) {
       isOpen={Boolean(username)}
       // The name is the way through to the other person's page.
       title={
-        username && (
-          <Link className={styles.profile} to={`/u/${encodeURIComponent(username)}`} state={BACK} onClick={leave}>
-            {formatUsername(username)}
+        username &&
+        (them ? (
+          <Link className={styles.profile} to={`/u/${encodeURIComponent(them)}`} state={BACK} onClick={leave}>
+            {formatUsername(them)}
           </Link>
-        )
+        ) : (
+          // Nobody to go through to: asked without a name.
+          t("request.anonymousName")
+        ))
       }
       onClose={onClose}
       closeOnOverlay

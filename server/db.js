@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, writeRequest, moveStoreDir, moveOldStores, readOldStores, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, renumberAccounts, renumberItems, storeAsWebp } from "./migrate.js";
 
@@ -1303,27 +1303,63 @@ function servedMessage(line) {
 
 const unreadLine = (line) => !line.mine && !line.read;
 
+// An exchange about a request asked without a name is a thread of its own,
+// apart from whatever else the same two accounts have said to each other:
+// `via` on its lines is the request's id, and `anon` — on the copies kept by
+// the one who answered — says the far end is not to be named. So a thread is
+// who it is with and, where there is one, the request it is by way of.
+const inThread = (line, otherId, via) => line.with === otherId && (line.via ?? null) === via;
+
+// How a thread is addressed by the account holding it: the other's name; or
+// for one by way of a request, "~<request>" to its nameless maker and
+// "<name>~<request>" back to whoever answered.
+function threadHandle(line) {
+  if (!line.via) return nameOf(line.with);
+  return line.anon ? `~${line.via}` : `${nameOf(line.with)}~${line.via}`;
+}
+
+// Who `userId` is writing to by way of a request: its maker, from what has
+// already been said — which outlives the request — or null.
+export function anonymousPeer(userId, via) {
+  return linesOf(userId).find((line) => line.via === via && line.anon)?.with ?? null;
+}
+
+// Whether `userId`, having asked without a name, has been written to by
+// `otherId` by way of that request: only then is there anybody to answer.
+export function answeredBy(userId, otherId, via) {
+  return linesOf(userId).some((line) => inThread(line, otherId, via) && !line.anon);
+}
+
 // The inbox: the last line of every conversation this account is part of, with
 // how much of it is still unread.
 export function getThreads(userId, limit = 50) {
   const threads = new Map();
   for (const line of linesOf(userId)) {
-    const thread = threads.get(line.with) ?? { last: line, unread: 0 };
+    const key = `${line.with} ${line.via ?? ""}`;
+    const thread = threads.get(key) ?? { last: line, unread: 0 };
     if (line.id >= thread.last.id) thread.last = line;
     if (unreadLine(line)) thread.unread += 1;
-    threads.set(line.with, thread);
+    threads.set(key, thread);
   }
   return [...threads.values()]
     .sort((a, b) => b.last.id - a.last.id)
     .slice(0, limit)
-    .map(({ last, unread }) => ({ ...servedMessage(last), username: nameOf(last.with), unread }));
+    .map(({ last, unread }) => ({
+      ...servedMessage(last),
+      // What the thread is addressed by, which for one by way of a request
+      // is not a name (see threadHandle) — and then what was asked for, to
+      // tell it by.
+      username: threadHandle(last),
+      ...(last.via ? { about: heldRequests().get(last.via)?.title ?? null } : null),
+      unread,
+    }));
 }
 
 // Capped at its end rather than its beginning: a long exchange opens on the
 // part of it that is still being had.
-export function getConversation(userId, otherId, limit = 200) {
+export function getConversation(userId, otherId, limit = 200, via = null) {
   return linesOf(userId)
-    .filter((line) => line.with === otherId)
+    .filter((line) => inThread(line, otherId, via))
     .sort((a, b) => a.id - b.id)
     .slice(-limit)
     .map(servedMessage);
@@ -1336,10 +1372,10 @@ export function countUnread(userId) {
 // Marks what `userId` was sent by `otherId` as read, in both folders. Writes
 // nothing where nothing was unread — an open conversation asks every few
 // seconds.
-export function readConversation(userId, otherId) {
+export function readConversation(userId, otherId, via = null) {
   const fresh = new Set(
     linesOf(userId)
-      .filter((line) => line.with === otherId && unreadLine(line))
+      .filter((line) => inThread(line, otherId, via) && unreadLine(line))
       .map((line) => line.id),
   );
   if (fresh.size === 0) return;
@@ -1357,7 +1393,14 @@ export function readConversation(userId, otherId) {
   });
 }
 
-export function createMessage(fromId, toId, body, { kind = "text", bookingId = null, itemId = null, store = null, reason = null } = {}) {
+export function createMessage(
+  fromId,
+  toId,
+  body,
+  // `via` and `anonId`: the request an exchange is by way of, and which end of
+  // it asked without a name (see inThread).
+  { kind = "text", bookingId = null, itemId = null, store = null, reason = null, via = null, anonId = null } = {},
+) {
   // The clock, so a number is never handed out twice even after both ends have
   // deleted the lines that carried the highest ones.
   lastMessageId = Math.max(Date.now(), lastMessageId + 1);
@@ -1370,13 +1413,14 @@ export function createMessage(fromId, toId, body, { kind = "text", bookingId = n
     // Or the store it is about, as whose it is and its id.
     ...(store ? { store: { ownerId: store.ownerId, id: store.id } } : null),
     ...(reason ? { reason } : null),
+    ...(via ? { via } : null),
     time: now(),
     read: false,
   };
-  const sent = { ...line, with: toId, mine: true };
+  const sent = { ...line, with: toId, mine: true, ...(via && toId === anonId ? { anon: true } : null) };
   transaction(() => {
     linesOf(fromId).push(sent);
-    linesOf(toId).push({ ...line, with: fromId, mine: false });
+    linesOf(toId).push({ ...line, with: fromId, mine: false, ...(via && fromId === anonId ? { anon: true } : null) });
     changed(fromId, "messages.json");
     changed(toId, "messages.json");
   });
@@ -1386,11 +1430,11 @@ export function createMessage(fromId, toId, body, { kind = "text", bookingId = n
 // A conversation deleted from an inbox goes from that side's folder only. What
 // had not been read yet counts as read on the way out, so the other end is not
 // left waiting on it.
-export function deleteConversation(userId, otherId) {
+export function deleteConversation(userId, otherId, via = null) {
   transaction(() => {
     const dropped = new Set(
       linesOf(userId)
-        .filter((line) => line.with === otherId && unreadLine(line))
+        .filter((line) => inThread(line, otherId, via) && unreadLine(line))
         .map((line) => line.id),
     );
     for (const line of linesOf(otherId)) {
@@ -1401,7 +1445,7 @@ export function deleteConversation(userId, otherId) {
     }
     messagesByUser.set(
       userId,
-      linesOf(userId).filter((line) => line.with !== otherId),
+      linesOf(userId).filter((line) => !inThread(line, otherId, via)),
     );
     changed(userId, "messages.json");
   });
@@ -1818,6 +1862,7 @@ export function deleteUser(userId) {
       changed(otherId, "messages.json");
     }
     messagesByUser.delete(userId);
+    if (requestsById) for (const [id, request] of requestsById) if (request.ownerId === userId) requestsById.delete(id);
     // Its own files are not written back: the folder goes whole.
     for (const entry of [...unsaved]) if (entry.startsWith(`${userId}/`)) unsaved.delete(entry);
   });
@@ -1832,10 +1877,10 @@ export function deleteUser(userId) {
 
 // What somebody is looking for, rather than offering: "I need" — a thing, the
 // spot it is wanted at, the dates, what they would pay for it, and how they
-// are reached. Each account's are kept in its requests.json, and every
-// account's are held here once first asked for: there are few of them, and
-// the map asks for all that stand in its window.
-const REQUESTS_FILE = "requests.json";
+// are reached. Each is kept in a folder of its own in its maker's requests/
+// (see files.js), its photographs beside it, and every account's are held
+// here once first asked for: there are few of them, and the map asks for all
+// that stand in its window.
 export const REQUESTS_MAX = 20;
 let requestsById = null;
 
@@ -1843,14 +1888,9 @@ function heldRequests() {
   if (requestsById) return requestsById;
   requestsById = new Map();
   for (const userId of usersById.keys()) {
-    for (const request of readList(userId, REQUESTS_FILE)) requestsById.set(request.id, { ...request, ownerId: userId });
+    for (const request of readRequests(userId)) requestsById.set(request.id, { ...request, ownerId: userId });
   }
   return requestsById;
-}
-
-function writeRequests(userId) {
-  const list = [...heldRequests().values()].filter((request) => request.ownerId === userId).map(({ ownerId: _owner, ...request }) => request);
-  writeList(userId, REQUESTS_FILE, list);
 }
 
 // A request as it goes out: shaped like an item where it can be — a title, a
@@ -1859,7 +1899,22 @@ function writeRequests(userId) {
 function servedRequest(request) {
   if (!request) return null;
   const { ownerId, ...rest } = request;
-  return { ...rest, kind: "request", owner: nameOf(ownerId) };
+  // Its photographs as addresses a browser can ask for, and the first named
+  // once more as the one a list or a pin draws — as an item's are.
+  const images = (request.images ?? []).map((image) => ({
+    src: imageUrl(image.name),
+    thumb: imageUrl(image.thumb || image.name),
+    width: image.width ?? null,
+    height: image.height ?? null,
+  }));
+  return {
+    ...rest,
+    images,
+    thumb: images[0]?.thumb ?? null,
+    pin: images[0] ? `${images[0].thumb}/pin` : null,
+    kind: "request",
+    owner: nameOf(ownerId),
+  };
 }
 
 // Still wanted: one whose last date has gone is not listed any more.
@@ -1886,15 +1941,34 @@ export function createRequest(userId, request) {
   const id = `q${crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x")}`;
   const kept = { id, ...request, createdAt: now(), ownerId: userId };
   held.set(id, kept);
-  writeRequests(userId);
+  writeRequest(userId, { id, ...request, createdAt: kept.createdAt });
   return servedRequest(kept);
 }
 
+// Changed by whoever made it: everything it says is written over, and its id
+// and the day it was first asked stay as they were. Null where it is not there
+// or not theirs.
+export function updateRequest(userId, id, request) {
+  const held = heldRequests();
+  const before = held.get(id);
+  if (!before || before.ownerId !== userId) return null;
+  const kept = { id, ...request, createdAt: before.createdAt, ownerId: userId };
+  held.set(id, kept);
+  writeRequest(userId, { id, ...request, createdAt: before.createdAt });
+  return servedRequest(kept);
+}
+
+// Its folder goes whole, its photographs with it.
 export function deleteRequest(userId, id, { any = false } = {}) {
   const held = heldRequests();
   const request = held.get(id);
   if (!request || (!any && request.ownerId !== userId)) return false;
   held.delete(id);
-  writeRequests(request.ownerId);
+  removeRequestDir(request.ownerId, id);
   return true;
+}
+
+// The files a request carries: its photographs and their small copies.
+export function requestImageNames(id) {
+  return (heldRequests().get(id)?.images ?? []).flatMap((image) => [image.name, image.thumb]);
 }

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
-import { CategoryFilter, categoriesOf, Header, ItemRow, useAuth } from "../../components/index.js";
+import { BookingRow, CategoryFilter, CategoryTabs, categoriesOf, Header, ItemRow, MessageModal, useAuth, useCategoryFilter } from "../../components/index.js";
+import { RequestView } from "../../components/RequestModal/index.js";
 import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
 
 // What the list of your items can be narrowed to: only what is published, on
@@ -10,8 +11,14 @@ import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/inde
 // else is, and pressing it lets go of the rest.
 const FILTERS = ["all", "published"];
 
-// What is yours: what you have out for rent, in one list. (What you have
-// asked other people for is on /others.) An item
+// When a booking starts, as text that sorts: its day, then its time — the first
+// slot's where it is for slots, the pickup's otherwise.
+const startOf = (booking) => `${booking.start} ${booking.slots?.[0]?.start ?? booking.startTime ?? ""}`;
+
+// Everything that is the account's, on one page: what it has out, and its
+// pages; under those, what it has asked other people for and what became of
+// each, and the items it has kept to come back to — its bookmarks. (The last
+// two were once a page of their own, /others.) An item
 // somebody is waiting on an answer about stands at the top of its list — the
 // one asked about first, first — and its row says how many are waiting; the
 // answer is given on the item's own page.
@@ -27,10 +34,13 @@ export default function MinePage() {
   const published = searchParams.get("published") === "1";
   const slugWanted = searchParams.get("category") ?? "";
   const category = categoriesOf(Boolean(user?.adult)).includes(slugWanted) ? slugWanted : "";
+  // The other lists' filters are in the address too, and are left as they are.
   const show = (slug, onlyPublished) => {
-    const query = new URLSearchParams();
+    const query = new URLSearchParams(searchParams);
     if (onlyPublished) query.set("published", "1");
+    else query.delete("published");
     if (slug) query.set("category", slug);
+    else query.delete("category");
     navigate(query.size > 0 ? `/mine?${query}` : "/mine", { replace: true, scroll: false });
   };
   const chooseCategory = (slug) => show(slug, published);
@@ -49,6 +59,29 @@ export default function MinePage() {
   }, []);
 
   useEffect(load, [load]);
+
+  // What you have kept to come back to, asked for apart: it is a list of its
+  // own on the server.
+  const [bookmarks, setBookmarks] = useState(null);
+  useEffect(() => {
+    api
+      .getBookmarks()
+      .then((answer) => setBookmarks(answer.items))
+      .catch((requestError) => setError(requestError.message));
+  }, []);
+  // Each of the two lists below has a filter of its own, in the address.
+  const bookedFilter = useCategoryFilter("bookedCategory");
+  const keptFilter = useCategoryFilter("keptCategory");
+  // The one booked last at the top: by when it is for, latest first, and
+  // where two are for the same time, the one asked for later.
+  const booked = data?.bookings
+    ?.filter((booking) => bookedFilter.fits(booking.itemCategory))
+    .sort((a, b) => (startOf(a) < startOf(b) ? 1 : startOf(a) > startOf(b) ? -1 : b.id - a.id));
+  const kept = bookmarks?.filter((item) => keptFilter.fits(item.category));
+  const [writingTo, setWritingTo] = useState(null);
+
+  // One of your own requests ("I need"), opened on a sheet from its row.
+  const [viewing, setViewing] = useState(null);
 
   // An item of yours dragged from the list on the right onto one of your pages
   // on the left is put on that page.
@@ -132,13 +165,89 @@ export default function MinePage() {
                   ))}
                 </ul>
               ))}
+
+            {/* What you are looking for, under what you offer: shown only
+                once there is one. Here they can be taken down — the ones
+                whose dates have gone as well. */}
+            {data?.wanted?.length > 0 && (
+              <>
+                <div className="part-heading">
+                  <h2>{t("mine.wanted")}</h2>
+                  <span>{data.wanted.length}</span>
+                </div>
+                <ul className="row-list">
+                  {data.wanted.map((request) => (
+                    <ItemRow
+                      key={request.id}
+                      item={request}
+                      onPress={(event) => {
+                        event.preventDefault();
+                        setViewing(request);
+                      }}
+                    />
+                  ))}
+                </ul>
+              </>
+            )}
           </section>
 
           <section>
             {data && <StoreList stores={data.stores} username={user.username} filterable carried={carried} onDropItem={putOnStore} />}
           </section>
         </div>
+
+        {/* Under what is yours, what is other people's: what you have asked
+            them for on the left, what you have kept on the right. */}
+        <div className="others-columns">
+          <section>
+            <div className="part-heading">
+              <h2>{t("others.rentals")}</h2>
+              {booked && <span>{booked.length}</span>}
+            </div>
+            <CategoryTabs {...bookedFilter} />
+
+            {!booked ? (
+              !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />
+            ) : booked.length === 0 ? (
+              <p className="empty-state">{t(bookedFilter.everything ? "others.empty" : "others.noneShown")}</p>
+            ) : (
+              <ul className="row-list">
+                {booked.map((booking) => (
+                  <BookingRow key={booking.id} booking={booking} onChange={load} onMessage={setWritingTo} />
+                ))}
+              </ul>
+            )}
+          </section>
+          <section>
+            <div className="part-heading">
+              <h2>{t("others.bookmarks")}</h2>
+              {kept && <span>{kept.length}</span>}
+            </div>
+            <CategoryTabs {...keptFilter} />
+
+            {!kept ? (
+              !error && <Skeleton rows={3} lines={2} label={t("common.loading")} />
+            ) : kept.length === 0 ? (
+              <p className="empty-state">{t(keptFilter.everything ? "others.noBookmarks" : "others.noneShown")}</p>
+            ) : (
+              <ul className="row-list">
+                {kept.map((item) => (
+                  <ItemRow key={item.id} item={item} showOwner />
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </main>
+      <MessageModal username={writingTo} onClose={() => setWritingTo(null)} />
+      <RequestView
+        request={viewing}
+        onClose={() => setViewing(null)}
+        onGone={(gone) => {
+          setData((current) => current && { ...current, wanted: current.wanted.filter((request) => request.id !== gone) });
+          setViewing(null);
+        }}
+      />
     </div>
   );
 }

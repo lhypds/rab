@@ -632,7 +632,7 @@ export default function ItemView({
               {t("item.share")}
             </button>
             {/* Keeping it to come back to: it is then on the reader's list of
-                bookmarks (see /others), until the button is pressed again.
+                bookmarks (see /mine), until the button is pressed again.
                 Shown to the account it is under as to anybody — the card reads
                 the same for everyone — but greyed: its own it is already. */}
             {(

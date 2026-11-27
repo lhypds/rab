@@ -5,4 +5,5 @@
 export const storePath = (store) => `/s/${encodeURIComponent(store.id)}`;
 
 // Where any item is: a store at /s/<id>, anything else at /i/<id>.
-export const itemPath = (item) => (item.store ? storePath(item) : `/i/${encodeURIComponent(item.id)}`);
+// A request has no page of its own: it is opened on a sheet over the map.
+export const itemPath = (item) => (item.kind === "request" ? "/" : item.store ? storePath(item) : `/i/${encodeURIComponent(item.id)}`);

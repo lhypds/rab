@@ -4,7 +4,7 @@ import * as api from "../../api.js";
 import { ActionButton, Link, Modal, TextArea, showToast } from "../../ui/index.js";
 import { bookingEnded, bookingWhen, canCancel, cancelLine } from "../../utils/bookings.js";
 import { formatPrice, formatUsername, priceLine } from "../../utils/format.js";
-import { iconParts } from "../../utils/categoryIcons.js";
+import { iconParts, markOf } from "../../utils/categoryIcons.js";
 import { sortLabel } from "../../utils/categories.js";
 import { itemPath } from "../../utils/stores.js";
 import { PIN_PATH } from "../../utils/mapbox.js";
@@ -71,7 +71,7 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
                 {/* The category's mark in the pin's head, placed as it is in a
                     pin on the map (see pinElement in MapView). */}
                 <g className="row-pin-glyph" transform="translate(12 10) scale(0.4) translate(-12 -12)">
-                  {iconParts(item.category).map((part, index) =>
+                  {iconParts(markOf(item)).map((part, index) =>
                     typeof part === "string" ? (
                       // A drawing's parts are in a fixed order and have no other identity.
                       // eslint-disable-next-line react/no-array-index-key

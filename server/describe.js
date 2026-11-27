@@ -135,4 +135,52 @@ export async function classifyListing({ title, what, description, image }) {
   }
 }
 
+// A request ("I need") filled in from the few words its maker typed for what
+// they are looking for: which category it is in, and a few lines saying it
+// out — the brain beside those words on the form.
+const WANTED = {
+  type: "object",
+  properties: {
+    category: { type: "string", enum: CATEGORIES },
+    description: { type: "string" },
+  },
+  required: ["category", "description"],
+  additionalProperties: false,
+};
+
+const REQUEST = `rab is a marketplace where people rent out what they have: things, places, and somebody's time and skill. People also post requests there, saying what they are looking for so that whoever has one can offer it.
+
+Every request has one of these categories: ${CATEGORIES.join(", ")}.
+
+You are given the few words somebody typed for what they are looking for. Answer with:
+- category: the one category that fits what is wanted, exactly as written above; "other" where none fits. Do not stretch a category to cover something it is not.
+- description: two or three plain sentences, in the first person, saying what is wanted and what somebody offering one would want to know it is for. Only what follows from the words given — no price, no dates, no place, no contact details, nothing invented about the person.
+
+Write the description in the language you are asked for.`;
+
+// { category, description }, or null where the model would not give one.
+export async function describeRequest(title, language) {
+  if (!title) return null;
+  client ??= new OpenAI();
+  const completion = await client.chat.completions.create({
+    model: MODEL,
+    response_format: { type: "json_schema", json_schema: { name: "request", strict: true, schema: WANTED } },
+    messages: [
+      { role: "system", content: REQUEST },
+      { role: "user", content: `Looking for: ${title}\n\nWrite in ${LANGUAGES[language] ?? LANGUAGES.en}.` },
+    ],
+  });
+  const message = completion.choices[0]?.message;
+  if (!message || message.refusal || !message.content) return null;
+  try {
+    const answer = JSON.parse(message.content);
+    return {
+      category: CATEGORIES.includes(answer?.category) ? answer.category : "other",
+      description: String(answer?.description ?? "").trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export { OpenAI };

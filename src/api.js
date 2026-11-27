@@ -122,6 +122,15 @@ export const sendEmailCode = (email, lang) => send("POST", "/api/account/email/c
 export const setAccountEmail = (email, code) => send("PUT", "/api/account/email", { email, code });
 export const setBirthdate = (birthdate) => send("PUT", "/api/account/birthdate", { birthdate });
 
+/* ----------------------------------------------------------------- requests */
+
+// What people are looking for ("I need"), rather than offering.
+export const getRequests = (options) => request("/api/requests", options);
+export const getRequest = (id, options) => request(`/api/requests/${name(id)}`, options);
+export const createRequest = (wanted) => send("POST", "/api/requests", wanted);
+export const updateRequest = (id, wanted) => send("PUT", `/api/requests/${name(id)}`, wanted);
+export const deleteRequest = (id) => send("DELETE", `/api/requests/${name(id)}`);
+
 /* -------------------------------------------------------------------- items */
 
 export const getItems = ({ south, north, west, east }, options) =>
@@ -161,6 +170,9 @@ export const describePhoto = (blob, lang) =>
 // address of one this server stored): { category } (see server/describe.js).
 export const classifyItem = ({ title, what, description, image }) =>
   send("POST", "/api/classify", { title, what, description, image }, { timeoutMs: 90 * 1000 });
+// A request filled in from the words typed for what is wanted:
+// { category, description }, in the language asked for.
+export const describeRequest = (title, lang) => send("POST", "/api/describe-request", { title, lang }, { timeoutMs: 90 * 1000 });
 // The signed-in account's own places, to put an item at.
 // `shared` asks for the public account's instead: the places somebody else's
 // things are at, which anybody signed in may choose from and add to.

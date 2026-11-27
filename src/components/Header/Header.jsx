@@ -7,6 +7,7 @@ import FilterBox from "../FilterBox/index.js";
 import ItemModal from "../ItemModal/index.js";
 import LanguageSwitcher from "../LanguageSwitcher/index.js";
 import MessagesModal from "../MessagesModal/index.js";
+import RequestModal from "../RequestModal/index.js";
 import TravelModal from "../TravelModal/index.js";
 import { itemPath } from "../../utils/stores.js";
 
@@ -19,6 +20,11 @@ import { itemPath } from "../../utils/stores.js";
 export const LIST_EVENT = "rab:list";
 // And by anything that wants the account's messages opened.
 export const MESSAGES_EVENT = "rab:messages";
+// And by anything that wants the form for asking for something opened ("I
+// need"); told with the request once one is posted (REQUESTED_EVENT, its
+// `detail`), for the map to show it.
+export const NEED_EVENT = "rab:need";
+export const REQUESTED_EVENT = "rab:requested";
 
 export default function Header({ back = false, view, onView, query = "", onQuery }) {
   const { t } = useTranslation();
@@ -39,6 +45,8 @@ export default function Header({ back = false, view, onView, query = "", onQuery
   const [listing, setListing] = useState(false);
   const post = () => (user ? setListing(true) : navigate(loginPath()));
   const [travelOpen, setTravelOpen] = useState(false);
+  const [needing, setNeeding] = useState(false);
+  const need = () => (user ? setNeeding(true) : navigate(loginPath()));
 
   // The form for putting something out is opened from the bar, and from
   // wherever else on the page asks for it (see LIST_EVENT): an area with
@@ -47,9 +55,11 @@ export default function Header({ back = false, view, onView, query = "", onQuery
     const open = post;
     const read = () => (user ? setMessagesOpen(true) : navigate(loginPath()));
     window.addEventListener(LIST_EVENT, open);
+    window.addEventListener(NEED_EVENT, need);
     window.addEventListener(MESSAGES_EVENT, read);
     return () => {
       window.removeEventListener(LIST_EVENT, open);
+      window.removeEventListener(NEED_EVENT, need);
       window.removeEventListener(MESSAGES_EVENT, read);
     };
   }, [user, navigate]);
@@ -100,6 +110,14 @@ export default function Header({ back = false, view, onView, query = "", onQuery
             </ActionButton>
           ) : (
             <Link className="wordmark" to="/">
+              {/* rab's own mark, as its icon has it: a glass with a plus in
+                  it — what is looked for, and what is put out. */}
+              <svg className="wordmark-icon" viewBox="0 0 512 512" aria-hidden="true">
+                <circle cx="216" cy="216" r="150" />
+                <path d="M322 322 470 470" />
+                <path d="M216 146v140" />
+                <path d="M146 216h140" />
+              </svg>
               rab
             </Link>
           )}
@@ -113,6 +131,28 @@ export default function Header({ back = false, view, onView, query = "", onQuery
           </span>
         )}
         <span className="topbar-action-slot">
+          {/* The two things in the bar that add to the map rather than read
+              it, each with its word beside its mark: "I have" — a plus in a
+              ring — puts something out; "I need" — a glass — asks for
+              something. They lead the bar's buttons, left of the pair that
+              says how the page is read. Shown to everybody: to a stranger
+              they are the way in, by way of signing in. On a phone, where the
+              bar is full, the marks stand alone. */}
+          <button type="button" className="topbar-word" aria-label={t("header.have")} onClick={post}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v8" />
+              <path d="M8 12h8" />
+            </svg>
+            <span>{t("header.have")}</span>
+          </button>
+          <button type="button" className="topbar-word" aria-label={t("header.need")} onClick={need}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m15.5 15.5 5 5" />
+            </svg>
+            <span>{t("header.need")}</span>
+          </button>
           {/* How the home page is read: on the map, or as lists. A pair, the
               one in force turned over. Only on the page that has both. */}
           {onView && (
@@ -136,38 +176,14 @@ export default function Header({ back = false, view, onView, query = "", onQuery
               </ActionButton>
             </span>
           )}
-          {/* Putting something out for rent: the one thing in the bar that adds
-              to the map rather than reading it. Shown to everybody — to a
-              stranger it is the way in, by way of signing in. */}
-          <ActionButton
-            tooltip={t("header.list")}
-            onClick={post}
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M12 5v14" />
-              <path d="M5 12h14" />
-            </svg>
-          </ActionButton>
-          {/* What is yours: what you have out for rent, and who has asked for
-              any of it. */}
+          {/* What is yours: what you have out, who has asked for any of it,
+              and what you have asked other people for and kept. */}
           {user && (
             <ActionButton tooltip={t("header.mine")} onClick={() => navigate("/mine")}>
               <svg viewBox="0 0 24 24">
                 <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
                 <path d="M3 8l9 5 9-5" />
                 <path d="M12 13v8" />
-              </svg>
-            </ActionButton>
-          )}
-          {/* What is other people's: what you have asked them for. A key —
-              theirs, handed to you for a while — beside the box that is what
-              you have yourself. */}
-          {user && (
-            <ActionButton tooltip={t("header.others")} onClick={() => navigate("/others")}>
-              <svg viewBox="0 0 24 24">
-                <circle cx="8" cy="16" r="4" />
-                <path d="m11 13 9-9" />
-                <path d="m16 8 3 3" />
               </svg>
             </ActionButton>
           )}
@@ -217,6 +233,16 @@ export default function Header({ back = false, view, onView, query = "", onQuery
           would be pinned under it. */}
       <TravelModal isOpen={travelOpen} onClose={() => setTravelOpen(false)} />
       {user && <MessagesModal isOpen={messagesOpen} username={messagesWith} onClose={closeMessages} onLeave={leaveMessages} />}
+      {user && (
+        <RequestModal
+          isOpen={needing}
+          onClose={() => setNeeding(false)}
+          onSaved={(request) => {
+            setNeeding(false);
+            window.dispatchEvent(new CustomEvent(REQUESTED_EVENT, { detail: request }));
+          }}
+        />
+      )}
       {user && <AccountModal isOpen={accountOpen} onClose={() => setAccountOpen(false)} />}
       {user && (
         <ItemModal

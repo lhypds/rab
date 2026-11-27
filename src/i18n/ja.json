@@ -14,10 +14,11 @@
     "mine": "私の",
     "account": "ユーザー",
     "signIn": "ログイン",
-    "others": "他人の",
     "viewMap": "地図",
     "viewList": "リスト",
-    "pinned": "地図に位置あり"
+    "pinned": "地図に位置あり",
+    "have": "提供する",
+    "need": "探しています"
   },
   "auth": {
     "username": "ユーザー名",
@@ -135,8 +136,19 @@
     "count_other": "ここに{{count}}件",
     "open": "見る",
     "nav": "ナビ",
+    "edit": "編集",
     "searchClear": "クリア",
-    "request": "リクエスト"
+    "request": "リクエスト",
+    "kind": "表示",
+    "kinds": {
+      "offers": "提供",
+      "requests": "リクエスト"
+    },
+    "requestsEmpty": "このエリアにはまだリクエストがありません。",
+    "requestsEmptyAsk": "探しているものがあれば、ここで伝えましょう。",
+    "requestTotals_other": "{{count}} 件のリクエスト",
+    "requestCount_other": "ここに {{count}} 件のリクエスト",
+    "requestsNone": "ここにはまだリクエストがありません"
   },
   "item": {
     "minDurationHint": "1回の予約の最短の長さで、予約の刻みの整数倍です。",
@@ -416,7 +428,8 @@
     "title": "私の",
     "itemsEmpty": "掲載しているものはありません。+ から追加できます。",
     "noneShown": "該当するアイテムはありません。",
-    "items": "アイテム"
+    "items": "アイテム",
+    "wanted": "リクエスト"
   },
   "user": {
     "missing": "そのユーザーは見つかりません。",
@@ -554,10 +567,9 @@
     "explainRental": "この予約は完了しました。{{name}} さんとの取引と、借りたものはいかがでしたか？評価とコメントは相手のプロフィールとアイテムのページに表示されます。"
   },
   "others": {
-    "title": "他人の",
     "empty": "まだ何も予約していません。",
-    "rentals": "私の予約リスト",
-    "bookmarks": "私のブックマーク",
+    "rentals": "予約",
+    "bookmarks": "ブックマーク",
     "noBookmarks": "まだ何もブックマークしていません。",
     "noneShown": "該当する予約はありません。"
   },
@@ -608,5 +620,46 @@
     "colon": "：",
     "storeHint": "あなたのスポットを1つ以上選べます。あなたの名前のデフォルトスポットが最初から選ばれていて、少なくとも1つは選んだままになります。",
     "storeLabel": "スポットに追加"
+  },
+  "request": {
+    "title": "探しています",
+    "what": "何を探していますか？",
+    "whatPlaceholder": "例：ベビーカー、引っ越しの手伝い",
+    "categoryNone": "カテゴリー指定なし",
+    "where": "場所",
+    "when": "期間",
+    "from": "開始日",
+    "until": "終了日",
+    "whenHint": "いつでもよければ空欄のままで。",
+    "budget": "予算",
+    "budgetPlaceholder": "未定なら空欄のままで",
+    "budgetLine": "{{price}}まで",
+    "budgetOpen": "価格は相談",
+    "budgetOpenShort": "相談",
+    "fillIn": "自動入力",
+    "fillingIn": "生成中…",
+    "fillInUnavailable": "このサーバーでは自動入力を利用できません。",
+    "fillInFailed": "自動入力できませんでした。手動で入力してください。",
+    "editTitle": "リクエストを編集",
+    "updated": "リクエストを保存しました",
+    "contactHint": "リクエストに表示され、提供できる人から連絡が届きます。",
+    "note": "詳細",
+    "notePlaceholder": "そのほか伝えたいこと",
+    "post": "リクエストを投稿",
+    "saved": "リクエストを投稿しました",
+    "titleRequired": "探しているものを入力してください。",
+    "placeRequired": "場所を選んでください。",
+    "offer": "メッセージを送る",
+    "delete": "削除",
+    "deleteConfirm": "このリクエストを削除しますか？",
+    "deleted": "リクエストを削除しました",
+    "anonymous": "匿名で投稿",
+    "anonymousHint": "ユーザー名は表示されません。rab のメッセージでも連絡を受けられ、そのやり取りでも匿名のままです。",
+    "anonymousName": "匿名",
+    "anyTime": "いつでも",
+    "contact": "連絡する",
+    "photosHint": "任意。探しているものの写真があれば。",
+    "region": "リクエストエリア",
+    "regionHint": "地図が表示している市区町村が入ります。このエリアを見ている人のリストに表示されます。"
   }
 }

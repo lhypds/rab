@@ -1,1 +1,1 @@
-export { default } from "./ItemModal.jsx";
+export { default, AreaField } from "./ItemModal.jsx";

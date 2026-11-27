@@ -515,7 +515,8 @@ async function whereabouts() {
 const AREA_LIST_MAX_H = 280;
 const AREA_EDGE = 8;
 
-function AreaField({ value, onChange, near = null, taken = [] }) {
+// (Exported: the form for asking for something has the same field.)
+export function AreaField({ value, onChange, near = null, taken = [] }) {
   const { t } = useTranslation();
   const { country } = useRegion();
   // Places are named in the language of the country the reader is in.

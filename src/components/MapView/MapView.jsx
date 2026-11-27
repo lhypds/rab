@@ -5,8 +5,8 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as api from "../../api.js";
 import { Link, Select, showToast, useLocation, useNavigate } from "../../ui/index.js";
-import { iconMarkup } from "../../utils/categoryIcons.js";
-import { priceLine } from "../../utils/format.js";
+import { iconMarkup, markOf } from "../../utils/categoryIcons.js";
+import { priceLine, requestBudget, requestDates } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
 import { directionsLink } from "../../utils/maps.js";
 import { homeFilter, homePath, sortLabel, categoriesOfItem } from "../../utils/categories.js";
@@ -29,7 +29,9 @@ import { currentRegion, loadRegion, onTravel, takeJourney, useRegion, waitingJou
 import { MapTools, showSelf } from "../MapParts/index.js";
 import { ItemRow } from "../Rows/index.js";
 import { useAuth } from "../AuthProvider/index.js";
-import { LIST_EVENT } from "../Header/Header.jsx";
+import { LIST_EVENT, NEED_EVENT, REQUESTED_EVENT } from "../Header/Header.jsx";
+import RequestModal, { RequestView } from "../RequestModal/index.js";
+import ItemModal from "../ItemModal/index.js";
 import { categoriesOf } from "../CategoryFilter/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import FilterBox from "../FilterBox/index.js";
@@ -178,6 +180,23 @@ function setPinPhoto(element, src) {
   }
 }
 
+// What a request says, in a small box over its pin where it has no
+// photograph to stand there: a request is told by its words. `text` empty
+// takes the box away.
+function setPinLabel(element, text) {
+  let label = element.querySelector(`.${styles.pinLabel}`);
+  if (!text) {
+    label?.remove();
+    return;
+  }
+  if (!label) {
+    label = document.createElement("span");
+    label.className = styles.pinLabel;
+    element.append(label);
+  }
+  if (label.textContent !== text) label.textContent = text;
+}
+
 // The map the site opens on: everything out for rent in the window being
 // looked at, each standing where it is picked up.
 // What the bubble holds: the node React draws its card into, wrapped in one
@@ -218,6 +237,20 @@ const SideRow = memo(
   (before, after) => before.item === after.item && before.chosen === after.chosen && before.pin === after.pin,
 );
 
+// Which the map shows: what is offered, or what people are asking for. Kept
+// for the tab's life, as the view is.
+const KIND_KEY = "rab:home-kind";
+function keptKind() {
+  try {
+    return sessionStorage.getItem(KIND_KEY) === "requests" ? "requests" : "offers";
+  } catch {
+    return "offers";
+  }
+}
+// How far from where the reader stands a request is listed beside the map,
+// where the area's own ground is not known: about thirty kilometres.
+const REQUEST_NEAR = 0.3;
+
 export default function MapView({ view = "map", query = "", onQuery, active = true }) {
   // Read as lists rather than on the map: the same area and the same items,
   // with the map put away (not taken down — it is where it was on the way
@@ -233,7 +266,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // that arrives late — a position, a country — is allowed to move it for them.
   const touchedRef = useRef(false);
   const [popupNode] = useState(() => document.createElement("div"));
-  const [items, setItems] = useState([]);
+  const [itemsOf, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -298,10 +331,86 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   const [area, setArea] = useState(undefined);
   // Everything offered there: the items whose area has the spot inside it,
   // whether or not they have a pin. Null until the first answer.
-  const [offered, setOffered] = useState(null);
+  const [offeredOf, setOffered] = useState(null);
   // While what is offered is being asked for — the first time, or again for
   // somewhere else. As lists the frame stands empty then, saying so.
   const [fetching, setFetching] = useState(false);
+
+  // Offers or requests: the switch at the map's left. Requests are few, and
+  // are asked for whole when the switch is first turned to them; the pins are
+  // all of them, and the list beside the map the ones in the reader's area.
+  const [kind, setKindState] = useState(keptKind);
+  const requesting = kind === "requests";
+  const setKind = (next) => {
+    setKindState(next);
+    setSelectedId(null);
+    try {
+      sessionStorage.setItem(KIND_KEY, next);
+    } catch {
+      // Opens on what is offered next time.
+    }
+  };
+  const [requests, setRequests] = useState(null);
+  useEffect(() => {
+    if (!requesting) return undefined;
+    const controller = new AbortController();
+    api
+      .getRequests({ signal: controller.signal })
+      .then((data) => setRequests(data.requests ?? []))
+      .catch((error) => {
+        if (error?.name !== "AbortError") setRequests((current) => current ?? []);
+      });
+    return () => controller.abort();
+  }, [requesting]);
+  // One just posted from the bar stands on the map at once, which turns to
+  // requests to show it.
+  useEffect(() => {
+    const posted = (event) => {
+      const request = event.detail;
+      if (!request) return;
+      setRequests((current) => [request, ...(current ?? []).filter((each) => each.id !== request.id)]);
+      setKind("requests");
+      setSelectedId(request.id);
+      mapRef.current?.flyTo({ center: [request.longitude, request.latitude], zoom: Math.max(mapRef.current.getZoom(), 14), duration: 800 });
+    };
+    window.addEventListener(REQUESTED_EVENT, posted);
+    return () => window.removeEventListener(REQUESTED_EVENT, posted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // The request being read on a sheet.
+  const [viewing, setViewing] = useState(null);
+  // What its maker is changing, from the bubble's "Edit": a request, on the
+  // form it was asked on, or an item or a spot, on the form it was put out on
+  // — which wants the whole of it and its calendar, asked for first.
+  const [editingRequest, setEditingRequest] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const isMine = (item) => Boolean(user && (item.kind === "request" ? (item.mine ?? item.owner === user.username) : item.owner === user.username));
+  const edit = async (item) => {
+    if (item.kind === "request") return setEditingRequest(item);
+    try {
+      const data = await api.getItem(item.id);
+      setEditingItem({ item: data.item, calendar: data.calendar });
+    } catch (error) {
+      showToast(error.message, 3000);
+    }
+  };
+  const requestsHere = useMemo(() => {
+    if (!requests || !spot) return requests;
+    const bbox = area?.bbox;
+    // One asked in an area the reader stands in is listed too, wherever in
+    // it its own spot is — as an item is by the area it is offered in.
+    const inside = (box) => box && spot.latitude >= box[1] && spot.latitude <= box[3] && spot.longitude >= box[0] && spot.longitude <= box[2];
+    return requests.filter(
+      (request) =>
+        inside(request.region?.bbox) ||
+        (bbox
+          ? request.latitude >= bbox[1] && request.latitude <= bbox[3] && request.longitude >= bbox[0] && request.longitude <= bbox[2]
+          : Math.abs(request.latitude - spot.latitude) < REQUEST_NEAR && Math.abs(request.longitude - spot.longitude) < REQUEST_NEAR),
+    );
+  }, [requests, spot, area]);
+  // What the pins and the list are drawn from: the items, or the requests.
+  const items = requesting ? (requests ?? []) : itemsOf;
+  const offered = requesting ? requestsHere : offeredOf;
 
   // `query` is what is being looked for, typed in the box in the top bar (the
   // page holds it): a filter on what is already here — the list and the pins
@@ -387,7 +496,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // the item is then of that category. Only by an account that may change the
   // item — its own, somebody else's that was written down (`shared`), or any
   // at all for the admin — and the server is what says so in the end.
-  const mayMove = (item) => Boolean(user && (item.shared || item.owner === user.username || isAdmin(user)));
+  const mayMove = (item) => Boolean(user && item.kind !== "request" && (item.shared || item.owner === user.username || isAdmin(user)));
   const carriedRef = useRef(null);
   // A drag over the columns with the mouse, as lists: `held` once a row that
   // can be carried has been held still long enough (HOLD_MS) to be picked up.
@@ -462,8 +571,10 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // a title typed into it is expected to be found wherever the item is. So
   // while there is something typed, what the server finds for it anywhere is
   // listed after what is offered here — and then narrowed like the rest.
-  const [found, setFound] = useState(null);
+  const [foundOf, setFound] = useState(null);
   const sought = query.trim();
+  // Requests are only narrowed among themselves, not looked for elsewhere.
+  const found = requesting ? null : foundOf;
   useEffect(() => {
     if (!sought) {
       setFound(null);
@@ -856,12 +967,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
       entry.element.setAttribute("aria-label", item.title);
       // What category it is, said in the pin's head. Written only when it
       // has changed, so a drag that keeps a pin does not redraw it.
-      const mark = item.category ?? "";
+      const mark = markOf(item) ?? "";
       if (entry.mark !== mark) {
-        entry.element.querySelector(`.${styles.glyph}`).innerHTML = iconMarkup(item.category);
+        entry.element.querySelector(`.${styles.glyph}`).innerHTML = iconMarkup(mark);
         entry.mark = mark;
       }
-      setPinPhoto(entry.element, item.pin ?? item.thumb);
+      const photo = item.pin ?? item.thumb;
+      setPinPhoto(entry.element, photo);
+      setPinLabel(entry.element, item.kind === "request" && !photo ? item.title : "");
     }
     cullPins(map, markers);
     // `shown` is derived afresh each render; what it is derived from is what
@@ -882,6 +995,10 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   const [previewId, setPreviewId] = useState(null);
   const lookedFrom = useRef(null);
   const look = (item, from) => {
+    if (item.kind === "request") {
+      setViewing(item);
+      return;
+    }
     lookedFrom.current = from ?? null;
     setPreviewId(item.id);
   };
@@ -1510,6 +1627,23 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     [drawnRows, listChosenId],
   );
 
+  // What is shown: what is offered, or what people need.
+  const kindSwitch = (
+    <div className={styles.kinds} role="group" aria-label={t("map.kind")}>
+      {["offers", "requests"].map((each) => (
+        <button
+          key={each}
+          type="button"
+          className={kind === each ? styles.kindOn : styles.kind}
+          aria-pressed={kind === each}
+          onClick={() => setKind(each)}
+        >
+          {t(`map.kinds.${each}`)}
+        </button>
+      ))}
+    </div>
+  );
+
   if (!MAPBOX_TOKEN) {
     return (
       <section className={styles.frame}>
@@ -1538,10 +1672,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                 to a row of the list. */}
             {listed && (
               <span>
-                {t("map.areaTotals", {
-                  items: listed.reduce((sum, item) => sum + (item.store ? (item.count ?? 0) : 1), 0).toLocaleString(i18n.language),
-                  spots: listed.length.toLocaleString(i18n.language),
-                })}
+                {/* Requests are counted as what they are: there are no items
+                    or spots among them. */}
+                {requesting
+                  ? t("map.requestTotals", { count: listed.length })
+                  : t("map.areaTotals", {
+                      items: listed.reduce((sum, item) => sum + (item.store ? (item.count ?? 0) : 1), 0).toLocaleString(i18n.language),
+                      spots: listed.length.toLocaleString(i18n.language),
+                    })}
               </span>
             )}
           </p>
@@ -1549,6 +1687,8 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {/* The box that narrows the list: in the top bar where there is room
             (see Header), and here on a phone. */}
         <FilterBox slash className={styles.sideFilter} value={query} onChange={onQuery} placeholder={t("search.placeholder")} />
+        {/* As lists the map's switch is put away with it, so it stands here. */}
+        {listing && <div className={styles.kindRow}>{kindSwitch}</div>}
         {/* As lists, the column is what narrows them: the categories. */}
         {listing && (
           <div className={styles.categoryRow} role="group" aria-label={t("item.category")}>
@@ -1626,10 +1766,10 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
               <p className={styles.sideEmpty}>{t("search.empty")}</p>
             ) : (
               <div className={styles.sideEmpty}>
-                <p>{t("map.areaEmpty")}</p>
-                <p>{t("map.areaEmptyAsk")}</p>
-                <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(LIST_EVENT))}>
-                  {t("header.list")}
+                <p>{t(requesting ? "map.requestsEmpty" : "map.areaEmpty")}</p>
+                <p>{t(requesting ? "map.requestsEmptyAsk" : "map.areaEmptyAsk")}</p>
+                <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(requesting ? NEED_EVENT : LIST_EVENT))}>
+                  {t(requesting ? "header.need" : "header.list")}
                 </button>
               </div>
             ))}
@@ -1673,10 +1813,10 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
               <p>{t("search.empty")}</p>
             ) : (
               <>
-                <p>{t("map.areaEmpty")}</p>
-                <p>{t("map.areaEmptyAsk")}</p>
-                <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(LIST_EVENT))}>
-                  {t("header.list")}
+                <p>{t(requesting ? "map.requestsEmpty" : "map.areaEmpty")}</p>
+                <p>{t(requesting ? "map.requestsEmptyAsk" : "map.areaEmptyAsk")}</p>
+                <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(requesting ? NEED_EVENT : LIST_EVENT))}>
+                  {t(requesting ? "header.need" : "header.list")}
                 </button>
               </>
             )}
@@ -1695,6 +1835,8 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {/* Which category the pins are for: all of them unless one is
             picked. */}
         <div className={styles.filters} role="group" aria-label={t("item.category")}>
+          {/* What the map shows: what is offered, or what people need. */}
+          {kindSwitch}
           <Select
             className={styles.category}
             fit
@@ -1710,7 +1852,11 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {/* How much there is to see in this window, said once it is known. */}
         {loaded && (
           <p className={styles.count}>
-            {failed ? t("map.failed") : inWindow === 0 ? t("map.empty") : t("map.count", { count: inWindow })}
+            {failed && !requesting
+              ? t("map.failed")
+              : inWindow === 0
+                ? t(requesting ? "map.requestsNone" : "map.empty")
+                : t(requesting ? "map.requestCount" : "map.count", { count: inWindow })}
           </p>
         )}
 
@@ -1754,7 +1900,29 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                     an article's lead: the first three lines, the rest being what
                     the page is for. */}
                 {open.description && <span className={styles.cardLead}>{open.description}</span>}
-                {!open.store && <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>}
+                {/* A request says more here than an item does, having no page
+                    of its own to say it on: what would be paid and when. The
+                    pin already says where, and Contact how to reach its maker. */}
+                {open.kind === "request" ? (
+                  <span className={styles.cardFacts}>
+                    {[
+                      [t("request.budget"), open.budget != null ? requestBudget(open, lang, t) : t("request.budgetOpenShort")],
+                      [t("request.when"), requestDates(open, lang) || t("request.anyTime")],
+                      open.region?.name && [t("request.region"), open.region.name],
+                    ]
+                      .filter(Boolean)
+                      .map(([label, value], index) => (
+                        // The facts are in a fixed order and have no other identity.
+                        // eslint-disable-next-line react/no-array-index-key
+                        <span key={index} className={styles.cardFact}>
+                          <span>{label}</span>
+                          <span>{value}</span>
+                        </span>
+                      ))}
+                  </span>
+                ) : (
+                  !open.store && <span className={styles.cardPrice}>{priceLine(open, lang, t)}</span>
+                )}
                 <span className={styles.cardMeta}>
                   {/* No address: at the bubble's width it is cut off long
                       before it says anything. It is on the item's page. */}
@@ -1763,6 +1931,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                     sortLabel(open, t),
                     open.store && t("store.count", { count: open.count ?? 0 }),
                     open.owner && <UserName name={open.owner} inside />,
+                    open.kind === "request" && open.anonymous && !open.owner && t("request.anonymousName"),
                   ])}
                 </span>
               </Link>
@@ -1780,10 +1949,13 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                     {t("map.nav")}
                   </a>
                 )}
+                {/* An item is viewed; a request is answered — the same press
+                    puts up its sheet, where every way its maker gave of being
+                    reached can be pressed. */}
                 <Link className={styles.cardLink} to={itemPath(open)} draggable={false} onClick={(event) => preview(open, event)}>
-                  {t("map.open")}
+                  {t(open.kind === "request" ? "request.contact" : "map.open")}
                 </Link>
-                {open.owner !== user?.username &&
+                {open.kind !== "request" && open.owner !== user?.username &&
                   // Something booked by asking is asked for the way its
                   // owner said first: a phone number is called and an
                   // email address is written to, straight from here. Any
@@ -1797,6 +1969,12 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
                       {t("map.request")}
                     </Link>
                   ))}
+                {/* Its maker's own way to change it, apart at the right. */}
+                {isMine(open) && (
+                  <button type="button" className={`${styles.cardLink} ${styles.cardEdit}`} onClick={() => edit(open)}>
+                    {t("map.edit")}
+                  </button>
+                )}
               </span>
             </div>,
             popupNode,
@@ -1818,6 +1996,47 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
           setItems(without);
           setFound(without);
           setSelectedId((current) => (current === gone ? null : current));
+        }}
+      />
+
+      {/* Changed from its bubble: the request as saved takes the old one's
+          place among the pins and in the list. */}
+      <RequestModal
+        isOpen={Boolean(editingRequest)}
+        request={editingRequest}
+        onClose={() => setEditingRequest(null)}
+        onSaved={(saved) => {
+          setEditingRequest(null);
+          setRequests((current) => current?.map((request) => (request.id === saved.id ? saved : request)) ?? current);
+        }}
+      />
+      {editingItem && (
+        <ItemModal
+          isOpen
+          item={editingItem.item}
+          calendar={editingItem.calendar}
+          onClose={() => setEditingItem(null)}
+          onSaved={(item, store) => {
+            const id = editingItem.item.id;
+            const saved = [item, store].find((each) => each?.id === id);
+            setEditingItem(null);
+            if (!saved) return;
+            const renew = (list) => list?.map((each) => (each.id === id ? { ...each, ...saved } : each)) ?? list;
+            setOffered(renew);
+            setItems(renew);
+            setFound(renew);
+          }}
+        />
+      )}
+
+      {/* A request opened from its pin or its row, on a sheet over the map. */}
+      <RequestView
+        request={viewing}
+        onClose={() => setViewing(null)}
+        onGone={(gone) => {
+          setRequests((current) => current?.filter((request) => request.id !== gone) ?? current);
+          setSelectedId((current) => (current === gone ? null : current));
+          setViewing(null);
         }}
       />
     </div>

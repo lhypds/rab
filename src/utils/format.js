@@ -10,6 +10,16 @@ export function formatUsername(username) {
   return `@${username}`;
 }
 
+// Who an exchange is with, from how it is addressed (see messageTarget in the
+// server): a name; or, for one about a request asked without a name,
+// "~<request>" — its maker, who has no name here — and "<name>~<request>",
+// whoever answered it. Null for the nameless one.
+export function threadName(handle) {
+  const cut = String(handle ?? "").indexOf("~");
+  if (cut === -1) return handle || null;
+  return handle.slice(0, cut) || null;
+}
+
 export const CURRENCIES = ["JPY", "CNY", "USD", "EUR"];
 
 // The currency a new item starts in: the one paid where the reader is — yen
@@ -89,6 +99,8 @@ export function durationName(minutes, t) {
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
 // today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
+  // A request says what its maker would pay, and when they need it.
+  if (item.kind === "request") return requestLine(item, locale, t);
   // A page (a store) has no price of its own: each item on it has its own.
   if (item.store) return "";
   // One that says no price is asked about, however it is booked.
@@ -170,4 +182,28 @@ export function formatDate(iso, locale) {
 export function barePhone(value) {
   const typed = String(value ?? "").trim();
   return (typed.startsWith("+") ? "+" : "") + typed.replace(/\D/g, "");
+}
+
+// What a request ("I need") says under its name: what its maker would pay —
+// or that it is open — and the dates it is needed between, where it says.
+export const requestBudget = (item, locale, t) =>
+  item.budget != null ? t("request.budgetLine", { price: wholePrice(item.budget, item.currency, locale) }) : t("request.budgetOpen");
+
+export function requestLine(item, locale, t) {
+  const budget = requestBudget(item, locale, t);
+  const dates = requestDates(item, locale);
+  return dates ? `${budget} · ${dates}` : budget;
+}
+
+export function requestDates(item, locale) {
+  const day = (value) => {
+    try {
+      return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(new Date(`${value}T00:00:00`));
+    } catch {
+      return value;
+    }
+  };
+  if (item.start && item.end && item.start !== item.end) return `${day(item.start)}–${day(item.end)}`;
+  if (item.start || item.end) return day(item.start || item.end);
+  return "";
 }

@@ -72,9 +72,18 @@ const ICONS = {
 // box, an item like any other.
 const ITEM_ICON = ["M3 8l9-5 9 5v8l-9 5-9-5z", "M3 8l9 5 9-5", "M12 13v8"];
 
+// And for a request ("I need") of no category: the glass it is asked with,
+// its handle straight down — as a pin points — rather than off to the side.
+const REQUEST_ICON = [[12, 9.5, 6], "M12 15.5V21"];
+export const REQUEST_MARK = "request";
+
 export function iconParts(category) {
-  return ICONS[category] ?? ITEM_ICON;
+  return ICONS[category] ?? (category === REQUEST_MARK ? REQUEST_ICON : ITEM_ICON);
 }
+
+// Which drawing an item wears: its category's — and a request with no
+// category of its own (or "other") the glass rather than the box.
+export const markOf = (item) => (item.kind === "request" && !ICONS[item.category] ? REQUEST_MARK : item.category);
 
 // The same parts as markup, for the one place that is built by hand rather than
 // rendered: a pin on the map is a DOM node the map places, not a React one.

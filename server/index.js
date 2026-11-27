@@ -95,16 +95,26 @@ const {
   purgePublicItem,
   purgePublicLocations,
   publicLocations,
+  createRequest,
+  deleteRequest,
+  updateRequest,
+  anonymousPeer,
+  getUserById,
+  answeredBy,
+  getRequest,
+  getRequests,
+  getRequestsByUser,
+  requestImageNames,
 } = await import("./db.js");
 const { heldDir, isStoreFolder } = await import("./files.js");
-const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepStoreImages, noteItemImages, pinImageFile, storeImage } = await import(
+const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepRequestImages, keepStoreImages, noteItemImages, pinImageFile, storeImage } = await import(
   "./images.js"
 );
 const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDeposit, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
-const { OpenAI, canDescribe, classifyListing, describeImage } = await import("./describe.js");
+const { OpenAI, canDescribe, classifyListing, describeImage, describeRequest } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -1627,6 +1637,9 @@ app.get("/api/mine", requireSession, (req, res) => {
     items: getItemsByUser(req.user.id).map(publicItem),
     requests: getBookingsForOwner(req.user.id).map((booking) => bookingFor(req.user, booking)),
     bookings: getBookingsByRenter(req.user.id).map((booking) => bookingFor(req.user, booking)),
+    // What it is looking for ("I need") — the ones whose dates have gone too,
+    // which the map no longer shows: here is where they are taken down.
+    wanted: getRequestsByUser(req.user.id).map((request) => requestFor(req.user, request)),
   });
 });
 
@@ -1671,6 +1684,112 @@ rememberPublicPlaces(getItemsByUser(PUBLIC_ID).map((item) => ({ ...item, located
 // sent under an id is given an id of its own all the same.
 const sharedPlaces = (req) => req.query.shared === "1" || req.body?.shared === true;
 
+/* ---------------------------------------------------------------- requests */
+
+// What somebody is looking for ("I need"): what it is, where, between which
+// dates, what they would pay, and how they are reached. A spot is needed —
+// the request stands on the map there.
+const REQUEST_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// A few photographs of the kind of thing wanted: fewer than an item has.
+const REQUEST_IMAGES_MAX = 6;
+function parseRequest(body) {
+  const title = text(body?.title, TITLE_MAX).trim();
+  if (!title) return { error: "Say what you are looking for", code: "TITLE_REQUIRED" };
+  const latitude = parseNumber(body?.latitude, -90, 90);
+  const longitude = parseNumber(body?.longitude, -180, 180);
+  if (latitude === null || longitude === null) return { error: "Say where you need it", code: "PLACE_REQUIRED" };
+  const day = (value) => (REQUEST_DAY_RE.test(String(value ?? "")) ? String(value) : null);
+  let start = day(body?.start);
+  let end = day(body?.end);
+  if (start && end && end < start) [start, end] = [end, start];
+  const currency = CURRENCIES.has(String(body?.currency ?? "")) ? String(body.currency) : "JPY";
+  // What they would pay, which may be left unsaid; and what it is for.
+  const budget = readDeposit(body?.budget, currency);
+  // Asked without a name: nobody else is told whose it is. A message here on
+  // rab is still one of its ways: it is written to the request, not the name
+  // (see messageTarget).
+  const images = parseImages(body?.images ?? []);
+  if (!images || images.length > REQUEST_IMAGES_MAX) return { error: "Those photos could not be used", code: "IMAGES_INVALID" };
+  const anonymous = body?.anonymous === true;
+  const contacts = readContacts(body?.contacts);
+  if (contacts.length === 0) return { error: "Say how you can be contacted", code: "CONTACT_REQUIRED" };
+  return {
+    request: {
+      title,
+      images,
+      // The area it is asked in: whoever is looking there is shown it, as
+      // with an item's. Left out where none was picked.
+      region: parseRegion(body?.region),
+      anonymous,
+      description: text(body?.description, DESCRIPTION_MAX).trim(),
+      category: CATEGORY_RE.test(String(body?.category ?? "")) ? String(body.category) : "other",
+      located: true,
+      latitude,
+      longitude,
+      place: text(body?.place, PLACE_MAX).trim() || null,
+      start,
+      end,
+      budget,
+      currency,
+      contacts,
+    },
+  };
+}
+
+// A request as one reader is given it: whose it is left out of an anonymous
+// one, for anybody but its maker and the admin — and `mine` said to its maker,
+// who cannot tell by the name where there is none.
+function requestFor(viewer, request) {
+  const mine = Boolean(viewer && request.owner === viewer.username);
+  if (!request.anonymous || mine || viewer?.id === ADMIN_ID) return { ...request, mine };
+  const { owner: _owner, ...rest } = request;
+  return { ...rest, mine };
+}
+
+// Every request still wanted: few enough to send whole, and the map keeps the
+// ones near it.
+app.get("/api/requests", (req, res) => {
+  res.json({ requests: getRequests().filter((request) => mayView(req.user, request)).map((request) => requestFor(req.user, request)) });
+});
+
+app.get("/api/requests/:id", (req, res) => {
+  const request = getRequest(req.params.id);
+  if (!request) return res.status(404).json({ error: "No such request", code: "REQUEST_NOT_FOUND" });
+  if (!mayView(req.user, request)) return res.status(403).json(AGE_FAULT);
+  res.json({ request: requestFor(req.user, request) });
+});
+
+app.post("/api/requests", requireSession, (req, res) => {
+  const parsed = parseRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
+  if (isAdultCategory(parsed.request.category) && !isAdult(req.user.id)) return res.status(403).json(AGE_FAULT);
+  const request = createRequest(req.user.id, parsed.request);
+  if (!request) return res.status(409).json({ error: "That is as many requests as an account keeps", code: "REQUESTS_FULL" });
+  // Its photographs are taken from the uploads into its own folder, beside it.
+  keepRequestImages(req.user.id, request.id, requestImageNames(request.id));
+  res.status(201).json({ request: requestFor(req.user, request) });
+});
+
+// Changed by whoever made it: the whole of it is sent again, as it is to be.
+app.put("/api/requests/:id", requireSession, (req, res) => {
+  const parsed = parseRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error, code: parsed.code });
+  if (isAdultCategory(parsed.request.category) && !isAdult(req.user.id)) return res.status(403).json(AGE_FAULT);
+  const request = updateRequest(req.user.id, req.params.id, parsed.request);
+  if (!request) return res.status(404).json({ error: "No such request", code: "REQUEST_NOT_FOUND" });
+  // Photographs added are taken into its folder, and ones dropped removed.
+  keepRequestImages(req.user.id, request.id, requestImageNames(request.id));
+  res.json({ request: requestFor(req.user, request) });
+});
+
+// Taken down by whoever made it — or by the admin.
+app.delete("/api/requests/:id", requireSession, (req, res) => {
+  if (!deleteRequest(req.user.id, req.params.id, { any: req.user.id === ADMIN_ID })) {
+    return res.status(404).json({ error: "No such request", code: "REQUEST_NOT_FOUND" });
+  }
+  res.json({ ok: true });
+});
+
 app.get("/api/locations", requireSession, (req, res) => {
   res.json({ locations: getLocations(sharedPlaces(req) ? PUBLIC_ID : req.user.id) });
 });
@@ -1713,8 +1832,28 @@ app.get("/api/messages", requireSession, (req, res) => {
   res.json({ conversations: getThreads(req.user.id), unread: countUnread(req.user.id) });
 });
 
+// Who an exchange is with, from how it is addressed: a name; or, for one about
+// a request asked without a name, "~<request>" — to its maker, who is never
+// named to the one writing — and "<name>~<request>" for the maker's way back
+// to somebody who wrote. `via` is that request, `anonId` the end of it that
+// is not named, and `handle` the address as it is given back.
 function messageTarget(req, res) {
-  const target = getUser(normalizeUsername(req.params.username));
+  const handle = normalizeUsername(req.params.username);
+  const cut = handle.indexOf("~");
+  const via = cut === -1 ? null : handle.slice(cut + 1);
+  const name = cut === -1 ? handle : handle.slice(0, cut);
+  let target = null;
+  if (via === null) {
+    target = getUser(name);
+  } else if (!name) {
+    // What has been said already says whose it is, and outlives the request.
+    const request = getRequest(via);
+    target = getUserById(anonymousPeer(req.user.id, via)) ?? (request?.anonymous ? getUser(request.owner) : null);
+  } else {
+    // Only somebody who has written may be answered.
+    const writer = getUser(name);
+    target = writer && answeredBy(req.user.id, writer.id, via) ? writer : null;
+  }
   if (!target) {
     res.status(404).json({ error: "No such user" });
     return null;
@@ -1723,38 +1862,41 @@ function messageTarget(req, res) {
     res.status(400).json({ error: "You cannot message yourself" });
     return null;
   }
-  return target;
+  return { target, via, handle, anonId: via === null ? null : name ? req.user.id : target.id };
 }
 
 // One exchange, oldest first — and asking for it is what marks it read. The
 // open sheet repeats this every few seconds, so a line that arrives in front of
 // a reader is read by the same request that brought it.
 app.get("/api/messages/:username", requireSession, (req, res) => {
-  const target = messageTarget(req, res);
-  if (!target) return;
-  readConversation(req.user.id, target.id);
+  const to = messageTarget(req, res);
+  if (!to) return;
+  const { target, via } = to;
+  readConversation(req.user.id, target.id, via);
   res.json({
-    user: { username: target.username },
-    messages: getConversation(req.user.id, target.id),
+    // The address again rather than the name, which one of them hides.
+    user: { username: via ? to.handle : target.username },
+    messages: getConversation(req.user.id, target.id, undefined, via),
     unread: countUnread(req.user.id),
   });
 });
 
 app.post("/api/messages/:username", requireSession, (req, res) => {
-  const target = messageTarget(req, res);
-  if (!target) return;
+  const to = messageTarget(req, res);
+  if (!to) return;
+  const { target, via, anonId } = to;
   const body = String(req.body?.body ?? "").trim().normalize("NFC");
   if (!body) return res.status(400).json({ error: "Write something" });
   if (body.length > MESSAGE_MAX) {
     return res.status(400).json({ error: `A message is at most ${MESSAGE_MAX} characters` });
   }
-  res.status(201).json({ message: createMessage(req.user.id, target.id, body) });
+  res.status(201).json({ message: createMessage(req.user.id, target.id, body, { via, anonId }) });
 });
 
 app.delete("/api/messages/:username", requireSession, (req, res) => {
-  const target = messageTarget(req, res);
-  if (!target) return;
-  deleteConversation(req.user.id, target.id);
+  const to = messageTarget(req, res);
+  if (!to) return;
+  deleteConversation(req.user.id, to.target.id, to.via);
   res.status(204).end();
 });
 
@@ -1830,6 +1972,24 @@ app.post("/api/classify", requireSession, async (req, res) => {
     res.json({ category });
   } catch (error) {
     describeFault(error, res, "classifying a listing");
+  }
+});
+
+// A request's category and a few lines for it, from the words typed for what
+// is wanted: the brain beside them on the form (see describeRequest). Nothing
+// is kept.
+app.post("/api/describe-request", requireSession, async (req, res) => {
+  if (!canDescribe()) {
+    return res.status(503).json({ error: "This server has no key to describe photos with", code: "DESCRIBE_UNAVAILABLE" });
+  }
+  try {
+    const answer = await describeRequest(text(req.body?.title, TITLE_MAX).trim(), String(req.body?.lang ?? "en").slice(0, 2));
+    if (!answer) return res.status(422).json({ error: "Say what you are looking for first", code: "DESCRIBE_FAILED" });
+    // One the reader is not old enough for is not chosen for them.
+    if (isAdultCategory(answer.category) && !isAdult(req.user.id)) answer.category = "other";
+    res.json({ ...answer, description: answer.description.slice(0, DESCRIPTION_MAX) });
+  } catch (error) {
+    describeFault(error, res, "describing a request");
   }
 });
 

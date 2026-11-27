@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { Modal, Skeleton } from "../../ui/index.js";
-import { formatUsername } from "../../utils/format.js";
+import { formatUsername, threadName } from "../../utils/format.js";
 import { useAuth } from "../AuthProvider/index.js";
 import { MessageThread } from "../MessageModal/index.js";
 import styles from "./messages.module.css";
@@ -157,7 +157,13 @@ export default function MessagesModal({ isOpen, username, onClose, onLeave }) {
                         onClick={() => pick(conversation)}
                         aria-current={reading === key ? "true" : undefined}
                       >
-                        <span className={styles.who}>{formatUsername(conversation.username)}</span>
+                        {/* An exchange about a request asked without a name
+                            is told from any other with the same person by
+                            what was asked for; its maker has no name. */}
+                        <span className={styles.who}>
+                          {threadName(conversation.username) ? formatUsername(threadName(conversation.username)) : t("request.anonymousName")}
+                          {conversation.username.includes("~") && conversation.about ? ` · ${conversation.about}` : ""}
+                        </span>
                       </button>
                     </div>
                     {/* Behind the row until a swipe uncovers it. */}
