@@ -21,3 +21,5 @@ pnpm run build
 ```
 
 `./start.sh` runs the build under PM2. To pull the latest code, install dependencies, rebuild and restart the server, run `./restart.sh`.
+
+The `./rab` command does the same for the server and the iPhone app: `./rab restart` asks which (server, ios or all), `./rab restart ios device` rebuilds and reopens the app on the paired iPhone, `./rab ios restart` asks for an iPhone or simulator, and `./rab help` lists the rest. `./install.sh` links it as `rab` in `/usr/local/bin`.

@@ -1,4 +1,28 @@
 #!/bin/sh
-# rab's commands for whoever looks after the server: ./rab user list, and the
-# rest (see server/cli.js).
-exec node --disable-warning=ExperimentalWarning "$(dirname "$0")/server/cli.js" "$@"
+# rab: build, start, stop and restart the server and the iPhone app (scripts/rab.zsh), and the
+# account and public-folder commands for whoever looks after the server (server/cli.js).
+#
+#   rab restart                  pick server, ios or all
+#   rab restart ios device       rebuild and reopen the app on the paired iPhone
+#   rab ios restart              pick an iPhone or simulator
+#   rab user list                accounts; rab public push, and the rest
+#   rab help                     everything
+#
+# Plain sh, so rab user and rab public work on a server without zsh.
+
+# Through the /usr/local/bin/rab link install.sh makes, too.
+SELF="$0"
+[ -L "$SELF" ] && SELF="$(readlink -f "$SELF" 2>/dev/null || readlink "$SELF")"
+ROOT="$(cd "$(dirname "$SELF")" && pwd)"
+
+case "${1:-}" in
+    user|public)
+        exec node --disable-warning=ExperimentalWarning "$ROOT/server/cli.js" "$@"
+        ;;
+esac
+
+if ! command -v zsh >/dev/null 2>&1; then
+    echo "rab: zsh is needed for rab ${1:-help}; rab user and rab public work without it." >&2
+    exec node --disable-warning=ExperimentalWarning "$ROOT/server/cli.js"
+fi
+exec zsh "$ROOT/scripts/rab.zsh" "$@"
