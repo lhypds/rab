@@ -59,6 +59,19 @@
   padding-bottom: 10px;
 }
 
+/* The name, and the switch at its right: the name takes what room there is. */
+.areaTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.areaTop > .areaName {
+  flex: 1;
+  min-width: 0;
+}
+
 /* The name of the place, as lo sets it at the head of its page. */
 .areaName {
   min-height: 26px;
@@ -560,12 +573,6 @@
   height: 22px;
   border: 1px solid var(--ink);
   background: var(--paper);
-}
-
-.kindRow {
-  flex: none;
-  display: flex;
-  margin-bottom: 6px;
 }
 
 .kind,

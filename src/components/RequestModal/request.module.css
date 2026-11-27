@@ -242,3 +242,14 @@
 .whatRow svg {
   stroke-width: 1.5;
 }
+
+/* "By a message here on rab", pressed to write one: a link in the line. */
+.contactWrite {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

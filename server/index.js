@@ -1695,9 +1695,13 @@ const REQUEST_IMAGES_MAX = 6;
 function parseRequest(body) {
   const title = text(body?.title, TITLE_MAX).trim();
   if (!title) return { error: "Say what you are looking for", code: "TITLE_REQUIRED" };
+  // A spot on the map is its maker's to add or not; one without is found by
+  // the area it is asked in, which it then has to have.
   const latitude = parseNumber(body?.latitude, -90, 90);
   const longitude = parseNumber(body?.longitude, -180, 180);
-  if (latitude === null || longitude === null) return { error: "Say where you need it", code: "PLACE_REQUIRED" };
+  const located = latitude !== null && longitude !== null;
+  const region = parseRegion(body?.region);
+  if (!located && !region) return { error: "Say where you need it", code: "PLACE_REQUIRED" };
   const day = (value) => (REQUEST_DAY_RE.test(String(value ?? "")) ? String(value) : null);
   let start = day(body?.start);
   let end = day(body?.end);
@@ -1719,14 +1723,14 @@ function parseRequest(body) {
       images,
       // The area it is asked in: whoever is looking there is shown it, as
       // with an item's. Left out where none was picked.
-      region: parseRegion(body?.region),
+      region,
       anonymous,
       description: text(body?.description, DESCRIPTION_MAX).trim(),
       category: CATEGORY_RE.test(String(body?.category ?? "")) ? String(body.category) : "other",
-      located: true,
-      latitude,
-      longitude,
-      place: text(body?.place, PLACE_MAX).trim() || null,
+      located,
+      latitude: located ? latitude : null,
+      longitude: located ? longitude : null,
+      place: located ? text(body?.place, PLACE_MAX).trim() || null : null,
       start,
       end,
       budget,
@@ -1737,11 +1741,12 @@ function parseRequest(body) {
 }
 
 // A request as one reader is given it: whose it is left out of an anonymous
-// one, for anybody but its maker and the admin — and `mine` said to its maker,
-// who cannot tell by the name where there is none.
+// one, for everybody — its maker too, who is shown it as everybody else is,
+// and the admin — and `mine` said to its maker, who cannot tell by the name
+// where there is none.
 function requestFor(viewer, request) {
   const mine = Boolean(viewer && request.owner === viewer.username);
-  if (!request.anonymous || mine || viewer?.id === ADMIN_ID) return { ...request, mine };
+  if (!request.anonymous) return { ...request, mine };
   const { owner: _owner, ...rest } = request;
   return { ...rest, mine };
 }

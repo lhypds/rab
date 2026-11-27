@@ -426,6 +426,7 @@
   },
   "mine": {
     "title": "我的",
+    "wantedEmpty": "你还没有发布需求。在顶部的「我需要」里写下你要找的东西。",
     "itemsEmpty": "你还没有发布项目。点 + 添加。",
     "noneShown": "这里没有项目。",
     "items": "项目",
@@ -648,7 +649,7 @@
     "post": "发布需求",
     "saved": "需求已发布",
     "titleRequired": "请填写你在找什么。",
-    "placeRequired": "请选择地点。",
+    "placeRequired": "请选择需求区域范围，或添加位置。",
     "offer": "发消息",
     "delete": "删除",
     "deleteConfirm": "删除这条需求？",
@@ -659,7 +660,7 @@
     "anyTime": "不限",
     "contact": "联系",
     "photosHint": "可选。放一张你想找的东西的照片。",
-    "region": "需求范围",
-    "regionHint": "默认是地图所在的城市。在这个范围内浏览的人会在列表里看到这条需求。"
+    "region": "需求区域范围",
+    "regionHint": "默认是地图所在的城市。在这个范围内浏览的人会在列表里看到这条需求，即使没有添加位置。"
   }
 }

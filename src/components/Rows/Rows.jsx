@@ -96,15 +96,16 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
 }
 
 // One item as a card in a grid: its photograph over its name and what it
-// costs, the whole card the way to its page. `showPublished` as on a row.
-export function ItemCard({ item, showPublished = false }) {
+// costs, the whole card the way to its page. `showPublished` and `onPress` as
+// on a row.
+export function ItemCard({ item, showPublished = false, onPress }) {
   const { t, i18n } = useTranslation();
   const photo = item.images?.[0]?.thumb ?? item.thumb ?? null;
   return (
     <li className="item-card">
-      <Link className="item-card-link" to={itemPath(item)} state={{ back: true }}>
+      <Link className="item-card-link" to={itemPath(item)} state={{ back: true }} onClick={onPress}>
         <span className="item-card-photo">
-          {photo ? <img src={photo} alt="" loading="lazy" /> : <CategoryIcon category={item.category} />}
+          {photo ? <img src={photo} alt="" loading="lazy" /> : <CategoryIcon category={markOf(item)} />}
         </span>
         <span className="item-card-lines">
           <strong>{item.title}</strong>

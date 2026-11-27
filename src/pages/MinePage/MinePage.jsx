@@ -2,23 +2,39 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import StoreList from "../../components/StoreList.jsx";
 import * as api from "../../api.js";
+import { ItemCard } from "../../components/Rows/index.js";
 import { BookingRow, CategoryFilter, CategoryTabs, categoriesOf, Header, ItemRow, MessageModal, useAuth, useCategoryFilter } from "../../components/index.js";
 import { RequestView } from "../../components/RequestModal/index.js";
-import { Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
+import { ActionButton, Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
 
 // What the list of your items can be narrowed to: only what is published, on
 // or off, and one category. "All" is none of that: it is pressed while nothing
 // else is, and pressing it lets go of the rest.
 const FILTERS = ["all", "published"];
 
+// The five things that are an account's, in the order they stand down the
+// left of the page.
+const TABS = ["items", "stores", "requests", "rentals", "bookmarks"];
+
+// Whether they are drawn as rows or as cards, kept by the browser.
+const VIEW_KEY = "rab:mine-view";
+function keptView() {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list";
+  } catch {
+    return "list";
+  }
+}
+
 // When a booking starts, as text that sorts: its day, then its time — the first
 // slot's where it is for slots, the pickup's otherwise.
 const startOf = (booking) => `${booking.start} ${booking.slots?.[0]?.start ?? booking.startTime ?? ""}`;
 
-// Everything that is the account's, on one page: what it has out, and its
-// pages; under those, what it has asked other people for and what became of
-// each, and the items it has kept to come back to — its bookmarks. (The last
-// two were once a page of their own, /others.) An item
+// Everything that is the account's, on one page, in two parts: down the left
+// the five things it has — what it has out, its spots, what it is looking for, what it has asked
+// other people for and what became of each, and the items it has kept to come
+// back to, its bookmarks — and on the right the one of them picked, as rows or
+// as cards with their photographs. An item
 // somebody is waiting on an answer about stands at the top of its list — the
 // one asked about first, first — and its row says how many are waiting; the
 // answer is given on the item's own page.
@@ -82,27 +98,9 @@ export default function MinePage() {
 
   // One of your own requests ("I need"), opened on a sheet from its row.
   const [viewing, setViewing] = useState(null);
-
-  // An item of yours dragged from the list on the right onto one of your pages
-  // on the left is put on that page.
-  const [carried, setCarried] = useState(null);
-  const carry = (item, event) => {
-    if (!event) return setCarried(null);
-    event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData("text/plain", item.title);
-    setCarried(item);
-  };
-  const putOnStore = async (store) => {
-    const item = carried;
-    setCarried(null);
-    if (!item) return;
-    try {
-      const answer = await api.addToStore(store.id, item.id);
-      setData((current) => current && { ...current, stores: current.stores.map((each) => (each.id === store.id ? { ...each, ...answer.store } : each)) });
-      showToast(t(answer.added ? "store.added" : "store.alreadyOn", { name: store.title }), 2000);
-    } catch (addError) {
-      showToast(addError.message, 3000);
-    }
+  const openRequest = (request, event) => {
+    event.preventDefault();
+    setViewing(request);
   };
 
   // When each item was first asked for by somebody still waiting: bookings
@@ -118,6 +116,57 @@ export default function MinePage() {
   const fits = (item) => (!published || item.active) && (!category || item.category === category);
   const items = (data?.items ?? []).filter(fits).sort((a, b) => turn(a) - turn(b));
 
+  // The five things that are yours, down the left, and the one of them shown
+  // on the right. Which one is in the address, so a step back from an item's
+  // page lands on the list that was left.
+  const tabWanted = searchParams.get("tab");
+  const tab = TABS.includes(tabWanted) ? tabWanted : TABS[0];
+  const choose = (name) => {
+    const query = new URLSearchParams(searchParams);
+    if (name === TABS[0]) query.delete("tab");
+    else query.set("tab", name);
+    navigate(query.size > 0 ? `/mine?${query}` : "/mine", { replace: true, scroll: false });
+  };
+  const counts = { items: data?.items?.length, stores: data?.stores?.length, requests: data?.wanted?.length, rentals: data?.bookings?.length, bookmarks: bookmarks?.length };
+  const labels = { items: t("mine.items"), stores: t("store.title"), requests: t("mine.wanted"), rentals: t("others.rentals"), bookmarks: t("others.bookmarks") };
+  // How the one on the right is drawn: rows, or cards with their photographs.
+  // Kept by the browser, the same for every one of them. What you have booked
+  // is always rows: each has things to press that a card has no room for.
+  const [view, setViewState] = useState(keptView);
+  const setView = (next) => {
+    setViewState(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Rows again next time.
+    }
+  };
+  const cards = view === "cards";
+  // The pair that says which, beside the heading of what is shown — as on a
+  // spot's page, beside the heading of the items on it.
+  const viewPair = (
+    <span className="topbar-view" role="group" aria-label={t("store.itemsView")}>
+      <ActionButton tooltip={t("store.viewCards")} tooltipLeft aria-pressed={cards} onClick={() => setView("cards")}>
+        <svg viewBox="0 0 24 24">
+          {/* 田: one square, crossed through the middle. */}
+          <path d="M4 4h16v16H4z" />
+          <path d="M12 4v16" />
+          <path d="M4 12h16" />
+        </svg>
+      </ActionButton>
+      <ActionButton tooltip={t("store.viewList")} aria-pressed={!cards} onClick={() => setView("list")}>
+        <svg viewBox="0 0 24 24">
+          <path d="M9 6h11" />
+          <path d="M9 12h11" />
+          <path d="M9 18h11" />
+          <path d="M4 6h.01" />
+          <path d="M4 12h.01" />
+          <path d="M4 18h.01" />
+        </svg>
+      </ActionButton>
+    </span>
+  );
+
   return (
     <div className="page-shell">
       <Header back />
@@ -126,115 +175,144 @@ export default function MinePage() {
           <h1>{t("mine.title")}</h1>
         </div>
 
-        {/* Your items on the left, with what they are narrowed to above
-            them; your spots on the right. On a narrow screen the spots come
-            after the items. */}
-        <div className="others-columns">
-          <section>
-            <div className="part-heading">
-              <h2>{t("mine.items")}</h2>
-              {data && <span>{items.length}</span>}
-            </div>
+        {error && <p className="list-error">{error}</p>}
 
-            {/* What the list below is narrowed to: published or not, and the
-                category. */}
-            <div className="tabs" role="group">
-              {FILTERS.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  aria-pressed={pressed(name)}
-                  className={pressed(name) ? "tab active" : "tab"}
-                  onClick={() => press(name)}
-                >
-                  {name === "published" ? t("item.published") : t("map.all")}
-                </button>
-              ))}
-              <CategoryFilter value={category} onChange={chooseCategory} />
-            </div>
+        <div className="mine-layout">
+          <nav className="mine-nav" aria-label={t("mine.title")}>
+            {TABS.map((name) => (
+              <button key={name} type="button" className={tab === name ? "mine-nav-item active" : "mine-nav-item"} aria-current={tab === name ? "page" : undefined} onClick={() => choose(name)}>
+                <span>{labels[name]}</span>
+                {counts[name] != null && <span className="mine-nav-count">{counts[name]}</span>}
+              </button>
+            ))}
+          </nav>
 
-            {error && <p className="list-error">{error}</p>}
-            {!data && !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />}
-            {data &&
-              (items.length === 0 ? (
-                <p className="empty-state">{t(!category && !published ? "mine.itemsEmpty" : "mine.noneShown")}</p>
-              ) : (
-                <ul className="row-list">
-                  {items.map((item) => (
-                    <ItemRow key={item.id} item={item} showPublished onDrag={item.shared ? undefined : (event) => carry(item, event)} />
-                  ))}
-                </ul>
-              ))}
-
-            {/* What you are looking for, under what you offer: shown only
-                once there is one. Here they can be taken down — the ones
-                whose dates have gone as well. */}
-            {data?.wanted?.length > 0 && (
+          <section className="mine-pane">
+            {tab === "items" && (
               <>
                 <div className="part-heading">
-                  <h2>{t("mine.wanted")}</h2>
-                  <span>{data.wanted.length}</span>
+                  <span className="part-head">
+                    <h2>{t("mine.items")}</h2>
+                    {viewPair}
+                  </span>
+                  {data && <span>{items.length}</span>}
                 </div>
-                <ul className="row-list">
-                  {data.wanted.map((request) => (
-                    <ItemRow
-                      key={request.id}
-                      item={request}
-                      onPress={(event) => {
-                        event.preventDefault();
-                        setViewing(request);
-                      }}
-                    />
+
+                {/* What the list below is narrowed to: published or not, and
+                    the category. */}
+                <div className="tabs" role="group">
+                  {FILTERS.map((name) => (
+                    <button key={name} type="button" aria-pressed={pressed(name)} className={pressed(name) ? "tab active" : "tab"} onClick={() => press(name)}>
+                      {name === "published" ? t("item.published") : t("map.all")}
+                    </button>
                   ))}
-                </ul>
+                  <CategoryFilter value={category} onChange={chooseCategory} />
+                </div>
+
+                {!data && !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />}
+                {data &&
+                  (items.length === 0 ? (
+                    <p className="empty-state">{t(!category && !published ? "mine.itemsEmpty" : "mine.noneShown")}</p>
+                  ) : cards ? (
+                    <ul className="item-cards">
+                      {items.map((item) => (
+                        <ItemCard key={item.id} item={item} showPublished />
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="row-list">
+                      {items.map((item) => (
+                        <ItemRow key={item.id} item={item} showPublished />
+                      ))}
+                    </ul>
+                  ))}
               </>
             )}
-          </section>
 
-          <section>
-            {data && <StoreList stores={data.stores} username={user.username} filterable carried={carried} onDropItem={putOnStore} />}
-          </section>
-        </div>
+            {tab === "stores" && (data ? <StoreList stores={data.stores} username={user.username} filterable cards={cards} beside={viewPair} /> : !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />)}
 
-        {/* Under what is yours, what is other people's: what you have asked
-            them for on the left, what you have kept on the right. */}
-        <div className="others-columns">
-          <section>
-            <div className="part-heading">
-              <h2>{t("others.rentals")}</h2>
-              {booked && <span>{booked.length}</span>}
-            </div>
-            <CategoryTabs {...bookedFilter} />
-
-            {!booked ? (
-              !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />
-            ) : booked.length === 0 ? (
-              <p className="empty-state">{t(bookedFilter.everything ? "others.empty" : "others.noneShown")}</p>
-            ) : (
-              <ul className="row-list">
-                {booked.map((booking) => (
-                  <BookingRow key={booking.id} booking={booking} onChange={load} onMessage={setWritingTo} />
-                ))}
-              </ul>
+            {/* What you are looking for. Here they can be taken down — the
+                ones whose dates have gone as well. */}
+            {tab === "requests" && (
+              <>
+                <div className="part-heading">
+                  <span className="part-head">
+                    <h2>{t("mine.wanted")}</h2>
+                    {viewPair}
+                  </span>
+                  {data && <span>{data.wanted?.length ?? 0}</span>}
+                </div>
+                {!data ? (
+                  !error && <Skeleton rows={3} lines={2} label={t("common.loading")} />
+                ) : !data.wanted?.length ? (
+                  <p className="empty-state">{t("mine.wantedEmpty")}</p>
+                ) : cards ? (
+                  <ul className="item-cards">
+                    {data.wanted.map((request) => (
+                      <ItemCard key={request.id} item={request} onPress={(event) => openRequest(request, event)} />
+                    ))}
+                  </ul>
+                ) : (
+                  <ul className="row-list">
+                    {data.wanted.map((request) => (
+                      <ItemRow key={request.id} item={request} onPress={(event) => openRequest(request, event)} />
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
-          </section>
-          <section>
-            <div className="part-heading">
-              <h2>{t("others.bookmarks")}</h2>
-              {kept && <span>{kept.length}</span>}
-            </div>
-            <CategoryTabs {...keptFilter} />
 
-            {!kept ? (
-              !error && <Skeleton rows={3} lines={2} label={t("common.loading")} />
-            ) : kept.length === 0 ? (
-              <p className="empty-state">{t(keptFilter.everything ? "others.noBookmarks" : "others.noneShown")}</p>
-            ) : (
-              <ul className="row-list">
-                {kept.map((item) => (
-                  <ItemRow key={item.id} item={item} showOwner />
-                ))}
-              </ul>
+            {tab === "rentals" && (
+              <>
+                <div className="part-heading">
+                  <h2>{t("others.rentals")}</h2>
+                  {booked && <span>{booked.length}</span>}
+                </div>
+                <CategoryTabs {...bookedFilter} />
+
+                {!booked ? (
+                  !error && <Skeleton rows={4} lines={2} label={t("common.loading")} />
+                ) : booked.length === 0 ? (
+                  <p className="empty-state">{t(bookedFilter.everything ? "others.empty" : "others.noneShown")}</p>
+                ) : (
+                  <ul className="row-list">
+                    {booked.map((booking) => (
+                      <BookingRow key={booking.id} booking={booking} onChange={load} onMessage={setWritingTo} />
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+
+            {tab === "bookmarks" && (
+              <>
+                <div className="part-heading">
+                  <span className="part-head">
+                    <h2>{t("others.bookmarks")}</h2>
+                    {viewPair}
+                  </span>
+                  {kept && <span>{kept.length}</span>}
+                </div>
+                <CategoryTabs {...keptFilter} />
+
+                {!kept ? (
+                  !error && <Skeleton rows={3} lines={2} label={t("common.loading")} />
+                ) : kept.length === 0 ? (
+                  <p className="empty-state">{t(keptFilter.everything ? "others.noBookmarks" : "others.noneShown")}</p>
+                ) : cards ? (
+                  <ul className="item-cards">
+                    {kept.map((item) => (
+                      <ItemCard key={item.id} item={item} />
+                    ))}
+                  </ul>
+                ) : (
+                  <ul className="row-list">
+                    {kept.map((item) => (
+                      <ItemRow key={item.id} item={item} showOwner />
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </section>
         </div>

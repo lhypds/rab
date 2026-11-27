@@ -45,8 +45,17 @@ export default function Header({ back = false, view, onView, query = "", onQuery
   const [listing, setListing] = useState(false);
   const post = () => (user ? setListing(true) : navigate(loginPath()));
   const [travelOpen, setTravelOpen] = useState(false);
+  // The form for asking for something, and what it opens already saying is
+  // looked for: what was written in the bar's box when Enter was pressed.
   const [needing, setNeeding] = useState(false);
-  const need = () => (user ? setNeeding(true) : navigate(loginPath()));
+  const [needed, setNeeded] = useState("");
+  const need = (words) => {
+    if (!user) return navigate(loginPath());
+    setNeeded(typeof words === "string" ? words.trim() : "");
+    setNeeding(true);
+  };
+  // What is written in the box, on a page with no list for it to narrow.
+  const [written, setWritten] = useState("");
 
   // The form for putting something out is opened from the bar, and from
   // wherever else on the page asks for it (see LIST_EVENT): an area with
@@ -55,11 +64,12 @@ export default function Header({ back = false, view, onView, query = "", onQuery
     const open = post;
     const read = () => (user ? setMessagesOpen(true) : navigate(loginPath()));
     window.addEventListener(LIST_EVENT, open);
-    window.addEventListener(NEED_EVENT, need);
+    const ask = () => need();
+    window.addEventListener(NEED_EVENT, ask);
     window.addEventListener(MESSAGES_EVENT, read);
     return () => {
       window.removeEventListener(LIST_EVENT, open);
-      window.removeEventListener(NEED_EVENT, need);
+      window.removeEventListener(NEED_EVENT, ask);
       window.removeEventListener(MESSAGES_EVENT, read);
     };
   }, [user, navigate]);
@@ -122,36 +132,47 @@ export default function Header({ back = false, view, onView, query = "", onQuery
             </Link>
           )}
         </span>
-        {/* In the middle of the bar, on the page that has a list to narrow: the
-            box that looks among what is offered here. Not on a phone, where
-            the bar is full — there it stands over the list (see MapView). */}
-        {onQuery && (
-          <span className="topbar-filter">
-            <FilterBox slash value={query} onChange={onQuery} placeholder={t("search.placeholder")} />
-          </span>
-        )}
+        {/* In the middle of the bar, the two things that add to the map rather
+            than read it. "I have", a button, puts something out. "I need" is
+            a box: what is written in it narrows the list on the page that has
+            one, as a search does, and Enter opens the form for asking for it,
+            already saying so. Not on a phone, where the bar is full — there
+            the two are marks among the buttons, and the box that narrows
+            stands over the list (see MapView). */}
+        <span className="topbar-filter">
+          <button type="button" className="topbar-have" onClick={post}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+            {t("header.have")}
+          </button>
+          <FilterBox
+            slash
+            value={onQuery ? query : written}
+            onChange={onQuery ?? setWritten}
+            placeholder={t("header.need")}
+            onEnter={(words) => {
+              need(words);
+              (onQuery ?? setWritten)("");
+            }}
+          />
+        </span>
         <span className="topbar-action-slot">
-          {/* The two things in the bar that add to the map rather than read
-              it, each with its word beside its mark: "I have" — a plus in a
-              ring — puts something out; "I need" — a glass — asks for
-              something. They lead the bar's buttons, left of the pair that
-              says how the page is read. Shown to everybody: to a stranger
-              they are the way in, by way of signing in. On a phone, where the
-              bar is full, the marks stand alone. */}
-          <button type="button" className="topbar-word" aria-label={t("header.have")} onClick={post}>
+          {/* On a phone only, where the middle of the bar is put away: "I
+              have" — a plus in a ring — and "I need" — a glass — as marks. */}
+          <button type="button" className="topbar-word" aria-label={t("header.have")} title={t("header.have")} onClick={post}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="9" />
               <path d="M12 8v8" />
               <path d="M8 12h8" />
             </svg>
-            <span>{t("header.have")}</span>
           </button>
-          <button type="button" className="topbar-word" aria-label={t("header.need")} onClick={need}>
+          <button type="button" className="topbar-word" aria-label={t("header.need")} title={t("header.need")} onClick={() => need()}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="10.5" cy="10.5" r="6.5" />
               <path d="m15.5 15.5 5 5" />
             </svg>
-            <span>{t("header.need")}</span>
           </button>
           {/* How the home page is read: on the map, or as lists. A pair, the
               one in force turned over. Only on the page that has both. */}
@@ -236,6 +257,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
       {user && (
         <RequestModal
           isOpen={needing}
+          title={needed}
           onClose={() => setNeeding(false)}
           onSaved={(request) => {
             setNeeding(false);

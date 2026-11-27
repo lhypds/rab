@@ -435,6 +435,7 @@
   },
   "mine": {
     "title": "Mine",
+    "wantedEmpty": "You are not looking for anything yet. Write what you need in the bar at the top.",
     "itemsEmpty": "You have nothing listed. Press + to publish something.",
     "noneShown": "Nothing here.",
     "items": "Items",
@@ -661,7 +662,7 @@
     "post": "Post request",
     "saved": "Request posted",
     "titleRequired": "Say what you are looking for.",
-    "placeRequired": "Choose where you need it.",
+    "placeRequired": "Choose a request area, or add a location.",
     "offer": "Message",
     "delete": "Delete",
     "deleteConfirm": "Delete this request?",
@@ -673,6 +674,6 @@
     "contact": "Contact",
     "photosHint": "Optional. A photo of the kind of thing you are looking for.",
     "region": "Request area",
-    "regionHint": "Filled in with the city the map is on. Anyone looking at this area sees the request in the list."
+    "regionHint": "Filled in with the city the map is on. Anyone looking at this area sees the request in the list, even without a location."
   }
 }

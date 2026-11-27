@@ -10,8 +10,10 @@ import { storePath } from "../utils/stores.js";
 const FILTERS = ["all", "published"];
 
 // `carried`: an item being dragged from somewhere else on the screen, which
-// any store takes when it is let go over it (`onDropItem`).
-export default function StoreList({ stores, username, filterable = false, carried = null, onDropItem }) {
+// any store takes when it is let go over it (`onDropItem`). With `cards` the
+// stores are cards with their photographs rather than rows; `beside` stands
+// beside the heading.
+export default function StoreList({ stores, username, filterable = false, carried = null, onDropItem, cards = false, beside = null }) {
   const { t } = useTranslation();
   const [dropOn, setDropOn] = useState(null);
   // Any store takes any item.
@@ -37,7 +39,12 @@ export default function StoreList({ stores, username, filterable = false, carrie
   return (
     <>
       <div className="part-heading">
-        <h2>{t("store.title")}</h2>
+        {/* `beside`: what stands beside the heading — the pair that lays the
+            stores out as cards or rows. */}
+        <span className="part-head">
+          <h2>{t("store.title")}</h2>
+          {beside}
+        </span>
         <span>{stores.length}</span>
       </div>
       {filterable && (
@@ -57,6 +64,20 @@ export default function StoreList({ stores, username, filterable = false, carrie
       )}
       {shown.length === 0 ? (
         <p className="empty-state">{t(stores.length === 0 ? "store.empty" : "store.noneShown")}</p>
+      ) : cards ? (
+        <ul className="item-cards">
+          {shown.map((store) => (
+            <li key={store.id} className="item-card">
+              <Link className="item-card-link" to={storePath({ owner: username, id: store.id })} state={{ back: true }}>
+                <span className="item-card-photo">{store.thumb && <img src={store.thumb} alt="" loading="lazy" />}</span>
+                <span className="item-card-lines">
+                  <strong>{store.title}</strong>
+                  <span className="item-card-meta">{dotted([t("store.count", { count: store.count ?? 0 }), store.default && t("store.default"), store.place])}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       ) : (
         <ul className="row-list">
           {shown.map((store) => (

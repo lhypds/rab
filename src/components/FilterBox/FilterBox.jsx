@@ -8,8 +8,9 @@ import styles from "./filter.module.css";
 //
 // With `slash`, a "/" pressed anywhere on the page that is not being typed
 // into comes to the field — where the box is on screen, and no sheet is open
-// over it.
-export default function FilterBox({ value, onChange, placeholder, className, slash = false }) {
+// over it. `onEnter`, where there is one, is told what is written when Enter
+// is pressed in the field.
+export default function FilterBox({ value, onChange, placeholder, className, slash = false, onEnter }) {
   const { t } = useTranslation();
   const inputRef = useRef(null);
 
@@ -42,6 +43,11 @@ export default function FilterBox({ value, onChange, placeholder, className, sla
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === "Enter" && onEnter) {
+            event.preventDefault();
+            onEnter(value);
+            return;
+          }
           if (event.key === "Escape") {
             event.stopPropagation();
             if (value) onChange("");

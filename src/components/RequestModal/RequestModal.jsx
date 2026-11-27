@@ -22,14 +22,15 @@ const DESCRIPTION_MAX = 2000;
 // A few photographs of the kind of thing wanted (the server keeps as many).
 const IMAGES_MAX = 6;
 
-// Where a new request starts: wherever the map was last looking.
+// Where a new request starts: with no spot on the map — that is its maker's
+// to add — and, for when they do, wherever the map was last looking.
 function startingFields(contacts) {
   const view = savedView() ?? currentRegion().center ?? DEFAULT_VIEW;
   return {
     title: "",
     category: "",
     description: "",
-    located: true,
+    located: false,
     latitude: view.latitude,
     longitude: view.longitude,
     place: "",
@@ -51,9 +52,10 @@ function fieldsOf(request) {
     title: request.title ?? "",
     category: request.category && request.category !== "other" ? request.category : "",
     description: request.description ?? "",
-    located: true,
-    latitude: request.latitude,
-    longitude: request.longitude,
+    // One saved without a spot is given the form's own to start from.
+    ...(request.located === false || request.latitude == null
+      ? { located: false, latitude: startingFields([]).latitude, longitude: startingFields([]).longitude }
+      : { located: true, latitude: request.latitude, longitude: request.longitude }),
     place: request.place ?? "",
     start: request.start ?? "",
     end: request.end ?? "",
@@ -70,7 +72,8 @@ function fieldsOf(request) {
 // its maker would pay for it, and how they are reached. Saved, it stands on
 // the map under "Requests" for whoever has one to offer. Given a `request`, the
 // sheet opens on it instead, and saving changes that one.
-export default function RequestModal({ isOpen, request: editing = null, onClose, onSaved }) {
+// `title` is what a new one opens already saying it is looking for.
+export default function RequestModal({ isOpen, request: editing = null, title: opensWith = "", onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { country } = useRegion();
@@ -79,7 +82,8 @@ export default function RequestModal({ isOpen, request: editing = null, onClose,
   const dialCode = dialCodeOf(country);
   const [ownContacts, setOwnContacts] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [fields, setFields] = useState(() => (editing ? fieldsOf(editing) : startingFields([])));
+  const starting = () => (editing ? fieldsOf(editing) : { ...startingFields([]), title: opensWith.slice(0, TITLE_MAX) });
+  const [fields, setFields] = useState(starting);
   const [opening, setOpening] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +98,7 @@ export default function RequestModal({ isOpen, request: editing = null, onClose,
     // One being changed keeps the area it was saved with; one saved without
     // is given the town its own spot is in, as a new one is.
     regionPicked.current = Boolean(editing?.region);
-    const spot = editing ?? startingFields([]);
+    const spot = editing?.latitude != null ? editing : startingFields([]);
     setHere({ latitude: spot.latitude, longitude: spot.longitude });
     if (regionPicked.current || !MAPBOX_TOKEN) return undefined;
     const controller = new AbortController();
@@ -120,7 +124,7 @@ export default function RequestModal({ isOpen, request: editing = null, onClose,
   useEffect(() => {
     if (!isOpen) return undefined;
     let cancelled = false;
-    setFields(editing ? fieldsOf(editing) : startingFields([]));
+    setFields(starting());
     setOpening((count) => count + 1);
     setError("");
     api
@@ -205,7 +209,8 @@ export default function RequestModal({ isOpen, request: editing = null, onClose,
     event.preventDefault();
     if (busy || uploading > 0) return;
     if (!fields.title.trim()) return setError(t("request.titleRequired"));
-    if (!fields.located) return setError(t("request.placeRequired"));
+    // With no spot on the map, the area is what it is found by.
+    if (!fields.located && !fields.region) return setError(t("request.placeRequired"));
     if (contacts.length === 0) return setError(t("item.contactRequired"));
     setBusy(true);
     setError("");
@@ -214,9 +219,9 @@ export default function RequestModal({ isOpen, request: editing = null, onClose,
         title: fields.title.trim(),
         category: fields.category,
         description: fields.description.trim(),
-        latitude: fields.latitude,
-        longitude: fields.longitude,
-        place: fields.place.trim(),
+        latitude: fields.located ? fields.latitude : null,
+        longitude: fields.located ? fields.longitude : null,
+        place: fields.located ? fields.place.trim() : "",
         start: fields.start || null,
         end: fields.end || null,
         budget: fields.budget === "" ? null : Number(fields.budget),
@@ -512,7 +517,15 @@ export function RequestView({ request, onClose, onGone }) {
                   <dt>{t(`item.contactTypes.${contact.type}`)}</dt>
                   <dd>
                     {contact.type === "message" ? (
-                      t("item.contactMessageNote")
+                      // Pressed to write one, by whoever is reading. To its
+                      // maker it is only words: nobody writes to themselves.
+                      mine ? (
+                        t("item.contactMessageNote")
+                      ) : (
+                        <button type="button" className={styles.contactWrite} onClick={() => (user ? setMessaging(true) : navigate(loginPath()))}>
+                          {t("item.contactMessageNote")}
+                        </button>
+                      )
                     ) : contact.type === "phone" ? (
                       <a href={contactHref(contact)}>
                         {contact.code ? `${contact.code} ` : ""}
@@ -547,7 +560,7 @@ export function RequestView({ request, onClose, onGone }) {
         </div>
       </Modal>
       {/* One asked without a name is written to by way of the request, so
-          its maker is not named — to the admin either, who is told the name. */}
+          its maker is not named. */}
       {messaging && <MessageModal username={request.anonymous ? `~${request.id}` : request.owner} onClose={() => setMessaging(false)} onNavigate={onClose} />}
     </>
   );

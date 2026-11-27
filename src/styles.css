@@ -291,8 +291,10 @@ a {
 
 /* The envelope wears a mark when something is waiting. A dot and not a figure:
    how many there are is the list's own answer. */
-/* The box in the middle of the bar: in the middle of the page, whatever
-   stands to either side of it, and narrowed before it reaches the buttons. */
+/* The middle of the bar: "I have", a button, and beside it the box that says
+   "I need" — in the middle of the page, whatever stands to either side, and
+   the box narrowed before the two reach the buttons. Put away on a phone,
+   where the bar is full. */
 .topbar-filter {
   display: none;
 }
@@ -302,10 +304,45 @@ a {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: clamp(140px, calc(100vw - 860px), 480px);
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     transform: translate(-50%, -50%);
   }
+
+  .topbar-filter > [role="search"] {
+    width: clamp(140px, calc(100vw - 760px), 480px);
+  }
+}
+
+/* "I have": the bar's one large button, as tall as the box beside it and in
+   the ink the box is ruled in. */
+.topbar-have {
+  flex: none;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px 0 8px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--paper);
+  /* The same type as what is written in the box beside it. */
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topbar-have svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 /* The pair that says how the home page is read: joined, the one in force
@@ -359,16 +396,16 @@ a {
   stroke-linejoin: round;
 }
 
-/* Where the bar is full — a phone, or a window narrow enough that the words
-   would run into the box in the middle — the marks alone, at the others' size. */
-@media (max-width: 959px) {
-  .topbar-word {
-    width: var(--action-w);
-    justify-content: center;
-    padding: 2px;
-  }
+/* Only where the middle of the bar is put away — a phone: there "I have" and
+   "I need" are these two marks, at the other buttons' size. */
+.topbar-word {
+  width: var(--action-w);
+  justify-content: center;
+  padding: 2px;
+}
 
-  .topbar-word span {
+@media (min-width: 760px) {
+  .topbar-word {
     display: none;
   }
 }
@@ -505,6 +542,119 @@ a {
 .mine-page .others-columns > section > .tabs,
 .user-page .others-columns > section > .tabs {
   margin: 12px 0;
+}
+
+/* Mine, in two parts: the five things an account has down the left, and the
+   one picked on the right. On a narrow screen the five are a row over it. */
+.mine-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.mine-nav {
+  flex: none;
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  /* Its top rule level with the rule under the pane's heading. */
+  margin-top: 30px;
+  border-top: 1px solid var(--ink);
+}
+
+.mine-nav-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mine-nav-item.active {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.mine-nav-count {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.mine-pane {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The pane's first heading starts level with the top of the five. */
+.mine-pane > .part-heading:first-child {
+  margin-top: 0;
+}
+
+.mine-pane > .tabs {
+  margin: 12px 0;
+}
+
+/* A part's heading with something beside it — the pair that lays what is
+   under it out as cards or rows (as on a spot's page, see ItemView). */
+.part-heading .part-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: inherit;
+}
+
+/* Every heading in the pane is as tall as the pair, whether or not it carries
+   one, so the rule under it is always 30px down — where the rule over the
+   five on the left is put (see .mine-nav). */
+.mine-pane .part-heading {
+  align-items: center;
+  min-height: 22px;
+  box-sizing: content-box;
+  --action-w: 26px;
+  --action-h: 22px;
+  --action-icon: 14px;
+}
+
+@media (max-width: 699px) {
+  .mine-layout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .mine-nav {
+    width: auto;
+    flex-direction: row;
+    margin-top: 0;
+    border-top: 0;
+    border: 1px solid var(--ink);
+    /* Five of them may be wider than a phone: the row is slid along. */
+    overflow-x: auto;
+  }
+
+  .mine-nav-item {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding: 6px 8px;
+    white-space: nowrap;
+    border-bottom: 0;
+    font-size: 12px;
+  }
+
+  .mine-nav-count {
+    display: none;
+  }
 }
 
 /* Said at the head of a preview: that this is not yet anybody's to see. */

@@ -371,7 +371,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
       setRequests((current) => [request, ...(current ?? []).filter((each) => each.id !== request.id)]);
       setKind("requests");
       setSelectedId(request.id);
-      mapRef.current?.flyTo({ center: [request.longitude, request.latitude], zoom: Math.max(mapRef.current.getZoom(), 14), duration: 800 });
+      if (request.located !== false) mapRef.current?.flyTo({ center: [request.longitude, request.latitude], zoom: Math.max(mapRef.current.getZoom(), 14), duration: 800 });
     };
     window.addEventListener(REQUESTED_EVENT, posted);
     return () => window.removeEventListener(REQUESTED_EVENT, posted);
@@ -400,16 +400,21 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     // One asked in an area the reader stands in is listed too, wherever in
     // it its own spot is — as an item is by the area it is offered in.
     const inside = (box) => box && spot.latitude >= box[1] && spot.latitude <= box[3] && spot.longitude >= box[0] && spot.longitude <= box[2];
+    // One with no spot of its own is found by its area alone.
     return requests.filter(
       (request) =>
         inside(request.region?.bbox) ||
-        (bbox
+        (request.located === false
+          ? false
+          : bbox
           ? request.latitude >= bbox[1] && request.latitude <= bbox[3] && request.longitude >= bbox[0] && request.longitude <= bbox[2]
           : Math.abs(request.latitude - spot.latitude) < REQUEST_NEAR && Math.abs(request.longitude - spot.longitude) < REQUEST_NEAR),
     );
   }, [requests, spot, area]);
   // What the pins and the list are drawn from: the items, or the requests.
-  const items = requesting ? (requests ?? []) : itemsOf;
+  // Only a request with a spot of its own has a pin.
+  const pinnedRequests = useMemo(() => (requests ?? []).filter((request) => request.located !== false), [requests]);
+  const items = requesting ? pinnedRequests : itemsOf;
   const offered = requesting ? requestsHere : offeredOf;
 
   // `query` is what is being looked for, typed in the box in the top bar (the
@@ -1659,9 +1664,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
           the ones without. It does not follow the map as it is moved. */}
       <aside className={styles.side} aria-label={t("map.area")}>
         <header className={styles.sideHead}>
-          <h1 className={styles.areaName}>
-            {area === undefined ? <span className={styles.pending} aria-hidden="true" /> : area?.name || t("map.areaUnknown")}
-          </h1>
+          {/* The name, and at its right what is shown under it and on the
+              map: what is offered, or what people need. */}
+          <div className={styles.areaTop}>
+            <h1 className={styles.areaName}>
+              {area === undefined ? <span className={styles.pending} aria-hidden="true" /> : area?.name || t("map.areaUnknown")}
+            </h1>
+            {kindSwitch}
+          </div>
           {/* The line stands whether or not there is anything on it, so the
               list under it does not jump when the name arrives. */}
           <p className={styles.areaWithin}>
@@ -1687,8 +1697,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {/* The box that narrows the list: in the top bar where there is room
             (see Header), and here on a phone. */}
         <FilterBox slash className={styles.sideFilter} value={query} onChange={onQuery} placeholder={t("search.placeholder")} />
-        {/* As lists the map's switch is put away with it, so it stands here. */}
-        {listing && <div className={styles.kindRow}>{kindSwitch}</div>}
         {/* As lists, the column is what narrows them: the categories. */}
         {listing && (
           <div className={styles.categoryRow} role="group" aria-label={t("item.category")}>
@@ -1835,8 +1843,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {/* Which category the pins are for: all of them unless one is
             picked. */}
         <div className={styles.filters} role="group" aria-label={t("item.category")}>
-          {/* What the map shows: what is offered, or what people need. */}
-          {kindSwitch}
           <Select
             className={styles.category}
             fit
