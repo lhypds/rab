@@ -147,7 +147,10 @@ const Modal = ({
     <div className={styles.overlay} style={{ zIndex: 1000 + layer.current }} data-modal="" onClick={handleOverlayClick} {...gestures}>
       <div className={box.filter(Boolean).join(" ")}>
         <div className={styles.header}>
-          {title && <span className={styles.title}>{title}</span>}
+          {/* Kept, empty, while a title is still on its way where there is
+              something else on the bar: it is what takes up the room, so
+              without it the rest would sit mid-bar until the title came. */}
+          {(title || header) && <span className={styles.title}>{title}</span>}
           {/* Whatever else belongs on the top bar of this particular sheet —
               the way through to the original, on the one that frames a page. It
               sits between the title and the close, which is where a reader
