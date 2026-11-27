@@ -24,6 +24,21 @@ struct RabApp: App {
     }
 }
 
+/// rab's colours.
+enum Rab {
+    /// The screens' ground: a warm off-white, the same as Voiced's. Cards and
+    /// photographs stay white on it.
+    static let background = Color(red: 0.96, green: 0.96, blue: 0.94)
+}
+
+extension View {
+    /// A list or form on rab's ground instead of the system's grey or white.
+    func rabBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Rab.background.ignoresSafeArea())
+    }
+}
+
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
@@ -39,7 +54,7 @@ struct RootView: View {
 /// The top of a screen that has no navigation bar: "rab" at the left, in Gill
 /// Sans Bold, and whatever the screen can do at the right.
 struct RabHeader<Actions: View>: View {
-    var background = Color(.systemBackground)
+    var background = Rab.background
     @ViewBuilder var actions: Actions
 
     @ScaledMetric private var titleSize = 34
@@ -64,7 +79,7 @@ struct RabHeader<Actions: View>: View {
 }
 
 extension RabHeader where Actions == EmptyView {
-    init(background: Color = Color(.systemBackground)) {
+    init(background: Color = Rab.background) {
         self.init(background: background) { EmptyView() }
     }
 }

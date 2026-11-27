@@ -170,12 +170,13 @@ struct SignInView: View {
                 }
             }
             .listSectionSpacing(Self.gap)
+            .rabBackground()
             // The field sits close under the wordmark, not a section's gap below it.
             .contentMargins(.top, 8, for: .scrollContent)
             // A heading is as tall as its text and its insets, no taller.
             .environment(\.defaultMinListHeaderHeight, 0)
             .safeAreaInset(edge: .top, spacing: 0) {
-                RabHeader(background: Color(.systemGroupedBackground))
+                RabHeader()
             }
             .toolbar(.hidden, for: .navigationBar)
             .onAppear { focus = .username }

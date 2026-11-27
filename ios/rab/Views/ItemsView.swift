@@ -36,50 +36,60 @@ struct ItemsView: View {
         model.listings == nil ? model.items : model.items.filter { $0.remoteId == nil }
     }
 
-    var body: some View {
-        NavigationStack {
-            Group {
-                if listings.isEmpty && onPhone.isEmpty && model.listingsError == nil {
-                    ContentUnavailableView {
-                        Text("Nothing yet")
-                            .fontWeight(.bold)
-                            .padding(.bottom, 6)
-                    } description: {
-                        Text("Take a photo of something you have. You can give it a plain background, and it goes into your items.")
-                            .font(.subheadline)
-                    } actions: {
-                        if CameraPicker.isAvailable {
-                            Button("Take a photo") { capture = Capture(image: nil) }
-                                .buttonStyle(.borderedProminent)
-                        }
-                    }
-                } else {
-                    List {
-                        if let problem = model.listingsError {
-                            Text("Your items could not be loaded from rab: \(problem)")
-                                .font(.footnote)
-                                .foregroundStyle(.red)
-                        }
-                        // What rab has: the user's items as the website lists them.
-                        ForEach(listings) { listing in
-                            NavigationLink(value: Route.listing(listing.id)) {
-                                ListingRow(listing: listing)
-                            }
-                        }
-                        // And what is still on this phone only.
-                        ForEach(onPhone) { item in
-                            NavigationLink(value: Route.saved(item.id)) {
-                                ItemRow(item: item)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for item in offsets.map({ onPhone[$0] }) { model.delete(item) }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .refreshable { await model.loadListings() }
+    /// The list, or what stands in its place while there is nothing to list.
+    @ViewBuilder
+    private var list: some View {
+        if listings.isEmpty && onPhone.isEmpty && model.listingsError == nil {
+            ContentUnavailableView {
+                Text("Nothing yet")
+                    .fontWeight(.bold)
+                    .padding(.bottom, 6)
+            } description: {
+                Text("Take a photo of something you have. You can give it a plain background, and it goes into your items.")
+                    .font(.subheadline)
+            } actions: {
+                if CameraPicker.isAvailable {
+                    Button("Take a photo") { capture = Capture(image: nil) }
+                        .buttonStyle(.borderedProminent)
                 }
             }
+        } else {
+            List {
+                if let problem = model.listingsError {
+                    Text("Your items could not be loaded from rab: \(problem)")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .listRowBackground(Rab.background)
+                }
+                // What rab has: the user's items as the website lists them.
+                ForEach(listings) { listing in
+                    NavigationLink(value: Route.listing(listing.id)) {
+                        ListingRow(listing: listing)
+                    }
+                }
+                .listRowBackground(Rab.background)
+                // And what is still on this phone only.
+                ForEach(onPhone) { item in
+                    NavigationLink(value: Route.saved(item.id)) {
+                        ItemRow(item: item)
+                    }
+                }
+                .onDelete { offsets in
+                    for item in offsets.map({ onPhone[$0] }) { model.delete(item) }
+                }
+                .listRowBackground(Rab.background)
+            }
+            .listStyle(.plain)
+            .rabBackground()
+            .refreshable { await model.loadListings() }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            list
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Rab.background.ignoresSafeArea())
             .navigationTitle("My items")
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -353,6 +363,7 @@ struct ListingDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .rabBackground()
         // Spaced as the new item's form is: the same gap between the cards,
         // and the photograph as far under the bar.
         .listSectionSpacing(12)

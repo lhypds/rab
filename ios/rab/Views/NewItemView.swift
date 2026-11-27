@@ -190,6 +190,7 @@ struct NewItemView: View {
                     }
                 }
             }
+            .rabBackground()
             // The photo sits close under the title, not a section's gap away.
             .contentMargins(.top, 16, for: .scrollContent)
             // While the photo is being looked at, a toast says so: over the
@@ -438,6 +439,7 @@ struct LocationPicker: View {
                     }
                 }
             }
+            .rabBackground()
             // The list starts close under the bar, not a section's gap below it.
             .contentMargins(.top, 8, for: .scrollContent)
             .navigationTitle("Location")
@@ -580,7 +582,7 @@ struct NewLocationView: View {
                     address = found
                 }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Rab.background)
         // The keyboard must not squeeze the map: were it to, the pin would
         // slide up with the map's middle and point at some other place than
         // the one it was put on. The map keeps its size and goes under the

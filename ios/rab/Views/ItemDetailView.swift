@@ -98,6 +98,7 @@ struct ItemDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .rabBackground()
         // Spaced as the new item's form is: the same gap between the cards,
         // and the photograph as far under the bar.
         .listSectionSpacing(12)
