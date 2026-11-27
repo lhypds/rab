@@ -37,7 +37,8 @@ let whatMax = 40
 /// An item as the phone registers it, for the server's parseItem: what the
 /// thing is — its name, its few words, its category, its description and its
 /// photograph — and nothing about having it: no price, not lent out, not for
-/// sale, nobody to reach, no place and no area.
+/// sale, no contacts of its own (it follows its account's), and a place only
+/// where it was collected at one of the account's.
 struct ItemBody: Encodable {
     var title: String
     /// A few words for what it is (at most `whatMax` characters).
@@ -49,6 +50,10 @@ struct ItemBody: Encodable {
     var currency: String
     /// Not lent out — and, no sale price being sent, not for sale either.
     var rentable = false
+    /// Reached the way its account is: it writes no contacts of its own and
+    /// shows the account's, as they are on the website's account sheet — a
+    /// message on rab, until the account puts another first.
+    var followContacts = true
     /// The same in each of rab's languages, where the brain has said them.
     var translations: [String: Words]?
     /// Where it is: the one of the account's places it was collected at,
@@ -89,6 +94,11 @@ struct Listing: Codable, Identifiable, Hashable {
     var currency: String?
     var place: String?
     var region: Region?
+    /// Its pin, where it has one (`located`): the two numbers mean nothing
+    /// otherwise.
+    var located: Bool?
+    var latitude: Double?
+    var longitude: Double?
     var images: [Picture]?
     var thumb: String?
     var active: Bool?
@@ -245,6 +255,33 @@ struct Words: Codable, Hashable {
     }
 }
 
+/// Where an item on rab is said to be (PATCH /api/items/:id): at one of the
+/// account's places — its pin, the line by the pin, and its area — or
+/// nowhere, which is said outright: the pin and its line as nothing.
+struct WhereBody: Encodable {
+    var place: Place?
+
+    enum CodingKeys: String, CodingKey {
+        case latitude, longitude, place, region
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        guard let place else {
+            // The area stays as it was: an item may be offered somewhere
+            // without standing on a pin.
+            try values.encodeNil(forKey: .latitude)
+            try values.encodeNil(forKey: .longitude)
+            try values.encodeNil(forKey: .place)
+            return
+        }
+        try values.encode(place.latitude, forKey: .latitude)
+        try values.encode(place.longitude, forKey: .longitude)
+        try values.encode(place.line, forKey: .place)
+        if let region = place.region { try values.encode(region, forKey: .region) }
+    }
+}
+
 /// One of the account's places as rab keeps them (GET /api/locations) —
 /// "Home", "The shop": made on the website, and what a thing collected near
 /// one is said to be at.
@@ -255,6 +292,10 @@ struct Place: Codable, Identifiable, Hashable {
     var latitude: Double
     var longitude: Double
     var region: Region?
+
+    /// The line written by an item's pin: the place's address, or its name
+    /// where it has none.
+    var line: String { address?.isEmpty == false ? address! : name }
 }
 
 private struct PlacesReply: Decodable {
@@ -430,6 +471,11 @@ final class RabAPI {
         if object { query.append(URLQueryItem(name: "objects", value: "1")) }
         let reply = try await send("POST", "api/describe", query: query, body: data, type: "image/jpeg")
         return try JSONDecoder().decode(Suggestion.self, from: reply)
+    }
+
+    /// Says where an item on rab is, leaving the rest of it.
+    func updateItem(_ id: String, at place: Place?) async throws {
+        _ = try await send("PATCH", "api/items/\(id)", body: try JSONEncoder().encode(WhereBody(place: place)), type: "application/json")
     }
 
     /// Writes over what an item on rab says it is, leaving the rest of it.

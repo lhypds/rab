@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
-import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
+import { ActionButton, Checkbox, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
 import { CURRENCIES, compactPrice, currencyDigits, durationName, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
@@ -127,18 +127,18 @@ function startingDayRules(item) {
 // the days it can be had.
 const dayOpenDays = (rules) => [...new Set(rules.flatMap((rule) => rule.days))].sort();
 
-// The ways the owner is reached that a form starts with, by how the item is
-// booked: asked for, the account's own as its account has them (`own`) or an
-// empty line; by the date or the time, a message here. Somebody else's starts
-// with an empty line: it is not reached the way the account is.
+// The way the owner is reached that a form starts with, where the item says
+// none: a message here on rab, however it is booked — the one way every
+// account has. The ways the account has written down for itself (`own`) are
+// not put in for it: they are there to be picked, under the fields (see
+// ContactFields' `saved`). Somebody else's starts with an empty line: it has
+// no account to send a message to.
 function startingContacts(mode, shared, own) {
   if (shared) return noContacts();
-  if (mode === "inquiry") return own.length > 0 ? own : noContacts();
   return messageOnly();
 }
 
-// And the one way an item booked by the date or the time starts with: a
-// message here.
+// That one way: a message here.
 const messageOnly = () => [{ type: "message", value: "" }];
 
 // By the time, every price is written in the form for one step of the clock
@@ -181,10 +181,18 @@ function startingFieldsAsSaved(item, calendar, lang) {
     // How the owner is reached, where it is booked by asking: the first way,
     // then as many more as are added, each a kind and what is written for
     // it. One line to start with; a line left empty is not kept.
+    // Whether it is reached the way its account is — the account's own
+    // contacts, as they are on its sheet now and whenever they change —
+    // rather than by ways written on the item: the tick over the contacts.
+    // A new one is; one that has ways of its own written is not. Somebody
+    // else's never is: it has no account behind it.
+    followContacts: item?.shared === true ? false : item ? item.followContacts === true : true,
     contacts:
       item?.contacts?.length > 0
         ? contactLines(item.contacts)
-        : item?.shared === true || item?.mode === "inquiry"
+        : // One with none written: a message here on rab, the way there
+          // always is — except somebody else's, which has nobody to write to.
+          item?.shared === true
           ? noContacts()
           : messageOnly(),
     // And what its price is for, which may be a whole day: kept apart from
@@ -1171,6 +1179,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // from abroad beside it. A message here is not a way to reach somebody
   // else's.
   const contacts = keptContacts(fields.contacts, dialCode, { noMessage: fields.shared });
+  // Reached the way the account is (see `followContacts`): never somebody else's.
+  const following = fields.followContacts && !fields.shared;
   // The prices as written, one step's each by the time — and as kept, for
   // the stretch it is priced by: a step's price times the steps in it.
   const stepRates = priced && rentable ? cleanRates(fields, byTime) : [];
@@ -1239,6 +1249,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     salePrice,
     rentable,
     contacts,
+    followContacts: following,
     rates,
     hours,
     hoursOff: byTime ? fields.hoursOff : [],
@@ -1308,7 +1319,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     }
     if (byTime && hours.length === 0) return t("item.hoursRequired");
     // Booked by asking, the first way to reach the owner has to be written.
-    if (inquiry && (rentable || fields.saleOn) && contacts.length === 0) return t("item.contactRequired");
+    if (inquiry && (rentable || fields.saleOn) && !following && contacts.length === 0) return t("item.contactRequired");
     // A deposit asked for has to say how much.
     if (priced && rentable && fields.depositOn && deposit === null) return t("item.depositRequired");
     // And one for sale, for how much.
@@ -1355,6 +1366,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       salePrice,
       rentable,
       contacts,
+      followContacts: following,
       rates,
       hours,
       hoursOff: byTime ? fields.hoursOff : [],
@@ -2487,7 +2499,47 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   and taken off with the cross beside them, and the ones
                   after move up a place. Last of all on the sheet, under the
                   rule for calling off. */}
-              {(
+              {/* Over them, for one's own item, the tick that has it reached
+                  the way the account is: ticked, the account's own contacts
+                  are shown — as they are on its sheet, to be changed there —
+                  and the item writes none of its own. */}
+              {!fields.shared && (
+                <div className="field">
+                  <span className="field-label">{t("item.contact")}</span>
+                  <Checkbox
+                    className={styles.follow}
+                    checked={fields.followContacts}
+                    onChange={(on) => {
+                      setError("");
+                      setFields((current) => ({
+                        ...current,
+                        followContacts: on,
+                        // Unticked, it starts from the account's own, there to
+                        // be written over.
+                        contacts: !on && !contactsTouched.current && ownContacts.length > 0 ? ownContacts.map((line) => ({ ...line })) : current.contacts,
+                      }));
+                    }}
+                  >
+                    <span>{t("item.contactFollow")}</span>
+                  </Checkbox>
+                  {following && (
+                    <>
+                      <ul className={styles.followed}>
+                        {ownContacts.map((line, index) => (
+                          <li key={index}>
+                            <span>{t(`item.contactNth.${index}`)}</span>
+                            {line.type === "message"
+                              ? t("item.contactTypes.message")
+                              : `${t(`item.contactTypes.${line.type}`)} · ${line.type === "phone" ? `${line.code ?? ""} ${line.value}`.trim() : line.value}`}
+                          </li>
+                        ))}
+                      </ul>
+                      <span className={styles.hint}>{t("item.contactFollowHint")}</span>
+                    </>
+                  )}
+                </div>
+              )}
+              {!following && (
                 <ContactFields
                   contacts={fields.contacts}
                   saved={ownContacts}

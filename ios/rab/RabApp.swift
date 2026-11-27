@@ -165,6 +165,9 @@ private struct CompactChoice<Choice: Identifiable>: ViewModifier {
     let choices: [Choice]
     let name: (Choice) -> String
     let chosen: (Choice) -> Bool
+    /// Several may be chosen: pressing one ticks or unticks it and the box
+    /// stays, to be closed with "Done" when the ticks are right.
+    let several: Bool
     let choose: (Choice) -> Void
 
     /// As many rows as stand without scrolling; more than that scroll.
@@ -188,7 +191,7 @@ private struct CompactChoice<Choice: Identifiable>: ViewModifier {
                                 ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
                                     if index > 0 { Divider().padding(.leading, Compact.inset) }
                                     Button {
-                                        isPresented = false
+                                        if !several { isPresented = false }
                                         choose(choice)
                                     } label: {
                                         HStack(spacing: 8) {
@@ -212,7 +215,9 @@ private struct CompactChoice<Choice: Identifiable>: ViewModifier {
                         Button {
                             isPresented = false
                         } label: {
-                            Text("Cancel")
+                            Group {
+                                if several { Text("Done") } else { Text("Cancel") }
+                            }
                                 .font(Compact.small)
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, Compact.inset)
@@ -246,9 +251,10 @@ extension View {
         choices: [Choice],
         name: @escaping (Choice) -> String,
         chosen: @escaping (Choice) -> Bool,
+        several: Bool = false,
         choose: @escaping (Choice) -> Void
     ) -> some View {
-        modifier(CompactChoice(isPresented: isPresented, title: title, choices: choices, name: name, chosen: chosen, choose: choose))
+        modifier(CompactChoice(isPresented: isPresented, title: title, choices: choices, name: name, chosen: chosen, several: several, choose: choose))
     }
 
     /// Asks before something is done, in a small box in the middle of the

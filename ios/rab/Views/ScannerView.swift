@@ -8,8 +8,8 @@ struct ScannerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    /// The spot what is collected goes onto; none is the account's default one.
-    let spot: Spot?
+    /// The spots what is collected goes onto; none is the account's default one.
+    let spots: [Spot]
 
     @StateObject private var scanner = Scanner()
     /// Where the phone is: what is collected is at the nearest of the
@@ -106,8 +106,8 @@ struct ScannerView: View {
             }
             .accessibilityLabel("Done")
             Spacer()
-            if let spot {
-                Text(spot.title)
+            if !spots.isEmpty {
+                Text(verbatim: spots.map(\.title).joined(separator: ", "))
                     .font(Compact.font.weight(.semibold))
                     .lineLimit(1)
                     .padding(.horizontal, 12)
@@ -215,7 +215,7 @@ struct ScannerView: View {
                 return
             }
             do {
-                try model.collect(image, forSpot: spot?.id, at: locator.position)
+                try model.collect(image, forSpots: spots.map(\.id), at: locator.position)
                 error = nil
                 last = image
                 count += 1

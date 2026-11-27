@@ -11,6 +11,10 @@ struct ItemDetailView: View {
     @State private var publishing = false
     @State private var error: String?
     @State private var deleting = false
+    /// The box that asks where the item is is up; and its answer is on its
+    /// way to rab.
+    @State private var choosingPlace = false
+    @State private var placing = false
 
     var body: some View {
         if let item = model.item(itemId) {
@@ -37,12 +41,14 @@ struct ItemDetailView: View {
             }
 
             Section {
-                // The one of the account's places it was collected at.
-                if let place = model.place(item.locationId) {
-                    LabeledContent("Location", value: place.name)
+                // Where it is: the one of the account's places it was collected
+                // at, where it was at one — and any of them, or none, chosen here.
+                LocationRow(name: model.place(item.locationId)?.name, busy: placing) {
+                    choosingPlace = true
                 }
-                if let spot = model.spot(item.spotId) {
-                    LabeledContent("Spot", value: spot.title)
+                let spots = item.collectedFor.compactMap { model.spot($0)?.title }
+                if !spots.isEmpty {
+                    LabeledContent("Spot", value: spots.joined(separator: ", "))
                 }
                 LabeledContent("Taken", value: item.createdAt.formatted(date: .abbreviated, time: .shortened))
             }
@@ -98,8 +104,10 @@ struct ItemDetailView: View {
         // Compact, as the sign-in screen is: the same type, the same height
         // of row and button, the same margins.
         .compactList()
-        // Pulling the page down takes the keyboard with it.
+        // Pulling the page down takes the keyboard with it, and so does
+        // pressing anywhere on it that is not a field.
         .scrollDismissesKeyboard(.interactively)
+        .dismissesKeyboardOnTap()
         .navigationTitle(item.isRecognized ? Text(verbatim: item.words(in: model.language).title) : Text("Not recognized yet"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
@@ -109,6 +117,25 @@ struct ItemDetailView: View {
             }
         }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
+        .compactChoice(
+            isPresented: $choosingPlace,
+            title: Text("Location"),
+            choices: PlaceChoice.all(model.places),
+            name: { $0.name },
+            chosen: { $0.id == (model.place(item.locationId)?.id ?? "") },
+            choose: { choice in
+                placing = true
+                error = nil
+                Task {
+                    defer { placing = false }
+                    do {
+                        try await model.setPlace(choice.place, for: item)
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+            }
+        )
         .compactDialog(isPresented: $deleting, title: Text("Delete this item?"), confirm: "Delete") {
             model.delete(item)
             dismiss()

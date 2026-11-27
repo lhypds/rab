@@ -214,7 +214,11 @@ export default function ItemView({
   // requests go to.
   const admin = isAdmin(viewer) && !preview;
   const canEdit = mine || admin || (shared && Boolean(viewer) && !preview);
-  const contacts = item.contacts ?? [];
+  // How its owner is reached. Where none is written — what the phone
+  // registers says none — the first way is a message here on rab: an
+  // account's own item always has that one. Somebody else's has nobody here
+  // to write to, and stays without.
+  const contacts = item.contacts?.length > 0 ? item.contacts : !shared && item.owner ? [{ type: "message", value: "" }] : [];
   // Where asking by the way written first goes, or null where that way is not
   // one that can be pressed (an address).
   const askHref = contactHref(contacts[0], item.title);

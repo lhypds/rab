@@ -30,6 +30,16 @@ struct ItemsView: View {
     @State private var choosingLanguage = false
     /// What recognizing everything could not do, the last time it was asked.
     @State private var trouble: String?
+    /// The pages opened from the grid, the last on top.
+    @State private var path: [Route] = []
+    /// The items picked, while several are being picked at once — a long
+    /// press on one starts it: nil while none are. Each by where its tile
+    /// leads.
+    @State private var picked: Set<Route>?
+    /// The boxes that ask about the ones picked: whether to delete them, and
+    /// where they are.
+    @State private var deletingPicked = false
+    @State private var placingPicked = false
 
     private var listings: [Listing] { model.listings ?? [] }
 
@@ -92,19 +102,17 @@ struct ItemsView: View {
                     LazyVGrid(columns: ItemGrid.columns, spacing: ItemGrid.gap) {
                         // What is still on this phone only, marked with a dot.
                         ForEach(onPhone.filter { shows($0.category, recognized: $0.isRecognized) }) { item in
-                            NavigationLink(value: Route.saved(item.id)) {
-                                ItemTile(name: item.words(in: model.language).title, busy: model.recognizing.contains(item.id), waiting: true) {
-                                    PhotoView(item: item, maxPixel: 120, fills: true)
-                                }
+                            ItemTile(name: item.words(in: model.language).title, busy: model.recognizing.contains(item.id), waiting: true, picked: picked?.contains(.saved(item.id))) {
+                                PhotoView(item: item, maxPixel: 120, fills: true)
                             }
+                            .pressed(.saved(item.id), path: $path, picked: $picked)
                         }
                         // What rab has: the user's items as the website lists them.
                         ForEach(listings.filter { shows($0.category, recognized: true) }) { listing in
-                            NavigationLink(value: Route.listing(listing.id)) {
-                                ItemTile(name: listing.words(in: model.language).title, busy: model.recognizing.contains(listing.id), waiting: false) {
-                                    RemotePhoto(path: listing.thumb ?? listing.images?.first?.thumb ?? listing.images?.first?.src, fills: true)
-                                }
+                            ItemTile(name: listing.words(in: model.language).title, busy: model.recognizing.contains(listing.id), waiting: false, picked: picked?.contains(.listing(listing.id))) {
+                                RemotePhoto(path: listing.thumb ?? listing.images?.first?.thumb ?? listing.images?.first?.src, fills: true)
                             }
+                            .pressed(.listing(listing.id), path: $path, picked: $picked)
                         }
                     }
                     .buttonStyle(.plain)
@@ -159,7 +167,7 @@ struct ItemsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             grid
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Rab.background.ignoresSafeArea())
@@ -176,6 +184,12 @@ struct ItemsView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
                     RabHeader(compact: true) {
+                        // The camera that collects, one thing after another: the
+                        // first of the buttons.
+                        Button { collecting = true } label: {
+                            BarIcon(name: "camera.viewfinder")
+                        }
+                        .accessibilityLabel("Start collecting")
                         // The marker: which spot things are collected onto.
                         // Chosen here, and nothing more — the tick says which.
                         Button { choosingSpot = true } label: {
@@ -183,8 +197,9 @@ struct ItemsView: View {
                                 SpotIcon()
                                 // Which one it is, beside it: on one line, cut
                                 // short where the bar has no more room.
-                                if let spot = model.targetSpot {
-                                    Text(verbatim: spot.title)
+                                // The first, and how many more there are.
+                                if let spot = model.targetSpots.first {
+                                    Text(verbatim: model.targetSpots.count > 1 ? "\(spot.title) +\(model.targetSpots.count - 1)" : spot.title)
                                         .font(Compact.small)
                                         .lineLimit(1)
                                         .truncationMode(.tail)
@@ -195,11 +210,6 @@ struct ItemsView: View {
                         }
                         .disabled(model.spots.isEmpty)
                         .accessibilityLabel("Spot")
-                        // The camera that collects, one thing after another.
-                        Button { collecting = true } label: {
-                            BarIcon(name: "camera.viewfinder")
-                        }
-                        .accessibilityLabel("Start collecting")
                         // The brain: everything not on rab yet is recognized
                         // and sent up. How many there are stands by it.
                         Button(action: recognizeAll) {
@@ -233,11 +243,50 @@ struct ItemsView: View {
                     }
                 }
             }
+            // While several are picked, what can be done with them, at the
+            // foot: how many there are, then recognize, where they are,
+            // delete — and the way out of picking.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let picked {
+                    // As wide as what is in it and no wider, in the middle.
+                    HStack(spacing: 14) {
+                        Text("\(picked.count) selected")
+                            .font(Compact.small)
+                            .monospacedDigit()
+                        // The three that do something need something picked;
+                        // the way out does not.
+                        Button(action: recognizePicked) { BarIcon(name: "brain", scale: 0.8) }
+                            .accessibilityLabel("Recognize again")
+                            .disabled(picked.isEmpty)
+                            .opacity(picked.isEmpty ? 0.4 : 1)
+                        Button { placingPicked = true } label: {
+                            SpotIcon().scaleEffect(0.8).frame(width: BarIcon.side * 0.8, height: BarIcon.side)
+                        }
+                        .accessibilityLabel("Location")
+                        .disabled(picked.isEmpty)
+                        .opacity(picked.isEmpty ? 0.4 : 1)
+                        Button { deletingPicked = true } label: { BarIcon(name: "trash", scale: 0.8) }
+                            .accessibilityLabel("Delete")
+                            .disabled(picked.isEmpty)
+                            .opacity(picked.isEmpty ? 0.4 : 1)
+                        Button { self.picked = nil } label: { BarIcon(name: "xmark", scale: 0.6) }
+                            .accessibilityLabel("Cancel")
+                    }
+                    .foregroundStyle(.white)
+                    .buttonStyle(StillButtonStyle())
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)
+                    .background(Color.black, in: Capsule())
+                    .fixedSize()
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 6)
+                }
+            }
             // The header is the bar here; the title is still what the item's
             // page calls the way back.
             .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(isPresented: $collecting) {
-                ScannerView(spot: model.targetSpot)
+                ScannerView(spots: model.targetSpots)
             }
             // The account, in the middle of the screen: whose it is, and the
             // way out of it.
@@ -247,8 +296,10 @@ struct ItemsView: View {
                 title: Text("Collect onto"),
                 choices: model.spots,
                 name: { $0.title },
-                chosen: { $0.id == model.targetSpot?.id },
-                choose: { model.setTargetSpot($0.id) }
+                chosen: { spot in model.targetSpots.contains { $0.id == spot.id } },
+                // Several, and one at least: the last tick does not come off.
+                several: true,
+                choose: { model.toggleTargetSpot($0.id) }
             )
             .compactChoice(
                 isPresented: $choosingLanguage,
@@ -258,10 +309,25 @@ struct ItemsView: View {
                 chosen: { $0 == model.language },
                 choose: { model.language = $0 }
             )
+            .compactChoice(
+                isPresented: $placingPicked,
+                title: Text("Location"),
+                choices: PlaceChoice.all(model.places),
+                name: { $0.name },
+                chosen: { _ in false },
+                choose: { placePicked($0.place) }
+            )
+            .compactDialog(
+                isPresented: $deletingPicked,
+                title: Text("Delete \(picked?.count ?? 0) items?"),
+                message: Text("What is on rab is deleted from rab for good."),
+                confirm: "Delete"
+            ) {
+                deletePicked()
+            }
             .compactDialog(
                 isPresented: $account,
                 title: Text(verbatim: model.username ?? ""),
-                message: Text("Your items stay in your folder on this phone."),
                 confirm: "Sign out",
                 // Signing in again is all it takes to undo: not in red.
                 destructive: false
@@ -275,6 +341,73 @@ struct ItemsView: View {
         }
     }
 
+    /// The ones picked, as what they are — and picking is over: what is done
+    /// with them goes on without it.
+    private func takePicked() -> (saved: [SavedItem], listings: [Listing]) {
+        let routes = picked ?? []
+        picked = nil
+        var saved: [SavedItem] = []
+        var listed: [Listing] = []
+        for route in routes {
+            switch route {
+            case .saved(let id): if let item = model.item(id) { saved.append(item) }
+            case .listing(let id): if let listing = model.listing(id) { listed.append(listing) }
+            }
+        }
+        return (saved, listed)
+    }
+
+    /// Each of the ones picked is recognized again, one after another: the
+    /// tile of the one being looked at turns meanwhile.
+    private func recognizePicked() {
+        let taken = takePicked()
+        trouble = nil
+        Task {
+            var failed = 0
+            var why = ""
+            for item in taken.saved {
+                do { try await model.recognize(item) } catch { failed += 1; why = error.localizedDescription }
+            }
+            for listing in taken.listings {
+                do { try await model.recognize(listing) } catch { failed += 1; why = error.localizedDescription }
+            }
+            if failed > 0 { trouble = Language.text("\(failed) could not be done: \(why)") }
+        }
+    }
+
+    /// Each of the ones picked is put at the place chosen, or at none.
+    private func placePicked(_ place: Place?) {
+        let taken = takePicked()
+        trouble = nil
+        Task {
+            var failed = 0
+            var why = ""
+            for item in taken.saved {
+                do { try await model.setPlace(place, for: item) } catch { failed += 1; why = error.localizedDescription }
+            }
+            for listing in taken.listings {
+                do { try await model.setPlace(place, for: listing) } catch { failed += 1; why = error.localizedDescription }
+            }
+            if failed > 0 { trouble = Language.text("\(failed) could not be done: \(why)") }
+        }
+    }
+
+    /// Each of the ones picked is deleted: from this phone, and from rab
+    /// where it is there.
+    private func deletePicked() {
+        let taken = takePicked()
+        trouble = nil
+        for item in taken.saved { model.delete(item) }
+        Task {
+            var failed = 0
+            var why = ""
+            for listing in taken.listings {
+                do { try await model.delete(listing) } catch { failed += 1; why = error.localizedDescription }
+            }
+            if failed > 0 { trouble = Language.text("\(failed) could not be done: \(why)") }
+        }
+    }
+
     private func recognizeAll() {
         trouble = nil
         Task {
@@ -282,6 +415,29 @@ struct ItemsView: View {
                 trouble = Language.text("\(result.failed) could not be done: \(result.why)")
             }
         }
+    }
+}
+
+private extension View {
+    /// A tile of the grid under the finger. Pressed, it opens its page — or,
+    /// while several are being picked, is picked or let go. Held, it starts
+    /// the picking, with itself the first picked.
+    func pressed(_ route: Route, path: Binding<[Route]>, picked: Binding<Set<Route>?>) -> some View {
+        contentShape(Rectangle())
+            .onTapGesture {
+                if var all = picked.wrappedValue {
+                    if all.contains(route) { all.remove(route) } else { all.insert(route) }
+                    picked.wrappedValue = all
+                } else {
+                    path.wrappedValue.append(route)
+                }
+            }
+            .onLongPressGesture(minimumDuration: 0.35) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                var all = picked.wrappedValue ?? []
+                all.insert(route)
+                picked.wrappedValue = all
+            }
     }
 }
 
@@ -343,6 +499,10 @@ struct ListingDetailView: View {
     @State private var confirming = false
     @State private var deleting = false
     @State private var error: String?
+    /// The box that asks where the item is is up; and its answer is on its
+    /// way to rab.
+    @State private var choosingPlace = false
+    @State private var placing = false
 
     var body: some View {
         if let listing = model.listing(listingId) {
@@ -371,9 +531,11 @@ struct ListingDetailView: View {
                 try await model.save(draft, for: listing)
             }
 
-            if let place = listing.place, !place.isEmpty {
-                Section {
-                    LabeledContent("Location", value: place)
+            // Where it is: one of the account's places, to be chosen — or
+            // the line by its pin, where it stands at none of them.
+            Section {
+                LocationRow(name: model.place(of: listing)?.name ?? (listing.located == false ? nil : listing.place), busy: placing) {
+                    choosingPlace = true
                 }
             }
 
@@ -409,8 +571,10 @@ struct ListingDetailView: View {
         // Compact, as the sign-in screen is: the same type, the same height
         // of row and button, the same margins.
         .compactList()
-        // Pulling the page down takes the keyboard with it.
+        // Pulling the page down takes the keyboard with it, and so does
+        // pressing anywhere on it that is not a field.
         .scrollDismissesKeyboard(.interactively)
+        .dismissesKeyboardOnTap()
         .navigationTitle(Text(verbatim: listing.words(in: model.language).title))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
@@ -423,6 +587,25 @@ struct ListingDetailView: View {
             }
         }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
+        .compactChoice(
+            isPresented: $choosingPlace,
+            title: Text("Location"),
+            choices: PlaceChoice.all(model.places),
+            name: { $0.name },
+            chosen: { $0.id == (model.place(of: listing)?.id ?? "") },
+            choose: { choice in
+                placing = true
+                error = nil
+                Task {
+                    defer { placing = false }
+                    do {
+                        try await model.setPlace(choice.place, for: listing)
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+            }
+        )
         .compactDialog(
             isPresented: $confirming,
             title: Text("Delete this item?"),
@@ -500,22 +683,23 @@ struct ItemEditor: View {
                     .lineLimit(1...3)
                     .accessibilityLabel("Name")
                     .focused($writing)
-                    // Over the keyboard, the way to put it away: a field of
-                    // several lines has no key that does.
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { writing = false }
-                        }
-                    }
             }
             field("What is it") {
-                TextField("", text: $draft.what)
+                // Made as the two beside it are — a field that may wrap — so
+                // that it is drawn at the same size as they are, written in
+                // or not: a one-line field is another kind of box, and came
+                // out a little smaller when pressed. It is still one line's
+                // worth: a line break typed into it is taken out.
+                TextField("", text: $draft.what, axis: .vertical)
+                    .lineLimit(1...2)
                     .accessibilityLabel("What is it")
                     .focused($writing)
-                    .submitLabel(.done)
-                    // The server keeps no more than this.
-                    .onChange(of: draft.what) { if draft.what.count > whatMax { draft.what = String(draft.what.prefix(whatMax)) } }
+                    .onChange(of: draft.what) {
+                        var kept = draft.what.replacingOccurrences(of: "\n", with: " ")
+                        // The server keeps no more than this.
+                        if kept.count > whatMax { kept = String(kept.prefix(whatMax)) }
+                        if kept != draft.what { draft.what = kept }
+                    }
             }
             field("Description") {
                 TextField("", text: $draft.description, axis: .vertical)
@@ -603,6 +787,55 @@ struct ItemEditor: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+}
+
+/// One of the choices of where an item is: one of the account's places, or
+/// nowhere.
+struct PlaceChoice: Identifiable {
+    let place: Place?
+    var id: String { place?.id ?? "" }
+    var name: String { place?.name ?? Language.text("None") }
+
+    /// Nowhere first, then the account's places in their own order.
+    static func all(_ places: [Place]) -> [PlaceChoice] {
+        [PlaceChoice(place: nil)] + places.map { PlaceChoice(place: $0) }
+    }
+}
+
+/// The row of an item's page that says where it is, and opens the choice of
+/// where: one of the account's places, by name — or, for an item that stands
+/// somewhere that is none of them, the line by its pin.
+struct LocationRow: View {
+    let name: String?
+    let busy: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text("Location")
+                Spacer(minLength: 8)
+                Group {
+                    if let name, !name.isEmpty {
+                        Text(verbatim: name).lineLimit(1)
+                    } else {
+                        Text("None")
+                    }
+                }
+                .foregroundStyle(.secondary)
+                if busy {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(Compact.small)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(StillButtonStyle())
+        .disabled(busy)
     }
 }
 

@@ -838,3 +838,36 @@ div.sheet .form {
   gap: 6px;
   font-size: 12px;
 }
+
+/* The account's own contacts, shown under the tick that has the item follow
+   them: which each is — the primary, the secondary — and what it is. Not to
+   be written in here: they are the account's, changed on its own sheet. */
+.followed {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  font-size: 12px;
+}
+
+.followed li {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.followed li > span {
+  flex: none;
+  color: var(--muted);
+}
+
+/* The tick itself: its words at the size of the form's own, as a spot's tick
+   has them — the checkbox alone takes the page's larger type. */
+.follow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}

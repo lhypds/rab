@@ -10,7 +10,11 @@ import Locations from "./Locations.jsx";
 import styles from "./account.module.css";
 
 // The ways an account can say it is reached, and how many of them.
-const CONTACT_TYPES = ["phone", "email", "address", "line", "whatsapp", "wechat", "other"];
+// "message" is a message here on rab: a way with nothing to write for it, and
+// the primary one of an account that has put no other first.
+const CONTACT_TYPES = ["phone", "email", "address", "line", "whatsapp", "wechat", "other", "message"];
+// As the list of kinds shows them: the message here first.
+const MENU_TYPES = ["message", ...CONTACT_TYPES.filter((each) => each !== "message")];
 const CONTACT_INPUT = { phone: "tel", email: "email", address: "text" };
 const CONTACT_MAX = 200;
 const CONTACTS_MAX = 5;
@@ -18,6 +22,7 @@ const CONTACTS_MAX = 5;
 // A way as it is kept, as a line of the form: a phone number is its code and
 // its digits; one kept with its code in front has it read off.
 function lineOf(contact) {
+  if (contact.type === "message") return { type: "message", value: "" };
   if (contact.type !== "phone") return { type: contact.type, value: contact.value };
   const split = contact.code ? { code: contact.code, value: contact.value } : splitDialCode(contact.value);
   return { type: "phone", code: split?.code, value: String(split?.value ?? contact.value).replace(/\D/g, "") };
@@ -217,6 +222,14 @@ export default function AccountModal({ isOpen, onClose }) {
     setError("");
   };
   const setContact = (index, patch) => edit(contacts.map((contact, each) => (each === index ? { ...contact, ...patch } : contact)));
+  // One way changes places with the one before it (-1) or after it (1).
+  const move = (index, by) => {
+    const to = index + by;
+    if (to < 0 || to >= contacts.length) return;
+    const next = [...contacts];
+    [next[index], next[to]] = [next[to], next[index]];
+    edit(next);
+  };
 
   async function save(event) {
     event.preventDefault();
@@ -229,9 +242,10 @@ export default function AccountModal({ isOpen, onClose }) {
           .map((contact) =>
             contact.type === "phone"
               ? { type: "phone", code: contact.code ?? dialCode, value: contact.value.replace(/\D/g, "") }
-              : { type: contact.type, value: contact.value.trim() },
+              : { type: contact.type, value: contact.type === "message" ? "" : contact.value.trim() },
           )
-          .filter((contact) => contact.value),
+          // A line left empty is not kept; a message has nothing to write.
+          .filter((contact) => contact.type === "message" || contact.value),
       );
       setContacts((answer.contacts ?? []).map(lineOf));
       setChanged(false);
@@ -338,15 +352,22 @@ export default function AccountModal({ isOpen, onClose }) {
       <form className={styles.contacts} onSubmit={save} autoComplete="off">
         <span className="field-label">{t("account.contacts")}</span>
         {contacts?.map((contact, index) => (
-          <div key={index} className={styles.contactRow}>
+          <div key={index} className={styles.contactLine}>
+          {/* Which it is, in order: the primary, the secondary and so on. */}
+          <span className={`field-label ${styles.contactNth}`}>{t(`item.contactNth.${index}`)}</span>
+          <div className={styles.contactRow}>
             <Select
               className={styles.small}
               label={t("item.contactType")}
               value={contact.type}
               // Turned into a phone number, what is written already loses
               // whatever is not a digit.
-              onChange={(value) => setContact(index, { type: value, value: value === "phone" ? contact.value.replace(/\D/g, "") : contact.value })}
-              options={CONTACT_TYPES.map((each) => ({ value: each, label: t(`item.contactTypes.${each}`) }))}
+              onChange={(value) => setContact(index, { type: value, value: value === "message" ? "" : value === "phone" ? contact.value.replace(/\D/g, "") : contact.value })}
+              // A message here is said once.
+              options={MENU_TYPES.filter((each) => each !== "message" || contact.type === "message" || !contacts.some((other) => other.type === "message")).map((each) => ({
+                value: each,
+                label: t(`item.contactTypes.${each}`),
+              }))}
             />
             {contact.type === "phone" && (
               <Select
@@ -360,8 +381,11 @@ export default function AccountModal({ isOpen, onClose }) {
                 options={dialOptions}
               />
             )}
+            {/* A message has nothing to write: the line says what it is. */}
+            {contact.type === "message" && <span className={styles.contactNote}>{t("item.contactMessageNote")}</span>}
             <input
               className="text-input"
+              hidden={contact.type === "message"}
               type={CONTACT_INPUT[contact.type] ?? "text"}
               value={contact.value}
               onChange={(event) =>
@@ -370,6 +394,32 @@ export default function AccountModal({ isOpen, onClose }) {
               maxLength={CONTACT_MAX}
               aria-label={t(`item.contactTypes.${contact.type}`)}
             />
+            {/* Up a place and down a place: the order is which is the primary
+                way, which the secondary. The first cannot go up, nor the last down. */}
+            <button
+              type="button"
+              className={styles.remove}
+              onClick={() => move(index, -1)}
+              disabled={index === 0}
+              aria-label={t("item.contactUp")}
+              title={t("item.contactUp")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={styles.remove}
+              onClick={() => move(index, 1)}
+              disabled={index === contacts.length - 1}
+              aria-label={t("item.contactDown")}
+              title={t("item.contactDown")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 9l7 7 7-7" />
+              </svg>
+            </button>
             <button
               type="button"
               className={styles.remove}
@@ -382,6 +432,7 @@ export default function AccountModal({ isOpen, onClose }) {
               </svg>
             </button>
           </div>
+          </div>
         ))}
         <div className={styles.contactActions}>
           {contacts && contacts.length < CONTACTS_MAX && (
@@ -392,7 +443,7 @@ export default function AccountModal({ isOpen, onClose }) {
                 edit([
                   ...contacts,
                   // The kind the next one starts as: the first not in use yet.
-                  { type: CONTACT_TYPES.find((each) => !contacts.some((contact) => contact.type === each)) ?? CONTACT_TYPES[0], value: "" },
+                  { type: CONTACT_TYPES.find((each) => each !== "message" && !contacts.some((contact) => contact.type === each)) ?? CONTACT_TYPES[0], value: "" },
                 ])
               }
             >

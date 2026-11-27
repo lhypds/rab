@@ -47,7 +47,7 @@ final class AppModel {
     private(set) var recognizingAll = false
     /// The spot things are collected onto, by its id: chosen from the top
     /// bar, and remembered for the user. Nil is the account's default spot.
-    private(set) var targetSpotId: String?
+    private(set) var targetSpotIds: [String] = []
     private(set) var store: UserStore?
     private var api: RabAPI?
 
@@ -72,7 +72,7 @@ final class AppModel {
         listings = store.loadListings()
         spots = store.loadSpots()
         places = store.loadPlaces()
-        targetSpotId = UserDefaults.standard.string(forKey: Self.targetKey(store.username))
+        targetSpotIds = Self.keptTargets(store.username)
         UserDefaults.standard.set(name, forKey: Self.userKey)
     }
 
@@ -125,7 +125,7 @@ final class AppModel {
         listings = store.loadListings()
         spots = store.loadSpots()
         places = store.loadPlaces()
-        targetSpotId = UserDefaults.standard.string(forKey: Self.targetKey(store.username))
+        targetSpotIds = Self.keptTargets(store.username)
         UserDefaults.standard.set(username, forKey: Self.userKey)
     }
 
@@ -145,7 +145,7 @@ final class AppModel {
         places = []
         recognizing = []
         recognizingAll = false
-        targetSpotId = nil
+        targetSpotIds = []
     }
 
     // MARK: - listings
@@ -240,15 +240,36 @@ final class AppModel {
         return spots.first { $0.id == id }
     }
 
-    /// The spot things are collected onto: the one chosen, where rab still
-    /// has it, and the account's default one otherwise.
-    var targetSpot: Spot? {
-        spot(targetSpotId) ?? spots.first { $0.isDefault == true } ?? spots.first
+    /// The spots things are collected onto: the ones chosen that rab still
+    /// has, in the order rab lists them — and the account's default one where
+    /// that leaves none. Always one at least, where the account has any.
+    var targetSpots: [Spot] {
+        let chosen = spots.filter { targetSpotIds.contains($0.id) }
+        if !chosen.isEmpty { return chosen }
+        return (spots.first { $0.isDefault == true } ?? spots.first).map { [$0] } ?? []
     }
 
-    func setTargetSpot(_ id: String) {
-        targetSpotId = id
-        if let username { UserDefaults.standard.set(id, forKey: Self.targetKey(username)) }
+    /// Ticks a spot as one of those collected onto, or unticks it — but not
+    /// the last one ticked: there is always one.
+    func toggleTargetSpot(_ id: String) {
+        var ids = targetSpots.map(\.id)
+        if let index = ids.firstIndex(of: id) {
+            guard ids.count > 1 else { return }
+            ids.remove(at: index)
+        } else {
+            ids.append(id)
+        }
+        targetSpotIds = ids
+        if let username { UserDefaults.standard.set(ids, forKey: Self.targetKey(username)) }
+    }
+
+    /// The spots chosen the last time, by a user: several now, and the one
+    /// from when only one could be.
+    private static func keptTargets(_ username: String) -> [String] {
+        let kept = UserDefaults.standard.object(forKey: targetKey(username))
+        if let ids = kept as? [String] { return ids }
+        if let id = kept as? String { return [id] }
+        return []
     }
 
     /// What is on this phone and not on rab yet: photographs still to be
@@ -263,9 +284,9 @@ final class AppModel {
     /// `position` is where the phone is, where it will say: the thing is then
     /// at the nearest of the account's places, if one is within reach.
     @discardableResult
-    func collect(_ image: UIImage, forSpot spotId: String?, at position: CLLocationCoordinate2D? = nil) throws -> SavedItem {
+    func collect(_ image: UIImage, forSpots spotIds: [String], at position: CLLocationCoordinate2D? = nil) throws -> SavedItem {
         let near = position.flatMap { self.place(near: $0) }
-        return try save(image: image, category: "", title: "", what: "", description: "", spotId: spotId, locationId: near?.id)
+        return try save(image: image, category: "", title: "", what: "", description: "", spotIds: spotIds, locationId: near?.id)
     }
 
     // MARK: - places
@@ -277,6 +298,44 @@ final class AppModel {
     func place(_ id: String?) -> Place? {
         guard let id else { return nil }
         return places.first { $0.id == id }
+    }
+
+    /// The one of the account's places an item on rab stands at, going by
+    /// its pin: the place whose spot the pin is on.
+    func place(of listing: Listing) -> Place? {
+        guard listing.located == true, let latitude = listing.latitude, let longitude = listing.longitude else { return nil }
+        return places.first { abs($0.latitude - latitude) < 0.00002 && abs($0.longitude - longitude) < 0.00002 }
+    }
+
+    /// Says where an item on this phone is: at one of the account's places,
+    /// or nowhere. On rab too, where the item is there.
+    func setPlace(_ place: Place?, for item: SavedItem) async throws {
+        guard var fresh = self.item(item.id) else { return }
+        fresh.locationId = place?.id
+        try update(fresh)
+        guard let remoteId = fresh.remoteId, let api else { return }
+        try await api.updateItem(remoteId, at: place)
+        await loadListings()
+    }
+
+    /// The same for an item on rab.
+    func setPlace(_ place: Place?, for listing: Listing) async throws {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        try await api.updateItem(listing.id, at: place)
+        if let index = listings?.firstIndex(where: { $0.id == listing.id }) {
+            listings?[index].located = place != nil
+            listings?[index].latitude = place?.latitude
+            listings?[index].longitude = place?.longitude
+            listings?[index].place = place?.line
+            if let region = place?.region { listings?[index].region = region }
+            if let listings { store?.saveListings(listings) }
+        }
+        for var copy in items where copy.remoteId == listing.id {
+            copy.locationId = place?.id
+            try? update(copy)
+        }
     }
 
     /// The nearest of the account's places to a spot, where one is within
@@ -480,7 +539,7 @@ final class AppModel {
     }
 
     /// Keeps a photographed thing in the user's folder, newest first.
-    func save(image: UIImage, category: String, title: String, what: String, description: String, spotId: String? = nil, locationId: String? = nil) throws -> SavedItem {
+    func save(image: UIImage, category: String, title: String, what: String, description: String, spotIds: [String] = [], locationId: String? = nil) throws -> SavedItem {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in")) }
         guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
             throw BackgroundRemover.Failure.noImage
@@ -504,7 +563,8 @@ final class AppModel {
             height: jpeg.height,
             locationId: locationId,
             remoteId: nil,
-            spotId: spotId
+            spotId: spotIds.first,
+            spotIds: spotIds.isEmpty ? nil : spotIds
         )
         items.insert(item, at: 0)
         try store.saveItems(items)
@@ -534,9 +594,9 @@ final class AppModel {
         guard let api, let store else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        // The spot it was collected for, where rab still has it; where it is
-        // gone, the item goes on the default one, as any other does.
-        let spot = spot(item.spotId)
+        // The spots it was collected for, the ones rab still has; where none
+        // is left, the item goes on the default one, as any other does.
+        let onto = item.collectedFor.filter { spot($0) != nil }
         guard let image = store.loadPhoto(item),
               let full = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.82),
               let thumb = image.jpeg(maxSide: 320, quality: 0.62)
@@ -556,10 +616,10 @@ final class AppModel {
             // At the place it was collected at, where it was at one.
             latitude: at?.latitude,
             longitude: at?.longitude,
-            place: at.map { $0.address?.isEmpty == false ? $0.address! : $0.name },
+            place: at?.line,
             region: at?.region,
             images: [ImageRef(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)],
-            spotIds: spot.map { [$0.id] }
+            spotIds: onto.isEmpty ? nil : onto
         )
         let created = try await api.createItem(body)
         // Changed, perhaps, while it was going up: only where it is now is new.

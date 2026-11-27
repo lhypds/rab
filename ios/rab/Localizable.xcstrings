@@ -241,12 +241,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "欢迎回来，%@。" } }
       }
     },
-    "Your items stay in your folder on this phone." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アイテムはこの iPhone の自分のフォルダに残ります。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的物品会留在这台手机上你的文件夹里。" } }
-      }
-    },
     "Location" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所" } },
@@ -755,6 +749,24 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "言語" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语言" } }
+      }
+    },
+    "%lld selected" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld件を選択中" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选 %lld 项" } }
+      }
+    },
+    "Delete %lld items?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld件を削除しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这 %lld 项？" } }
+      }
+    },
+    "What is on rab is deleted from rab for good." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab にあるものは rab から完全に削除されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在 rab 上的会从 rab 永久删除。" } }
       }
     }
   },

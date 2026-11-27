@@ -677,8 +677,11 @@ function servedItem(item) {
     // Its own pages somewhere else, as addresses; one from before there could
     // be several has the one it had, as `homepage`.
     links: item.links ?? (item.homepage ? [item.homepage] : []),
-    // How its owner is reached, where it is booked by asking: [{ type, value }].
-    contacts: item.contacts ?? [],
+    // How its owner is reached: [{ type, value }], the primary way first. One
+    // that follows its account's contacts (see followsContacts) says the
+    // account's, as they are now.
+    followContacts: followsContacts(item),
+    contacts: followsContacts(item) && item.ownerId != null ? getContacts(item.ownerId) : (item.contacts ?? []),
     // The rule for days — which days of the week it can be had, null for all —
     // and the dates whose hours the owner wiped.
     openDays: item.openDays ?? null,
@@ -880,7 +883,9 @@ function itemFields(item) {
     salePrice: item.salePrice ?? null,
     // Whether it is lent out at all: one that is not is only for sale.
     rentable: item.rentable !== false,
-    contacts: item.contacts ?? [],
+    // Following its account's contacts, it keeps none of its own.
+    followContacts: item.followContacts === true && item.shared !== true,
+    contacts: item.followContacts === true && item.shared !== true ? [] : (item.contacts ?? []),
     shared: item.shared === true,
     openDays: item.openDays ?? null,
     dayHours: item.dayHours ?? null,
@@ -1862,9 +1867,24 @@ export function getBookmarkedItems(userId) {
 // carries them (see rates.js) — kept in its folder's user.json as the account
 // wrote them on its own sheet, so an item of its own starts with them filled
 // in. Read and written as they are asked for, like the locations.
+// How an account is reached, in order — the primary way, the secondary and
+// so on — as it wrote them on its own sheet. One that has written none has
+// the one way every account has: a message here on rab, and that is its
+// primary.
+const MESSAGE_ONLY = [{ type: "message", value: "" }];
+
 export function getContacts(userId) {
   const { contacts } = readRecord(userId, USER_FILE);
-  return Array.isArray(contacts) ? contacts : [];
+  return Array.isArray(contacts) && contacts.length > 0 ? contacts : MESSAGE_ONLY.map((contact) => ({ ...contact }));
+}
+
+// Whether an item is reached the way its account is — its account's own
+// contacts, as they are now, rather than ways written on the item itself:
+// where it says so (the tick in its form), and where it has written none of
+// its own. Somebody else's never: it has no account behind it.
+export function followsContacts(item) {
+  if (item.shared === true) return false;
+  return item.followContacts === true || (item.contacts ?? []).length === 0;
 }
 
 export function saveContacts(userId, contacts) {

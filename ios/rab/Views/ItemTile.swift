@@ -20,6 +20,9 @@ struct ItemTile<Photo: View>: View {
     let busy: Bool
     /// It is on this phone only: rab does not have it yet.
     let waiting: Bool
+    /// Whether it is one of the ones picked, while several are being picked
+    /// at once; nil while none are.
+    var picked: Bool? = nil
     @ViewBuilder var photo: Photo
 
     var body: some View {
@@ -33,7 +36,7 @@ struct ItemTile<Photo: View>: View {
                 if !name.isEmpty {
                     Text(verbatim: name)
                         // Small: it is a label on a small picture.
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
                         .foregroundStyle(.white)
@@ -62,6 +65,25 @@ struct ItemTile<Photo: View>: View {
                         .padding(5)
                 }
             }
+            // While several are being picked: a ring at the top left of each,
+            // filled with a tick in the ones picked, which are greyed a little.
+            .overlay {
+                if picked == true {
+                    Color.black.opacity(0.25)
+                        .clipShape(RoundedRectangle(cornerRadius: ItemGrid.corner))
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if let picked {
+                    Image(systemName: picked ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 17))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(picked ? Color.white : Color.white, picked ? Color.black : Color.clear)
+                        .shadow(color: .black.opacity(0.35), radius: 1.5)
+                        .padding(4)
+                }
+            }
+            .accessibilityAddTraits(picked == true ? .isSelected : [])
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: name))
         .contentShape(Rectangle())

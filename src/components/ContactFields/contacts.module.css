@@ -79,3 +79,11 @@
 .pick {
   margin-top: 8px;
 }
+
+/* One that cannot be pressed — the first has nowhere up to go, the last
+   nowhere down, the only one cannot be taken off — is drawn faint. */
+.remove:disabled {
+  border-color: var(--line);
+  color: var(--line);
+  cursor: default;
+}

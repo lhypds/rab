@@ -41,6 +41,13 @@ struct SavedItem: Codable, Identifiable, Hashable {
     /// The spot it was collected for with the scanner, if it was: where it
     /// goes on rab once it has a name.
     var spotId: String? = nil
+    /// The spots it was collected for, where it was for several: it goes on
+    /// each of them. (`spotId` is the first, and all there is in an item from
+    /// when there could be only one.)
+    var spotIds: [String]? = nil
+
+    /// Every spot it was collected for.
+    var collectedFor: [String] { spotIds ?? spotId.map { [$0] } ?? [] }
 
     /// What it says in each of rab's languages, by their codes: the brain
     /// names a thing in all three at once.

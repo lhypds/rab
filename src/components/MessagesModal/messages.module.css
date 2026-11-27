@@ -46,6 +46,13 @@
   padding-left: 16px;
 }
 
+/* With nobody to show an exchange with: as tall as the list beside it, so
+   that the line saying so stands in the middle of its side. */
+.paneEmpty {
+  display: flex;
+  height: clamp(318px, calc(36vh + 178px), 498px);
+}
+
 /* The sheet's own height, said on the list itself so a long column of people
    scrolls inside it rather than stretching the sheet past the exchange. */
 .list {
@@ -145,6 +152,34 @@
   cursor: pointer;
 }
 
+/* The × at the right of a row: quiet until the pointer is on it. */
+.close {
+  flex: none;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  line-height: 0;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--ink);
+}
+
+.close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
 /* Behind the row against its right edge, uncovered only when the slider is
    carried left. As wide as the slide (see .slider.revealed), the trash centred
    in it. Black, the way a slid-out delete reads: the one filled slab in the
@@ -203,14 +238,15 @@
    sits in clips anything past them, and the row is already flush with the sheet's
    inset. */
 @media (hover: hover) {
-  .item:hover {
+  /* The whole row goes grey under the pointer — the name and the × at its
+     end alike — wherever on it the pointer is. */
+  .slider:hover {
     background: var(--soft);
   }
 
   /* An unread row keeps its warning wash under the pointer rather than taking the
      grey hover over it — the yellow is the state, not something to paint out. */
-  .slider.unread .item:hover,
-  .slider.current .item:hover {
-    background: transparent;
+  .slider.unread:hover {
+    background: rgb(255 255 173);
   }
 }

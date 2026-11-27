@@ -947,7 +947,10 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // How the owner is reached, whichever way it is booked. Somebody else's has
   // no account to send a message to, so that way is not one of its.
   const contacts = readContacts(body?.contacts).filter((contact) => body?.shared !== true || contact.type !== "message");
-  if (mode === "inquiry" && offered && contacts.length === 0) {
+  // One that follows its account's contacts — the tick in its form — writes
+  // none of its own: it is reached however the account is, now and later.
+  const followContacts = body?.followContacts === true && body?.shared !== true;
+  if (mode === "inquiry" && offered && !followContacts && contacts.length === 0) {
     return { error: "Say how you can be contacted", code: "CONTACT_REQUIRED" };
   }
 
@@ -995,6 +998,7 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // Whether it is lent out — for temporary use — at all: one that is not
       // is only for sale.
       rentable,
+      followContacts,
       // What it is sold for, where it is for sale as well as for rent, or
       // null: a sum read as a deposit is.
       salePrice: readDeposit(body?.salePrice, currency),
@@ -1186,9 +1190,18 @@ app.get("/api/contacts", requireSession, (req, res) => {
 
 app.put("/api/contacts", requireSession, (req, res) => {
   if (!Array.isArray(req.body?.contacts)) return res.status(400).json({ error: "Send the contacts as a list" });
-  const contacts = readContacts(req.body.contacts).filter((contact) => contact.type !== "message");
+  // A message here on rab is one of the ways, and the primary one until
+  // another is put before it: said once at most.
+  let messaged = false;
+  const contacts = readContacts(req.body.contacts).filter((contact) => {
+    if (contact.type !== "message") return true;
+    if (messaged) return false;
+    messaged = true;
+    return true;
+  });
   saveContacts(req.user.id, contacts);
-  res.json({ contacts });
+  // None written is the message alone again (see getContacts).
+  res.json({ contacts: getContacts(req.user.id) });
 });
 
 app.post("/api/items", requireSession, (req, res) => {

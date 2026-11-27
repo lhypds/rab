@@ -38,6 +38,26 @@
   margin: 0 0 14px;
 }
 
+/* One way of being reached: which it is — the primary, the secondary — over
+   the row it is written in. */
+.contactLine {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contactNth {
+  color: var(--muted);
+}
+
+/* What stands where a message's field would be: it has nothing to write. */
+.contactNote {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .contactRow {
   display: flex;
   align-items: center;
@@ -161,4 +181,12 @@
 .locationButtons {
   display: flex;
   gap: 6px;
+}
+
+/* One that cannot be pressed — the first has nowhere up to go, the last
+   nowhere down — is drawn faint. */
+.remove:disabled {
+  border-color: var(--line);
+  color: var(--line);
+  cursor: default;
 }

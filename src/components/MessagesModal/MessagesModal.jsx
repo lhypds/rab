@@ -143,7 +143,13 @@ export default function MessagesModal({ isOpen, username, about = null, aboutTit
           loading ? (
             <Skeleton rows={4} lines={2} label={t("common.loading")} />
           ) : (
-            !error && <p className={styles.empty}>{t("messages.empty")}</p>
+            // Nobody yet: the box is still its two sides — where the people
+            // will be listed on the left, with its rule, and on the right,
+            // where an exchange would be, the line that says there is none.
+            <div className={styles.columns}>
+              <ul className={styles.list} />
+              <div className={`${styles.pane} ${styles.paneEmpty}`}>{!error && <p className={styles.empty}>{t("messages.empty")}</p>}</div>
+            </div>
           )
         ) : (
           <div className={styles.columns}>
@@ -181,8 +187,24 @@ export default function MessagesModal({ isOpen, username, about = null, aboutTit
                           {conversation.username.includes("~") && conversation.about ? ` · ${conversation.about}` : ""}
                         </span>
                       </button>
+                      {/* The × at the row's right edge: for a mouse, which
+                          cannot swipe. It does what a swipe does — uncovers
+                          the delete behind the row, and pressed again covers
+                          it — so that an exchange is not gone at one press. */}
+                      <button
+                        type="button"
+                        className={styles.close}
+                        onClick={() => setRevealed(revealed === key ? null : key)}
+                        aria-label={t("messages.delete")}
+                        aria-expanded={revealed === key}
+                        title={t("messages.delete")}
+                      >
+                        <svg viewBox="0 0 12 12" aria-hidden="true">
+                          <path d="M2 2l8 8M10 2l-8 8" />
+                        </svg>
+                      </button>
                     </div>
-                    {/* Behind the row until a swipe uncovers it. */}
+                    {/* Behind the row until a swipe, or the ×, uncovers it. */}
                     <button
                       type="button"
                       className={styles.delete}

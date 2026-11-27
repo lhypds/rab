@@ -9,6 +9,9 @@ import styles from "./contacts.module.css";
 // "message" is a message here on rab: a way with nothing to write for it;
 // "other" is anything else, written however its owner likes.
 export const CONTACT_TYPES = ["phone", "email", "address", "line", "whatsapp", "wechat", "other", "message"];
+// As the list of kinds shows them: the message here first — it is the one
+// every account has, and what a contact is until another is chosen.
+const MENU_TYPES = ["message", ...CONTACT_TYPES.filter((each) => each !== "message")];
 export const CONTACTS_MAX = 5;
 const CONTACT_MAX = 200;
 // What a contact's field is, to the keyboard that comes up for it.
@@ -95,6 +98,15 @@ export default function ContactFields({ contacts, onChange, saved = [], noMessag
     onInput?.();
   };
   const setContact = (index, patch) => onChange(contacts.map((contact, each) => (each === index ? { ...contact, ...patch } : contact)));
+  // One way changes places with the one before it (-1) or after it (1).
+  const move = (index, by) => {
+    const to = index + by;
+    if (to < 0 || to >= contacts.length) return;
+    const next = [...contacts];
+    [next[index], next[to]] = [next[to], next[index]];
+    onChange(next);
+    onInput?.();
+  };
 
   return (
     <div className="field">
@@ -116,7 +128,7 @@ export default function ContactFields({ contacts, onChange, saved = [], noMessag
                 })
               }
               // A message here is said once.
-              options={CONTACT_TYPES.filter(
+              options={MENU_TYPES.filter(
                 (each) =>
                   each !== "message" || contact.type === "message" || (!noMessage && !contacts.some((other) => other.type === "message")),
               ).map((each) => ({
@@ -157,6 +169,32 @@ export default function ContactFields({ contacts, onChange, saved = [], noMessag
               maxLength={CONTACT_MAX}
               aria-label={`${t(`item.contactNth.${index}`)} · ${t(`item.contactTypes.${contact.type}`)}`}
             />
+            {/* Up a place and down a place: the order is which is the primary
+                way, which the secondary. The first cannot go up, nor the last down. */}
+            <button
+              type="button"
+              className={styles.remove}
+              onClick={() => move(index, -1)}
+              disabled={index === 0}
+              aria-label={t("item.contactUp")}
+              title={t("item.contactUp")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={styles.remove}
+              onClick={() => move(index, 1)}
+              disabled={index === contacts.length - 1}
+              aria-label={t("item.contactDown")}
+              title={t("item.contactDown")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 9l7 7 7-7" />
+              </svg>
+            </button>
             <button
               type="button"
               className={styles.remove}
