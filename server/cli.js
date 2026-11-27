@@ -342,10 +342,9 @@ async function adminSession(host) {
   return { request, auth, held, close };
 }
 
-// How the items are sent: packed several to a zip — as many as BATCH_ITEMS,
-// or as come to BATCH_BYTES, whichever is first — and that many zips on their
-// way at once.
-const BATCH_ITEMS = 100;
+// How the items are sent: packed several to a zip — as many as come to
+// BATCH_BYTES, however many that is: items without photographs (a kilobyte
+// each) go by the thousand — and that many zips on their way at once.
 const BATCH_BYTES = 20 * 1024 * 1024;
 const BATCH_PARALLEL = 4;
 
@@ -383,7 +382,7 @@ async function sendMissing(fs, session, folder, send) {
     return { files, bytes };
   };
 
-  // The items in batches, by count and by size; one bigger than a batch on
+  // The items in batches, by size; one bigger than a batch on
   // its own goes alone.
   const batches = [];
   let batch = [];
@@ -396,7 +395,7 @@ async function sendMissing(fs, session, folder, send) {
     } catch {
       // read again when it is packed, and failed there
     }
-    if (batch.length && (batch.length >= BATCH_ITEMS || size + bytes > BATCH_BYTES)) {
+    if (batch.length && size + bytes > BATCH_BYTES) {
       batches.push(batch);
       batch = [];
       size = 0;
@@ -408,8 +407,10 @@ async function sendMissing(fs, session, folder, send) {
 
   const counts = { added: 0, replaced: 0, skipped: 0 };
   let done = 0;
-  // A server from before zips of more than one item takes them one at a time.
+  // A server from before zips of more than one item takes them one at a time;
+  // one that takes only so many to a zip says how many (`most`).
   let single = false;
+  let most = Infinity;
   const sendBatch = async (items) => {
     const files = {};
     for (const item of items) Object.assign(files, filesOf(item).files);
@@ -424,6 +425,7 @@ async function sendMissing(fs, session, folder, send) {
   const run = async (items) => {
     try {
       if (single && items.length > 1) throw new Error("one at a time");
+      if (items.length > most) throw new Error(`send at most ${most} at a time`);
       const bytes = await sendBatch(items);
       done += items.length;
       console.log(`[${done}/${send.items.length}] ${items.length} sent (${megabytes(bytes)})`);
@@ -431,6 +433,12 @@ async function sendMissing(fs, session, folder, send) {
       if (items.length > 1 && (single || /one at a time/.test(error.message))) {
         single = true;
         for (const item of items) await run([item]);
+        return;
+      }
+      const fewer = /at most (\d+) at a time/.exec(error.message);
+      if (fewer && Number(fewer[1]) >= 1 && Number(fewer[1]) < items.length) {
+        most = Number(fewer[1]);
+        for (let at = 0; at < items.length; at += most) await run(items.slice(at, at + most));
         return;
       }
       failed += items.length;
