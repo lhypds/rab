@@ -188,7 +188,7 @@ final class AppModel {
     }
 
     /// Keeps a photographed thing in the user's folder, newest first.
-    func save(image: UIImage, category: String, title: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
+    func save(image: UIImage, category: String, title: String, what: String, description: String, region: Region?, locationId: String?) throws -> SavedItem {
         guard let store else { throw APIError(status: 0, code: "LOGIN_REQUIRED", message: String(localized: "Please sign in")) }
         guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
             throw BackgroundRemover.Failure.noImage
@@ -199,6 +199,7 @@ final class AppModel {
             id: id,
             category: category.isEmpty ? nil : category,
             title: title,
+            what: what.isEmpty ? nil : what,
             description: description,
             // The phone asks for no price: it is published at none, and set
             // on the website by whoever wants one.
@@ -343,6 +344,7 @@ final class AppModel {
         let storedThumb = try await api.uploadImage(thumb.data)
         let body = ItemBody(
             title: item.title,
+            what: item.what ?? "",
             description: item.description ?? "",
             category: item.category ?? "",
             currency: item.currency,

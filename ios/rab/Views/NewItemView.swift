@@ -32,6 +32,8 @@ struct NewItemView: View {
     /// Why the form was not filled in from the photo, where it was not.
     @State private var describeNote: LocalizedStringKey?
     @State private var title = ""
+    /// A few words for what it is, apart from its name.
+    @State private var what = ""
     @State private var details = ""
     /// The location it is attached to, if any.
     @State private var locationId: String?
@@ -123,6 +125,10 @@ struct NewItemView: View {
                 Section {
                     TextField("Name", text: $title)
                         .textInputAutocapitalization(.sentences)
+                    TextField("Short description", text: $what)
+                        .textInputAutocapitalization(.sentences)
+                        // The server keeps no more than this.
+                        .onChange(of: what) { if what.count > whatMax { what = String(what.prefix(whatMax)) } }
                     TextField("Description", text: $details, axis: .vertical)
                         .textInputAutocapitalization(.sentences)
                         .lineLimit(3...8)
@@ -333,7 +339,7 @@ struct NewItemView: View {
         Task {
             defer { saving = false }
             do {
-                let item = try model.save(image: shown, category: category, title: name, description: details.trimmingCharacters(in: .whitespacesAndNewlines), region: region, locationId: model.location(locationId)?.id)
+                let item = try model.save(image: shown, category: category, title: name, what: what.trimmingCharacters(in: .whitespacesAndNewlines), description: details.trimmingCharacters(in: .whitespacesAndNewlines), region: region, locationId: model.location(locationId)?.id)
                 do {
                     try await model.publish(item)
                     dismiss()

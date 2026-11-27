@@ -253,6 +253,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享照片" } }
       }
     },
+    "Short description" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "短い説明" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "简短描述" } }
+      }
+    },
     "Sign in" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "サインイン" } },

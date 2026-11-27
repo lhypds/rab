@@ -315,9 +315,12 @@ struct ListingDetailView: View {
                 }
             }
 
-            if let description = listing.description, !description.isEmpty {
+            // Its few words for what it is, then its description, as the website shows them.
+            let what = listing.what ?? "", description = listing.description ?? ""
+            if !what.isEmpty || !description.isEmpty {
                 Section {
-                    Text(description)
+                    if !what.isEmpty { Text(what).font(.headline) }
+                    if !description.isEmpty { Text(description) }
                 }
             }
 

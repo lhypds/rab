@@ -35,6 +35,9 @@ struct SavedItem: Codable, Identifiable, Hashable {
     /// suggested or chosen.
     var category: String?
     var title: String
+    /// A few words for what it is, kept apart from its name (the website's
+    /// "What is it"). Missing from the items saved before the form asked for one.
+    var what: String? = nil
     /// Missing from the items saved before the form asked for one.
     var description: String?
     /// Nothing, for an item made since the form stopped asking for one.

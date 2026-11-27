@@ -31,10 +31,15 @@ struct ImageRef: Encodable {
     let height: Int
 }
 
+/// The most the server keeps of an item's few words for what it is (WHAT_MAX).
+let whatMax = 40
+
 /// An item as the server's parseItem reads it. The bare `price` is the one
 /// rule it needs: that price, every day.
 struct ItemBody: Encodable {
     var title: String
+    /// A few words for what it is (at most `whatMax` characters).
+    var what = ""
     var description = ""
     var category = ""
     var currency: String
@@ -65,6 +70,7 @@ struct Listing: Codable, Identifiable, Hashable {
 
     var id: String
     var title: String
+    var what: String?
     var description: String?
     var category: String?
     var price: Double?
