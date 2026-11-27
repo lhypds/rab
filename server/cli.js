@@ -550,69 +550,132 @@ async function sendPublic(args, { mirror = false } = {}) {
   if (failed) process.exit(1);
 }
 
-// Each of `take` (ids the server holds) fetched into the folder, an item's
-// folder written beside the others and moved into place whole, the way a
-// crawler does, for a server running on this folder to take in — in the stead
-// of the one here, where there is one, which is set aside until the new one is
-// in. The number that failed.
+// How pull fetches: FETCH_ITEMS to a request (POST /api/public/items, one zip
+// back), and that many requests on their way at once.
+const FETCH_ITEMS = 50;
+const FETCH_PARALLEL = 4;
+
+// One item's files, out of an unzipped batch, written beside the others and
+// moved into place whole, the way a crawler does, for a server running on this
+// folder to take in — in the stead of the one here, where there is one, which
+// is set aside until the new one is in. Whether it replaced one.
+function placeItem(fs, folder, local, id, entries) {
+  // A store comes as stores/<id>/store.json and goes in stores/; an item in
+  // items/.
+  const under = `stores/${id}/store.json` in entries ? "stores" : "items";
+  const file = under === "stores" ? "store.json" : "item.json";
+  const dir = path.join(folder, under);
+  fs.mkdirSync(dir, { recursive: true });
+  const into = path.join(dir, `.${id}.${process.pid}.tmp`);
+  fs.rmSync(into, { recursive: true, force: true });
+  fs.mkdirSync(into, { recursive: true });
+  for (const [name, bytes] of Object.entries(entries)) {
+    const match = name.match(/^(items|stores)\/(\d+)\/([^/]+)$/);
+    if (!match || match[1] !== under || match[2] !== id || match[3].startsWith(".")) continue;
+    fs.writeFileSync(path.join(into, match[3]), bytes);
+  }
+  if (!fs.existsSync(path.join(into, file))) {
+    fs.rmSync(into, { recursive: true, force: true });
+    throw new Error(`the server sent no ${file} for it`);
+  }
+  // The one here — under items/ or stores/, whichever it was — set aside, and
+  // put back if the new one cannot be moved in.
+  const target = path.join(dir, id);
+  const was = local.has(id) ? path.join(folder, local.get(id).under, id) : target;
+  let aside = null;
+  if (fs.existsSync(was)) {
+    aside = path.join(path.dirname(was), `.${id}.${process.pid}.old`);
+    fs.rmSync(aside, { recursive: true, force: true });
+    fs.renameSync(was, aside);
+  }
+  try {
+    fs.renameSync(into, target);
+  } catch (error) {
+    if (aside) fs.renameSync(aside, was);
+    throw error;
+  }
+  if (aside) fs.rmSync(aside, { recursive: true, force: true });
+  return Boolean(aside);
+}
+
+// Each of `take` (ids the server holds) fetched into the folder (placeItem),
+// FETCH_ITEMS to a zip and FETCH_PARALLEL zips at once; from a server from
+// before POST /api/public/items, one GET at a time. The number that failed.
 async function fetchItems(fs, session, folder, here, take) {
   const { unzipSync } = await import("fflate");
   const local = new Map(here.items.map((each) => [each.id, each]));
-  let fetched = 0;
-  let replaced = 0;
-  let failed = 0;
-  for (const [index, { id }] of take.entries()) {
-    const at = `[${index + 1}/${take.length}] ${id}`;
+  const counts = { fetched: 0, replaced: 0, failed: 0 };
+  let done = 0;
+  let single = false;
+
+  const place = (id, entries) => {
     try {
-      const response = await session.request(`/api/public/items/${encodeURIComponent(id)}`, { headers: session.auth });
-      if (!response.ok) await answerOf(response);
-      const zip = new Uint8Array(await response.arrayBuffer());
-      const entries = unzipSync(zip);
-      // A store comes as stores/<id>/store.json and goes in stores/; an
-      // item in items/.
-      const under = Object.keys(entries).some((name) => name === `stores/${id}/store.json`) ? "stores" : "items";
-      const file = under === "stores" ? "store.json" : "item.json";
-      const dir = path.join(folder, under);
-      fs.mkdirSync(dir, { recursive: true });
-      const into = path.join(dir, `.${id}.${process.pid}.tmp`);
-      fs.rmSync(into, { recursive: true, force: true });
-      fs.mkdirSync(into, { recursive: true });
-      for (const [name, bytes] of Object.entries(entries)) {
-        const match = name.match(/^(items|stores)\/(\d+)\/([^/]+)$/);
-        if (!match || match[1] !== under || match[2] !== id || match[3].startsWith(".")) continue;
-        fs.writeFileSync(path.join(into, match[3]), bytes);
-      }
-      if (!fs.existsSync(path.join(into, file))) {
-        fs.rmSync(into, { recursive: true, force: true });
-        throw new Error(`the zip has no ${file} in it`);
-      }
-      // The one here — under items/ or stores/, whichever it was — set aside,
-      // and put back if the new one cannot be moved in.
-      const target = path.join(dir, id);
-      const was = local.has(id) ? path.join(folder, local.get(id).under, id) : target;
-      let aside = null;
-      if (fs.existsSync(was)) {
-        aside = path.join(path.dirname(was), `.${id}.${process.pid}.old`);
-        fs.rmSync(aside, { recursive: true, force: true });
-        fs.renameSync(was, aside);
-      }
-      try {
-        fs.renameSync(into, target);
-      } catch (error) {
-        if (aside) fs.renameSync(aside, was);
-        throw error;
-      }
-      if (aside) fs.rmSync(aside, { recursive: true, force: true });
-      if (aside) replaced += 1;
-      else fetched += 1;
-      console.log(`${at} ${aside ? "replaced" : "fetched"} (${megabytes(zip.length)})`);
+      if (placeItem(fs, folder, local, id, entries)) counts.replaced += 1;
+      else counts.fetched += 1;
     } catch (error) {
-      failed += 1;
-      console.log(`${at} failed: ${error.message}`);
+      counts.failed += 1;
+      console.log(`${id} failed: ${error.message}`);
     }
-  }
-  console.log(`Items fetched: ${fetched} new, ${replaced} replaced, ${failed} failed`);
-  return failed;
+  };
+  const fetchOne = async (id) => {
+    const response = await session.request(`/api/public/items/${encodeURIComponent(id)}`, { headers: session.auth });
+    if (!response.ok) await answerOf(response);
+    return new Uint8Array(await response.arrayBuffer());
+  };
+  const run = async (ids) => {
+    try {
+      let zip;
+      if (!single) {
+        const response = await session.request("/api/public/items", {
+          method: "POST",
+          headers: { ...session.auth, "Content-Type": "text/plain" },
+          body: JSON.stringify(ids),
+        });
+        if (response.status === 404) single = true;
+        else if (!response.ok) await answerOf(response);
+        else zip = new Uint8Array(await response.arrayBuffer());
+      }
+      if (single) {
+        for (const id of ids) {
+          try {
+            const one = await fetchOne(id);
+            place(id, unzipSync(one));
+          } catch (error) {
+            counts.failed += 1;
+            console.log(`${id} failed: ${error.message}`);
+          }
+        }
+        done += ids.length;
+        console.log(`[${done}/${take.length}] ${ids.length} fetched one at a time`);
+        return;
+      }
+      const entries = unzipSync(zip);
+      // The batch's files sorted by the id they are under.
+      const byId = new Map(ids.map((id) => [id, {}]));
+      for (const [name, bytes] of Object.entries(entries)) {
+        const id = name.split("/")[1];
+        if (byId.has(id)) byId.get(id)[name] = bytes;
+      }
+      for (const [id, files] of byId) place(id, files);
+      done += ids.length;
+      console.log(`[${done}/${take.length}] ${ids.length} fetched (${megabytes(zip.length)})`);
+    } catch (error) {
+      counts.failed += ids.length;
+      done += ids.length;
+      console.log(`[${done}/${take.length}] ${ids.join(", ")} failed: ${error.message}`);
+    }
+  };
+
+  const batches = [];
+  for (let i = 0; i < take.length; i += FETCH_ITEMS) batches.push(take.slice(i, i + FETCH_ITEMS).map((each) => each.id));
+  let next = 0;
+  const worker = async () => {
+    while (next < batches.length) await run(batches[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(FETCH_PARALLEL, batches.length) }, worker));
+
+  console.log(`Items fetched: ${counts.fetched} new, ${counts.replaced} replaced, ${counts.failed} failed`);
+  return counts.failed;
 }
 
 // rab pull [-f <folder>] [-u <url>]: push the other way round, and the same as

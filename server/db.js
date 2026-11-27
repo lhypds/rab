@@ -1525,6 +1525,12 @@ export function heldPublic() {
   return { items, locations };
 }
 
+// Whether the public account holds an item under this id, deleted ones too —
+// what heldPublic lists, for one id, without reading every folder.
+export function holdsPublic(id) {
+  return itemsById.get(id)?.ownerId === PUBLIC_ID;
+}
+
 // One of the public account's items taken away outright — its folder and all
 // — for the public folder to be the same as the one it is mirrored from (rab
 // mirror). Bookings made of it stay, as of an item there no longer is; the

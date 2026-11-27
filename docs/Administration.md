@@ -44,7 +44,7 @@ Two more go the same way, with the same `-f` and `-u`:
     ./rab public mirror            push, pull what the server has newer, then delete there what the folder does not have
 
 `pull` is `push` the other way round: it fetches again each item and spot the server has under
-the same id as the folder with a newer `updatedAt` (`GET /api/public/items/<id>`, a zip),
+the same id as the folder with a newer `updatedAt` (`POST /api/public/items`, 50 to a zip, 4 at once),
 replacing the folder here; one newer here is left as it is, and what the server has and the
 folder does not — items, spots, places — is not fetched. `mirror` sends what `push` sends, does
 what `pull` does, then deletes outright on the server each item, spot and place that the folder

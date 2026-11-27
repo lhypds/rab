@@ -91,6 +91,7 @@ const {
   setEmail,
   mergePublic,
   heldPublic,
+  holdsPublic,
   purgePublicItem,
   purgePublicLocations,
   publicLocations,
@@ -1908,26 +1909,58 @@ app.get("/api/public/locations", requireSession, requireAdmin, (req, res) => {
   res.json(publicLocations());
 });
 
+// One item's folder as zip entries: a store's as stores/<id>/, with its
+// store.json; an item's as items/<id>/. The photographs stored as they are.
+function publicItemFiles(id, files) {
+  const dir = heldDir(PUBLIC_ID, id);
+  const under = path.basename(path.dirname(dir));
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile() || entry.name.startsWith(".")) continue;
+    const bytes = fs.readFileSync(path.join(dir, entry.name));
+    files[`${under}/${id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
+  }
+  return files;
+}
+
 app.get("/api/public/items/:id", requireSession, requireAdmin, async (req, res, next) => {
-  const held = heldPublic().items.some((each) => each.id === req.params.id);
-  if (!held) return res.status(404).json({ error: "_public has no such item" });
+  if (!holdsPublic(req.params.id)) return res.status(404).json({ error: "_public has no such item" });
   try {
     const { zipSync } = await import("fflate");
-    // A store's folder goes as stores/<id>/, with its store.json; an item's as
-    // items/<id>/.
-    const dir = heldDir(PUBLIC_ID, req.params.id);
-    const under = path.basename(path.dirname(dir));
-    const files = {};
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile() || entry.name.startsWith(".")) continue;
-      const bytes = fs.readFileSync(path.join(dir, entry.name));
-      files[`${under}/${req.params.id}/${entry.name}`] = entry.name.endsWith(".json") ? bytes : [bytes, { level: 0 }];
-    }
-    res.type("application/zip").send(Buffer.from(zipSync(files)));
+    res.type("application/zip").send(Buffer.from(zipSync(publicItemFiles(req.params.id, {}))));
   } catch (error) {
     next(error);
   }
 });
+
+// Several at once, for rab public pull: a JSON list of ids, sent as
+// text/plain, and one zip back with each folder in it as above. An id _public
+// does not hold is left out.
+app.post(
+  "/api/public/items",
+  requireSession,
+  requireAdmin,
+  express.text({ type: "text/plain", limit: "1mb" }),
+  async (req, res, next) => {
+    let ids;
+    try {
+      ids = JSON.parse(req.body);
+    } catch {
+      ids = null;
+    }
+    if (!Array.isArray(ids)) return res.status(400).json({ error: "Send a list of ids as JSON" });
+    if (ids.length > PUBLIC_ZIP_ITEMS) {
+      return res.status(400).json({ error: `Ask for at most ${PUBLIC_ZIP_ITEMS} at a time` });
+    }
+    try {
+      const { zipSync } = await import("fflate");
+      const files = {};
+      for (const id of ids.map(String)) if (holdsPublic(id)) publicItemFiles(id, files);
+      res.type("application/zip").send(Buffer.from(zipSync(files)));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 // And for rab mirror, what the source it is mirrored from does not have,
 // taken away outright: an item's folder, the open bookings on it cancelled
