@@ -17,7 +17,8 @@
 export const MODES = new Set(["day", "time", "inquiry"]);
 // "message" is a message here on rab, to the owner's account: a way with
 // nothing written for it.
-export const CONTACT_TYPES = new Set(["phone", "email", "address", "message"]);
+// "other" is anything else, written however its owner likes.
+export const CONTACT_TYPES = new Set(["phone", "email", "address", "line", "whatsapp", "wechat", "other", "message"]);
 const CONTACT_MAX = 200;
 const CONTACTS_MAX = 5;
 const DIAL_CODE_RE = /^\+\d{1,4}$/;
@@ -118,6 +119,15 @@ export function parseRates(mode, value, priceMax) {
 // Any time, where nothing is said.
 const CANCEL_DAYS_MAX = 365;
 const CANCEL_HOURS_MAX = 999;
+// The deposit asked for on top of the price, in the item's currency, to its
+// smallest coin: null where none is.
+const DEPOSIT_MAX = 100_000_000;
+export function readDeposit(value, currency) {
+  if (value == null || value === "") return null;
+  const amount = roundPrice(Math.min(Number(value), DEPOSIT_MAX), currency);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
 export function readCancel(value) {
   if (value?.mode === "none") return { mode: "none" };
   if (value?.mode === "days") {

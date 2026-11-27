@@ -6,8 +6,9 @@ import { useRegion } from "../../utils/region.js";
 import styles from "./contacts.module.css";
 
 // The ways somebody is reached, as a form writes them — an item's, a page's.
-// "message" is a message here on rab: a way with nothing to write for it.
-export const CONTACT_TYPES = ["phone", "email", "address", "message"];
+// "message" is a message here on rab: a way with nothing to write for it;
+// "other" is anything else, written however its owner likes.
+export const CONTACT_TYPES = ["phone", "email", "address", "line", "whatsapp", "wechat", "other", "message"];
 export const CONTACTS_MAX = 5;
 const CONTACT_MAX = 200;
 // What a contact's field is, to the keyboard that comes up for it.

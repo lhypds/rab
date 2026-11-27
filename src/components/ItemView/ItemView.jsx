@@ -613,6 +613,7 @@ export default function ItemView({
                     : t("item.aDay")}
               </span>
             )}
+            {item.deposit != null && <span>{t("item.depositLine", { price: formatPrice(item.deposit, item.currency, lang) })}</span>}
             {statusTags}
           </p>
           )}

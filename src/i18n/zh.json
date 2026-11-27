@@ -68,7 +68,7 @@
     "username": "用户名",
     "joined": "注册于",
     "contacts": "联系方式",
-    "contactsHint": "可以添加电话、邮箱、地址。创建咨询预约的项目时会自动填入；在放到项目上之前，不会显示在任何地方。",
+    "contactsHint": "可以添加电话、邮箱、地址、LINE、WhatsApp、微信，或自由填写其他方式。创建咨询预约的项目时会自动填入；在放到项目上之前，不会显示在任何地方。",
     "contactsSaved": "联系方式已保存",
     "signOut": "退出登录",
     "email": "邮箱",
@@ -264,6 +264,14 @@
       "inquiry": "双方直接联系，自行商定。"
     },
     "priceUnit": "价格按",
+    "deposit": "押金",
+    "depositAmount": "押金金额",
+    "depositOn": {
+      "no": "不需要",
+      "yes": "需要"
+    },
+    "depositRequired": "请填写押金金额。",
+    "depositLine": "押金 {{price}}",
     "basePricing": "默认价格",
     "basePricingStep": "默认步长价格",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",
@@ -312,6 +320,10 @@
       "phone": "电话",
       "email": "Email",
       "address": "地址",
+      "line": "LINE",
+      "whatsapp": "WhatsApp",
+      "wechat": "微信",
+      "other": "其他",
       "message": "站内信"
     },
     "contactHint": "会显示在物品页面上，打开页面的人都能看到。第一联系方式必填，可以用 + 追加更多。",
@@ -468,7 +480,7 @@
     "home": "房屋",
     "meeting-room": "会议室",
     "studio": "工作室 / 录音室",
-    "music-studio": "音乐工作室",
+    "music-studio": "排练室",
     "storage": "储存空间",
     "event-space": "活动场地",
     "workspace": "办公空间",

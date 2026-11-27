@@ -101,7 +101,7 @@ const { MAX_IMAGE_BYTES, imageFile, isStoredName, keepImages, keepStoreImages, n
   "./images.js"
 );
 const { mailConfigured, sendMail } = await import("./mail.js");
-const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
+const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDeposit, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
 const { OpenAI, canDescribe, classifyListing, describeImage } = await import("./describe.js");
@@ -938,6 +938,8 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       hoursOff: mode === "time" ? readDayList(body?.hoursOff) : [],
       // When a confirmed booking may still be called off by whoever made it.
       cancel: readCancel(body?.cancel),
+      // The deposit asked for on top of the price, or null.
+      deposit: readDeposit(body?.deposit, currency),
       contacts,
       // Whether it is somebody else's rather than the account's own: it is
       // then kept under the public account, which is nobody's, and anybody

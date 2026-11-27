@@ -203,6 +203,10 @@ function startingFieldsAsSaved(item, calendar, lang) {
     cancelMode: ["days", "hours"].includes(item?.cancel?.mode) ? "before" : (item?.cancel?.mode ?? "any"),
     cancelUnit: item?.cancel?.mode === "hours" ? "hours" : "days",
     cancelCount: String(item?.cancel?.days ?? item?.cancel?.hours ?? 3),
+    // Whether a deposit is asked for on top of the price, and how much — in
+    // the item's currency.
+    depositOn: item?.deposit != null,
+    deposit: item?.deposit != null ? String(item.deposit) : "",
     // What it costs — the base price, and the dates with one of their own —
     // and the rules for hours.
     ...startingPricing(item, calendar),
@@ -1118,6 +1122,10 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       : fields.cancelUnit === "hours"
         ? { mode: "hours", hours: Math.min(999, cancelCount) }
         : { mode: "days", days: Math.min(365, cancelCount) };
+  // The deposit as it would be kept: a sum where one is asked for and written,
+  // or null.
+  const depositSum = priceOf(fields.deposit);
+  const deposit = priced && fields.depositOn && depositSum !== null && depositSum > 0 ? roundPrice(depositSum, fields.currency) : null;
   // What the calendar's single dates say, where it still goes against the
   // rule: a date closed that the rule has, one opened that it leaves out.
   const closed = fields.closed.filter((day) => openByRule({ openDays }, day));
@@ -1136,6 +1144,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     minDuration: wholeSteps(fields.minDuration, fields.unit),
     priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
     cancel,
+    deposit,
     contacts,
     rates,
     hours,
@@ -1205,6 +1214,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     if (byTime && hours.length === 0) return t("item.hoursRequired");
     // Booked by asking, the first way to reach the owner has to be written.
     if (inquiry && contacts.length === 0) return t("item.contactRequired");
+    // A deposit asked for has to say how much.
+    if (priced && fields.depositOn && deposit === null) return t("item.depositRequired");
     return "";
   }
 
@@ -1239,6 +1250,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       minDuration: wholeSteps(fields.minDuration, fields.unit),
       priceUnit: inquiry ? fields.inquiryUnit : fields.priceUnit,
       cancel,
+      deposit,
       contacts,
       rates,
       hours,
@@ -1889,6 +1901,40 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   </span>
                 )}
                 {!byTime && <span className={styles.hint}>{t(`item.pricingHint.${mode}`)}</span>}
+                {/* Whether a deposit is asked for on top of the price, and
+                    then how much: handed over with the item and given back
+                    with it, which the two sides settle themselves. */}
+                <div className={styles.modeRow}>
+                  <span className={styles.everyDay}>{t("item.deposit")}</span>
+                  <Select
+                    className={styles.currency}
+                    label={t("item.deposit")}
+                    value={fields.depositOn ? "yes" : "no"}
+                    onChange={(value) => {
+                      set("depositOn", value === "yes");
+                      setError("");
+                    }}
+                    options={["no", "yes"].map((each) => ({ value: each, label: t(`item.depositOn.${each}`) }))}
+                  />
+                </div>
+                {fields.depositOn && (
+                  <div className={styles.modeRow}>
+                    <span className={styles.everyDay}>{t("item.depositAmount")}</span>
+                    <PriceInput
+                      currency={fields.currency}
+                      className={styles.rulePrice}
+                      value={shownPrice(fields.deposit, fields.currency)}
+                      onChange={(event) => {
+                        set("deposit", priceText(event.target.value, fields.currency));
+                        setError("");
+                      }}
+                      inputMode="decimal"
+                      placeholder={t("item.depositAmount")}
+                      aria-label={t("item.depositAmount")}
+                      maxLength={12}
+                    />
+                  </div>
+                )}
               </div>
               )}
               {/* By the date, the hours of the day it is handed over in — when

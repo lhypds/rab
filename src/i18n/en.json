@@ -68,7 +68,7 @@
     "username": "Username",
     "joined": "Joined",
     "contacts": "Contact",
-    "contactsHint": "Your phone, email or address. An item of yours that is booked by inquiry starts with these filled in; nothing is shown anywhere until you put it on an item.",
+    "contactsHint": "Your phone, email, address, LINE, WhatsApp, WeChat or anything else. An item of yours that is booked by inquiry starts with these filled in; nothing is shown anywhere until you put it on an item.",
     "contactsSaved": "Contact saved",
     "signOut": "Sign out",
     "email": "Email",
@@ -266,6 +266,14 @@
       "inquiry": "Nothing is booked here: people contact you directly and you arrange it together."
     },
     "priceUnit": "Price per",
+    "deposit": "Deposit",
+    "depositAmount": "Deposit amount",
+    "depositOn": {
+      "no": "None",
+      "yes": "Required"
+    },
+    "depositRequired": "Enter the deposit amount.",
+    "depositLine": "Deposit {{price}}",
     "basePricing": "Default pricing",
     "basePricingStep": "Default price per step",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",
@@ -315,6 +323,10 @@
       "phone": "Phone",
       "email": "Email",
       "address": "Address",
+      "line": "LINE",
+      "whatsapp": "WhatsApp",
+      "wechat": "WeChat",
+      "other": "Other",
       "message": "Message"
     },
     "contactHint": "Shown on the item page to anyone who opens it. The primary contact is required; add more with +.",

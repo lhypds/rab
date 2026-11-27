@@ -659,6 +659,8 @@ function servedItem(item) {
     // When a confirmed booking may still be called off by whoever made it:
     // { mode: "any" | "none" | "days", days }. Any time, where nothing is said.
     cancel: item.cancel ?? { mode: "any" },
+    // The deposit asked for on top of the price, in its currency: null for none.
+    deposit: item.deposit ?? null,
     // Whether it is somebody else's, put here by an account that does not
     // have it: anybody signed in may then change it or delete it.
     shared: item.shared === true,
@@ -860,6 +862,7 @@ function itemFields(item) {
     minDuration: item.minDuration ?? item.unit ?? 30,
     priceUnit: item.priceUnit ?? item.unit ?? 30,
     cancel: item.cancel ?? { mode: "any" },
+    deposit: item.deposit ?? null,
     contacts: item.contacts ?? [],
     shared: item.shared === true,
     openDays: item.openDays ?? null,

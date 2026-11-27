@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#ffffff"/>
-  <text x="256" y="256" fill="#111111" font-family="Courier, 'Courier New', monospace" font-size="112" text-anchor="middle" dominant-baseline="central">rab</text>
+  <g fill="none" stroke="#111111" stroke-width="20" stroke-linecap="round" transform="translate(256 256) scale(0.62) translate(-268 -268)">
+    <circle cx="216" cy="216" r="150"/>
+    <path d="M322 322 L470 470"/>
+    <path d="M216 146 L216 286"/>
+    <path d="M146 216 L286 216"/>
+  </g>
 </svg>

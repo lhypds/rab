@@ -65,13 +65,21 @@ export function dialled(code, value) {
 
 // Where pressing a way of reaching somebody goes: a phone number starts a
 // call, an email address opens a letter to it — about `subject`, where one is
-// given — and an address goes nowhere (null).
+// given — a LINE ID opens it in LINE, a WhatsApp number a chat with it, and an
+// address, a WeChat ID or anything else goes nowhere (null).
 export function contactHref(contact, subject = "") {
   if (contact?.type === "phone") {
     return `tel:${contact.code ? dialled(contact.code, contact.value) : String(contact.value).replace(/[^\d+]/g, "")}`;
   }
   if (contact?.type === "email") {
     return `mailto:${contact.value}${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`;
+  }
+  if (contact?.type === "line" && contact.value) {
+    return `https://line.me/ti/p/~${encodeURIComponent(contact.value.replace(/^@?/, ""))}`;
+  }
+  // WhatsApp is reached by a number in full, its country code in front.
+  if (contact?.type === "whatsapp" && /^\+?[\d\s()-]{6,}$/.test(contact.value ?? "")) {
+    return `https://wa.me/${contact.value.replace(/\D/g, "")}`;
   }
   return null;
 }

@@ -556,7 +556,7 @@
     "Music studio" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "音楽スタジオ" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音乐工作室" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排练室" } }
       }
     },
     "Studio" : {

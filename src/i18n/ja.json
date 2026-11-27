@@ -68,7 +68,7 @@
     "username": "ユーザー名",
     "joined": "登録日",
     "contacts": "連絡先",
-    "contactsHint": "電話・メール・住所を登録できます。問い合わせ予約のアイテムを作るときに自動で入力されます。アイテムに載せるまで、どこにも表示されません。",
+    "contactsHint": "電話・メール・住所・LINE・WhatsApp・WeChat、その他自由に登録できます。問い合わせ予約のアイテムを作るときに自動で入力されます。アイテムに載せるまで、どこにも表示されません。",
     "contactsSaved": "連絡先を保存しました",
     "signOut": "ログアウト",
     "email": "メールアドレス",
@@ -264,6 +264,14 @@
       "inquiry": "ここでは予約を受け付けません。相手が直接連絡し、お互いに相談して決めます。"
     },
     "priceUnit": "料金の基準",
+    "deposit": "保証金",
+    "depositAmount": "保証金の金額",
+    "depositOn": {
+      "no": "不要",
+      "yes": "必要"
+    },
+    "depositRequired": "保証金の金額を入力してください。",
+    "depositLine": "保証金 {{price}}",
     "basePricing": "通常料金",
     "basePricingStep": "刻みごとの通常料金",
     "stepFormula": "= {{price}} × {{unit}} ÷ {{per}}",
@@ -312,6 +320,10 @@
       "phone": "電話",
       "email": "メール",
       "address": "住所",
+      "line": "LINE",
+      "whatsapp": "WhatsApp",
+      "wechat": "WeChat",
+      "other": "その他",
       "message": "サイト内メッセージ"
     },
     "contactHint": "アイテムのページに表示され、ページを開いた人は誰でも見られます。第一連絡先は必須で、+ で追加できます。",

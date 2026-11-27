@@ -10,7 +10,7 @@ import Locations from "./Locations.jsx";
 import styles from "./account.module.css";
 
 // The ways an account can say it is reached, and how many of them.
-const CONTACT_TYPES = ["phone", "email", "address"];
+const CONTACT_TYPES = ["phone", "email", "address", "line", "whatsapp", "wechat", "other"];
 const CONTACT_INPUT = { phone: "tel", email: "email", address: "text" };
 const CONTACT_MAX = 200;
 const CONTACTS_MAX = 5;
@@ -362,7 +362,7 @@ export default function AccountModal({ isOpen, onClose }) {
             )}
             <input
               className="text-input"
-              type={CONTACT_INPUT[contact.type]}
+              type={CONTACT_INPUT[contact.type] ?? "text"}
               value={contact.value}
               onChange={(event) =>
                 setContact(index, { value: contact.type === "phone" ? event.target.value.replace(/\D/g, "") : event.target.value })
