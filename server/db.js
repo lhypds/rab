@@ -1827,3 +1827,74 @@ export function deleteUser(userId) {
   forget(userId);
   return counts;
 }
+
+/* ---------------------------------------------------------------- requests */
+
+// What somebody is looking for, rather than offering: "I need" — a thing, the
+// spot it is wanted at, the dates, what they would pay for it, and how they
+// are reached. Each account's are kept in its requests.json, and every
+// account's are held here once first asked for: there are few of them, and
+// the map asks for all that stand in its window.
+const REQUESTS_FILE = "requests.json";
+export const REQUESTS_MAX = 20;
+let requestsById = null;
+
+function heldRequests() {
+  if (requestsById) return requestsById;
+  requestsById = new Map();
+  for (const userId of usersById.keys()) {
+    for (const request of readList(userId, REQUESTS_FILE)) requestsById.set(request.id, { ...request, ownerId: userId });
+  }
+  return requestsById;
+}
+
+function writeRequests(userId) {
+  const list = [...heldRequests().values()].filter((request) => request.ownerId === userId).map(({ ownerId: _owner, ...request }) => request);
+  writeList(userId, REQUESTS_FILE, list);
+}
+
+// A request as it goes out: shaped like an item where it can be — a title, a
+// category, a pin — so the map and its list draw it the way they draw one,
+// and marked as a request (`kind`).
+function servedRequest(request) {
+  if (!request) return null;
+  const { ownerId, ...rest } = request;
+  return { ...rest, kind: "request", owner: nameOf(ownerId) };
+}
+
+// Still wanted: one whose last date has gone is not listed any more.
+const stillWanted = (request) => !request.end || request.end >= now().slice(0, 10);
+
+export function getRequest(id) {
+  return servedRequest(heldRequests().get(id));
+}
+
+export function getRequests() {
+  return [...heldRequests().values()]
+    .filter(stillWanted)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .map(servedRequest);
+}
+
+export function getRequestsByUser(userId) {
+  return [...heldRequests().values()].filter((request) => request.ownerId === userId).map(servedRequest);
+}
+
+export function createRequest(userId, request) {
+  const held = heldRequests();
+  if ([...held.values()].filter((each) => each.ownerId === userId).length >= REQUESTS_MAX) return null;
+  const id = `q${crypto.randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "x")}`;
+  const kept = { id, ...request, createdAt: now(), ownerId: userId };
+  held.set(id, kept);
+  writeRequests(userId);
+  return servedRequest(kept);
+}
+
+export function deleteRequest(userId, id, { any = false } = {}) {
+  const held = heldRequests();
+  const request = held.get(id);
+  if (!request || (!any && request.ownerId !== userId)) return false;
+  held.delete(id);
+  writeRequests(request.ownerId);
+  return true;
+}
