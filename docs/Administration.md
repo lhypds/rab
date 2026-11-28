@@ -9,6 +9,16 @@ Run these commands from the repository root.
     ./rab user <username> pass <new>     give an account a new password, and sign it out everywhere
     ./rab user delete <username>         delete an account and everything it has (stop the server first)
 
+    ./rab cache rebuild                  read every item's folder again and rewrite the cache the server starts from
+
+`cache rebuild` is for after an `item.json` of `_public`'s has been edited in place by hand: the
+server starts from what it wrote down of each item (`data/cache/items/`, see
+[Architecture](Architecture.md)) and reads a folder again only where the folder's own time has
+changed, which such an edit does not move. It reads every folder (a minute or more with tens of
+thousands of items), says how many items the cache had wrong, and can be run with the server up —
+which then has to be restarted to read it. Only `_public`'s items are cached; the other accounts'
+are read whole at every start.
+
 Two accounts are the server's own, made when it first starts and always there: `_public`,
 which holds the items listed on someone else's behalf, and `_admin`, which looks after the
 site. A report of an item, and a request to delete one of `_public`'s items, are messages

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, itemFolderChanged, readItem, readItemIndex, spotFolders, writeItemIndex, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, itemFolderChanged, readItem, readItemIndex, rebuildItemIndex, spotFolders, writeItemIndex, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { carriedPictures } from "./images.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, migrateItemFiles, renumberAccounts } from "./migrate.js";
@@ -562,6 +562,27 @@ export function writePublicIndex() {
   }
 }
 
+// What is written down of the public item in one folder, read from it: its
+// few lines and its key. Null where the folder is no item.
+function readPublicLight(folder) {
+  const item = readItem(PUBLIC_ID, folder);
+  if (!item) return null;
+  const key = readItemSource(PUBLIC_ID, folder)?.key;
+  const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
+  return { ...value, key: key ? JSON.stringify(key) : null };
+}
+
+// The caches made again from the folders (rab cache rebuild): for every
+// account, how many items it has, and — where a cache is kept of them — how
+// many it had wrong. Only the public account's items are kept that way; the
+// others are few, and are read whole at every start.
+export function rebuildItemCaches() {
+  return [...usersById.values()].map((user) => {
+    if (user.id !== PUBLIC_ID) return { username: user.username, items: countItemsByUser(user.id), cached: false, corrected: 0 };
+    return { username: user.username, cached: true, ...rebuildItemIndex(PUBLIC_ID, readPublicLight) };
+  });
+}
+
 // The public items' few lines, read: from what was written down, and from
 // the folders that have changed since.
 function loadPublicIndex() {
@@ -570,13 +591,7 @@ function loadPublicIndex() {
   keyUnknown.clear();
   publicKeys = new Map();
   publicKeyOf = new Map();
-  const index = readItemIndex(PUBLIC_ID, (folder) => {
-    const item = readItem(PUBLIC_ID, folder);
-    if (!item) return null;
-    const key = readItemSource(PUBLIC_ID, folder)?.key;
-    const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
-    return { ...value, key: key ? JSON.stringify(key) : null };
-  }, (item) => {
+  const index = readItemIndex(PUBLIC_ID, readPublicLight, (item) => {
     // From the file of before, which held the item and not its key.
     const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
     return value;

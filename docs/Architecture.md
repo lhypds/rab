@@ -60,6 +60,5 @@ folder when its page is opened. Those few lines are kept in
 `data/cache/items/_public.jsonl`, so that a start does not open every folder: a folder is
 read again only where it has changed since (its own time of last change, which every write
 the server and the crawlers make moves). An `item.json` of `_public`'s edited in place by
-hand does not move it: delete the `.jsonl` file and the next start reads every folder
-again. The items' one-time migrations (ids, WebP) are done once and noted in
+hand does not move it: run `./rab cache rebuild` (or delete the `.jsonl` file) and restart. The items' one-time migrations (ids, WebP) are done once and noted in
 `data/.items-migrated`.

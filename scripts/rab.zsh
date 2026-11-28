@@ -37,7 +37,7 @@ usage() {
     print -u2 "       rab start [all|server|ios]"
     print -u2 "       rab stop [all|server|ios]"
     print -u2 "       rab status"
-    print -u2 "       rab user …, rab public …   (rab help for these)"
+    print -u2 "       rab user …, rab public …, rab cache rebuild   (rab help for these)"
     print -u2 "       rab help"
     exit 2
 }

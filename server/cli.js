@@ -12,6 +12,9 @@ import { fileURLToPath } from "node:url";
 //                                      (`rab user _admin pass <new>` is how the
 //                                      admin account is first given one)
 //   rab user delete <username>         delete an account and everything it has
+//   rab cache rebuild                  read every item's folder again and write
+//                                      down afresh what the server keeps of them
+//                                      between starts (data/cache/items/)
 //   rab public push [-f <folder>] [-u <url>]
 //                                      send what of a public folder the server
 //                                      at <url> does not have yet, an item at a
@@ -61,6 +64,8 @@ const USAGE = `Usage:
   rab user <username> items          list what an account has out for rent
   rab user <username> pass <new>     set an account's password (${PASSWORD_MIN}–${PASSWORD_MAX} characters)
   rab user delete <username> [--yes] delete an account and everything it has
+  rab cache rebuild                  read every item's folder again and rewrite the cache the
+                                     server starts from (after editing an item.json by hand)
   rab public push [-f <folder>] [-u <url>]
                                      send the items of a public folder the server does not have,
                                      and those it has with an older updatedAt than here (replaced)
@@ -778,6 +783,30 @@ if (args[0] === "public") {
   else if (command === "pull") await receivePublic(rest);
   else if (command === "purge") await purgePublic(rest);
   else fail(USAGE);
+  process.exit(0);
+}
+
+// rab cache rebuild: what the server keeps of the items between starts
+// (data/cache/items/, see files.js) made again from the folders themselves —
+// for an item.json changed in place by hand, which the cache does not notice.
+// A server that is running goes on with what it holds until it is restarted.
+if (args[0] === "cache") {
+  if (args[1] !== "rebuild" || args.length !== 2) fail(USAGE);
+  console.log("Reading every item's folder…");
+  const started = Date.now();
+  const store = await import("./db.js");
+  const rows = store.rebuildItemCaches();
+  table([
+    ["USERNAME", "ITEMS", "CACHE"],
+    ...rows.map((row) => [
+      row.username,
+      row.items,
+      !row.cached ? "none kept: read whole at every start" : row.corrected ? `rebuilt, ${row.corrected} had changed unnoticed` : "rebuilt",
+    ]),
+  ]);
+  console.log(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
+  const port = await serverRunning();
+  if (port) console.log(`rab is running on port ${port}: restart it (./rab restart) for it to read what was rebuilt.`);
   process.exit(0);
 }
 

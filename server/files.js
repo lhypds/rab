@@ -356,6 +356,34 @@ export function writeItemIndex(userId, entries) {
   }
 }
 
+// The index made again from the folders, every one read (rab cache rebuild):
+// how many items it has, and how many of them it had wrong — a folder that
+// says the same time as when it was last read, and no longer what was read
+// then: an item.json changed in place by hand. Each of those folders is given
+// the time it is now, so that an index a running server writes after this,
+// from what it still holds, is not believed of them at the next start.
+export function rebuildItemIndex(userId, read) {
+  const kept = readIndexFile(indexFile(userId));
+  const entries = [];
+  let corrected = 0;
+  for (const folder of itemFolders(userId)) {
+    let changed = itemFolderChanged(userId, folder);
+    if (changed === null) continue;
+    const value = read(folder);
+    if (!value) continue;
+    const was = kept.get(folder);
+    if (was && was.changed === changed && JSON.stringify(was.value) !== JSON.stringify(value)) {
+      corrected += 1;
+      const time = new Date();
+      fs.utimesSync(itemDir(userId, folder), time, time);
+      changed = itemFolderChanged(userId, folder);
+    }
+    entries.push([folder, changed, value]);
+  }
+  writeItemIndex(userId, entries);
+  return { items: entries.length, corrected };
+}
+
 // What is kept of each item in an account's items/, by folder, as { changed,
 // value }: as it was written down where the folder is as it was then, and
 // from `read(folder)` — which reads the folder, and gives null for one that

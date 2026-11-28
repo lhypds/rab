@@ -997,6 +997,15 @@ a {
   display: none;
 }
 
+/* In English the count ("12 items") is wider than the pin under it, where in
+   Japanese and Chinese ("12件") it is not: left to itself the column would be
+   as wide as each row's own count, and the pins would stand a little further
+   in on one row than on the next. So there every row's column is the one
+   width, room for a count in three figures. */
+:lang(en) .row-marker {
+  min-width: 44px;
+}
+
 .row-marker .row-count {
   font-size: 10px;
   text-align: center;

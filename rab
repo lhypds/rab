@@ -5,7 +5,7 @@
 #   rab restart                  pick server, ios or all
 #   rab restart ios device       rebuild and reopen the app on the paired iPhone
 #   rab ios restart              pick an iPhone or simulator
-#   rab user list                accounts; rab public push, and the rest
+#   rab user list                accounts; rab public push, rab cache rebuild, and the rest
 #   rab help                     everything
 #
 # Plain sh, so rab user and rab public work on a server without zsh.
@@ -16,7 +16,7 @@ SELF="$0"
 ROOT="$(cd "$(dirname "$SELF")" && pwd)"
 
 case "${1:-}" in
-    user|public)
+    user|public|cache)
         exec node --disable-warning=ExperimentalWarning "$ROOT/server/cli.js" "$@"
         ;;
 esac
