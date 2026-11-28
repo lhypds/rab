@@ -1478,6 +1478,22 @@ app.post("/api/items/:id/report", requireSession, (req, res) => {
   res.status(201).json({ sent: true });
 });
 
+// And the same said of a request ("I need"), by anybody but its maker: the
+// line says which request, as an item's says which item.
+app.post("/api/requests/:id/report", requireSession, (req, res) => {
+  const request = getRequest(req.params.id);
+  if (!request) return res.status(404).json({ error: "No such request", code: "REQUEST_NOT_FOUND" });
+  if (!mayView(req.user, request)) return res.status(403).json(AGE_FAULT);
+  if (req.user.id === ADMIN_ID) return res.status(400).json({ error: "You are the administrator" });
+  if (request.owner === req.user.username) return res.status(400).json({ error: "You cannot report your own request" });
+  const reason = String(req.body?.reason ?? "");
+  if (!REPORT_REASONS.has(reason)) return res.status(400).json({ error: "Choose what is wrong with it", code: "REASON_REQUIRED" });
+  const note = text(req.body?.note, NOTE_MAX);
+  if (reason === "other" && !note) return res.status(400).json({ error: "Say what is wrong with it", code: "NOTE_REQUIRED" });
+  createMessage(req.user.id, ADMIN_ID, note, { kind: "report", requestId: request.id, reason });
+  res.status(201).json({ sent: true });
+});
+
 /* ----------------------------------------------------------------- calendar */
 
 // The owner's answer about a handful of days: whether they can be had, and

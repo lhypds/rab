@@ -37,7 +37,9 @@ export function isBookingLine(message) {
 // Where such a line leads, where it is still there: the item's page, or the
 // spot reported.
 export function linePath(message) {
-  if (message.kind === REQUEST_KIND) return message.request && !message.request.gone ? `/r/${encodeURIComponent(message.request.id)}` : null;
+  // A request's own line, or a report of one: the request's page.
+  if (message.request) return message.request.gone ? null : `/r/${encodeURIComponent(message.request.id)}`;
+  if (message.kind === REQUEST_KIND) return null;
   const itemId = message.booking?.itemId ?? (message.item && !message.item.gone ? message.item.id : null);
   if (itemId) return `/i/${itemId}`;
   const spot = message.spot;
@@ -51,7 +53,9 @@ export function bookingLine(message, t, locale) {
   }
   if (ADMIN_KINDS.includes(message.kind)) {
     return t(`messages.event.${message.kind}`, {
-      item: message.item?.title ?? message.spot?.name ?? t("messages.event.gone"),
+      item: message.request
+        ? (message.request.title ?? t("messages.event.goneRequest"))
+        : (message.item?.title ?? message.spot?.name ?? t("messages.event.gone")),
       reason: message.reason ? t(`report.reasons.${message.reason}`, message.reason) : "",
     });
   }

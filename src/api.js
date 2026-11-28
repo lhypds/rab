@@ -197,6 +197,7 @@ export const setBookmark = (id, on) => send("PUT", `/api/items/${name(id)}/bookm
 // What is sent to the administrator about an item, each a message in the
 // sender's conversation with them: asking for one listed for somebody else to
 // be deleted, and saying what is wrong with one (`reason` is the kind).
+export const reportRequest = (id, reason, note) => send("POST", `/api/requests/${name(id)}/report`, { reason, note });
 export const reportItem = (id, reason, note) => send("POST", `/api/items/${name(id)}/report`, { reason, note });
 // What a photograph is of, as a listing would say it: { category, title,
 // description }, in the language asked for (see server/describe.js). The

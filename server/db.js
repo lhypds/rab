@@ -1820,7 +1820,7 @@ function threadHandle(line) {
 // Whether an exchange has already said it is about a request: the line that
 // leads to it is written once, ahead of the first thing said about it.
 export function saidOfRequest(userId, otherId, via, requestId) {
-  return linesOf(userId).some((line) => inThread(line, otherId, via) && line.requestId === requestId);
+  return linesOf(userId).some((line) => inThread(line, otherId, via) && line.kind === "wanted" && line.requestId === requestId);
 }
 
 // Who `userId` is writing to by way of a request: its maker, from what has

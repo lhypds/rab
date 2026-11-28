@@ -18,8 +18,9 @@ const NOTE_MAX = 500;
 // is wrong with it, picked from a list, and a word about it. `mode` is
 // "report" for the sheet to be open, null for it to be closed. It goes as a
 // message, into the reader's own conversation with the administrator, where
-// the answer comes back.
-export default function ReportModal({ item, mode, onClose }) {
+// the answer comes back. `send` is what sends it, where what is reported is
+// not an item: a request ("I need"), handed here as `item` for its id and name.
+export default function ReportModal({ item, mode, onClose, send = api.reportItem }) {
   const { t } = useTranslation();
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
@@ -43,7 +44,7 @@ export default function ReportModal({ item, mode, onClose }) {
     setBusy(true);
     setError("");
     try {
-      await api.reportItem(item.id, reason, note.trim());
+      await send(item.id, reason, note.trim());
       showToast(t("report.sent"), 2400);
       onClose();
     } catch (requestError) {

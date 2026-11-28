@@ -11,6 +11,7 @@ import { loginPath, useAuth } from "../AuthProvider/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import view from "../ItemView/view.module.css";
 import MessageModal from "../MessageModal/index.js";
+import ReportModal from "../ReportModal/index.js";
 import ShareModal from "../ShareModal/index.js";
 import SpotMap from "../SpotMap/index.js";
 
@@ -33,6 +34,9 @@ export default function RequestPageView({ request, onEdit, onGone, onLeave }) {
   const navigate = useNavigate();
   const [messaging, setMessaging] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Whether the sheet a report about it is sent to the administrator from is
+  // open: "report", or null.
+  const [posting, setPosting] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState(0);
@@ -145,6 +149,16 @@ export default function RequestPageView({ request, onEdit, onGone, onLeave }) {
                   <path d="M5 12v7h14v-7" />
                 </svg>
                 {t("item.share")}
+              </button>
+              {/* Saying something is wrong with it, to the administrator:
+                  greyed for its maker and for the admin, as an item's is. */}
+              <button
+                type="button"
+                className="small-button"
+                onClick={() => (user ? setPosting("report") : navigate(loginPath()))}
+                disabled={mine || isAdmin(user)}
+              >
+                {t("item.report")}
               </button>
             </div>
 
@@ -287,6 +301,7 @@ export default function RequestPageView({ request, onEdit, onGone, onLeave }) {
         </div>
       </Modal>
       <ShareModal isOpen={sharing} onClose={() => setSharing(false)} title={request.title} url={`${window.location.origin}${requestPath(request)}`} slug={request.id} />
+      <ReportModal item={request} mode={posting} onClose={() => setPosting(null)} send={api.reportRequest} />
       <Modal isOpen={zoomed && Boolean(shown)} title={request.title} onClose={() => setZoomed(false)} closeOnOverlay large>
         {shown && <img className={view.zoomed} src={shown.src} alt={request.title} />}
       </Modal>
