@@ -18,7 +18,7 @@
     "viewMap": "Map",
     "viewList": "List",
     "pinned": "On the map",
-    "have": "Add",
+    "have": "Provide",
     "need": "Request"
   },
   "auth": {
@@ -167,7 +167,7 @@
     "regionHint": "Required. Filled in with the city you are in. Anyone looking at this area on the map sees it in the list, even without a location.",
     "perDay": "{{price}}/day",
     "aDay": "a day",
-    "newTitle": "Add",
+    "newTitle": "Provide",
     "editTitle": "Edit item",
     "refresh": "Refresh",
     "photos": "Photos",
@@ -504,6 +504,25 @@
     "insecure": "This page cannot get your location",
     "insecureHint": "Browsers only give a position to pages on https or localhost. Open rab at an https address."
   },
+  "ask": {
+    "placeholder": "Ask AI...",
+    "thinking": "Thinking...",
+    "failed": "The AI could not answer just now. You can still search for it.",
+    "busy": "Too many questions at once. Try again in a moment, or search for it.",
+    "close": "Close",
+    "do": {
+      "category": "Show “{{category}}”",
+      "search": "Search “{{words}}”",
+      "add": "Put something out for rent",
+      "request": "Post a request",
+      "mine": "Open Mine",
+      "messages": "Open messages",
+      "travel": "Choose a place",
+      "account": "Open your account",
+      "list": "Show as lists",
+      "map": "Show the map"
+    }
+  },
   "search": {
     "placeholder": "Search...",
     "empty": "Nothing by that name"
@@ -685,7 +704,7 @@
     "what": "What are you looking for?",
     "whatPlaceholder": "e.g. A stroller, or help moving house",
     "categoryNone": "Any category",
-    "where": "Where",
+    "where": "Request at location",
     "when": "When",
     "from": "From",
     "until": "Until",
@@ -718,7 +737,7 @@
     "anyTime": "Any time",
     "contact": "Contact",
     "photosHint": "Optional. A photo of the kind of thing you are looking for.",
-    "region": "Request area",
+    "region": "Request in area",
     "regionHint": "Filled in with the city the map is on. Anyone looking at this area sees the request in the list, even without a location."
   }
 }

@@ -123,7 +123,7 @@ const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDeposit, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
-const { DESCRIBE_PHOTOS_MAX, OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest } = await import("./describe.js");
+const { DESCRIBE_PHOTOS_MAX, OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest, guide } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -2173,6 +2173,45 @@ app.post("/api/describe-request", requireSession, async (req, res) => {
     res.json({ ...answer, description: answer.description.slice(0, DESCRIPTION_MAX) });
   } catch (error) {
     describeFault(error, res, "describing a request");
+  }
+});
+
+// What to do next, for what somebody typed into the bar's "Ask AI": a line to
+// say to them and the one control to press (see guide). Asked by strangers
+// too — being told to sign in is part of being shown round — so each asker is
+// held to a few a minute. Nothing is kept.
+const ASK_MAX = 300;
+const ASKS_A_MINUTE = 8;
+const asked = new Map();
+function mayAsk(who) {
+  const now = Date.now();
+  if (asked.size > 5000) for (const [key, times] of asked) if (times.at(-1) < now - 60000) asked.delete(key);
+  const times = (asked.get(who) ?? []).filter((time) => time > now - 60000);
+  if (times.length >= ASKS_A_MINUTE) return false;
+  times.push(now);
+  asked.set(who, times);
+  return true;
+}
+
+app.post("/api/ask", async (req, res) => {
+  if (!canDescribe()) {
+    return res.status(503).json({ error: "This server has no key to ask with", code: "DESCRIBE_UNAVAILABLE" });
+  }
+  const question = text(req.body?.question, ASK_MAX).trim();
+  if (!question) return res.status(422).json({ error: "Say what you are looking for first", code: "DESCRIBE_FAILED" });
+  if (!mayAsk(req.user ? `user:${req.user.id}` : `ip:${req.ip}`)) {
+    return res.status(429).json({ error: "Too many at once. Try again in a moment", code: "DESCRIBE_BUSY" });
+  }
+  try {
+    const answer = await guide(question, String(req.body?.lang ?? "en").slice(0, 2), {
+      signedIn: Boolean(req.user),
+      adult: !req.user ? null : isAdult(req.user.id) ? "yes" : getBirthdate(req.user.id) ? "no" : null,
+      view: ["map", "list"].includes(req.body?.view) ? req.body.view : null,
+    });
+    if (!answer) return res.status(422).json({ error: "It could not be answered", code: "DESCRIBE_FAILED" });
+    res.json({ say: answer.say.slice(0, 600), action: answer.action, words: answer.words.slice(0, TITLE_MAX), category: answer.category, lang: answer.lang });
+  } catch (error) {
+    describeFault(error, res, "answering the bar's question");
   }
 });
 

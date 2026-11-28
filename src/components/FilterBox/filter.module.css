@@ -19,6 +19,32 @@
   stroke-linecap: round;
 }
 
+/* The brain: many short strokes in the glass's box, so drawn thinner and a
+   little larger; it beats while an answer is waited for. */
+.brain {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.busy {
+  animation: think 0.9s ease-in-out infinite;
+}
+
+@keyframes think {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
 .input {
   flex: 1;
   min-width: 0;

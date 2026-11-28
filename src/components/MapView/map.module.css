@@ -110,8 +110,10 @@
   background: var(--soft);
 }
 
-/* The box that narrows the list stands in the top bar where there is room
-   for it (see Header); on a phone the bar is full, and it stands here. */
+/* The box that narrows the list: over the list beside the map, as well as in
+   the top bar where there is room for one there (see Header) — the two say
+   the same thing. As lists the column is the themes and the categories, with
+   a box of their own, and where the bar has its box this one is put away. */
 .sideFilter,
 .categoryFilter {
   flex: none;
@@ -119,7 +121,7 @@
 }
 
 @media (min-width: 760px) {
-  .sideFilter {
+  .listing .sideFilter {
     display: none;
   }
 }

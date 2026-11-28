@@ -310,8 +310,151 @@ a {
     transform: translate(-50%, -50%);
   }
 
-  .topbar-filter > [role="search"] {
+  .topbar-filter [role="search"] {
     width: clamp(140px, calc(100vw - 760px), 480px);
+  }
+}
+
+/* The box that is asked ("Ask AI"), and under it what the AI said to do: a
+   line or two, and the one step to take as a button of its own. Hung from the
+   box, as wide as it is and never too narrow to read. */
+.topbar-ask-box {
+  position: relative;
+  display: flex;
+}
+
+.ask-hint {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 30px 12px 12px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 30%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+  animation: ask-hint-in 0.16s ease-out;
+}
+
+/* A tick up to the box it answers. */
+.ask-hint::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 12px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid var(--ink);
+  border-left: 1px solid var(--ink);
+  background: var(--paper);
+  transform: rotate(45deg);
+}
+
+.ask-hint-say {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.ask-hint-thinking {
+  color: var(--muted);
+}
+
+.ask-hint-do {
+  max-width: 100%;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 12px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ask-hint-do svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ask-hint-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ask-hint-close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+@media (hover: hover) {
+  .ask-hint-close:hover {
+    color: var(--ink);
+  }
+}
+
+@keyframes ask-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* The control the hint means, ringed in the bar while the hint is up. */
+.topbar[data-guide="add"] [data-guide-target="add"],
+.topbar[data-guide="request"] [data-guide-target="request"],
+.topbar[data-guide="mine"] [data-guide-target="mine"],
+.topbar[data-guide="messages"] [data-guide-target="messages"],
+.topbar[data-guide="travel"] [data-guide-target="travel"],
+.topbar[data-guide="account"] [data-guide-target="account"],
+.topbar[data-guide="list"] [data-guide-target="list"],
+.topbar[data-guide="map"] [data-guide-target="map"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  animation: guide-ring 1s ease-in-out infinite;
+}
+
+@keyframes guide-ring {
+  50% {
+    outline-offset: 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-hint,
+  .topbar[data-guide] [data-guide-target] {
+    animation: none;
   }
 }
 

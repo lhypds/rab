@@ -13,7 +13,7 @@ Setup prepares the environment file, dependencies and database, and looks for a 
 
 Set `PORT` for the server port, `PM2_NAME` for the process name and `VITE_MAPBOX_TOKEN` to enable maps. Optional settings for email and iPhone photo descriptions are documented in [the environment example](../.env.example).
 
-Which OpenAI model each AI request uses is set in `settings.json`, made from [settings.json.example](../settings.json.example) by `setup.sh` (and by `restart.sh` where it is missing): `models.default` is the model of every request, and `describePhoto`, `describeObject`, `classifyListing` and `describeRequest` each name another for that one request — left empty, the default. The file is read again whenever it changes; the server need not be restarted.
+Which OpenAI model each AI request uses is set in `settings.json`, made from [settings.json.example](../settings.json.example) by `setup.sh` (and by `restart.sh` where it is missing): `models.default` is the model of every request, and `describePhoto`, `describeObject`, `classifyListing`, `describeRequest` and `guide` (the top bar's Ask AI) each name another for that one request — left empty, the default. The file is read again whenever it changes; the server need not be restarted.
 
 ## Run the production build
 

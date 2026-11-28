@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Header, MapView } from "../../components/index.js";
+import { forgetSought, SEEK_EVENT, sought } from "../../utils/seek.js";
 
 // Which way the home page is being read: on the map, or as lists. Kept for the
 // tab's life, so the way back from an item's page is to the view it was opened
@@ -23,7 +24,19 @@ export default function HomePage({ active = true }) {
   const [view, setView] = useState(keptView);
   // What is being looked for among what is here: typed in the bar, read by the
   // list and the pins.
-  const [query, setQuery] = useState("");
+  // It may open already looking for something: what the bar's "Ask AI" made of
+  // a wish said on another page (see seek.js), which also reaches it here
+  // while it stands.
+  const [query, setQuery] = useState(sought);
+  useEffect(() => {
+    forgetSought();
+    const look = (event) => {
+      setQuery(event.detail ?? "");
+      forgetSought();
+    };
+    window.addEventListener(SEEK_EVENT, look);
+    return () => window.removeEventListener(SEEK_EVENT, look);
+  }, []);
   const choose = (next) => {
     setView(next);
     try {

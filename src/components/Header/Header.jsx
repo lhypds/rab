@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButton, canGoBack, Link, useNavigate } from "../../ui/index.js";
 import { loginPath, useAuth } from "../AuthProvider/index.js";
@@ -9,6 +9,9 @@ import LanguageSwitcher from "../LanguageSwitcher/index.js";
 import MessagesModal from "../MessagesModal/index.js";
 import RequestModal from "../RequestModal/index.js";
 import TravelModal from "../TravelModal/index.js";
+import * as api from "../../api.js";
+import { homePath } from "../../utils/categories.js";
+import { seek } from "../../utils/seek.js";
 import { itemPath } from "../../utils/spots.js";
 
 // The bar on every page. `back` swaps the wordmark for the way back, on the
@@ -30,7 +33,7 @@ export const REQUESTED_EVENT = "rab:requested";
 export const HOME_EVENT = "rab:home";
 
 export default function Header({ back = false, view, onView, query = "", onQuery }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, unread } = useAuth();
   const navigate = useNavigate();
   // Never a step back off the site: from anywhere else it is home.
@@ -57,8 +60,103 @@ export default function Header({ back = false, view, onView, query = "", onQuery
     setNeeded(typeof words === "string" ? words.trim() : "");
     setNeeding(true);
   };
-  // What is written in the box, on a page with no list for it to narrow.
-  const [written, setWritten] = useState("");
+  // What is written in the box: something asked of the AI, in the asker's
+  // own words — or, once it has been turned into a search, the word the list
+  // is narrowed to, which the box then shows (as it shows one typed into the
+  // list's own box: the two say the same thing).
+  const [written, setWritten] = useState(query);
+  useEffect(() => {
+    if (onQuery) setWritten(query);
+  }, [query]);
+  // What the AI said to do about it, hung under the box: a line, and the one
+  // control to press — { say, action, words, category } — or { thinking } while it is
+  // being worked out. The control it means is ringed in the bar meanwhile.
+  const [hint, setHint] = useState(null);
+  const asking = useRef(null);
+  const boxRef = useRef(null);
+  const dismiss = () => {
+    asking.current?.abort();
+    asking.current = null;
+    setHint(null);
+  };
+  // The list narrowed to a word: here where the page has the list, and on the
+  // home page otherwise, which is gone to.
+  const look = (words) => {
+    if (onQuery) return onQuery(words);
+    seek(words);
+    navigate("/");
+  };
+  const write = (value) => {
+    setWritten(value);
+    // Emptied, it lets go of what it was narrowing to and of what was said.
+    if (!value) {
+      if (onQuery && query) onQuery("");
+      dismiss();
+    }
+  };
+  async function ask(value) {
+    const question = String(value ?? "").trim();
+    if (!question) return;
+    asking.current?.abort();
+    const controller = new AbortController();
+    asking.current = controller;
+    setHint({ thinking: true });
+    try {
+      const answer = await api.ask(question, i18n.language.slice(0, 2), onView ? view : null, { signal: controller.signal });
+      if (asking.current !== controller) return;
+      setHint(answer);
+    } catch (error) {
+      if (asking.current !== controller) return;
+      // A server with no model to ask is a box that searches, as it was.
+      if (error.code === "DESCRIBE_UNAVAILABLE") {
+        setHint(null);
+        look(question);
+      } else {
+        setHint({ say: t(error.code === "DESCRIBE_BUSY" ? "ask.busy" : "ask.failed"), action: "search", words: question.slice(0, 60) });
+      }
+    } finally {
+      if (asking.current === controller) asking.current = null;
+    }
+  }
+  // The step the hint points at, taken — by its own button under the words.
+  function follow() {
+    const { action, words, category } = hint;
+    const mine = (go) => (user ? go() : navigate(loginPath()));
+    setHint(null);
+    if (action === "search") look(words);
+    else if (action === "category") navigate(homePath(category));
+    else if (action === "add") post();
+    else if (action === "request") need(words);
+    else if (action === "mine") mine(() => navigate("/mine"));
+    else if (action === "messages") mine(() => setMessagesOpen(true));
+    else if (action === "travel") setTravelOpen(true);
+    else if (action === "account") mine(() => setAccountOpen(true));
+    else if (action === "list" || action === "map") onView ? onView(action) : navigate("/");
+  }
+  // What its button says: the step, in the language the hint was said in —
+  // the one the question was typed in, where that is not the page's.
+  const said = hint?.lang ? i18n.getFixedT(hint.lang) : t;
+  const step = !hint || hint.thinking || hint.action === "none"
+    ? null
+    : hint.action === "account" && !user
+      ? said("header.signIn")
+      : said(`ask.do.${hint.action}`, { words: hint.words, category: hint.category ? said(`category.${hint.category}`) : "" });
+  // Put away by Escape, and by a press anywhere but on it or the box.
+  useEffect(() => {
+    if (!hint) return undefined;
+    const key = (event) => {
+      if (event.key === "Escape") dismiss();
+    };
+    const press = (event) => {
+      if (!boxRef.current?.contains(event.target)) dismiss();
+    };
+    window.addEventListener("keydown", key);
+    window.addEventListener("pointerdown", press);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("pointerdown", press);
+    };
+  }, [hint]);
 
   // The form for putting something out is opened from the bar, and from
   // wherever else on the page asks for it (see LIST_EVENT): an area with
@@ -109,7 +207,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
 
   return (
     <>
-      <header className="topbar">
+      <header className="topbar" data-guide={hint?.action}>
         <span className="topbar-brand">
           {back ? (
             <ActionButton
@@ -131,7 +229,8 @@ export default function Header({ back = false, view, onView, query = "", onQuery
               to="/"
               onClick={() => {
                 window.dispatchEvent(new Event(HOME_EVENT));
-                (onQuery ?? setWritten)("");
+                write("");
+                onQuery?.("");
               }}
             >
               {/* rab's own mark, as its icon has it: a glass with a plus in
@@ -148,28 +247,56 @@ export default function Header({ back = false, view, onView, query = "", onQuery
         </span>
         {/* In the middle of the bar: the two buttons that add to the map
             rather than read it — "Add", which puts something out, and
-            "Request", which asks for something — and a box that searches:
-            what is written in it narrows the list on the page that has one.
-            The request form opens already saying what is written in the
-            box. Not on a phone, where the bar is full — there the two are
+            "Request", which asks for something — and a box that is asked:
+            what somebody wants, said in their own words, and Enter has the
+            AI say what to do about it here — a hint hung under the box, with
+            the one thing to press (see `ask`). The request form opens already
+            saying what the list is narrowed to. Not on a phone, where the bar is full — there the two are
             marks among the buttons, and the box that narrows stands over the
             list (see MapView). */}
         <span className="topbar-filter">
-          <button type="button" className="topbar-have" onClick={post}>
+          <button type="button" className="topbar-have" data-guide-target="add" onClick={post}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 5v14" />
               <path d="M5 12h14" />
             </svg>
             {t("header.have")}
           </button>
-          <button type="button" className="topbar-have topbar-ask" onClick={() => need(onQuery ? query : written)}>
+          <button type="button" className="topbar-have topbar-ask" data-guide-target="request" onClick={() => need(query)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="10.5" cy="10.5" r="6.5" />
               <path d="m15.5 15.5 5 5" />
             </svg>
             {t("header.need")}
           </button>
-          <FilterBox slash value={onQuery ? query : written} onChange={onQuery ?? setWritten} placeholder={t("search.placeholder")} />
+          <span className="topbar-ask-box" ref={boxRef}>
+            <FilterBox slash brain busy={Boolean(hint?.thinking)} value={written} onChange={write} onEnter={ask} placeholder={t("ask.placeholder")} />
+            {hint && (
+              <span className="ask-hint" role="status">
+                {hint.thinking ? (
+                  <span className="ask-hint-say ask-hint-thinking">{t("ask.thinking")}</span>
+                ) : (
+                  <>
+                    <span className="ask-hint-say">{hint.say}</span>
+                    {step && (
+                      <button type="button" className="ask-hint-do" onClick={follow}>
+                        {step}
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M5 12h14" />
+                          <path d="m13 6 6 6-6 6" />
+                        </svg>
+                      </button>
+                    )}
+                  </>
+                )}
+                <button type="button" className="ask-hint-close" aria-label={t("ask.close")} onClick={dismiss}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
+              </span>
+            )}
+          </span>
         </span>
         <span className="topbar-action-slot">
           {/* On a phone only, where the middle of the bar is put away: "I
@@ -191,14 +318,14 @@ export default function Header({ back = false, view, onView, query = "", onQuery
               one in force turned over. Only on the page that has both. */}
           {onView && (
             <span className="topbar-view" role="group">
-              <ActionButton tooltip={t("header.viewMap")} aria-pressed={view === "map"} onClick={() => onView("map")}>
+              <ActionButton tooltip={t("header.viewMap")} data-guide-target="map" aria-pressed={view === "map"} onClick={() => onView("map")}>
                 <svg viewBox="0 0 24 24">
                   <path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2z" />
                   <path d="M9 4v14" />
                   <path d="M15 6v14" />
                 </svg>
               </ActionButton>
-              <ActionButton tooltip={t("header.viewList")} aria-pressed={view === "list"} onClick={() => onView("list")}>
+              <ActionButton tooltip={t("header.viewList")} data-guide-target="list" aria-pressed={view === "list"} onClick={() => onView("list")}>
                 <svg viewBox="0 0 24 24">
                   <path d="M9 6h11" />
                   <path d="M9 12h11" />
@@ -213,7 +340,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
           {/* What is yours: what you have out, who has asked for any of it,
               and what you have asked other people for and kept. */}
           {user && (
-            <ActionButton tooltip={t("header.mine")} onClick={() => navigate("/mine")}>
+            <ActionButton tooltip={t("header.mine")} data-guide-target="mine" onClick={() => navigate("/mine")}>
               <svg viewBox="0 0 24 24">
                 <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
                 <path d="M3 8l9 5 9-5" />
@@ -225,7 +352,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
               map goes there (see TravelModal). A plane leaving the ground,
               filled rather than outlined. */}
           <span className="topbar-travel">
-            <ActionButton tooltip={t("travel.title")} onClick={() => setTravelOpen(true)}>
+            <ActionButton tooltip={t("travel.title")} data-guide-target="travel" onClick={() => setTravelOpen(true)}>
               <svg viewBox="0 0 24 24">
                 <path d="M2.5 19h19v2h-19v-2Zm19.57-9.36a1.5 1.5 0 0 0-1.84-1.06l-5.59 1.5-7.25-6.76-1.93.52 4.35 7.53-5.23 1.4-2.07-1.62-1.45.39 2.55 4.41 16.89-4.52a1.5 1.5 0 0 0 1.06-1.86l-.49-1.93Z" />
               </svg>
@@ -238,6 +365,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
             <span className="topbar-badge">
               <ActionButton
                 tooltip={t("messages.title")}
+                data-guide-target="messages"
                 aria-label={unread > 0 ? t("messages.waiting", { n: unread }) : t("messages.title")}
                 onClick={() => setMessagesOpen(true)}
               >
@@ -251,6 +379,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
           )}
           <ActionButton
             tooltip={user ? t("header.account") : t("header.signIn")}
+            data-guide-target="account"
             onClick={() => (user ? setAccountOpen(true) : navigate(loginPath()))}
           >
             <svg viewBox="0 0 24 24">

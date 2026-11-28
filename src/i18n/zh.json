@@ -495,6 +495,25 @@
     "insecure": "此页面无法获取位置",
     "insecureHint": "浏览器只对 https 或 localhost 的页面提供位置。请用 https 地址打开 rab。"
   },
+  "ask": {
+    "placeholder": "问 AI...",
+    "thinking": "思考中...",
+    "failed": "AI 暂时无法回答，你仍然可以直接搜索。",
+    "busy": "提问太频繁，请稍后再试，或直接搜索。",
+    "close": "关闭",
+    "do": {
+      "category": "查看“{{category}}”分类",
+      "search": "搜索“{{words}}”",
+      "add": "发布出租物品",
+      "request": "发布需求",
+      "mine": "打开“我的”",
+      "messages": "打开消息",
+      "travel": "选择地点",
+      "account": "打开账户",
+      "list": "以列表查看",
+      "map": "在地图上查看"
+    }
+  },
   "search": {
     "placeholder": "搜索...",
     "empty": "没有找到"

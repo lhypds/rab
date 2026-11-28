@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 //       "describePhoto": "",          a listing's form filled in from its photograph (the website)
 //       "describeObject": "",         a scanned object named in three languages (the iPhone app)
 //       "classifyListing": "",        a listing's category chosen from what it says
-//       "describeRequest": ""         a request ("I need") filled in from a few words
+//       "describeRequest": "",        a request ("I need") filled in from a few words
+//       "guide": ""                   what to do next, for what is typed into the bar's "Ask AI"
 //     }
 //   }
 //
@@ -27,7 +28,7 @@ const FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "sett
 const DEFAULT_MODEL = "gpt-6.1-terra";
 
 // The requests a model can be set for.
-export const MODEL_TASKS = ["describePhoto", "describeObject", "classifyListing", "describeRequest"];
+export const MODEL_TASKS = ["describePhoto", "describeObject", "classifyListing", "describeRequest", "guide"];
 
 let read = { stamp: null, settings: {} };
 let complained = null;

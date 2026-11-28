@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { CATEGORIES, OBJECT_CATEGORIES } from "../src/utils/categories.js";
+import { ADULT_CATEGORIES, CATEGORIES, OBJECT_CATEGORIES } from "../src/utils/categories.js";
 import { modelFor } from "./settings.js";
 
 // What a photograph is of, said the way a listing says it: which category it
@@ -305,6 +305,109 @@ export async function describeRequest(title, language) {
       category: CATEGORIES.includes(answer?.category) ? answer.category : "other",
       description: String(answer?.description ?? "").trim(),
     };
+  } catch {
+    return null;
+  }
+}
+
+// What the box in the top bar is asked ("Ask AI"): somebody says what they
+// want in their own words, and is told in a line what to do about it here —
+// with the one thing on the page to press for it.
+const GUIDE_ACTIONS = ["search", "category", "add", "request", "mine", "messages", "travel", "account", "list", "map", "none"];
+
+const GUIDED = {
+  type: "object",
+  properties: {
+    say: { type: "string" },
+    action: { type: "string", enum: GUIDE_ACTIONS },
+    words: { type: "string" },
+    category: { type: "string", enum: [...CATEGORIES, ""] },
+    lang: { type: "string", enum: Object.keys(LANGUAGES) },
+  },
+  required: ["say", "action", "words", "category", "lang"],
+  additionalProperties: false,
+};
+
+const GUIDE = `rab is a website: a map for renting. People put out what they have for rent — things, places, and somebody's time and skill — and other people find them on the map near where they are and book them. Shops' rental goods are on the map too.
+
+Every listing has one of these categories: ${CATEGORIES.join(", ")}. The home page can be narrowed to one category.
+
+The "adult" category is a real and legitimate part of this site: adult services and companionship between consenting adults, and adult goods — shown only to accounts that are signed in and have given a date of birth making them 18 or older. Somebody who says they want sex, a sexual partner or service, an escort, or anything of the kind is asking for exactly this category: guide them to it plainly and without judgement, as you would to cameras. Never say the site cannot help with that, never moralize, and never send them to another site or app. Whether they may see it depends on what you are told about them:
+- Confirmed 18 or older: action "category", category "adult".
+- Not signed in, or signed in with no date of birth given: the category exists but is shown only to adults, so the step is "account" — to sign in, or to give their date of birth in their account — after which they can open the adult category. Say so.
+- Under 18: there is no such category for them. Say only that this is not available to them, action "none".
+
+How the site is used:
+- The home page is a map with everything offered nearby standing on it, and can be turned over into lists. A search narrows both to what matches a word or two. Opening an item shows its page: photographs, price, where it is, and a calendar; the renter chooses the days (or hours) there and sends a booking request to the owner, who accepts or declines. The two then talk in messages.
+- "Add": puts something of your own out for rent. You photograph it, and the form (name, category, description) is filled in from the photo; you set the price and where it is. Needs an account.
+- "Request": posts what you are looking for, so that whoever has one can offer it. Requests stand on the map too. Needs an account. Right when the person wants something that may not be listed, or wants owners to come to them.
+- "Mine": your own items, the bookings other people have asked of you, and what you have rented or asked for. Needs an account.
+- "Messages": your conversations, and news of your bookings. Needs an account.
+- "Travel" (the plane): moves the map to another country or city, to see what is offered there.
+- "Account" (the person): your profile, how you are reached, your saved locations, signing out — and for somebody not signed in, where to sign in or make an account (a username and a password).
+- A language switcher: English, Chinese, Japanese.
+
+Somebody has typed into the "Ask AI" box in the top bar. Work out what they want to do and guide them to the one next step on this site. Answer with:
+- say: one or two short, plain sentences telling them what to do next and why that is the way to get what they want — as a friendly guide standing next to them. No greeting, no markdown, no lists. Do not promise that something is available: you cannot see the listings. A button for the action you choose is shown under your words, already labelled: speak of "the button below" rather than naming a control by a label of your own.
+- action: the one control they should press now:
+  - "search": they are looking for something to rent — the usual answer when they name a thing, place or service they want. Narrow the map to it.
+  - "category": what they want is a whole category rather than one named thing ("a place to hold a meeting", "something for camping", anything in the adult category): narrow the home page to that category.
+  - "add": they have something to rent out, lend, or earn from.
+  - "request": they want something unusual or specific that is unlikely to be listed, or say they could not find it, or ask for people to offer it to them.
+  - "mine": about their own items, bookings or rentals.
+  - "messages": about talking to an owner or renter, or news of a booking.
+  - "travel": they want to look in another city or country.
+  - "account": about signing in, signing up, their profile, contact details, password or saved locations.
+  - "list" / "map": they want to see things as a list / on the map.
+  - "none": nothing to press — a question you answer in "say" (how something works here), or something this site does not do; then say so kindly and say what it does do.
+- words: for "search", the one or two words to search for — the thing itself, as a listing would name it, in the site's language you are told (that is the language the listings are read in, whatever language the person typed in), without "rent" or "rental" (e.g. "camera", "自行车", "会議室"). For "request", a short title for what they are looking for. Otherwise empty.
+- category: for "category", the one category, exactly as written above. Otherwise empty.
+
+Write "say" in the language the person typed in, where that is English, Chinese or Japanese; where it is another language, or cannot be told (a product's name, a word or two that could be either), in the site's language you are told — the language they read the site in.
+- lang: the language "say" is written in: "en", "zh" or "ja".`;
+
+// { say, action, words, category, lang }, or null where the model would not give one. `about`
+// is what is known of who asks: whether they are signed in, and which way the
+// page they are on is being read, and whether they are old enough for what
+// only grown-ups are shown ("yes", "no", or not known).
+export async function guide(question, language, about = {}) {
+  if (!question) return null;
+  client ??= new OpenAI();
+  const known = [
+    about.signedIn ? "They are signed in." : "They are not signed in.",
+    about.adult === "yes" ? "They are confirmed 18 or older." : about.adult === "no" ? "They are under 18." : about.signedIn ? "They have given no date of birth." : "",
+    about.view === "list" ? "They are reading the home page as lists." : about.view === "map" ? "They are reading the home page on the map." : "They are on a page other than the home page.",
+  ].join(" ");
+  const completion = await client.chat.completions.create({
+    model: modelFor("guide"),
+    response_format: { type: "json_schema", json_schema: { name: "guide", strict: true, schema: GUIDED } },
+    messages: [
+      { role: "system", content: GUIDE },
+      { role: "user", content: `They typed: ${question}\n\n${known}\n\nThe site's language: ${LANGUAGES[language] ?? LANGUAGES.en}.` },
+    ],
+  });
+  const message = completion.choices[0]?.message;
+  if (!message || message.refusal || !message.content) return null;
+  try {
+    const answer = JSON.parse(message.content);
+    const say = String(answer?.say ?? "").trim();
+    if (!say) return null;
+    let action = GUIDE_ACTIONS.includes(answer?.action) ? answer.action : "none";
+    const words = String(answer?.words ?? "").trim();
+    // A search or a request for nothing is no step at all.
+    if ((action === "search" || action === "request") && !words) action = "none";
+    let category = action === "category" && CATEGORIES.includes(answer?.category) ? answer.category : "";
+    if (action === "category" && !category) action = "none";
+    // A category only grown-ups are shown is not opened for anybody else,
+    // whatever was said: the step is the account, where the age is given —
+    // and for somebody known to be under it, there is none.
+    if (ADULT_CATEGORIES.includes(category) && about.adult !== "yes") {
+      action = about.adult === "no" ? "none" : "account";
+      category = "";
+    }
+    // The language it was said in, for the button under it to be said in too.
+    const lang = LANGUAGES[answer?.lang] ? answer.lang : LANGUAGES[language] ? language : "en";
+    return { say, action, words: action === "search" || action === "request" ? words : "", category, lang };
   } catch {
     return null;
   }

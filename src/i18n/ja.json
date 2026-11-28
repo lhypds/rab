@@ -495,6 +495,25 @@
     "insecure": "このページでは位置情報を取得できません",
     "insecureHint": "ブラウザは https または localhost のページにだけ位置情報を渡します。https のアドレスで rab を開いてください。"
   },
+  "ask": {
+    "placeholder": "AI に聞く...",
+    "thinking": "考えています...",
+    "failed": "AI は今お答えできません。そのまま検索できます。",
+    "busy": "質問が多すぎます。少し待ってからもう一度試すか、検索してください。",
+    "close": "閉じる",
+    "do": {
+      "category": "「{{category}}」を見る",
+      "search": "「{{words}}」を検索",
+      "add": "貸し出すものを掲載する",
+      "request": "募集を出す",
+      "mine": "マイページを開く",
+      "messages": "メッセージを開く",
+      "travel": "場所を選ぶ",
+      "account": "アカウントを開く",
+      "list": "リストで見る",
+      "map": "地図で見る"
+    }
+  },
   "search": {
     "placeholder": "検索...",
     "empty": "見つかりません"

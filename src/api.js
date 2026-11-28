@@ -221,6 +221,11 @@ export const classifyItem = ({ title, what, description, image }) =>
 // A request filled in from the words typed for what is wanted:
 // { category, description }, in the language asked for.
 export const describeRequest = (title, lang) => send("POST", "/api/describe-request", { title, lang }, { timeoutMs: 90 * 1000 });
+
+// What to do next on this site, for what was typed into the bar's "Ask AI":
+// { say, action, words } — a line to say, the control to press, and what to
+// search or ask for where that is the step (see server/describe.js).
+export const ask = (question, lang, view, options) => send("POST", "/api/ask", { question, lang, view }, { timeoutMs: 60 * 1000, ...options });
 // The signed-in account's own places, to put an item at.
 // `shared` asks for the public account's instead: the places somebody else's
 // things are at, which anybody signed in may choose from and add to.
