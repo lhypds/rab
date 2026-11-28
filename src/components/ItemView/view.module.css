@@ -248,17 +248,26 @@ div.zoomSheet {
   width: 100%;
 }
 
-/* The photograph, as wide as the sheet and as tall as that makes it — up to
-   what the sheet has left under its bar (the bar, the room round the picture
-   and the sheet's rule, with a little over: 72px), past which it is shown whole in that height,
-   its sides left blank. */
+/* The frame the photograph stands in: the photograph's own size, in the
+   middle of the sheet, so that the count is in the photograph's corner and
+   not the sheet's. */
+.zoomFrame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* The photograph, whole: no wider than the sheet, and no taller than what
+   the sheet has left under its bar (the bar, the room round the picture and
+   the sheet's rule, with a little over: 72px). */
 .zoomed {
   display: block;
-  width: 100%;
+  width: auto;
   height: auto;
+  max-width: 100%;
   max-height: calc(92vh - 72px);
   max-height: calc(92dvh - 72px);
-  object-fit: contain;
 }
 
 /* The one before and the one after: an arrow half way down each side, with

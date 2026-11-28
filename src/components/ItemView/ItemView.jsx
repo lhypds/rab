@@ -1205,7 +1205,16 @@ export default function ItemView({
           >
             {shownPhoto && (
               <div className={styles.zoomStage}>
-                <img className={styles.zoomed} src={shownPhoto.src} alt={item.title} />
+                {/* The photograph and its count in a frame the photograph's own
+                    size, so the count stands in the photograph's corner. */}
+                <div className={styles.zoomFrame}>
+                  <img className={styles.zoomed} src={shownPhoto.src} alt={item.title} />
+                  {item.images.length > 1 && (
+                    <span className={styles.photoCount}>
+                      {Math.min(photo, item.images.length - 1) + 1}/{item.images.length}
+                    </span>
+                  )}
+                </div>
                 {item.images.length > 1 && (
                   <>
                     <button
@@ -1224,9 +1233,6 @@ export default function ItemView({
                     >
                       ›
                     </button>
-                    <span className={styles.photoCount}>
-                      {Math.min(photo, item.images.length - 1) + 1}/{item.images.length}
-                    </span>
                   </>
                 )}
               </div>
