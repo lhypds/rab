@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ActionButton, Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
@@ -161,6 +162,24 @@ export default function ItemView({
   const [formError, setFormError] = useState("");
   const [photo, setPhoto] = useState(0);
   const [zoomed, setZoomed] = useState(false);
+  // The photograph before the one shown, or the one after, round and round.
+  const photoCount = item.images.length;
+  const stepPhoto = (by) => {
+    if (photoCount < 2) return;
+    setPhoto((shown) => (Math.min(shown, photoCount - 1) + by + photoCount) % photoCount);
+  };
+  // While the photograph is up large, the arrow keys turn to the next and
+  // the one before.
+  useEffect(() => {
+    if (!zoomed || photoCount < 2) return undefined;
+    const turn = (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      setPhoto((shown) => (Math.min(shown, photoCount - 1) + (event.key === "ArrowLeft" ? -1 : 1) + photoCount) % photoCount);
+    };
+    document.addEventListener("keydown", turn);
+    return () => document.removeEventListener("keydown", turn);
+  }, [zoomed, photoCount]);
   const [sharing, setSharing] = useState(false);
   // Whether the reader has kept the item among their bookmarks: what the page
   // came saying, and from then on what the button was last pressed to.
@@ -382,7 +401,8 @@ export default function ItemView({
   const shownPhoto = item.images[Math.min(photo, item.images.length - 1)];
   // A photograph is never drawn larger than it is: stretched past its own
   // pixels it goes soft, and a small sharp picture reads better than a big
-  // blurred one. The frame crops to fill, so it is the frame that is held —
+  // blurred one. The picture stands whole in its frame (its sides made up with
+  // itself, blurred — see .photoBlur), so it is the frame that is held —
   // no wider than the picture, and no wider than would make its height more
   // than the picture's at the taller of the two shapes the frame takes (4:3).
   // Inside a frame that is within the picture both ways, filling it can only
@@ -589,10 +609,33 @@ export default function ItemView({
                 type="button"
                 className={styles.photo}
                 style={{ maxWidth: photoLimit }}
-                onClick={() => setZoomed(true)}
+                // Pressed in the middle, the photograph is shown large; pressed
+                // at its left or its right third — where there are several —
+                // the one before or the one after is shown, round and round.
+                // A press that is not the mouse's (the keyboard's) has no
+                // place, and shows it large.
+                onClick={(event) => {
+                  const count = item.images.length;
+                  const box = event.currentTarget.getBoundingClientRect();
+                  const at = event.detail > 0 && box.width > 0 ? (event.clientX - box.left) / box.width : 0.5;
+                  if (count < 2 || (at >= 1 / 3 && at <= 2 / 3)) return setZoomed(true);
+                  const now = Math.min(photo, count - 1);
+                  setPhoto((now + (at < 1 / 3 ? count - 1 : 1)) % count);
+                }}
+                onKeyDown={(event) => {
+                  const count = item.images.length;
+                  if (count < 2 || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+                  event.preventDefault();
+                  const now = Math.min(photo, count - 1);
+                  setPhoto((now + (event.key === "ArrowLeft" ? count - 1 : 1)) % count);
+                }}
                 aria-label={t("item.photoOpen")}
               >
+                {/* The photograph again, filling the frame and blurred: what
+                    stands at the sides of one that is not the frame's shape. */}
+                <img className={styles.photoBlur} src={shownPhoto.src} alt="" aria-hidden="true" />
                 <img
+                  className={styles.photoWhole}
                   src={shownPhoto.src}
                   alt={item.title}
                   onLoad={(event) => {
@@ -602,6 +645,12 @@ export default function ItemView({
                     setNatural((known) => (known[key] ? known : { ...known, [key]: { width, height, src } }));
                   }}
                 />
+                {item.images.length > 1 && (
+                  <>
+                    <span className={`${styles.photoSide} ${styles.photoBefore}`} aria-hidden="true">‹</span>
+                    <span className={`${styles.photoSide} ${styles.photoAfter}`} aria-hidden="true">›</span>
+                  </>
+                )}
                 {item.images.length > 1 && (
                   <span className={styles.photoCount}>
                     {Math.min(photo, item.images.length - 1) + 1}/{item.images.length}
@@ -1132,11 +1181,60 @@ export default function ItemView({
         </div>
       </div>
 
-      <ReportModal item={item} mode={posting} onClose={() => setPosting(null)} />
-      <ShareModal isOpen={sharing} onClose={() => setSharing(false)} title={item.title} url={url} slug={item.id} />
-      <Modal isOpen={zoomed && Boolean(shownPhoto)} title={item.title} onClose={() => setZoomed(false)} closeOnOverlay large>
-        {shownPhoto && <img className={styles.zoomed} src={shownPhoto.src} alt={item.title} />}
-      </Modal>
+      {/* These sheets are drawn on the document's body, not in the page: the
+          page is a container (see .page — its narrow shapes are asked of its
+          own width), and a container holds whatever is fixed inside it — a
+          sheet in it would cover the page from top to foot and stand in the
+          middle of that, off the window on a phone, not in the middle of the
+          window. */}
+      {createPortal(
+        <>
+          <ReportModal item={item} mode={posting} onClose={() => setPosting(null)} />
+          <ShareModal isOpen={sharing} onClose={() => setSharing(false)} title={item.title} url={url} slug={item.id} />
+          {/* The photograph large: on a sheet the size of the one an item's page
+              is read on, the photograph whole in the middle of it — and, where
+              there are several, a button at its left and one at its right for the
+              one before and the one after (the arrow keys too). */}
+          <Modal
+            isOpen={zoomed && Boolean(shownPhoto)}
+            title={item.title}
+            onClose={() => setZoomed(false)}
+            closeOnOverlay
+            large
+            className={styles.zoomSheet}
+          >
+            {shownPhoto && (
+              <div className={styles.zoomStage}>
+                <img className={styles.zoomed} src={shownPhoto.src} alt={item.title} />
+                {item.images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      className={`${styles.zoomStep} ${styles.zoomBefore}`}
+                      onClick={() => stepPhoto(-1)}
+                      aria-label={t("item.photoPrevious")}
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.zoomStep} ${styles.zoomAfter}`}
+                      onClick={() => stepPhoto(1)}
+                      aria-label={t("item.photoNext")}
+                    >
+                      ›
+                    </button>
+                    <span className={styles.photoCount}>
+                      {Math.min(photo, item.images.length - 1) + 1}/{item.images.length}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </Modal>
+        </>,
+        document.body,
+      )}
     </article>
   );
 }

@@ -31,6 +31,33 @@ struct ImageRef: Encodable {
     let height: Int
 }
 
+/// The photographs an item on rab is to carry (PATCH /api/items/:id): all of
+/// them, the ones it had by the names they are kept under and the new ones
+/// after them. Nothing else of the item is changed.
+struct PicturesBody: Encodable {
+    struct Picture: Encodable {
+        var name: String
+        var thumb: String
+        var width: Int?
+        var height: Int?
+    }
+
+    var images: [Picture]
+}
+
+extension PicturesBody.Picture {
+    /// One the item has already, from the addresses the server lists it by.
+    init(_ picture: Listing.Picture) {
+        let file = { (path: String) in path.components(separatedBy: "?")[0].components(separatedBy: "/").last ?? path }
+        self.init(
+            name: file(picture.src),
+            thumb: file(picture.thumb ?? picture.src),
+            width: picture.width.map { Int($0) },
+            height: picture.height.map { Int($0) }
+        )
+    }
+}
+
 /// The most the server keeps of an item's few words for what it is (WHAT_MAX).
 let whatMax = 40
 
@@ -480,6 +507,11 @@ final class RabAPI {
 
     /// Writes over what an item on rab says it is, leaving the rest of it.
     func updateItem(_ id: String, _ body: RecognizedBody) async throws {
+        _ = try await send("PATCH", "api/items/\(id)", body: try JSONEncoder().encode(body), type: "application/json")
+    }
+
+    /// Says which photographs an item on rab carries, leaving the rest of it.
+    func updateItem(_ id: String, _ body: PicturesBody) async throws {
         _ = try await send("PATCH", "api/items/\(id)", body: try JSONEncoder().encode(body), type: "application/json")
     }
 

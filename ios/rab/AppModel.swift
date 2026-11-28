@@ -439,6 +439,23 @@ final class AppModel {
         }
     }
 
+    /// The photograph of an item on rab as a file on this phone, to be shared:
+    /// fetched whole, and kept among the temporary files, where the system
+    /// clears it away.
+    func photoFile(of listing: Listing) async throws -> URL {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        guard let path = listing.images?.first?.src else { throw BackgroundRemover.Failure.noImage }
+        let data = try await api.imageData(path)
+        let kind = URL(fileURLWithPath: path.components(separatedBy: "?")[0]).pathExtension
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rab-\(listing.id)")
+            .appendingPathExtension(kind.isEmpty ? "jpg" : kind)
+        try data.write(to: file, options: .atomic)
+        return file
+    }
+
     /// The same for an item on rab: its first photograph is fetched, looked
     /// at, and what it says it is written over there.
     func recognize(_ listing: Listing) async throws {
@@ -597,15 +614,18 @@ final class AppModel {
         // The spots it was collected for, the ones rab still has; where none
         // is left, the item goes on the default one, as any other does.
         let onto = item.collectedFor.filter { spot($0) != nil }
-        guard let image = store.loadPhoto(item),
-              let full = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.82),
-              let thumb = image.jpeg(maxSide: 320, quality: 0.62)
-        else { throw BackgroundRemover.Failure.noImage }
+        guard store.loadPhoto(item) != nil else { throw BackgroundRemover.Failure.noImage }
 
         let at = self.place(item.locationId)
 
-        let storedFull = try await api.uploadImage(full.data)
-        let storedThumb = try await api.uploadImage(thumb.data)
+        // Every photograph of it, the first first; one added later whose
+        // file is gone is left out.
+        var pictures: [ImageRef] = []
+        for name in item.allPhotos {
+            guard let image = UIImage(contentsOfFile: store.photoURL(named: name).path) else { continue }
+            let sent = try await upload(image, with: api)
+            pictures.append(ImageRef(name: sent.name, thumb: sent.thumb, width: sent.width ?? 1, height: sent.height ?? 1))
+        }
         let body = ItemBody(
             title: item.title,
             what: item.what ?? "",
@@ -618,7 +638,7 @@ final class AppModel {
             longitude: at?.longitude,
             place: at?.line,
             region: at?.region,
-            images: [ImageRef(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)],
+            images: pictures,
             spotIds: onto.isEmpty ? nil : onto
         )
         let created = try await api.createItem(body)
@@ -628,6 +648,106 @@ final class AppModel {
         try update(published)
         // It is in the server's list now, and so in the phone's.
         if refreshing { await loadListings() }
+    }
+
+    // MARK: - more photographs
+
+    /// A photograph sent up, with its small copy, the way the website's form
+    /// sends one: what an item then carries it as.
+    private func upload(_ image: UIImage, with api: RabAPI) async throws -> PicturesBody.Picture {
+        guard let full = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.82),
+              let thumb = image.jpeg(maxSide: 320, quality: 0.62)
+        else { throw BackgroundRemover.Failure.noImage }
+        let storedFull = try await api.uploadImage(full.data)
+        let storedThumb = try await api.uploadImage(thumb.data)
+        return PicturesBody.Picture(name: storedFull.name, thumb: storedThumb.name, width: full.width, height: full.height)
+    }
+
+    /// Adds a photograph to an item on rab, after the ones it has. What it
+    /// has is asked of the server first: the item is told all its
+    /// photographs at once, and none it has may be left out.
+    private func addPhoto(_ image: UIImage, toListing id: String, with api: RabAPI) async throws {
+        let had = try await api.mine().items.first { $0.id == id }
+        guard let had else {
+            throw APIError(status: 404, code: nil, message: Language.text("The photo could not be read"))
+        }
+        let sent = try await upload(image, with: api)
+        try await api.updateItem(id, PicturesBody(images: (had.images ?? []).map { PicturesBody.Picture($0) } + [sent]))
+        await loadListings()
+    }
+
+    /// Takes a photograph off an item on rab: the one at the address given.
+    /// What the item has is asked of the server first, as for adding. Its
+    /// last photograph stays: an item is not left with none.
+    private func removePhoto(_ src: String, fromListing id: String, with api: RabAPI) async throws {
+        let had = try await api.mine().items.first { $0.id == id }?.images ?? []
+        let kept = had.filter { $0.src != src }
+        guard kept.count < had.count, !kept.isEmpty else { return }
+        try await api.updateItem(id, PicturesBody(images: kept.map { PicturesBody.Picture($0) }))
+        await loadListings()
+    }
+
+    /// The same for an item on rab.
+    func removePhoto(_ src: String, from listing: Listing) async throws {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        try await removePhoto(src, fromListing: listing.id, with: api)
+    }
+
+    /// Takes one of its photographs off an item on this phone, by its file's
+    /// name, and deletes the file. Where it was the first, the next is the
+    /// first now; the last one stays. On rab too, where the item is there
+    /// with the same photographs in the same order.
+    func removePhoto(_ name: String, from item: SavedItem) async throws {
+        guard let store, var fresh = self.item(item.id) else { return }
+        var names = fresh.allPhotos
+        guard names.count > 1, let index = names.firstIndex(of: name) else { return }
+        // Which it is on rab, asked before anything is changed here.
+        var remote: (id: String, src: String)?
+        if let remoteId = fresh.remoteId, let api {
+            let there = try await api.mine().items.first { $0.id == remoteId }?.images ?? []
+            if there.count == names.count { remote = (remoteId, there[index].src) }
+        }
+        names.remove(at: index)
+        fresh.photo = names[0]
+        fresh.morePhotos = names.count > 1 ? Array(names.dropFirst()) : nil
+        if index == 0, let first = UIImage(contentsOfFile: store.photoURL(named: names[0]).path) {
+            fresh.width = Int(first.size.width * first.scale)
+            fresh.height = Int(first.size.height * first.scale)
+        }
+        try update(fresh)
+        try? FileManager.default.removeItem(at: store.photoURL(named: name))
+        if let remote, let api {
+            try await removePhoto(remote.src, fromListing: remote.id, with: api)
+        }
+    }
+
+    /// One more photograph of an item on this phone: kept in the user's
+    /// folder after the ones it has, and added on rab too where the item is
+    /// there. One that is not there yet takes them all up when it goes.
+    func addPhoto(_ image: UIImage, to item: SavedItem) async throws {
+        guard let api, let store else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        guard let jpeg = image.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
+            throw BackgroundRemover.Failure.noImage
+        }
+        guard var fresh = self.item(item.id) else { return }
+        let name = try store.savePhoto(jpeg.data, id: UUID().uuidString.lowercased())
+        fresh.morePhotos = (fresh.morePhotos ?? []) + [name]
+        try update(fresh)
+        if let remoteId = fresh.remoteId {
+            try await addPhoto(image, toListing: remoteId, with: api)
+        }
+    }
+
+    /// The same for an item on rab.
+    func addPhoto(_ image: UIImage, to listing: Listing) async throws {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        try await addPhoto(image, toListing: listing.id, with: api)
     }
 
     /// Where a published item is on the website.

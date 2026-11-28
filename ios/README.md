@@ -60,7 +60,17 @@ published. Those are said on the website, by whoever wants the thing offered.
 
 **An item's page.** Its photograph and what it says about itself. The brain at
 the top has that one recognized again, and what it says written over — on rab
-too, where it is there.
+too, where it is there. "Take a photo" opens the camera again for that item:
+each press of the round button is one more photograph, and Done adds them to
+it — after the ones it has, on rab too where the item is there; the cross
+adds none. "Choose photos" adds some the phone has already. Several
+photographs are swiped through side by side, each shown in a square; one
+pressed is shown large, and the bin there takes it off the item.
+
+In the camera, Done (top right) keeps what was taken and the cross (top left)
+throws it away again, asked first; the small photograph at the bottom left is
+the last one taken, with how many there are, and opens them to be looked
+through.
 
 The border is Vision's foreground instance mask, looked for in the camera's
 video several times a second; the photograph is a frame of that same video

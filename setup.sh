@@ -25,6 +25,15 @@ else
   echo ".env already exists, skipping"
 fi
 
+# Create settings.json from settings.json.example if not present: which model
+# each of the AI requests is put to (see server/settings.js).
+if [ ! -f "$ROOT/settings.json" ]; then
+  echo "Creating settings.json from settings.json.example..."
+  cp "$ROOT/settings.json.example" "$ROOT/settings.json"
+else
+  echo "settings.json already exists, skipping"
+fi
+
 # A token another project on this machine already holds, so a credential is
 # asked for once rather than once per repo — the same trick liveboard's own
 # component setup scripts use.

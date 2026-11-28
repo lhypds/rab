@@ -38,6 +38,13 @@ struct SavedItem: Codable, Identifiable, Hashable {
     var locationId: String?
     /// rab's own id for it, once it is in "My items" there.
     var remoteId: String?
+    /// The photographs added to it after its first, as files under photos/,
+    /// in the order they were taken. Missing from an item with only the one.
+    var morePhotos: [String]? = nil
+
+    /// Every photograph of it: the first, then the ones added.
+    var allPhotos: [String] { [photo] + (morePhotos ?? []) }
+
     /// The spot it was collected for with the scanner, if it was: where it
     /// goes on rab once it has a name.
     var spotId: String? = nil
@@ -171,6 +178,9 @@ final class UserStore {
 
     func photoURL(_ item: SavedItem) -> URL { photos.appendingPathComponent(item.photo) }
 
+    /// One of an item's photographs, by its file's name.
+    func photoURL(named name: String) -> URL { photos.appendingPathComponent(name) }
+
     /// Writes the bytes and gives back the file's name.
     func savePhoto(_ data: Data, id: String) throws -> String {
         let name = "\(id).jpg"
@@ -183,6 +193,8 @@ final class UserStore {
     }
 
     func deletePhoto(_ item: SavedItem) {
-        try? FileManager.default.removeItem(at: photoURL(item))
+        for name in item.allPhotos {
+            try? FileManager.default.removeItem(at: photoURL(named: name))
+        }
     }
 }

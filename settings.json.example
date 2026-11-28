@@ -1,0 +1,9 @@
+{
+  "models": {
+    "default": "gpt-6.1-terra",
+    "describePhoto": "",
+    "describeObject": "",
+    "classifyListing": "",
+    "describeRequest": ""
+  }
+}

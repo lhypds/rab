@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// Where a tile of the grid leads: an item on rab, or one on this phone only.
@@ -450,12 +451,17 @@ struct RemotePhoto: View {
     @Environment(AppModel.self) private var model
     let path: String?
     var fills = false
+    /// In a square, whole, with itself blurred where it does not reach the
+    /// square's sides (see SquaredPhoto).
+    var squared = false
 
     var body: some View {
         AsyncImage(url: model.imageURL(path)) { phase in
             switch phase {
             case .success(let image):
-                if fills {
+                if squared {
+                    SquaredPhoto(image: image)
+                } else if fills {
                     Color.clear
                         .overlay { image.resizable().scaledToFill() }
                         .clipped()
@@ -468,6 +474,28 @@ struct RemotePhoto: View {
                 PhotoPlaceholder(loading: path != nil)
             }
         }
+    }
+}
+
+/// A photograph in a square, all of it: where it is not square itself, the
+/// room left at its sides — or over and under it — is the photograph again,
+/// filling the square and blurred, not a blank.
+struct SquaredPhoto: View {
+    let image: Image
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                // A little larger than the square, so that the blur's faded
+                // rim is outside it.
+                image.resizable().scaledToFill()
+                    .scaleEffect(1.2)
+                    .blur(radius: 24)
+            }
+            .clipped()
+            .overlay { image.resizable().scaledToFit() }
+            .accessibilityElement(children: .ignore)
     }
 }
 
@@ -505,6 +533,12 @@ struct ListingDetailView: View {
     /// way to rab.
     @State private var choosingPlace = false
     @State private var placing = false
+    /// The photograph is being fetched to be shared; and, fetched, the file
+    /// the share sheet is up for.
+    @State private var fetchingPhoto = false
+    @State private var sharedPhoto: SharedFile?
+    /// The photographs are up large, over the screen.
+    @State private var viewing: ViewedPhotos?
 
     var body: some View {
         if let listing = model.listing(listingId) {
@@ -517,12 +551,21 @@ struct ListingDetailView: View {
     @ViewBuilder
     private func content(_ listing: Listing) -> some View {
         List {
-            if let picture = listing.images?.first {
+            if let pictures = listing.images, !pictures.isEmpty {
                 Section {
-                    RemotePhoto(path: picture.src)
+                    PhotoPager(count: pictures.count) { index in
+                        RemotePhoto(path: pictures[index].src, squared: true)
+                            // Pressed, it is shown large.
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                let urls = pictures.compactMap { model.imageURL($0.src) }
+                                guard urls.count == pictures.count else { return }
+                                viewing = ViewedPhotos(urls: urls, first: index)
+                            }
+                    }
                         .frame(maxWidth: .infinity)
-                        // The room the picture will take, kept for it while it loads.
-                        .aspectRatio(max(0.2, (picture.width ?? 4) / max(1, picture.height ?? 3)), contentMode: .fit)
+                        // A square, whatever shape the photograph is.
+                        .aspectRatio(1, contentMode: .fit)
                         .background(Color.white)
                         .listRowInsets(EdgeInsets())
                 }
@@ -552,6 +595,31 @@ struct ListingDetailView: View {
                 }
             }
 
+            // The photograph itself, not a link to it: fetched first, then
+            // handed to the share sheet.
+            if listing.images?.isEmpty == false {
+                Section {
+                    Button {
+                        sharePhoto(listing)
+                    } label: {
+                        HStack {
+                            Label("Share the photo", systemImage: "photo")
+                            Spacer()
+                            if fetchingPhoto { ProgressView() }
+                        }
+                    }
+                    .disabled(fetchingPhoto)
+                }
+            }
+
+            // One more photograph of it, and another: taken now, or chosen
+            // from the ones the phone has.
+            Section {
+                AddPhotoRows(error: $error) { image in
+                    try await model.addPhoto(image, to: listing)
+                }
+            }
+
             // Last, and asked about before it is done: it cannot be taken back.
             Section {
                 Button(role: .destructive) {
@@ -569,6 +637,7 @@ struct ListingDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .labelStyle(RowLabelStyle())
         .rabBackground()
         // Compact, as the sign-in screen is: the same type, the same height
         // of row and button, the same margins.
@@ -608,6 +677,18 @@ struct ListingDetailView: View {
                 }
             }
         )
+        .fullScreenCover(item: $viewing) { photos in
+            // The addresses as they were when it was opened: the row it shows.
+            let sources = (listing.images ?? []).map(\.src)
+            PhotoViewer(photos: photos) { index in
+                guard sources.indices.contains(index) else { return }
+                try await model.removePhoto(sources[index], from: listing)
+            }
+        }
+        .sheet(item: $sharedPhoto) { photo in
+            ShareSheet(file: photo.url)
+                .presentationDetents([.medium, .large])
+        }
         .compactDialog(
             isPresented: $confirming,
             title: Text("Delete this item?"),
@@ -631,6 +712,19 @@ struct ListingDetailView: View {
         }
     }
 
+    private func sharePhoto(_ listing: Listing) {
+        fetchingPhoto = true
+        error = nil
+        Task {
+            defer { fetchingPhoto = false }
+            do {
+                sharedPhoto = SharedFile(url: try await model.photoFile(of: listing))
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
     /// Once it is gone from the list, the page has nothing to show and closes.
     private func delete(_ listing: Listing) {
         deleting = true
@@ -644,6 +738,81 @@ struct ListingDetailView: View {
             }
         }
     }
+}
+
+/// The rows of an item's page that add photographs to it: the camera, where
+/// the device has one — it stays open, and each press of its button is one
+/// more photograph — and the photographs the phone has already, several at
+/// once. What is chosen is added the moment it is; what is taken, when the
+/// camera's Done is pressed.
+struct AddPhotoRows: View {
+    @Binding var error: String?
+    let add: (UIImage) async throws -> Void
+
+    @State private var taking = false
+    @State private var chosen: [PhotosPickerItem] = []
+    /// How many of the chosen are still to be added.
+    @State private var adding = 0
+
+    var body: some View {
+        // The simulator, and anything else without a camera, has only the library.
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            Button {
+                taking = true
+            } label: {
+                Label("Take a photo", systemImage: "camera")
+            }
+            .fullScreenCover(isPresented: $taking) {
+                ScannerView(spots: [], keep: add)
+            }
+        }
+        PhotosPicker(selection: $chosen, maxSelectionCount: 10, matching: .images) {
+            HStack {
+                Label("Choose photos", systemImage: "photo.on.rectangle")
+                Spacer()
+                if adding > 0 { ProgressView() }
+            }
+        }
+        .disabled(adding > 0)
+        .onChange(of: chosen) { _, items in
+            guard !items.isEmpty else { return }
+            chosen = []
+            adding = items.count
+            error = nil
+            Task {
+                // One after another, in the order they were chosen.
+                for item in items {
+                    do {
+                        guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
+                            throw BackgroundRemover.Failure.noImage
+                        }
+                        try await add(image)
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                    adding -= 1
+                }
+                adding = 0
+            }
+        }
+    }
+}
+
+/// A file the share sheet is up for.
+struct SharedFile: Identifiable {
+    let url: URL
+    var id: URL { url }
+}
+
+/// The system's share sheet for a file: save it, send it, copy it.
+struct ShareSheet: UIViewControllerRepresentable {
+    let file: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [file], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 /// What an item says about itself, to be written over: its name, its few

@@ -10,6 +10,12 @@ struct ScannerView: View {
 
     /// The spots what is collected goes onto; none is the account's default one.
     let spots: [Spot]
+    /// What is done with each photograph, where the camera was opened to add
+    /// photographs to an item that is there already — once Done is pressed,
+    /// not before: the cross leaves the item as it was. None, each is
+    /// collected as a new item the moment it is taken, and the cross takes
+    /// those away again.
+    var keep: ((UIImage) async throws -> Void)? = nil
 
     @StateObject private var scanner = Scanner()
     /// Where the phone is: what is collected is at the nearest of the
@@ -18,6 +24,17 @@ struct ScannerView: View {
     /// How many were collected since the camera was opened, and the last of them.
     @State private var count = 0
     @State private var last: UIImage?
+    /// The photographs taken since the camera was opened, as files, in the
+    /// order they were taken; and whether they are up to be looked through.
+    @State private var taken: [URL] = []
+    @State private var looking: ViewedPhotos?
+    /// The items collected since the camera was opened, by their ids: what
+    /// the cross takes away again.
+    @State private var collected: [String] = []
+    /// Done was pressed, and the photographs are on their way to the item.
+    @State private var saving = false
+    /// The cross was pressed with photographs taken: asked before they go.
+    @State private var discarding = false
     @State private var taking = false
     @State private var flash = false
     @State private var error: String?
@@ -73,8 +90,15 @@ struct ScannerView: View {
                 }
             }
         }
+        .compactDialog(isPresented: $discarding, title: Text("Discard the photos taken?"), confirm: "Discard") {
+            discard()
+        }
+        // The question is asked in the app's black on white; everything else
+        // here says its own colours.
+        .environment(\.colorScheme, .light)
         .preferredColorScheme(.dark)
         .statusBarHidden()
+        .fullScreenCover(item: $looking) { PhotoViewer(photos: $0) }
         .onAppear {
             scanner.start()
             locator.start()
@@ -104,17 +128,9 @@ struct ScannerView: View {
     }
 
     private var top: some View {
-        HStack(spacing: 12) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(width: 40, height: 40)
-                    .background(.black.opacity(0.45), in: Circle())
-            }
-            .accessibilityLabel("Done")
-            Spacer()
+        // The spots' names in the middle, whatever stands at the sides; Done
+        // at the right closes the camera.
+        ZStack {
             if !spots.isEmpty {
                 Text(verbatim: spots.map(\.title).joined(separator: ", "))
                     .font(Compact.font.weight(.semibold))
@@ -122,10 +138,36 @@ struct ScannerView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(.black.opacity(0.45), in: Capsule())
+                    .padding(.horizontal, 76)
             }
-            Spacer()
-            // As wide as the button opposite, so that the name is in the middle.
-            Color.clear.frame(width: 40, height: 40)
+            HStack {
+                // The cross: out, and nothing taken is kept — asked first,
+                // where anything was taken.
+                Button {
+                    if taken.isEmpty { dismiss() } else { discarding = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 40, height: 40)
+                        .background(.black.opacity(0.45), in: Circle())
+                }
+                .disabled(saving)
+                .accessibilityLabel("Cancel")
+                Spacer()
+                Button(action: finish) {
+                    Group {
+                        if saving {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Done").font(Compact.font.weight(.semibold))
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 40)
+                    .background(.black.opacity(0.45), in: Capsule())
+                }
+                .disabled(saving || taking)
+            }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
@@ -151,10 +193,10 @@ struct ScannerView: View {
             .background(.black.opacity(0.45), in: Capsule())
 
             HStack {
-                // The last one collected, and how many there are: tapped, back
-                // to the spot they are on.
+                // The last one taken, and how many there are: pressed, the
+                // photographs taken are looked through, the last first.
                 Button {
-                    dismiss()
+                    if !taken.isEmpty { looking = ViewedPhotos(urls: taken, first: taken.count - 1) }
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Group {
@@ -178,6 +220,7 @@ struct ScannerView: View {
                         }
                     }
                 }
+                .disabled(taken.isEmpty)
                 .accessibilityLabel("Collected: \(count)")
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -188,8 +231,8 @@ struct ScannerView: View {
                         .padding(5)
                         .overlay(Circle().stroke(Color.white, lineWidth: 3))
                 }
-                .disabled(taking || scanner.state != .running)
-                .opacity(scanner.state == .running ? 1 : 0.4)
+                .disabled(taking || saving || scanner.state != .running)
+                .opacity(scanner.state == .running && !taking && !saving ? 1 : 0.4)
                 .accessibilityLabel("Collect")
 
                 Color.clear.frame(height: 52).frame(maxWidth: .infinity)
@@ -212,27 +255,86 @@ struct ScannerView: View {
         .padding(32)
     }
 
+    /// Done: where the photographs are for an item that is there already,
+    /// they go to it now, one after another in the order they were taken —
+    /// and the camera closes when the last has gone. One that would not go
+    /// stays, with those after it, and the camera with them.
+    private func finish() {
+        guard let keep, !taken.isEmpty else {
+            dismiss()
+            return
+        }
+        saving = true
+        error = nil
+        Task {
+            defer { saving = false }
+            while let file = taken.first {
+                do {
+                    guard let image = UIImage(contentsOfFile: file.path) else { throw BackgroundRemover.Failure.noImage }
+                    try await keep(image)
+                } catch {
+                    self.error = error.localizedDescription
+                    return
+                }
+                taken.removeFirst()
+                count = taken.count
+                try? FileManager.default.removeItem(at: file)
+            }
+            dismiss()
+        }
+    }
+
+    /// The cross, confirmed: what was taken since the camera was opened is
+    /// not kept — the items collected are deleted again, the photographs put
+    /// by for an item are thrown away.
+    private func discard() {
+        if keep != nil {
+            for file in taken { try? FileManager.default.removeItem(at: file) }
+        } else {
+            for id in collected {
+                if let item = model.item(id) { model.delete(item) }
+            }
+        }
+        dismiss()
+    }
+
     /// Keeps what the camera is pointed at: the next frame's object goes into
     /// the user's folder, for this spot.
     private func take() {
         guard !taking else { return }
         taking = true
         scanner.capture { image in
-            taking = false
             guard let image else {
+                taking = false
                 error = Language.text("The photo could not be read")
                 return
             }
-            do {
-                try model.collect(image, forSpots: spots.map(\.id), at: locator.position)
-                error = nil
-                last = image
-                count += 1
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                flash = true
-                withAnimation(.easeOut(duration: 0.25)) { flash = false }
-            } catch {
-                self.error = error.localizedDescription
+            // Taken: the flash and the tap say so at once, whatever keeping
+            // it then takes.
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            flash = true
+            withAnimation(.easeOut(duration: 0.25)) { flash = false }
+            Task {
+                // One at a time: the next is not taken until this one is kept.
+                defer { taking = false }
+                do {
+                    if keep != nil {
+                        // Put by until Done: the item gets it then.
+                        let file = FileManager.default.temporaryDirectory.appendingPathComponent("rab-taken-\(UUID().uuidString).jpg")
+                        guard let data = image.jpegData(compressionQuality: 0.92) else { throw BackgroundRemover.Failure.noImage }
+                        try data.write(to: file)
+                        taken.append(file)
+                    } else {
+                        let item = try model.collect(image, forSpots: spots.map(\.id), at: locator.position)
+                        collected.append(item.id)
+                        if let file = model.store?.photoURL(item) { taken.append(file) }
+                    }
+                    error = nil
+                    last = image
+                    count += 1
+                } catch {
+                    self.error = error.localizedDescription
+                }
             }
         }
     }

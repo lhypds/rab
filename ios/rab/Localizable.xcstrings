@@ -4,6 +4,24 @@
     "%@ — %@" : {
       "shouldTranslate" : false
     },
+    "Delete this photo?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この写真を削除しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这张照片？" } }
+      }
+    },
+    "Take a photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を撮る" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
+      }
+    },
+    "Choose photos" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を選ぶ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择照片" } }
+      }
+    },
     "Add to my items on rab" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab のマイアイテムに登録" } },
@@ -128,6 +146,12 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスワード" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密码" } }
+      }
+    },
+    "Photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "照片" } }
       }
     },
     "Please sign in" : {
@@ -641,6 +665,18 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "この端末にはカメラがありません。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此设备没有相机。" } }
+      }
+    },
+    "Discard" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "破棄" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃" } }
+      }
+    },
+    "Discard the photos taken?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮った写真を破棄しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃已拍的照片？" } }
       }
     },
     "Done" : {

@@ -15,6 +15,12 @@ if [ ! -f "$ROOT/.env" ]; then
   cp "$ROOT/.env.example" "$ROOT/.env"
 fi
 
+# Create settings.json from settings.json.example if not present
+if [ ! -f "$ROOT/settings.json" ]; then
+  echo "Creating settings.json from settings.json.example..."
+  cp "$ROOT/settings.json.example" "$ROOT/settings.json"
+fi
+
 # Install pm2 globally if not present
 if ! command -v pm2 &> /dev/null; then
   echo "Installing pm2..."

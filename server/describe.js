@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { CATEGORIES, OBJECT_CATEGORIES } from "../src/utils/categories.js";
+import { modelFor } from "./settings.js";
 
 // What a photograph is of, said the way a listing says it: which category it
 // is in, a name for it and a few lines about it. The phone asks this the moment a photo is taken, so that its form opens
@@ -7,9 +8,8 @@ import { CATEGORIES, OBJECT_CATEGORIES } from "../src/utils/categories.js";
 //
 // It needs a key — OPENAI_API_KEY in .env. Without one the server says it
 // cannot (see `canDescribe`), and the phone leaves the form to be filled in by
-// hand. Which model is asked is RAB_DESCRIBE_MODEL's to say.
-
-const MODEL = process.env.RAB_DESCRIBE_MODEL || "gpt-4o-mini";
+// hand. Which model is asked is settings.json's to say, for each of the
+// requests made here separately (see settings.js).
 
 const LANGUAGES = { en: "English", zh: "Simplified Chinese", ja: "Japanese" };
 
@@ -58,7 +58,7 @@ export async function describeImage(buffer, language) {
   if (!mediaType) return null;
   client ??= new OpenAI();
   const completion = await client.chat.completions.create({
-    model: MODEL,
+    model: modelFor("describePhoto"),
     response_format: { type: "json_schema", json_schema: { name: "listing", strict: true, schema: LISTING } },
     messages: [
       { role: "system", content: SYSTEM },
@@ -144,7 +144,7 @@ export async function describeObject(buffer) {
   if (!mediaType) return null;
   client ??= new OpenAI();
   const completion = await client.chat.completions.create({
-    model: MODEL,
+    model: modelFor("describeObject"),
     response_format: { type: "json_schema", json_schema: { name: "object", strict: true, schema: OBJECT } },
     messages: [
       { role: "system", content: SCANNED },
@@ -207,7 +207,7 @@ export async function classifyListing({ title, what, description, image }) {
   if (!said && !mediaType) return null;
   client ??= new OpenAI();
   const completion = await client.chat.completions.create({
-    model: MODEL,
+    model: modelFor("classifyListing"),
     response_format: { type: "json_schema", json_schema: { name: "category", strict: true, schema: CATEGORY } },
     messages: [
       { role: "system", content: CLASSIFY },
@@ -258,7 +258,7 @@ export async function describeRequest(title, language) {
   if (!title) return null;
   client ??= new OpenAI();
   const completion = await client.chat.completions.create({
-    model: MODEL,
+    model: modelFor("describeRequest"),
     response_format: { type: "json_schema", json_schema: { name: "request", strict: true, schema: WANTED } },
     messages: [
       { role: "system", content: REQUEST },

@@ -173,6 +173,8 @@
     "photoAdd": "Add a photo",
     "photoRemove": "Remove photo",
     "photoOpen": "Enlarge photo",
+    "photoPrevious": "Previous photo",
+    "photoNext": "Next photo",
     "photoFailed": "Could not upload that photo",
     "title": "Name",
     "what": "What is it",

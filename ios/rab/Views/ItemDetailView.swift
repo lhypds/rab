@@ -15,6 +15,8 @@ struct ItemDetailView: View {
     /// way to rab.
     @State private var choosingPlace = false
     @State private var placing = false
+    /// The photographs are up large, over the screen.
+    @State private var viewing: ViewedPhotos?
 
     var body: some View {
         if let item = model.item(itemId) {
@@ -28,11 +30,21 @@ struct ItemDetailView: View {
     private func content(_ item: SavedItem) -> some View {
         List {
             Section {
-                PhotoView(item: item)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 200)
-                    .background(Color.white)
-                    .listRowInsets(EdgeInsets())
+                let photos = item.allPhotos
+                PhotoPager(count: photos.count) { index in
+                    PhotoView(item: item, file: photos[index], squared: true)
+                        // Pressed, it is shown large.
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            guard let store = model.store else { return }
+                            viewing = ViewedPhotos(urls: photos.map { store.photoURL(named: $0) }, first: index)
+                        }
+                }
+                .frame(maxWidth: .infinity)
+                // A square, whatever shape the photograph is.
+                .aspectRatio(1, contentMode: .fit)
+                .background(Color.white)
+                .listRowInsets(EdgeInsets())
             }
 
             // In the language the app is in: what is written here is that language's.
@@ -74,10 +86,10 @@ struct ItemDetailView: View {
                     // What has no name yet has nothing to be listed as.
                     .disabled(publishing || !item.isRecognized || model.recognizing.contains(item.id))
                 }
-                if let url = model.store?.photoURL(item) {
-                    ShareLink(item: url) {
-                        Label("Share the photo", systemImage: "photo")
-                    }
+                // One more photograph of it, and another: taken now, or
+                // chosen from the ones the phone has.
+                AddPhotoRows(error: $error) { image in
+                    try await model.addPhoto(image, to: item)
                 }
             } footer: {
                 if !item.isRecognized {
@@ -100,6 +112,7 @@ struct ItemDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .labelStyle(RowLabelStyle())
         .rabBackground()
         // Compact, as the sign-in screen is: the same type, the same height
         // of row and button, the same margins.
@@ -114,6 +127,13 @@ struct ItemDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 RecognizeButton(busy: model.recognizing.contains(item.id)) { recognize(item) }
+            }
+        }
+        .fullScreenCover(item: $viewing) { photos in
+            // The files' names as they were when it was opened: the row it shows.
+            let names = photos.urls.map(\.lastPathComponent)
+            PhotoViewer(photos: photos) { index in
+                try await model.removePhoto(names[index], from: item)
             }
         }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.

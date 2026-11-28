@@ -2,6 +2,7 @@ node_modules/
 dist/
 /data/
 .env
+settings.json
 .DS_Store
 db.sqlite
 db.sqlite-shm

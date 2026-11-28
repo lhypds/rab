@@ -170,6 +170,8 @@
     "photoAdd": "添加照片",
     "photoRemove": "移除照片",
     "photoOpen": "放大照片",
+    "photoPrevious": "上一张照片",
+    "photoNext": "下一张照片",
     "photoFailed": "照片上传失败",
     "title": "名称",
     "what": "这是什么",

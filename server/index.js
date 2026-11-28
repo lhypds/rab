@@ -2093,7 +2093,7 @@ function describeFault(error, res, doing) {
     return res.status(429).json({ error: "Too many at once. Try again in a moment", code: "DESCRIBE_BUSY" });
   }
   if (error instanceof OpenAI.NotFoundError) {
-    // The model named in RAB_DESCRIBE_MODEL is not one this key can use.
+    // The model named in settings.json is not one this key can use.
     console.error("rab: the model to describe photos with was not found:", error.message);
     return res.status(503).json({ error: "This server's model to describe photos with was not found", code: "DESCRIBE_UNAVAILABLE" });
   }

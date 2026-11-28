@@ -170,6 +170,8 @@
     "photoAdd": "写真を追加",
     "photoRemove": "写真を削除",
     "photoOpen": "写真を拡大",
+    "photoPrevious": "前の写真",
+    "photoNext": "次の写真",
     "photoFailed": "写真をアップロードできません",
     "title": "名前",
     "what": "これは何か",

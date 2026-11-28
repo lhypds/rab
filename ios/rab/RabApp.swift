@@ -10,6 +10,9 @@ struct RabApp: App {
         let titleFont = UIFont(name: "GillSans-Bold", size: 34).map { UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: $0) }
             ?? UIFont.preferredFont(forTextStyle: .largeTitle)
         UINavigationBar.appearance().largeTitleTextAttributes = [.font: titleFont]
+        // No bar down the side of anything that scrolls up and down — the
+        // fields of several lines too, which are the system's own text views.
+        UIScrollView.appearance().showsVerticalScrollIndicator = false
     }
 
     var body: some Scene {
@@ -24,6 +27,9 @@ struct RabApp: App {
                 .environment(\.locale, model.language.locale)
                 .tint(.black)
                 .preferredColorScheme(.light)
+                // Nothing that scrolls up and down shows a bar for it,
+                // anywhere in the app.
+                .scrollIndicators(.hidden, axes: .vertical)
         }
     }
 }
@@ -323,6 +329,277 @@ extension View {
     }
 }
 
+/// A row's label with its icon in a column of one width, in the middle of it:
+/// the icons of the rows under one another stand in a line, and so do their
+/// words, whatever shape each icon is and whatever the row is — a link, a
+/// share button, a plain button.
+struct RowLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 10) {
+            configuration.icon
+                .frame(width: 22, alignment: .center)
+            configuration.title
+        }
+    }
+}
+
+/// An item's photographs: the one as it is, and several as pages to be
+/// swiped through, side by side, with the dots that say which is shown.
+struct PhotoPager<Page: View>: View {
+    let count: Int
+    @ViewBuilder let page: (Int) -> Page
+
+    var body: some View {
+        if count <= 1 {
+            page(0)
+        } else {
+            TabView {
+                ForEach(0..<count, id: \.self) { index in
+                    page(index)
+                }
+            }
+            .tabViewStyle(.page)
+            // The dots on a dark ground: the page under them is white.
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+        }
+    }
+}
+
+/// The photographs an item's page was pressed to show large, and which of
+/// them first.
+struct ViewedPhotos: Identifiable {
+    let urls: [URL]
+    let first: Int
+    var id: Int { first }
+}
+
+/// An item's photographs large, over the whole screen, on black: swiped
+/// through side by side, each pinched or pressed twice to be looked at
+/// closer, until the cross closes it.
+struct PhotoViewer: View {
+    @Environment(\.dismiss) private var dismiss
+    let photos: ViewedPhotos
+    /// Takes the photograph at a place in the row off the item — where the
+    /// item's page lets it be: the bin at the top is then there, for every
+    /// photograph but an only one.
+    var remove: ((Int) async throws -> Void)? = nil
+    @State private var shown: Int
+    @State private var confirming = false
+    @State private var removing = false
+    @State private var error: String?
+
+    init(photos: ViewedPhotos, remove: ((Int) async throws -> Void)? = nil) {
+        self.photos = photos
+        self.remove = remove
+        _shown = State(initialValue: photos.first)
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.black.ignoresSafeArea()
+            TabView(selection: $shown) {
+                ForEach(Array(photos.urls.enumerated()), id: \.offset) { index, url in
+                    LargePhoto(url: url).tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: photos.urls.count > 1 ? .automatic : .never))
+            .ignoresSafeArea()
+
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 40, height: 40)
+                        .background(.black.opacity(0.45), in: Circle())
+                }
+                .accessibilityLabel("Done")
+                Spacer()
+                if let error {
+                    Text(error)
+                        .font(Compact.font)
+                        .lineLimit(2)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.45), in: Capsule())
+                    Spacer()
+                }
+                // The photograph shown, sent on: to whatever the phone shares with.
+                if photos.urls.indices.contains(shown) {
+                    ShareLink(item: SharedPhoto(url: photos.urls[shown]), preview: SharePreview(Text("Photo"))) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            // The arrow stands above the middle of its box.
+                            .offset(y: -1)
+                            .frame(width: 40, height: 40)
+                            .background(.black.opacity(0.45), in: Circle())
+                    }
+                    .accessibilityLabel("Share the photo")
+                }
+                // The bin: this photograph off the item. Not an only one.
+                if remove != nil, photos.urls.count > 1 {
+                    Button {
+                        confirming = true
+                    } label: {
+                        Group {
+                            if removing {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "trash").font(.system(size: 16, weight: .semibold))
+                            }
+                        }
+                        .frame(width: 40, height: 40)
+                        .background(.black.opacity(0.45), in: Circle())
+                    }
+                    .disabled(removing)
+                    .accessibilityLabel("Delete")
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+        // Not the dark scheme: the question below is asked in the app's own
+        // black on white, where its buttons can be read.
+        .statusBarHidden()
+        .alert("Delete this photo?", isPresented: $confirming) {
+            Button("Delete", role: .destructive) { removeShown() }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Takes the photograph shown off the item, and closes: the row it was
+    /// one of is another row now.
+    private func removeShown() {
+        guard let remove else { return }
+        removing = true
+        error = nil
+        Task {
+            defer { removing = false }
+            do {
+                try await remove(shown)
+                dismiss()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+}
+
+/// The photograph the viewer shares: the picture itself, as a JPEG — the file
+/// on the phone as it is, one of rab's read from there and written as one, so
+/// that what is sent is a photograph and not a link to it.
+private struct SharedPhoto: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .jpeg) { photo in
+            let name = photo.url.deletingPathExtension().lastPathComponent
+            if photo.url.isFileURL, ["jpg", "jpeg"].contains(photo.url.pathExtension.lowercased()) {
+                return SentTransferredFile(photo.url)
+            }
+            let (data, _) = try await URLSession.shared.data(from: photo.url)
+            guard let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.9) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(name).jpg")
+            try jpeg.write(to: file, options: .atomic)
+            return SentTransferredFile(file)
+        }
+    }
+}
+
+/// One photograph of the viewer: read whole — off the phone or from rab —
+/// and then to be zoomed.
+private struct LargePhoto: View {
+    let url: URL
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                ZoomablePhoto(image: image)
+            } else if failed {
+                Image(systemName: "photo").foregroundStyle(.white.opacity(0.6))
+            } else {
+                ProgressView().tint(.white)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: url) {
+            guard image == nil else { return }
+            if let (data, _) = try? await URLSession.shared.data(from: url), let loaded = UIImage(data: data) {
+                image = loaded
+            } else if !Task.isCancelled {
+                failed = true
+            }
+        }
+    }
+}
+
+/// A photograph fitted to the screen that two fingers make larger, and a
+/// double press makes larger and small again.
+private struct ZoomablePhoto: UIViewRepresentable {
+    let image: UIImage
+
+    final class Zoomer: UIScrollView, UIScrollViewDelegate {
+        let picture = UIImageView()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            delegate = self
+            minimumZoomScale = 1
+            maximumZoomScale = 5
+            showsVerticalScrollIndicator = false
+            showsHorizontalScrollIndicator = false
+            contentInsetAdjustmentBehavior = .never
+            backgroundColor = .clear
+            picture.contentMode = .scaleAspectFit
+            addSubview(picture)
+            let twice = UITapGestureRecognizer(target: self, action: #selector(pressedTwice(_:)))
+            twice.numberOfTapsRequired = 2
+            addGestureRecognizer(twice)
+        }
+
+        required init?(coder: NSCoder) { fatalError("not from a nib") }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            // Fitted to the view while it is not zoomed; zoomed, it is left
+            // where the fingers put it.
+            if zoomScale == 1, picture.frame.size != bounds.size {
+                picture.frame = CGRect(origin: .zero, size: bounds.size)
+                contentSize = bounds.size
+            }
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? { picture }
+
+        @objc private func pressedTwice(_ press: UITapGestureRecognizer) {
+            if zoomScale > 1 {
+                setZoomScale(1, animated: true)
+            } else {
+                // Larger, round where it was pressed.
+                let at = press.location(in: picture)
+                let size = CGSize(width: bounds.width / 2.5, height: bounds.height / 2.5)
+                zoom(to: CGRect(x: at.x - size.width / 2, y: at.y - size.height / 2, width: size.width, height: size.height), animated: true)
+            }
+        }
+    }
+
+    func makeUIView(context: Context) -> Zoomer {
+        let view = Zoomer()
+        view.picture.image = image
+        return view
+    }
+
+    func updateUIView(_ view: Zoomer, context: Context) {
+        if view.picture.image !== image { view.picture.image = image }
+    }
+}
+
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
@@ -398,16 +675,23 @@ func priceText(_ amount: Double, _ currency: String) -> String {
 struct PhotoView: View {
     @Environment(AppModel.self) private var model
     let item: SavedItem
+    /// Which of its photographs, by its file's name: the first where none is said.
+    var file: String? = nil
     var maxPixel: CGFloat = 1600
     /// Fills the frame it is given, cut at the sides, rather than fitting inside it.
     var fills = false
+    /// In a square, whole, with itself blurred where it does not reach the
+    /// square's sides (see SquaredPhoto).
+    var squared = false
 
     @State private var image: UIImage?
 
     var body: some View {
         Group {
             if let image {
-                if fills {
+                if squared {
+                    SquaredPhoto(image: Image(uiImage: image))
+                } else if fills {
                     // The frame is the clear colour's; the picture covers it
                     // and what hangs over is cut off.
                     Color.clear
@@ -421,8 +705,8 @@ struct PhotoView: View {
                 PhotoPlaceholder()
             }
         }
-        .task(id: item.photo) {
-            guard let url = model.store?.photoURL(item) else { return }
+        .task(id: file ?? item.photo) {
+            guard let url = model.store?.photoURL(named: file ?? item.photo) else { return }
             let pixels = maxPixel * UIScreen.main.scale
             image = await Task.detached(priority: .userInitiated) {
                 guard let loaded = UIImage(contentsOfFile: url.path) else { return nil }

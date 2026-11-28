@@ -106,7 +106,54 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* The photograph whole, never cut: where it is not the frame's shape, the
+   room at its sides — or over and under it — is itself again, filling the
+   frame and blurred, not a blank. That copy is a little larger than the
+   frame, so that the blur's faded rim is outside it. */
+.photo .photoWhole {
+  object-fit: contain;
+}
+
+.photo .photoBlur {
   object-fit: cover;
+  filter: blur(24px);
+  transform: scale(1.2);
+}
+
+/* The left and the right third of a photograph that is one of several:
+   pressed, the one before and the one after. Each is marked by an arrow at
+   its edge, and the pointer over it is a hand, not the glass of the middle. */
+.photoSide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  width: 33.34%;
+  padding: 0 10px;
+  color: var(--paper);
+  font-family: var(--sans);
+  font-size: 32px;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.photoSide:hover {
+  opacity: 1;
+}
+
+.photoBefore {
+  left: 0;
+  justify-content: flex-start;
+}
+
+.photoAfter {
+  right: 0;
+  justify-content: flex-end;
 }
 
 .photoCount {
@@ -119,6 +166,30 @@
   color: var(--ink);
   font-family: var(--sans);
   font-size: 10px;
+}
+
+/* With a pointer that can rest over things, the arrows and the count are out
+   of sight until it is over the photograph (or the photograph is reached by
+   the keyboard) — on the page and on the sheet it is shown large on alike.
+   A finger cannot rest, so there they are always shown. */
+@media (hover: hover) {
+  .photoSide,
+  .photoCount {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .photo:hover .photoSide,
+  .photo:focus-visible .photoSide {
+    opacity: 0.7;
+  }
+
+  .photo:hover .photoSide:hover,
+  .photo:hover .photoCount,
+  .photo:focus-visible .photoCount,
+  .zoomStage:hover .photoCount {
+    opacity: 1;
+  }
 }
 
 /* Every photograph as a small one under the big one, as many rows of them
@@ -156,14 +227,87 @@
   box-shadow: inset 0 0 0 1px var(--ink);
 }
 
-/* Enlarged, the picture is as big as the sheet lets it be and never bigger
-   than it is: max-width and max-height only ever shrink an image, so one
-   smaller than the sheet stands at its own size in the middle of it. */
+/* The sheet a photograph is shown large on: as wide as the sheet an item's
+   page is read on (see ItemPreview), and as tall as the photograph makes it —
+   never taller than that sheet stands. A fixed height left a photograph on a
+   narrow window (a phone) standing in a tall blank; so the sheet is held to
+   the picture, and it is the picture that is capped. Said of the div so that
+   it is the last word over the sheet's own sizes. */
+div.zoomSheet {
+  width: 96%;
+  max-width: 1200px;
+  min-height: 0;
+  max-height: 92vh;
+  max-height: 92dvh;
+}
+
+/* What the sheet holds: the photograph, whole, with the buttons that turn to
+   the others over its sides. */
+.zoomStage {
+  position: relative;
+  width: 100%;
+}
+
+/* The photograph, as wide as the sheet and as tall as that makes it — up to
+   what the sheet has left under its bar (the bar, the room round the picture
+   and the sheet's rule, with a little over: 72px), past which it is shown whole in that height,
+   its sides left blank. */
 .zoomed {
   display: block;
-  max-width: 100%;
-  max-height: 78vh;
-  margin: 0 auto;
+  width: 100%;
+  height: auto;
+  max-height: calc(92vh - 72px);
+  max-height: calc(92dvh - 72px);
+  object-fit: contain;
+}
+
+/* The one before and the one after: an arrow half way down each side, with
+   nothing behind it — the photograph shows through. White with a shadow, as
+   the arrows on the page's own photograph are, so it reads on light and dark. */
+.zoomStep {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--paper);
+  font-family: var(--sans);
+  font-size: 32px;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.zoomBefore {
+  left: 0;
+}
+
+.zoomAfter {
+  right: 0;
+}
+
+@media (hover: hover) {
+  /* With a pointer that can rest over things, the arrows are out of sight
+     until it is over the photograph (or one of them is reached by the
+     keyboard). A finger cannot rest, so there they are always shown. */
+  .zoomStep {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .zoomStage:hover .zoomStep,
+  .zoomStep:focus-visible {
+    opacity: 0.7;
+  }
+
+  .zoomStage:hover .zoomStep:hover {
+    opacity: 1;
+  }
 }
 
 /* ------------------------------------------------------------------ head -- */
