@@ -34,6 +34,11 @@ item are read whole at each start; there are few of them.
 4. **When `./rab cache rebuild` is run.** Every folder is read again, whatever its time says,
    and the file is written afresh.
 
+Where two thousand folders or more have to be read — a full build, a rebuild, a start after
+a large push that was never written down — they are read by eight threads at once rather
+than one after another, which is most of what building takes; fewer are read in turn. Should
+the threads fail, the folders are read one after another instead, and the server says so.
+
 A folder changed in the last five or six seconds is left out of the file on purpose: it may
 still be changing, and is read again at the next start.
 

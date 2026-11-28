@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { MessageChannel, Worker, receiveMessageOnPort } from "node:worker_threads";
 
 // Where everything that belongs to somebody is kept: one folder per account,
 // named after the account's username, under data/users/.
@@ -315,6 +316,156 @@ function readIndexFile(file, upgrade) {
   return kept;
 }
 
+// What the index is made from, read with as little asked of the disk as
+// can be — two files, and nothing looked for beside them: the item as its
+// item.json says it (not what it says in other languages, which the index
+// does not keep), and its source.json, both in items/. Null where the folder
+// has no item.json; an item.json that cannot be read is an error.
+export function readItemForIndex(userId, folder) {
+  const dir = itemDir(userId, folder);
+  let text;
+  try {
+    text = fs.readFileSync(path.join(dir, ITEM_FILE), "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+  let source = null;
+  try {
+    source = fs.readFileSync(path.join(dir, SOURCE_FILE), "utf8");
+  } catch {
+    // none: it has no key
+  }
+  return parsedForIndex(dir, folder, text, source);
+}
+
+function parsedForIndex(dir, folder, text, sourceText) {
+  const item = JSON.parse(text);
+  if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${path.join(dir, ITEM_FILE)} is not an item`);
+  let source = null;
+  if (sourceText != null) {
+    try {
+      const read = JSON.parse(sourceText);
+      if (read && typeof read === "object" && !Array.isArray(read)) source = read;
+    } catch {
+      // not to be read: it has no key
+    }
+  }
+  return { item: { ...item, id: folder }, source };
+}
+
+// The same for many folders, as [{ item, source } or null, …] in their order
+// — read several at a time where there are thousands, by a few threads that
+// do nothing but read: the disk answers many askers sooner than one after
+// another, and reading is most of what making the index takes. The files are
+// read as text there and made sense of here. Whatever goes wrong with the
+// threads themselves, the folders are read one after another instead.
+const READERS = 8;
+const READ_TOGETHER_FROM = 2000;
+
+const READER_SOURCE = `
+const { workerData } = require("node:worker_threads");
+const fs = require("node:fs");
+const path = require("node:path");
+const { port, signal, dirs, from, itemFile, sourceFile } = workerData;
+const send = (message) => {
+  port.postMessage(message);
+  Atomics.add(signal, 0, 1);
+  Atomics.notify(signal, 0);
+};
+let texts = [];
+let start = from;
+for (let at = 0; at < dirs.length; at += 1) {
+  let item = null;
+  let source = null;
+  let error = null;
+  try {
+    item = fs.readFileSync(path.join(dirs[at], itemFile), "utf8");
+  } catch (failed) {
+    if (failed.code !== "ENOENT") error = failed.message;
+  }
+  if (item !== null) {
+    try {
+      source = fs.readFileSync(path.join(dirs[at], sourceFile), "utf8");
+    } catch {}
+  }
+  texts.push(error ? { error } : [item, source]);
+  if (texts.length >= 200) {
+    send({ start, texts });
+    start = from + at + 1;
+    texts = [];
+  }
+}
+send({ start, texts, done: true });
+`;
+
+function readTogether(dirs, each) {
+  const signal = new Int32Array(new SharedArrayBuffer(4));
+  const size = Math.ceil(dirs.length / READERS);
+  const ports = [];
+  const workers = [];
+  try {
+    for (let from = 0; from < dirs.length; from += size) {
+      const { port1, port2 } = new MessageChannel();
+      ports.push(port1);
+      workers.push(
+        new Worker(READER_SOURCE, {
+          eval: true,
+          // None of what this process was started with: its flags are not the
+          // threads' (one that makes the source a module would stop them).
+          execArgv: [],
+          workerData: { port: port2, signal, dirs: dirs.slice(from, from + size), from, itemFile: ITEM_FILE, sourceFile: SOURCE_FILE },
+          transferList: [port2],
+        }),
+      );
+    }
+    let left = ports.length;
+    let seen = 0;
+    let waited = 0;
+    while (left > 0) {
+      // Asleep until a thread has something, and not for ever should one die.
+      if (Atomics.wait(signal, 0, seen, 5000) === "timed-out") {
+        waited += 1;
+        if (waited >= 3) throw new Error("the readers stopped answering");
+      } else {
+        waited = 0;
+      }
+      seen = Atomics.load(signal, 0);
+      for (const port of ports) {
+        for (let got = receiveMessageOnPort(port); got; got = receiveMessageOnPort(port)) {
+          const { start, texts, done } = got.message;
+          for (let at = 0; at < texts.length; at += 1) each(start + at, texts[at]);
+          if (done) left -= 1;
+        }
+      }
+    }
+  } finally {
+    for (const port of ports) port.close();
+    for (const worker of workers) worker.terminate();
+  }
+}
+
+function readItemsForIndex(userId, folders) {
+  const dirs = folders.map((folder) => itemDir(userId, folder));
+  const one = (at) => readItemForIndex(userId, folders[at]);
+  if (folders.length < READ_TOGETHER_FROM) return folders.map((_, at) => one(at));
+  const read = new Array(folders.length);
+  const bad = [];
+  try {
+    readTogether(dirs, (at, texts) => {
+      // One that could not be read is read again here, to fail as it would.
+      if (!Array.isArray(texts)) bad.push(at);
+      else read[at] = texts[0] === null ? null : parsedForIndex(dirs[at], folders[at], texts[0], texts[1]);
+    });
+  } catch (error) {
+    if (error instanceof SyntaxError || / is not an item$/.test(error.message)) throw error;
+    console.warn(`rab: reading the items together failed (${error.message}); reading them one after another`);
+    return folders.map((_, at) => one(at));
+  }
+  for (const at of bad) read[at] = one(at);
+  return read;
+}
+
 // When an item's folder in items/ was last changed, or null where there is
 // none.
 export function itemFolderChanged(userId, folder) {
@@ -362,15 +513,19 @@ export function writeItemIndex(userId, entries) {
 // then: an item.json changed in place by hand. Each of those folders is given
 // the time it is now, so that an index a running server writes after this,
 // from what it still holds, is not believed of them at the next start.
-export function rebuildItemIndex(userId, read) {
+export function rebuildItemIndex(userId, make) {
   const kept = readIndexFile(indexFile(userId));
+  const folders = itemFolders(userId);
+  // When each was changed, asked before it is read: one changed while it is
+  // being read then says a time that is not what was read, and is read again.
+  const times = folders.map((folder) => itemFolderChanged(userId, folder));
+  const read = readItemsForIndex(userId, folders);
   const entries = [];
   let corrected = 0;
-  for (const folder of itemFolders(userId)) {
-    let changed = itemFolderChanged(userId, folder);
-    if (changed === null) continue;
-    const value = read(folder);
-    if (!value) continue;
+  folders.forEach((folder, at) => {
+    let changed = times[at];
+    const value = changed === null || !read[at] ? null : make(folder, read[at]);
+    if (!value) return;
     const was = kept.get(folder);
     if (was && was.changed === changed && JSON.stringify(was.value) !== JSON.stringify(value)) {
       corrected += 1;
@@ -379,31 +534,42 @@ export function rebuildItemIndex(userId, read) {
       changed = itemFolderChanged(userId, folder);
     }
     entries.push([folder, changed, value]);
-  }
+  });
   writeItemIndex(userId, entries);
   return { items: entries.length, corrected };
 }
 
 // What is kept of each item in an account's items/, by folder, as { changed,
 // value }: as it was written down where the folder is as it was then, and
-// from `read(folder)` — which reads the folder, and gives null for one that
-// is no item — where it is not. Written down again where anything differed.
-export function readItemIndex(userId, read, upgrade = null) {
+// from `make(folder, { item, source })` — the folder's item.json and
+// source.json, as read — where it is not. Written down again where anything differed.
+export function readItemIndex(userId, make, upgrade = null) {
   const kept = readIndexFile(indexFile(userId), upgrade);
-  const index = new Map();
   let differs = kept.upgraded === true;
+  // Every folder in its order, with what is kept of it where that still
+  // stands; the rest are read, together, and put in their places.
+  const slots = [];
+  const stale = [];
   for (const folder of itemFolders(userId)) {
     const changed = itemFolderChanged(userId, folder);
     if (changed === null) continue;
     const was = kept.get(folder);
     if (was && was.changed === changed) {
-      index.set(folder, was);
-      continue;
+      slots.push([folder, was]);
+    } else {
+      stale.push(slots.length);
+      slots.push([folder, { changed, value: null }]);
     }
-    differs = true;
-    const value = read(folder);
-    if (value) index.set(folder, { changed, value });
   }
+  if (stale.length > 0) {
+    differs = true;
+    const read = readItemsForIndex(userId, stale.map((at) => slots[at][0]));
+    stale.forEach((at, nth) => {
+      if (read[nth]) slots[at][1].value = make(slots[at][0], read[nth]);
+    });
+  }
+  const index = new Map();
+  for (const [folder, entry] of slots) if (entry.value) index.set(folder, entry);
   if (differs || index.size !== kept.size) {
     writeItemIndex(userId, (function* entries() {
       for (const [folder, { changed, value }] of index) yield [folder, changed, value];

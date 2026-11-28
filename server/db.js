@@ -562,13 +562,11 @@ export function writePublicIndex() {
   }
 }
 
-// What is written down of the public item in one folder, read from it: its
-// few lines and its key. Null where the folder is no item.
-function readPublicLight(folder) {
-  const item = readItem(PUBLIC_ID, folder);
-  if (!item) return null;
-  const key = readItemSource(PUBLIC_ID, folder)?.key;
-  const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
+// What is written down of the public item in one folder, from its item.json
+// and source.json as read: its few lines and its key.
+function readPublicLight(_folder, read) {
+  const key = read.source?.key;
+  const { ownerId: _ownerId, ...value } = lightOf(perUnit(read.item));
   return { ...value, key: key ? JSON.stringify(key) : null };
 }
 
