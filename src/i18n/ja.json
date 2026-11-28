@@ -291,23 +291,25 @@
     },
     "depositRequired": "保証金の金額を入力してください。",
     "depositLine": "保証金 {{price}}",
-    "sale": "譲渡・販売・買い取り",
-    "salePrice": "譲渡・販売・買い取り価格",
+    "sale": "譲渡・販売・買い取り・無料譲渡",
+    "salePrice": "価格",
     "saleOn": {
       "no": "しない",
-      "yes": "する"
+      "yes": "譲渡・販売・買い取り",
+      "free": "無料で譲る"
     },
-    "saleRequired": "譲渡・販売・買い取り価格を入力してください。",
+    "giftLine": "無料で譲ります",
+    "gift": "無料譲渡",
+    "saleRequired": "価格を入力してください。",
     "saleLine": "譲渡・販売・買い取り {{price}}",
-    "rent": "一時利用を提供する",
+    "rent": "利用を提供する",
     "rentOn": {
       "no": "いいえ",
       "yes": "はい"
     },
-    "count": "数量",
     "countLine": "数量：{{n}}",
     "notOffered": "提供していません",
-    "offerRequired": "販売と一時利用のどちらかは選んでください。",
+    "offerRequired": "販売・無料譲渡・利用のいずれかは選んでください。",
     "forSale": "販売中",
     "basePricing": "通常料金",
     "basePricingStep": "刻みごとの通常料金",

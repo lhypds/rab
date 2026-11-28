@@ -368,12 +368,9 @@ private struct MineReply: Decodable {
     let spots: [Spot]?
 }
 
-struct RemoteItem: Decodable {
-    let id: String
-}
-
+/// What the server answers a new item with: the item as it lists it.
 private struct ItemReply: Decodable {
-    let item: RemoteItem
+    let item: Listing
 }
 
 private struct Fault: Decodable {
@@ -568,7 +565,7 @@ final class RabAPI {
         _ = try await send("DELETE", "api/items/\(id)")
     }
 
-    func createItem(_ body: ItemBody) async throws -> RemoteItem {
+    func createItem(_ body: ItemBody) async throws -> Listing {
         let reply: ItemReply = try await post("api/items", body)
         return reply.item
     }

@@ -281,7 +281,8 @@ div.sheet .form {
 .modeRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* What is filled in sits straight after its name, not at the far edge. */
+  justify-content: flex-start;
   gap: 8px;
 }
 

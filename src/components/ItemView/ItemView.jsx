@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ActionButton, Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
-import { barePhone, durationName, forSale, formatCoords, formatPrice, formatUsername, relativeTime, roundPrice, unitName } from "../../utils/format.js";
+import { barePhone, durationName, forSale, formatCoords, isGift, formatPrice, formatUsername, relativeTime, roundPrice, unitName } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
 import { MESSAGES_EVENT } from "../Header/Header.jsx";
 import { directionsUrl } from "../../utils/mapbox.js";
@@ -262,7 +262,9 @@ export default function ItemView({
   const saleOnly = !item.spot && item.rentable === false && forSale(item);
   // Offered neither way — not lent out, not for sale: only written down (what
   // the phone's scanner registers is, to start with). No price, nothing to ask.
-  const notOffered = !item.spot && item.rentable === false && !forSale(item);
+  const notOffered = !item.spot && item.rentable === false && !forSale(item) && !isGift(item);
+  // Only given away — not lent out: it costs nothing, and says so.
+  const giftOnly = !item.spot && item.rentable === false && isGift(item);
   const priceOnRequest = priceToday == null;
   const priceHead =
     highToday === lowToday
@@ -418,6 +420,8 @@ export default function ItemView({
       ? t("item.notOffered")
       : saleOnly
       ? t("item.forSale")
+      : giftOnly
+      ? t("item.gift")
       : inquiry
       ? t("item.byInquiry")
       : free?.now
@@ -695,8 +699,8 @@ export default function ItemView({
               nor a way it is booked to say up here. */}
           {!item.spot && (
           <p className={styles.price}>
-            {!notOffered && <strong>{saleOnly ? formatPrice(item.salePrice, item.currency, lang) : priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>}
-            {!saleOnly && !priceOnRequest && (
+            {!notOffered && <strong>{saleOnly ? formatPrice(item.salePrice, item.currency, lang) : giftOnly ? t("item.giftLine") : priceOnRequest ? t("item.priceOnRequest") : priceHead}</strong>}
+            {!saleOnly && !giftOnly && !priceOnRequest && (
               <span>
                 {bySlot
                   ? t("item.anHour", { unit: unitName(priceUnitOf(item), t) })
@@ -707,6 +711,7 @@ export default function ItemView({
             )}
             {item.deposit != null && <span>{t("item.depositLine", { price: formatPrice(item.deposit, item.currency, lang) })}</span>}
             {!saleOnly && forSale(item) && <span>{t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, lang) })}</span>}
+            {!giftOnly && isGift(item) && <span>{t("item.giftLine")}</span>}
             {statusTags}
           </p>
           )}

@@ -100,7 +100,12 @@ export function durationName(minutes, t) {
 // one that is not: `forSale` says which. One that does not say is, where it
 // has a sum.
 export function forSale(item) {
-  return item.salePrice != null && item.forSale !== false;
+  return item.gift !== true && item.salePrice != null && item.forSale !== false;
+}
+
+// Whether an item is given away for nothing: whoever takes it keeps it.
+export function isGift(item) {
+  return item.gift === true;
 }
 
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
@@ -114,7 +119,9 @@ export function priceLine(item, locale, t) {
   if (item.rentable === false && forSale(item)) {
     return t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, locale) });
   }
-  // One offered neither way — not lent out, not for sale — has no price.
+  // One that is only given away says so.
+  if (item.rentable === false && isGift(item)) return t("item.giftLine");
+  // One offered no way — not lent out, not for sale, not given — has no price.
   if (item.rentable === false) return "";
   // One that says no price is asked about, however it is booked.
   const now = priceNow(item);

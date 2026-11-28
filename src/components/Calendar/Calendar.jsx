@@ -411,9 +411,11 @@ export default function Calendar({
                   to give this one date a price of its own. A span and not a
                   button, since it stands inside one; its press is its own and
                   is not also a press on the day. */}
-              {label && (
+              {/* With no price to say yet — none written as the default —
+                  the pencil stands alone: the way to give the date one. */}
+              {(label || pencil) && (
                 <span className={styles.foot}>
-                  <span className={styles.note}>{label}</span>
+                  {label && <span className={styles.note}>{label}</span>}
                   {pencil && (
                     <span
                       className={styles.pencil}

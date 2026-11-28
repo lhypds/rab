@@ -295,23 +295,25 @@
     },
     "depositRequired": "Enter the deposit amount.",
     "depositLine": "Deposit {{price}}",
-    "sale": "Transfer, sale or buyout",
-    "salePrice": "Transfer, sale or buyout price",
+    "sale": "Transfer, sale, buyout or giveaway",
+    "salePrice": "Price",
     "saleOn": {
       "no": "No",
-      "yes": "Yes"
+      "yes": "Transfer, sale or buyout",
+      "free": "Give away for free"
     },
-    "saleRequired": "Enter the transfer, sale or buyout price.",
+    "giftLine": "Free to take",
+    "gift": "Free",
+    "saleRequired": "Enter the price.",
     "saleLine": "Transfer / sale / buyout {{price}}",
-    "rent": "Offer temporary use",
+    "rent": "Offer use",
     "rentOn": {
       "no": "No",
       "yes": "Yes"
     },
-    "count": "Count",
     "countLine": "Count: {{n}}",
     "notOffered": "Not on offer",
-    "offerRequired": "Offer it for sale, for temporary use, or both.",
+    "offerRequired": "Offer it for sale, for free, for use, or more than one.",
     "forSale": "For sale",
     "basePricing": "Default pricing",
     "basePricingStep": "Default price per step",

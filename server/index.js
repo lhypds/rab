@@ -922,8 +922,11 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // `forSale` says which it is. A request that does not say — one from
   // before the two were told apart — is for sale where it says a sum.
   const salePrice = readDeposit(body?.salePrice, String(body?.currency ?? ""));
-  const forSale = body?.spot !== true && salePrice !== null && body?.forSale !== false;
-  const offered = body?.spot === true || body?.rentable !== false || forSale;
+  // Given away for nothing, the third thing that may be said instead: it is
+  // then not for sale, whatever sum is written, and is on offer all the same.
+  const gift = body?.spot !== true && body?.gift === true;
+  const forSale = body?.spot !== true && !gift && salePrice !== null && body?.forSale !== false;
+  const offered = body?.spot === true || body?.rentable !== false || forSale || gift;
   const region = parseRegion(body?.region);
   if (!region && !regionOptional && offered) {
     return { error: "Say which area it is offered in", code: "REGION_REQUIRED" };
@@ -1020,6 +1023,8 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       salePrice,
       // Whether it is for sale: only where it says for how much.
       forSale,
+      // Whether it is given away for nothing instead.
+      gift,
       contacts,
       // Whether it is somebody else's rather than the account's own: it is
       // then kept under the public account, which is nobody's, and anybody

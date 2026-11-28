@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
-import { CURRENCIES, compactPrice, currencyDigits, durationName, forSale, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
+import { CURRENCIES, compactPrice, currencyDigits, durationName, forSale, formatPrice, isGift, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
 import PublishAsField from "../PublishAsField/index.js";
 import SpotField from "../SpotField/index.js";
@@ -220,6 +220,8 @@ function startingFieldsAsSaved(item, calendar, lang) {
     // Whether it is for sale as well, and for how much — in its currency.
     // The sum may be written on one that is not for sale too.
     saleOn: item != null && forSale(item),
+    // Or given away for nothing, in place of being sold.
+    giftOn: item != null && isGift(item),
     // Whether it is lent out — for temporary use — at all: one that is not
     // is only for sale, and has none of what follows about booking it.
     rentOn: item?.rentable !== false,
@@ -765,54 +767,6 @@ function moved(list, index, by) {
   return next;
 }
 
-// How many of the item there are: a short box with its up and down arrows at
-// its right edge. The mouse's wheel turns it too, while the pointer is over
-// it — up for more — and the page behind stays where it is meanwhile.
-const COUNT_MAX = 9999;
-
-function CountInput({ value, onChange }) {
-  const ref = useRef(null);
-  // The wheel's listener is put on once, and reads what is current from here.
-  const latest = useRef({ value, onChange });
-  latest.current = { value, onChange };
-  useEffect(() => {
-    // Over the arrows as well as over the number.
-    const input = ref.current;
-    if (!input) return undefined;
-    // React's own wheel handler cannot stop the page scrolling: this one can.
-    function turn(event) {
-      if (event.deltaY === 0) return;
-      event.preventDefault();
-      const now = Math.max(1, Math.floor(Number(latest.current.value)) || 1);
-      const next = Math.min(COUNT_MAX, Math.max(1, now + (event.deltaY < 0 ? 1 : -1)));
-      if (next !== now || String(next) !== latest.current.value) latest.current.onChange(String(next));
-    }
-    input.addEventListener("wheel", turn, { passive: false });
-    return () => input.removeEventListener("wheel", turn);
-  }, []);
-  // One more or one fewer, from whatever is written there now.
-  function step(by) {
-    const now = Math.max(1, Math.floor(Number(value)) || 1);
-    onChange(String(Math.min(COUNT_MAX, Math.max(1, now + by))));
-  }
-  // The box and its two arrows are one box (see NumberArrows).
-  return (
-    <span className={styles.count} ref={ref}>
-      <input
-        className="text-input"
-        type="number"
-        inputMode="numeric"
-        min="1"
-        max={COUNT_MAX}
-        step="1"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <NumberArrows onTurn={step} />
-    </span>
-  );
-}
-
 export default function ItemModal({ isOpen, item = null, calendar = null, part = "item", onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -1237,7 +1191,8 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // null — for sale or not. One for sale has to say it (see `fault`).
   const saleSum = priceOf(fields.salePrice);
   const salePrice = priced && saleSum !== null && saleSum > 0 ? roundPrice(saleSum, fields.currency) : null;
-  const saleOn = priced && fields.saleOn;
+  const giftOn = priced && fields.giftOn;
+  const saleOn = priced && fields.saleOn && !giftOn;
   // What the calendar's single dates say, where it still goes against the
   // rule: a date closed that the rule has, one opened that it leaves out.
   const closed = fields.closed.filter((day) => openByRule({ openDays }, day));
@@ -1260,6 +1215,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     deposit,
     salePrice,
     forSale: saleOn,
+    gift: giftOn,
     rentable,
     contacts,
     followContacts: following,
@@ -1332,11 +1288,11 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     }
     if (byTime && hours.length === 0) return t("item.hoursRequired");
     // Booked by asking, the first way to reach the owner has to be written.
-    if (inquiry && (rentable || fields.saleOn) && !following && contacts.length === 0) return t("item.contactRequired");
+    if (inquiry && (rentable || saleOn || giftOn) && !following && contacts.length === 0) return t("item.contactRequired");
     // A deposit asked for has to say how much.
     if (priced && rentable && fields.depositOn && deposit === null) return t("item.depositRequired");
     // And one for sale, for how much.
-    if (priced && fields.saleOn && salePrice === null) return t("item.saleRequired");
+    if (saleOn && salePrice === null) return t("item.saleRequired");
     return "";
   }
 
@@ -1378,6 +1334,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       deposit,
       salePrice,
       forSale: saleOn,
+      gift: giftOn,
       rentable,
       contacts,
       followContacts: following,
@@ -1810,15 +1767,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 <input className="text-input" value={fields.what} onChange={(event) => set("what", event.target.value)} maxLength={WHAT_MAX} />
                 <span className={styles.hint}>{t("item.whatHint")}</span>
               </label>
-
-              {/* How many of it there are — one, unless said otherwise. A
-                  spot is a collection, and has no count of its own. */}
-              {!fields.spot && (
-                <label className="field">
-                  <span className="field-label">{t("item.count")}</span>
-                  <CountInput value={fields.quantity} onChange={(value) => set("quantity", value)} />
-                </label>
-              )}
             </div>
 
             {/* The item's sheet has two columns where there is room: what it
@@ -2511,17 +2459,18 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   <Select
                     className={styles.currency}
                     label={t("item.sale")}
-                    value={fields.saleOn ? "yes" : "no"}
+                    value={fields.giftOn ? "free" : fields.saleOn ? "yes" : "no"}
                     onChange={(value) => {
-                      set("saleOn", value === "yes");
+                      setFields((current) => ({ ...current, saleOn: value === "yes", giftOn: value === "free" }));
                       setError("");
                     }}
-                    options={["no", "yes"].map((each) => ({ value: each, label: t(`item.saleOn.${each}`) }))}
+                    options={["no", "yes", "free"].map((each) => ({ value: each, label: t(`item.saleOn.${each}`) }))}
                   />
                 </div>
                 {/* The currency is asked for with the rental prices below;
-                    with none of those, here. */}
-                {!rentable && (
+                    with none of those, here — unless it is not for sale
+                    or given away either, when there is no sum to be in it. */}
+                {!rentable && (saleOn || giftOn) && (
                   <div className={styles.modeRow}>
                     <span className={styles.everyDay}>{t("item.currency")}</span>
                     <Select
@@ -2536,15 +2485,18 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     />
                   </div>
                 )}
-                {/* The sum may be written whether it is for sale or not:
-                    on one that is not, it is kept and not shown on its page. */}
-                {(
+                {/* The sum is asked for only of one for sale: on one that
+                    is not, what was written is kept and not shown.
+                    Given away, it reads 0 and cannot be changed — what was
+                    written before is kept for when it is sold again. */}
+                {(saleOn || giftOn) && (
                   <div className={styles.modeRow}>
                     <span className={styles.everyDay}>{t("item.salePrice")}</span>
                     <PriceInput
                       currency={fields.currency}
                       className={styles.rulePrice}
-                      value={shownPrice(fields.salePrice, fields.currency)}
+                      value={giftOn ? "0" : shownPrice(fields.salePrice, fields.currency)}
+                      disabled={giftOn}
                       onChange={(event) => {
                         set("salePrice", priceText(event.target.value, fields.currency));
                         setError("");

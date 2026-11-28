@@ -757,8 +757,15 @@ final class AppModel {
         // Changed, perhaps, while it was going up: only where it is now is new.
         var published = self.item(item.id) ?? item
         published.remoteId = created.id
+        // It is in the server's list now, and so in the phone's — at once, as
+        // the server answered it, the newest first: it is no longer among
+        // the ones waiting, and would be gone from the grid until the list
+        // was next asked for.
+        if listings != nil, listing(created.id) == nil {
+            listings?.insert(created, at: 0)
+            if let listings { store.saveListings(listings) }
+        }
         try update(published)
-        // It is in the server's list now, and so in the phone's.
         if refreshing { await loadListings() }
     }
 

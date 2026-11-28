@@ -1106,7 +1106,9 @@ function servedItem(item) {
     salePrice: item.salePrice ?? null,
     // Whether it is for sale: one from before this was said apart from the
     // sum is, where it has a sum.
-    forSale: item.salePrice != null && item.forSale !== false,
+    forSale: item.gift !== true && item.salePrice != null && item.forSale !== false,
+    // Whether it is given away for nothing — which one for sale is not.
+    gift: item.gift === true,
     // Whether it is lent out at all: one that is not is only for sale.
     rentable: item.rentable !== false,
     // Whether it is somebody else's, put here by an account that does not
@@ -1345,7 +1347,8 @@ function itemFields(item) {
     cancel: item.cancel ?? { mode: "any" },
     deposit: item.deposit ?? null,
     salePrice: item.salePrice ?? null,
-    forSale: item.salePrice != null && item.forSale !== false,
+    forSale: item.gift !== true && item.salePrice != null && item.forSale !== false,
+    gift: item.gift === true,
     // Whether it is lent out at all: one that is not is only for sale.
     rentable: item.rentable !== false,
     // Following its account's contacts, it keeps none of its own.
