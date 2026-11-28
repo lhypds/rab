@@ -93,6 +93,57 @@ export const OBJECT_CATEGORIES = [
 // them out of everything it sends anybody else, and the lists here leave them
 // out of their choices — `adult` is whether whoever is looking may see them.
 export const ADULT_CATEGORIES = ["adult"];
+
+// What the categories are about, across the three kinds of them: a theme takes
+// the thing, the place and the work that go together — the instrument, the
+// room to play it in and the person who teaches it. They overlap: a category
+// is in every theme it belongs to. The words for them are under `group.*`.
+export const CATEGORY_GROUPS = {
+  music: ["musical-instrument", "audio", "music-studio", "music", "teaching"],
+  filming: ["camera", "video-camera", "drone", "audio", "studio", "photography", "videography"],
+  travel: ["car", "bike", "binoculars", "home", "parking", "driver", "guide", "translation", "delivery"],
+  outdoor: ["bike", "drone", "binoculars", "camping", "sports", "clothing", "fitness", "guide"],
+  home: [
+    "kitchen-appliance",
+    "cleaning-appliance",
+    "tools",
+    "home",
+    "storage",
+    "repair",
+    "moving",
+    "cleaning",
+    "cooking",
+    "delivery",
+    "gardening",
+    "handyman",
+  ],
+  events: ["projector", "audio", "clothing", "event-space", "meeting-room", "photography", "videography", "cooking", "event-help"],
+  work: [
+    "computer",
+    "projector",
+    "meeting-room",
+    "workspace",
+    "teaching",
+    "design",
+    "translation",
+    "it-support",
+    "programming",
+    "writing",
+    "consulting",
+  ],
+  digital: ["computer", "game-console", "electronics", "projector", "drone", "3d-printing", "it-support", "programming"],
+  care: ["beauty-appliance", "clothing", "fitness", "beauty", "massage", "pet-care", "childcare", "care"],
+  // Only grown-ups are shown this one, as its category (see ADULT_CATEGORIES).
+  adult: ["adult"],
+};
+export const GROUPS = Object.keys(CATEGORY_GROUPS);
+
+// The themes, without the ones that are only grown-up categories unless
+// `adult`.
+export function groupsFor(adult = false) {
+  return GROUPS.filter((group) => adult || !CATEGORY_GROUPS[group].every((slug) => ADULT_CATEGORIES.includes(slug)));
+}
+
 export const ADULT_AGE = 18;
 
 export const isAdultCategory = (slug) => ADULT_CATEGORIES.includes(slug);

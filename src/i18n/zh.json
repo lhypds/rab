@@ -120,6 +120,7 @@
     "categoryMoveFailed": "无法更改分类",
     "all": "全部",
     "allCategories": "全部分类",
+    "allCategoriesIn": "全部分类（{{group}}）",
     "area": "当前地区",
     "areaUnknown": "这一带",
     "areaTotals": "{{items}} 项目 · {{spots}} 据点",
@@ -148,7 +149,6 @@
       "requests": "需求"
     },
     "requestsEmpty": "这个地区还没有人发布需求。",
-    "requestsEmptyAsk": "想找什么？在这里说出来。",
     "requestTotals_other": "{{count}} 条需求",
     "requestCount_other": "这里有 {{count}} 条需求",
     "requestsNone": "这里还没有需求"
@@ -498,6 +498,20 @@
   "search": {
     "placeholder": "搜索...",
     "empty": "没有找到"
+  },
+  "group": {
+    "label": "主题",
+    "none": "无",
+    "music": "音乐",
+    "filming": "拍摄",
+    "travel": "出行",
+    "outdoor": "户外",
+    "home": "居家",
+    "events": "活动",
+    "work": "工作",
+    "digital": "数码",
+    "care": "美容照护",
+    "adult": "成人"
   },
   "category": {
     "car": "汽车",

@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as api from "../../api.js";
-import { Link, Select, showToast, useLocation, useNavigate } from "../../ui/index.js";
+import { Link, Select, showToast, useLocation, useNavigate, useSearchParams } from "../../ui/index.js";
 import { iconMarkup, markOf } from "../../utils/categoryIcons.js";
 import { priceLine, requestBudget, requestDates } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
 import { directionsLink } from "../../utils/maps.js";
-import { homeFilter, homePath, sortLabel, categoriesOfItem } from "../../utils/categories.js";
+import { CATEGORY_GROUPS, groupsFor, homeFilter, homePath, sortLabel, categoriesOfItem } from "../../utils/categories.js";
 import { isAdmin } from "../../utils/admin.js";
 import {
   DEFAULT_VIEW,
@@ -281,7 +281,28 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { category } = homeFilter(pathname) ?? { category: "" };
-  const setCategory = (slug) => navigate(homePath(slug), { replace: true, scroll: false, state: window.history.state });
+  // And which theme the categories are narrowed to (see CATEGORY_GROUPS) is
+  // beside it, as `?g=music`: the categories to pick from are then the
+  // theme's, and "all categories" is all of those.
+  const [searchParams] = useSearchParams();
+  const wantedGroup = searchParams.get("g") ?? "";
+  // The grown-up theme is one only for whoever may see its category.
+  const themes = groupsFor(Boolean(user?.adult));
+  const group = themes.includes(wantedGroup) ? wantedGroup : "";
+  const groupSlugs = group ? CATEGORY_GROUPS[group] : null;
+  const inGroup = (item) => !groupSlugs || categoriesOfItem(item).some((slug) => groupSlugs.includes(slug));
+  const goTo = (slug, theme) =>
+    navigate(`${homePath(slug)}${theme ? `?g=${theme}` : ""}`, { replace: true, scroll: false, state: window.history.state });
+  const setCategory = (slug) => goTo(slug, group);
+  // Pressed again, the theme in force is let go of. A category that is not
+  // of the theme picked is let go of with it.
+  // Letting go of the theme altogether ("none") lets go of the category too:
+  // back to all categories.
+  const setGroup = (theme) => {
+    if (!theme) return goTo("", "");
+    const next = theme === group ? "" : theme;
+    goTo(next && category && !CATEGORY_GROUPS[next].includes(category) ? "" : category, next);
+  };
   // The category the columns were last laid out for. Changed, the columns
   // are not laid out again at once — thousands of rows take a moment, and the
   // press would seem to have done nothing meanwhile — but the frame says it is
@@ -452,7 +473,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // Which category the pins are for: "" is all of them. "Other" is always
   // the last of the choices.
-  const categoryChoices = categoriesOf(Boolean(user?.adult));
+  const categoryChoices = categoriesOf(Boolean(user?.adult)).filter((slug) => !groupSlugs || groupSlugs.includes(slug));
   // Each one leads with its own mark, the one its pins wear on the map.
   // `text` is what the search reads, since the label is no longer a plain
   // string.
@@ -462,7 +483,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
       {name}
     </span>
   );
-  const allName = t("map.allCategories");
+  const allName = group ? t("map.allCategoriesIn", { group: t(`group.${group}`) }) : t("map.allCategories");
   const categoryOptions = [
     { value: "", name: allName, label: withIcon("", allName), text: allName },
     ...categoryChoices.map((slug) => ({
@@ -487,8 +508,31 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     // A spot with no category of its own counts under each of its items'.
     const kinds = categoriesOfItem(item);
     for (const kind of kinds.length ? kinds : [item.category]) held.set(kind, (held.get(kind) ?? 0) + 1);
-    heldAll += 1;
+    // "All" of a theme is what is in any of its categories.
+    if (inGroup(item)) heldAll += 1;
   }
+  // The themes, as a dropdown beside the categories': closed, it says the
+  // theme in force, or just what it is a list of where there is none.
+  const groupOptions = ["", ...themes].map((theme) => {
+    const name = theme ? t(`group.${theme}`) : t("group.none");
+    const named = (words) => (
+      <span className={styles.categoryName}>
+        <CategoryIcon group={theme} />
+        {words}
+      </span>
+    );
+    return { value: theme, label: named(name), short: named(theme ? name : t("group.label")), text: name };
+  });
+  const groupSelect = (
+    <Select
+      className={styles.category}
+      fit
+      label={t("group.label")}
+      value={group}
+      onChange={(theme) => theme !== group && setGroup(theme)}
+      options={groupOptions}
+    />
+  );
   // The dropdowns' own rows: each with how many of it are offered here after
   // its name, in grey brackets — not in the closed box, which says only which
   // is picked — and set out by that number, the most first. "All categories"
@@ -588,6 +632,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // is somewhere in what it says about itself.
   const passes = (item) => {
     if (category && !categoriesOfItem(item).includes(category)) return false;
+    if (!category && !inGroup(item)) return false;
     if (words.length === 0) return true;
     const text = [item.title, item.description, item.place, item.owner, item.category && t(`category.${item.category}`, item.category)]
       .filter(Boolean)
@@ -595,7 +640,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
       .toLowerCase();
     return words.every((word) => text.includes(word));
   };
-  const filtering = Boolean(category || words.length);
+  const filtering = Boolean(category || group || words.length);
   const shown = filtering ? items.filter(passes) : items;
   // Of those, the ones inside the window itself, which is what the count says.
   const [viewBox, setViewBox] = useState(null);
@@ -639,7 +684,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     return pool && (filtering ? pool.filter(passes) : pool);
     // `passes` and `filtering` are derived afresh each render from these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offered, found, sought, category, query, t]);
+  }, [offered, found, sought, category, group, query, t]);
   // As lists, the item whose row was picked last — by the keys, the wheel or
   // a first press — which a second press opens. Kept aside rather than in
   // state: picking is done a row to every notch of the wheel, and drawing all
@@ -1014,14 +1059,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     // `shown` is derived afresh each render; what it is derived from is what
     // is watched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, category, query]);
+  }, [items, category, group, query]);
 
   useEffect(() => {
     for (const [id, entry] of markersRef.current) {
       entry.element.classList.toggle(styles.pinChosen, id === selectedId);
       entry.element.classList.toggle(styles.pinPointed, id === pointedId);
     }
-  }, [selectedId, pointedId, items, category, query]);
+  }, [selectedId, pointedId, items, category, group, query]);
 
   // The item being looked at on a sheet over the list, by its id, and the row
   // it was opened from — which is given the keyboard back when the sheet is
@@ -1730,7 +1775,9 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {listing && (
           <div className={styles.categoryRow} role="group" aria-label={t("item.category")}>
             {/* On a phone the list of categories is put away, and the
-                category is picked from the dropdown the map has instead. */}
+                category is picked from the dropdown the map has instead —
+                after the theme, which narrows what it has to pick from. */}
+            {groupSelect}
             <Select
               className={styles.category}
               fit
@@ -1743,6 +1790,30 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             />
           </div>
         )}
+        {/* The themes, as rows under their name: the one pressed is the one
+            the categories under them are narrowed to. */}
+        {listing && <h3 className={styles.sideLabel}>{t("group.label")}</h3>}
+        {listing && (
+          <ul className={styles.groups} aria-label={t("group.label")}>
+            {/* At their head, none of them: every category to pick from. */}
+            {["", ...themes].map((theme) => (
+              <li key={theme}>
+                <button
+                  type="button"
+                  className={[styles.choice, group === theme && styles.choiceChosen].filter(Boolean).join(" ")}
+                  aria-pressed={group === theme}
+                  onClick={() => group !== theme && setGroup(theme)}
+                >
+                  <span className={styles.categoryName}>
+                    <CategoryIcon group={theme} />
+                    {theme ? t(`group.${theme}`) : t("group.none")}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {listing && <h3 className={styles.sideLabel}>{t("item.category")}</h3>}
         {/* Over the categories, the box that finds one among them. */}
         {listing && (
           <FilterBox
@@ -1804,7 +1875,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             ) : (
               <div className={styles.sideEmpty}>
                 <p>{t(requesting ? "map.requestsEmpty" : "map.areaEmpty")}</p>
-                <p>{t(requesting ? "map.requestsEmptyAsk" : "map.areaEmptyAsk")}</p>
+                {!requesting && <p>{t("map.areaEmptyAsk")}</p>}
                 <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(requesting ? NEED_EVENT : LIST_EVENT))}>
                   {t(requesting ? "header.need" : "header.list")}
                 </button>
@@ -1851,7 +1922,7 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             ) : (
               <>
                 <p>{t(requesting ? "map.requestsEmpty" : "map.areaEmpty")}</p>
-                <p>{t(requesting ? "map.requestsEmptyAsk" : "map.areaEmptyAsk")}</p>
+                {!requesting && <p>{t("map.areaEmptyAsk")}</p>}
                 <button type="button" className="small-button" onClick={() => window.dispatchEvent(new Event(requesting ? NEED_EVENT : LIST_EVENT))}>
                   {t(requesting ? "header.need" : "header.list")}
                 </button>
@@ -1872,6 +1943,9 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         {/* Which category the pins are for: all of them unless one is
             picked. */}
         <div className={styles.filters} role="group" aria-label={t("item.category")}>
+          {/* First the theme, which narrows what the categories' dropdown
+              has to pick from. */}
+          {groupSelect}
           <Select
             className={styles.category}
             fit

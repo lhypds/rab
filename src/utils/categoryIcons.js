@@ -81,6 +81,27 @@ export function iconParts(category) {
   return ICONS[category] ?? (category === REQUEST_MARK ? REQUEST_ICON : ITEM_ICON);
 }
 
+// The themes the categories are gathered under (CATEGORY_GROUPS) wear the
+// drawing of the category that says each best, where there is one; a
+// suitcase for going somewhere, and a ring struck through for no theme.
+const GROUP_ICONS = {
+  "": [[12, 12, 9], "M5.6 5.6l12.8 12.8"],
+  music: ICONS.music,
+  filming: ICONS.camera,
+  travel: ["M4 8h16v12H4z", "M9 8V4h6v4", "M4 13h16"],
+  outdoor: ICONS.camping,
+  home: ICONS.home,
+  events: ICONS["event-space"],
+  work: ICONS.computer,
+  digital: ICONS.electronics,
+  care: ICONS.care,
+  adult: ICONS.adult,
+};
+
+export function groupIconParts(group) {
+  return GROUP_ICONS[group] ?? ITEM_ICON;
+}
+
 // Which drawing an item wears: its category's — and a request with no
 // category of its own (or "other") the glass rather than the box.
 export const markOf = (item) => (item.kind === "request" && !ICONS[item.category] ? REQUEST_MARK : item.category);

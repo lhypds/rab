@@ -120,6 +120,7 @@
     "categoryMoveFailed": "Could not change the category",
     "all": "All",
     "allCategories": "All categories",
+    "allCategoriesIn": "All categories ({{group}})",
     "area": "Current area",
     "areaUnknown": "Around here",
     "areaTotals": "{{items}} items · {{spots}} spots",
@@ -149,7 +150,6 @@
       "requests": "Requests"
     },
     "requestsEmpty": "Nobody is asking for anything in this area yet.",
-    "requestsEmptyAsk": "Looking for something? Say so here.",
     "requestTotals_one": "{{count}} request",
     "requestTotals_other": "{{count}} requests",
     "requestCount_one": "{{count}} request here",
@@ -507,6 +507,20 @@
   "search": {
     "placeholder": "Search...",
     "empty": "Nothing by that name"
+  },
+  "group": {
+    "label": "Themes",
+    "none": "None",
+    "music": "Music",
+    "filming": "Filming",
+    "travel": "Travel",
+    "outdoor": "Outdoor",
+    "home": "Home",
+    "events": "Events",
+    "work": "Work",
+    "digital": "Digital",
+    "care": "Beauty & care",
+    "adult": "Adult"
   },
   "category": {
     "car": "Car",

@@ -120,6 +120,7 @@
     "categoryMoveFailed": "カテゴリを変更できませんでした",
     "all": "すべて",
     "allCategories": "すべてのカテゴリ",
+    "allCategoriesIn": "すべてのカテゴリ（{{group}}）",
     "area": "現在のエリア",
     "areaUnknown": "このあたり",
     "areaTotals": "{{items}} 件 · {{spots}} スポット",
@@ -148,7 +149,6 @@
       "requests": "募集"
     },
     "requestsEmpty": "このエリアにはまだ募集がありません。",
-    "requestsEmptyAsk": "探しているものがあれば、ここで伝えましょう。",
     "requestTotals_other": "{{count}} 件の募集",
     "requestCount_other": "ここに {{count}} 件の募集",
     "requestsNone": "ここにはまだ募集がありません"
@@ -498,6 +498,20 @@
   "search": {
     "placeholder": "検索...",
     "empty": "見つかりません"
+  },
+  "group": {
+    "label": "テーマ",
+    "none": "なし",
+    "music": "音楽",
+    "filming": "撮影",
+    "travel": "おでかけ",
+    "outdoor": "アウトドア",
+    "home": "暮らし",
+    "events": "イベント",
+    "work": "仕事",
+    "digital": "デジタル",
+    "care": "美容・ケア",
+    "adult": "アダルト"
   },
   "category": {
     "car": "車",
