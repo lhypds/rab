@@ -95,7 +95,6 @@ export default function ItemView({
   onSetActive,
   onDelete,
   onEdit,
-  onEditAvailability,
   // On a page of its owner's: the sheet for which items are on it.
   onEditItems,
   onMessage,
@@ -1032,11 +1031,6 @@ export default function ItemView({
               <div className={styles.buttons}>
                 <button type="button" className="small-button" onClick={onEdit} disabled={preview}>
                   {t(item.spot ? "spot.edit" : "item.editTitle")}
-                </button>
-                {/* When it can be had and what it costs, which is a sheet of
-                    its own apart from the one the item is edited on. */}
-                <button type="button" className="small-button" onClick={onEditAvailability} disabled={preview}>
-                  {t("item.availabilityTitle")}
                 </button>
                 {/* Which of its owner's items are on a page. */}
                 {item.spot && mine && onEditItems && (

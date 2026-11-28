@@ -753,11 +753,10 @@ export function AreaField({ value, onChange, near = null, taken = [] }) {
 // costs and when it can be had on the right; and a preview of the page all of
 // that comes to before any of it is published.
 //
-// The form is in two parts, each a sheet of its own: what the item is — its
-// category, its name, its photographs, where it is — and when it can be had and
-// what it costs. An item that exists is opened on one of them (`part`,
-// "item" or "availability") and saved from there; a new one is taken through
-// both, the first and then the second, and published from the second.
+// The form is in two parts on the one sheet, for a new item and for one that
+// exists alike: what the item is — its category, its name, its photographs,
+// where it is — down the left, and when it can be had and what it costs down
+// the right; scrolled through, and saved or published from its foot.
 // A list with the entry at `index` swapped with the one `by` (-1 or 1) from it.
 function moved(list, index, by) {
   const to = index + by;
@@ -767,7 +766,7 @@ function moved(list, index, by) {
   return next;
 }
 
-export default function ItemModal({ isOpen, item = null, calendar = null, part = "item", onClose, onSaved }) {
+export default function ItemModal({ isOpen, item = null, calendar = null, onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const lang = i18n.language;
@@ -786,8 +785,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // The default price as last typed for the stretch priced by (see
   // unitPriceShown), with the step's price it came to.
   const [unitPrice, setUnitPrice] = useState(null);
-  // Which of the two parts a new item's form is on.
-  const [step, setStep] = useState("item");
   const [error, setError] = useState("");
   // Whether the area was picked by hand. Until it is, it is the town the
   // reader is in — wherever the item's pin is put.
@@ -848,7 +845,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     currencyPicked.current = false;
     setError("");
     setPricing(null);
-    setStep("item");
     setUploading(0);
     setOpening((count) => count + 1);
     regionPicked.current = Boolean(initial.region);
@@ -1296,18 +1292,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     return "";
   }
 
-  function next() {
-    const problem = itemFault();
-    if (problem) return setError(problem);
-    setError("");
-    setStep("availability");
-  }
-
   async function save(event) {
     event.preventDefault();
     if (saving || uploading > 0) return;
-    // A new item's first part is not saved: it goes on to the second.
-    if (!editing && step === "item") return next();
     const problem = fault();
     if (problem) return setError(problem);
     setSaving(true);
@@ -1524,50 +1511,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </ul>
   );
 
-  // The part on show: the one asked for, for an item that exists; the step a
-  // new one has got to.
-  const shown = editing ? part : step;
-
-  return (
-    <>
-      <Modal
-        isOpen={isOpen}
-        title={shown === "availability" ? t("item.availabilityTitle") : editing ? t(item.spot ? "spot.edit" : "item.editTitle") : t("item.newTitle")}
-        // Withheld while something is on its way up, so a stray Escape does
-        // not drop a form with a photograph half sent.
-        onClose={busy ? undefined : onClose}
-        large
-        // The sheet lays its form out to its full height (see .sheet), so the
-        // buttons at its foot are at the sheet's foot.
-        className={styles.sheet}
-        // Of an item there is already: the arrow that asks for it again, to
-        // the left of the cross.
-        header={
-          editing ? (
-            <button
-              type="button"
-              className={styles.refresh}
-              onClick={refresh}
-              disabled={busy || refreshing}
-              aria-busy={refreshing}
-              aria-label={t("item.refresh")}
-              title={t("item.refresh")}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                {/* A ring open at the upper right, with an arrowhead where
-                    it ends at the top, going clockwise: the phone's arrow. */}
-                <path d="M20 12a8 8 0 1 1-8-8h2" />
-                <path d="M11.5 1.5 14 4l-2.5 2.5" />
-              </svg>
-            </button>
-          ) : null
-        }
-      >
-        <form className={styles.form} onSubmit={save} autoComplete="off" data-save>
-          <div className={styles.columns}>
-            {/* ------------------------------------------------- what it is */}
-            {shown === "item" && (
-            <>
+  // The four blocks of the form. What the item is, in two: its photographs,
+  // its name and its category —
+  const whatLeft = (
             <div className={styles.column}>
               {/* First, whether this is one item or a spot of them. A spot
                   is asked everything an item is; it is only kept apart,
@@ -1768,9 +1714,10 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 <span className={styles.hint}>{t("item.whatHint")}</span>
               </label>
             </div>
+  );
 
-            {/* The item's sheet has two columns where there is room: what it
-                is on the left, and where it is on the right. */}
+  // — and its links, its area and where it is.
+  const whatRight = (
             <div className={styles.column}>
               {/* Its own pages somewhere else, where it has any: shown on
                   its page over how its owner is reached. One line each, more
@@ -1922,12 +1869,11 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 onError={setError}
               />
             </div>
-            </>
-            )}
+  );
 
-            {/* ------------------------------------- what it costs, and when */}
-            {shown === "availability" && (
-            <>
+  // What it costs and when, in two: whether it is lent out, how it is booked,
+  // its prices and its dates —
+  const termsLeft = (
             <div className={styles.column}>
               {/* First of all, whether it is lent out — for temporary use — at
                   all: only then is there a way to book it, a price for it
@@ -2236,10 +2182,11 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   booked; by the time the column beside is the hours'. */}
               {(byDay || byTime) && datesField}
             </div>
+  );
 
-            {/* This sheet has two columns too: how it is booked, what it
-                costs and the dates it can be had on the left; by the time,
-                the hours on the right. */}
+  // — and its hours, the rule for calling off, whether it is for sale or
+  // given away, and how its owner is reached.
+  const termsRight = (
             <div className={styles.column}>
               {/* The hours it can be had, where it is booked by the time: under
                   the dates. First the usual hours — these hours, on these
@@ -2553,34 +2500,71 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </ContactFields>
               )}
             </div>
-            </>
-            )}
+  );
+
+  return (
+    <>
+      <Modal
+        isOpen={isOpen}
+        title={!editing ? t("item.newTitle") : t(item.spot ? "spot.edit" : "item.editTitle")}
+        // Withheld while something is on its way up, so a stray Escape does
+        // not drop a form with a photograph half sent.
+        onClose={busy ? undefined : onClose}
+        large
+        // The sheet lays its form out to its full height (see .sheet), so the
+        // buttons at its foot are at the sheet's foot.
+        className={styles.sheet}
+        // Of an item there is already: the arrow that asks for it again, to
+        // the left of the cross.
+        header={
+          editing ? (
+            <button
+              type="button"
+              className={styles.refresh}
+              onClick={refresh}
+              disabled={busy || refreshing}
+              aria-busy={refreshing}
+              aria-label={t("item.refresh")}
+              title={t("item.refresh")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {/* A ring open at the upper right, with an arrowhead where
+                    it ends at the top, going clockwise: the phone's arrow. */}
+                <path d="M20 12a8 8 0 1 1-8-8h2" />
+                <path d="M11.5 1.5 14 4l-2.5 2.5" />
+              </svg>
+            </button>
+          ) : null
+        }
+      >
+        <form className={styles.form} onSubmit={save} autoComplete="off" data-save>
+          <div className={styles.columns}>
+            {/* Two sides where there is room: all of what it is down the
+                left, and all of what it costs and when down the right. */}
+            <div className={styles.side}>
+              {whatLeft}
+              {whatRight}
+            </div>
+            <div className={styles.side}>
+              {termsLeft}
+              {termsRight}
+            </div>
           </div>
 
           <div className="modal-actions">
             {/* What is wrong with the form, said at the foot of the sheet: at
                 the left of the line the buttons are at the right of. */}
             {error && <p className="form-message error">{error}</p>}
-            {/* A new item's second part goes back to its first; anything
-                else is left by cancelling. */}
-            {!editing && shown === "availability" ? (
-              <button type="button" className="outline-button" onClick={() => setStep("item")} disabled={busy}>
-                {t("item.back")}
-              </button>
-            ) : (
-              <button type="button" className="outline-button" onClick={onClose} disabled={busy}>
-                {t("common.cancel")}
-              </button>
-            )}
+            <button type="button" className="outline-button" onClick={onClose} disabled={busy}>
+              {t("common.cancel")}
+            </button>
             {/* The page all of this comes to, before it is anybody's to see:
                 opened as a page of its own, in its own tab. */}
-            {(editing || shown === "availability") && (
-              <button type="button" className="outline-button" onClick={preview} disabled={uploading > 0}>
-                {t("item.preview")}
-              </button>
-            )}
+            <button type="button" className="outline-button" onClick={preview} disabled={uploading > 0}>
+              {t("item.preview")}
+            </button>
             <button type="submit" className="primary-button" disabled={busy}>
-              {uploading > 0 ? t("item.uploading") : editing ? t("common.save") : shown === "item" ? t("item.next") : t("item.add")}
+              {uploading > 0 ? t("item.uploading") : editing ? t("common.save") : t("item.add")}
             </button>
           </div>
         </form>

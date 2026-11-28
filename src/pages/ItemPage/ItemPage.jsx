@@ -23,8 +23,8 @@ export default function ItemPage({ id }) {
   const [searchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  // The part of the item's form that is open: "item", "availability", or null.
-  const [editing, setEditing] = useState(null);
+  // Whether the item's form is open.
+  const [editing, setEditing] = useState(false);
   const [writingTo, setWritingTo] = useState(null);
   const [choosing, setChoosing] = useState(false);
   const { pathname } = useLocation();
@@ -129,8 +129,7 @@ export default function ItemPage({ id }) {
               showToast(t("item.deleted"), 1800);
               navigate("/mine", { replace: true });
             }}
-            onEdit={() => setEditing("item")}
-            onEditAvailability={() => setEditing("availability")}
+            onEdit={() => setEditing(true)}
             onEditItems={() => setChoosing(true)}
             onMessage={setWritingTo}
             onBookmark={(on) => api.setBookmark(item.id, on)}
@@ -145,14 +144,12 @@ export default function ItemPage({ id }) {
           anybody signed in where it is somebody else's, or the admin. */}
       {(item?.mine || (item?.shared && user) || (item && isAdmin(user))) && (
         <ItemModal
-          isOpen={Boolean(editing)}
-          // Which of the form's two sheets: the item, or when it can be had.
-          part={editing || "item"}
+          isOpen={editing}
           item={item}
           calendar={data.calendar}
-          onClose={() => setEditing(null)}
+          onClose={() => setEditing(false)}
           onSaved={() => {
-            setEditing(null);
+            setEditing(false);
             load();
           }}
         />

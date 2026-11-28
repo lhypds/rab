@@ -58,6 +58,15 @@ div.sheet .form {
   }
 }
 
+/* One side of the sheet: its parts one under another, as far apart as the
+   fields in them are. */
+.side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .column {
   min-width: 0;
   display: flex;

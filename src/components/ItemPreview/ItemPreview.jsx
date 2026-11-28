@@ -135,7 +135,6 @@ export default function ItemPreview({ id, onClose, onGone, onOpen }) {
                 onClose?.();
               }}
               onEdit={() => edit("item")}
-              onEditAvailability={() => edit("availability")}
               onEditItems={() => edit("items")}
               onMessage={setWritingTo}
               onBookmark={(on) => api.setBookmark(item.id, on)}
@@ -150,7 +149,6 @@ export default function ItemPreview({ id, onClose, onGone, onOpen }) {
       {editing && editing.part !== "items" && (
         <ItemModal
           isOpen
-          part={editing.part}
           item={editing.item}
           calendar={editing.calendar}
           onClose={() => setEditing(null)}
