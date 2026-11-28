@@ -227,10 +227,11 @@ export const describeRequest = (title, lang) => send("POST", "/api/describe-requ
 // search or ask for where that is the step (see server/describe.js).
 // `history` is the conversation before it, oldest first: each question with
 // what was answered.
-// `seen` is what is listed on the page as it is asked ({ items, narrowed }),
+// `seen` is what is listed on the page as it is asked ({ items, narrowed,
+// where } — where the reader stands, each item with how far it is from there),
 // for one of them to be chosen: the answer's `item` is then its id.
 export const ask = (question, lang, view, history, seen, options) =>
-  send("POST", "/api/ask", { question, lang, view, history, seen: seen?.items ?? [], narrowed: Boolean(seen?.narrowed) }, { timeoutMs: 60 * 1000, ...options });
+  send("POST", "/api/ask", { question, lang, view, history, seen: seen?.items ?? [], narrowed: Boolean(seen?.narrowed), where: seen?.where ?? null }, { timeoutMs: 60 * 1000, ...options });
 // The signed-in account's own places, to put an item at.
 // `shared` asks for the public account's instead: the places somebody else's
 // things are at, which anybody signed in may choose from and add to.

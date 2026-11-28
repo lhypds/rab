@@ -2232,6 +2232,7 @@ app.post("/api/ask", async (req, res) => {
       place: text(item?.place, 120),
       rating: Number(item?.rating) > 0 ? Math.min(5, Number(item.rating)) : 0,
       count: Number.isInteger(item?.count) && item.count > 0 ? item.count : 0,
+      distance: Number.isFinite(item?.distance) && item.distance >= 0 ? Math.round(item.distance) : null,
     }))
     .filter((item) => item.id && item.title);
   try {
@@ -2240,6 +2241,10 @@ app.post("/api/ask", async (req, res) => {
       adult: !req.user ? null : isAdult(req.user.id) ? "yes" : getBirthdate(req.user.id) ? "no" : null,
       view: ["map", "list"].includes(req.body?.view) ? req.body.view : null,
       narrowed: Boolean(req.body?.narrowed),
+      // Where the asker stands, as their page names it: said, not looked up.
+      where: text(req.body?.where?.name, 120) || null,
+      whereExact: Boolean(req.body?.where?.exact),
+      whereAway: Boolean(req.body?.where?.away),
     }, before, seen);
     if (!answer) return res.status(422).json({ error: "It could not be answered", code: "DESCRIBE_FAILED" });
     res.json({ say: answer.say.slice(0, 600), action: answer.action, words: answer.words.slice(0, TITLE_MAX), category: answer.category, item: answer.item, lang: answer.lang });

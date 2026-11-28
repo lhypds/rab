@@ -24,10 +24,14 @@ export function forgetSought() {
 // list, narrowed as they are — for the bar's "Ask AI" to be able to choose
 // one of them when asked to ("pick one for me"). Told by the page that lists
 // (see MapView), read by the bar when something is asked.
-let listed = { items: [], narrowed: false };
+// `where` is where the reader stands, as the page has it: { latitude,
+// longitude, name, exact } — the place's name, and whether it is where the
+// device says they are rather than somewhere they went to look at, or a
+// stand-in for a position that is not to be had.
+let listed = { items: [], narrowed: false, where: null };
 
-export function setListed(items, narrowed = false) {
-  listed = { items: items ?? [], narrowed };
+export function setListed(items, narrowed = false, where = null) {
+  listed = { items: items ?? [], narrowed, where };
 }
 
 export const listedNow = () => listed;

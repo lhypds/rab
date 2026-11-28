@@ -690,10 +690,21 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
   // to pick one (see seek.js) — while this is the page in front.
   useEffect(() => {
     if (!active) return undefined;
-    setListed(listed, filtering);
+    setListed(
+      listed,
+      filtering,
+      spot && {
+        ...spot,
+        name: [area?.name, area?.locality, area?.within].filter(Boolean).join(", "),
+        // The device's own word for where they are, and not the plane's or
+        // the capital's.
+        exact: Boolean(self && !region.place),
+        away: Boolean(region.place),
+      },
+    );
     return () => setListed([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listed, active]);
+  }, [listed, active, spot, area, self, region.place]);
   // As lists, the item whose row was picked last — by the keys, the wheel or
   // a first press — which a second press opens. Kept aside rather than in
   // state: picking is done a row to every notch of the wheel, and drawing all

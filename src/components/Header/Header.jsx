@@ -42,6 +42,15 @@ const ASK_ROUNDS = 7;
 const ASK_SEEN = 40;
 let rounds = [];
 
+// How far apart two places are, in metres, as the crow flies.
+function metresBetween(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * rad;
+  const dLon = (b.longitude - a.longitude) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLon / 2) ** 2;
+  return Math.round(6371000 * 2 * Math.asin(Math.sqrt(h)));
+}
+
 export default function Header({ back = false, view, onView, query = "", onQuery }) {
   const { t, i18n } = useTranslation();
   const { user, unread } = useAuth();
@@ -118,10 +127,14 @@ export default function Header({ back = false, view, onView, query = "", onQuery
     try {
       // What the page lists as this is asked, the first rows of it: what the
       // AI may choose one of ("pick one for me"), each as its row says it.
-      const { items: listed, narrowed } = onView ? listedNow() : { items: [], narrowed: false };
-      const rows = listed.slice(0, ASK_SEEN);
+      // With where the reader stands, and how far each row is from there:
+      // the nearest of them are the ones told, where there are more.
+      const { items: listed, narrowed, where } = onView ? listedNow() : { items: [], narrowed: false, where: null };
+      const far = (item) => (where && item.latitude != null && item.longitude != null ? metresBetween(where, item) : null);
+      const rows = (where ? [...listed].sort((a, b) => (far(a) ?? Infinity) - (far(b) ?? Infinity)) : listed).slice(0, ASK_SEEN);
       const seen = {
         narrowed,
+        where: where && { name: where.name, exact: where.exact, away: where.away },
         items: rows.map((item) => ({
           id: String(item.id),
           title: item.title,
@@ -131,6 +144,7 @@ export default function Header({ back = false, view, onView, query = "", onQuery
           place: item.place ?? item.region?.name ?? "",
           rating: item.rating?.average ?? item.rating?.stars ?? (typeof item.rating === "number" ? item.rating : 0),
           count: item.spot ? item.count ?? 0 : 0,
+          distance: far(item),
         })),
       };
       const answer = await api.ask(question, i18n.language.slice(0, 2), onView ? view : null, rounds, seen, { signal: controller.signal });

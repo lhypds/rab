@@ -365,6 +365,7 @@ Somebody has typed into the "Ask AI" box in the top bar. What they asked there b
 - words: for "search", the one or two words to search for — the thing itself, as a listing would name it, in the site's language you are told (that is the language the listings are read in, whatever language the person typed in), without "rent" or "rental" (e.g. "camera", "自行车", "会議室"). For "request", a short title for what they are looking for. Otherwise empty.
 - category: for "category", the one category, exactly as written above. Otherwise empty.
 - item: for "open", the number of the listing chosen, as the list numbers it. Otherwise 0.
+You are told where they are, as far as the site knows it, and how far each listing in the list is from there. Use it: "near me", "the nearest", "close by" are answered from those distances — never ask them where they are, which the site already knows or cannot be told here. Where their position is not known, say what you chose by instead.
 
 Write "say" in the language the person typed in, where that is English, Chinese or Japanese; where it is another language, or cannot be told (a product's name, a word or two that could be either), in the site's language you are told — the language they read the site in.
 - lang: the language "say" is written in: "en", "zh" or "ja".`;
@@ -376,8 +377,9 @@ Write "say" in the language the person typed in, where that is English, Chinese 
 // `before` is the conversation so far, oldest first: what was asked and what
 // was answered, each time — { question, say, action, words, category, lang }.
 // `seen` is what is listed on the asker's page as they ask, for one of them
-// to be chosen: { id, title, what, category, price, place, rating, count }
-// each. The one chosen comes back as `item`, its id, with its name in `words`.
+// to be chosen: { id, title, what, category, price, place, rating, count,
+// distance } each — how far it is from where the asker stands, in metres;
+// `about.where` names that place. The one chosen comes back as `item`, its id, with its name in `words`.
 export const GUIDE_ROUNDS = 7;
 export async function guide(question, language, about = {}, before = [], seen = []) {
   if (!question) return null;
@@ -386,6 +388,13 @@ export async function guide(question, language, about = {}, before = [], seen = 
     about.signedIn ? "They are signed in." : "They are not signed in.",
     about.adult === "yes" ? "They are confirmed 18 or older." : about.adult === "no" ? "They are under 18." : about.signedIn ? "They have given no date of birth." : "",
     about.view === "list" ? "They are reading the home page as lists." : about.view === "map" ? "They are reading the home page on the map." : "They are on a page other than the home page.",
+    !about.where
+      ? ""
+      : about.whereAway
+        ? `They have moved the map to ${about.where} to look there (they are not there themselves); distances are from the point they chose.`
+        : about.whereExact
+          ? `They are in ${about.where}, by their device's own position; distances are from where they stand.`
+          : `Their position is not known; the map stands in ${about.where}, and distances are from the middle of it.`,
   ].join(" ");
   const line = (item, at) =>
     [
@@ -394,6 +403,7 @@ export async function guide(question, language, about = {}, before = [], seen = 
       item.category && `category: ${item.category}`,
       item.count ? `a place with ${item.count} listings of its own` : item.price ? `price: ${item.price}` : "",
       item.place && `at: ${item.place}`,
+      item.distance != null && `${item.distance < 1000 ? `${Math.round(item.distance / 10) * 10} m` : `${(item.distance / 1000).toFixed(1)} km`} from them`,
       item.rating && `rated ${item.rating} of 5`,
     ]
       .filter(Boolean)
