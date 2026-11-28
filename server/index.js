@@ -86,6 +86,8 @@ const {
   adoptPublicItems,
   publicItemSpots,
   writePublicIndex,
+  checkPublicIndex,
+  publicIndexReady,
   warmPublicKeys,
   getBirthdate,
   isAdult,
@@ -1795,7 +1797,9 @@ const LOCATION_ID_RE = /^[a-z0-9-]{1,40}$/;
 
 // The spots of the public account's items from before they were kept: each
 // one that is not among its places yet is added, when the server starts.
-rememberPublicPlaces(publicItemSpots().map((item) => ({ ...item, located: item.latitude != null })));
+// (Done once the public items' folders have been gone through: see below,
+// where the server starts to listen.)
+const rememberPublicItemPlaces = () => rememberPublicPlaces(publicItemSpots().map((item) => ({ ...item, located: item.latitude != null })));
 
 // The public account has places too (`shared`): the ones somebody else's
 // things are at — a shop, a hall — kept in its folder like any account's, for
@@ -2177,6 +2181,11 @@ const PUBLIC_ZIP_ITEMS = 2000;
 
 function requireAdmin(req, res, next) {
   if (req.user.id !== ADMIN_ID) return res.status(403).json({ error: "Only the site's own account sends a public folder" });
+  // Just started: what it holds of the public items is not yet known to be
+  // all of them, and a sender told less would send again what is here.
+  if (!publicIndexReady()) {
+    return res.status(503).json({ error: "The server has just started and is still reading its public items; try again in a minute" });
+  }
   next();
 }
 
@@ -2448,7 +2457,16 @@ app.listen(port, "0.0.0.0", () => {
       console.log(`  Network: http://${iface.address}:${port}`);
     }
   }
-  // The crawler's keys read in the background, for rab public push to be
-  // answered at once (GET /api/public).
-  warmPublicKeys().catch((error) => console.error(error));
+  // Listening first, and then — between answering — the public items'
+  // folders gone through for what has changed since their few lines were
+  // last written down (or, with nothing written down, all of them read):
+  // a start does not wait on tens of thousands of folders. After that their
+  // spots are added to the public account's places, and the crawler's keys
+  // read, for rab public push to be answered at once (GET /api/public).
+  checkPublicIndex()
+    .then(() => {
+      rememberPublicItemPlaces();
+      return warmPublicKeys();
+    })
+    .catch((error) => console.error(error));
 });

@@ -50,6 +50,15 @@ struct ScannerView: View {
                 }
                 .ignoresSafeArea()
 
+                // The middle of the picture: only a thing under it is seen.
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .shadow(color: .black.opacity(0.35), radius: 2)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+
                 Color.white
                     .opacity(flash ? 0.6 : 0)
                     .ignoresSafeArea()

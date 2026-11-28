@@ -40,7 +40,8 @@ page.
 - the marker chooses the spot things are collected onto — one of your spots on
   rab, your default one to start with. It only chooses; the tick says which.
 - the camera starts collecting: it stays open, a white border is drawn round
-  the object it sees, and the round button keeps a photograph of that object —
+  the object at the middle of the picture (the small cross; a thing off to the
+  side is not seen), and the round button keeps a photograph of that object —
   cut down to it, with a little room round — for the spot. One thing after
   another, no form in between.
 - the brain has everything that is not on rab yet recognized, a few at a

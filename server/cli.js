@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 //                                      (`rab user _admin pass <new>` is how the
 //                                      admin account is first given one)
 //   rab user delete <username>         delete an account and everything it has
+//   rab cache build                    the same as rab cache rebuild
 //   rab cache rebuild                  read every item's folder again and write
 //                                      down afresh what the server keeps of them
 //                                      between starts (data/cache/items/)
@@ -66,6 +67,7 @@ const USAGE = `Usage:
   rab user delete <username> [--yes] delete an account and everything it has
   rab cache rebuild                  read every item's folder again and rewrite the cache the
                                      server starts from (after editing an item.json by hand)
+  rab cache build                    the same
   rab public push [-f <folder>] [-u <url>]
                                      send the items of a public folder the server does not have,
                                      and those it has with an older updatedAt than here (replaced)
@@ -791,7 +793,8 @@ if (args[0] === "public") {
 // for an item.json changed in place by hand, which the cache does not notice.
 // A server that is running goes on with what it holds until it is restarted.
 if (args[0] === "cache") {
-  if (args[1] !== "rebuild" || args.length !== 2) fail(USAGE);
+  // `build` is the same thing under another name.
+  if ((args[1] !== "rebuild" && args[1] !== "build") || args.length !== 2) fail(USAGE);
   console.log("Reading every item's folder…");
   const started = Date.now();
   const store = await import("./db.js");
@@ -818,6 +821,10 @@ if (words[0] !== "user" || words.length < 2) fail(USAGE);
 // The store is opened only once the command is known to be one: opening it
 // reads every folder.
 const store = await import("./db.js");
+// What is held of the public items is as it was last written down; the
+// folders are gone through for what has changed since before anything is
+// said of them.
+await store.checkPublicIndex();
 
 function account(username) {
   const user = username ? store.getUser(String(username).toLowerCase()) : null;

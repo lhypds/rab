@@ -31,9 +31,12 @@ enum ObjectDetector {
     }
 
     /// The mask is a small picture whose every pixel is the number of the
-    /// thing it belongs to, nothing being 0. Of the things in it, the main
-    /// one is the one that fills the most of the picture, counted for more
-    /// the nearer the middle it is: what the camera is pointed at.
+    /// thing it belongs to, nothing being 0. The main thing is the one at the
+    /// middle of the picture — what the camera is pointed at: the one whose
+    /// pixels the very middle is, or else, the middle being a gap in a thing
+    /// (the hole of a handle, the inside of a frame), the one whose box is
+    /// round the middle and that fills the most of the picture. A thing off
+    /// to the side is not it, however large.
     static func mainBox(in mask: CVPixelBuffer) -> CGRect? {
         guard CVPixelBufferGetPixelFormatType(mask) == kCVPixelFormatType_OneComponent8 else { return nil }
         CVPixelBufferLockBaseAddress(mask, .readOnly)
@@ -62,23 +65,25 @@ enum ObjectDetector {
             }
         }
 
+        let midX = width / 2
+        let midY = height / 2
+        let atMiddle = Int((pixels + midY * rowBytes)[midX])
         let total = Double(width * height)
         var best: (box: CGRect, score: Double)?
-        for extent in extents where extent.count > 0 {
+        for (label, extent) in extents.enumerated() where extent.count > 0 {
             // A speck is not a thing anybody is photographing.
             let share = Double(extent.count) / total
             guard share >= 0.004 else { continue }
+            // Only a thing the middle of the picture is in.
+            guard extent.minX <= midX, midX <= extent.maxX, extent.minY <= midY, midY <= extent.maxY else { continue }
             let box = CGRect(
                 x: Double(extent.minX) / Double(width),
                 y: Double(extent.minY) / Double(height),
                 width: Double(extent.maxX - extent.minX + 1) / Double(width),
                 height: Double(extent.maxY - extent.minY + 1) / Double(height)
             )
-            // How far its middle is from the picture's: 0 at the centre,
-            // about 0.7 in a corner.
-            let away = hypot(box.midX - 0.5, box.midY - 0.5)
-            let score = share * (1 - min(0.9, away * 1.2))
-            if score > (best?.score ?? 0) { best = (box, score) }
+            if label == atMiddle { return box }
+            if share > (best?.score ?? 0) { best = (box, share) }
         }
         return best?.box
     }

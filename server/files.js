@@ -539,43 +539,49 @@ export function rebuildItemIndex(userId, make) {
   return { items: entries.length, corrected };
 }
 
-// What is kept of each item in an account's items/, by folder, as { changed,
-// value }: as it was written down where the folder is as it was then, and
-// from `make(folder, { item, source })` — the folder's item.json and
-// source.json, as read — where it is not. Written down again where anything differed.
-export function readItemIndex(userId, make, upgrade = null) {
-  const kept = readIndexFile(indexFile(userId), upgrade);
-  let differs = kept.upgraded === true;
-  // Every folder in its order, with what is kept of it where that still
-  // stands; the rest are read, together, and put in their places.
-  const slots = [];
-  const stale = [];
-  for (const folder of itemFolders(userId)) {
-    const changed = itemFolderChanged(userId, folder);
-    if (changed === null) continue;
-    const was = kept.get(folder);
-    if (was && was.changed === changed) {
-      slots.push([folder, was]);
-    } else {
-      stale.push(slots.length);
-      slots.push([folder, { changed, value: null }]);
+// What was written down of each item in an account's items/, by folder, as
+// { changed, value } — as it is in the file, with no folder looked at: for a
+// start to have at once. Whether each folder is still as it was then is for
+// whoever reads this to find out afterwards (see checkPublicIndex in db.js).
+// `upgraded` on what comes back says the file was one from before, made over.
+export function readItemIndexFile(userId, upgrade = null) {
+  return readIndexFile(indexFile(userId), upgrade);
+}
+
+// Many folders read for the index, as readItemForIndex reads one, without
+// the server standing still for it: a few at a time, each read handed to the
+// system and waited for. One that is not there, or cannot be made sense of,
+// is null — said on the console in the second case, and no reason to stop.
+export async function readItemsForIndexSoon(userId, folders) {
+  const read = new Array(folders.length).fill(null);
+  let next = 0;
+  const reader = async () => {
+    while (next < folders.length) {
+      const at = next;
+      next += 1;
+      let dir;
+      let text;
+      try {
+        dir = itemDir(userId, folders[at]);
+        text = await fs.promises.readFile(path.join(dir, ITEM_FILE), "utf8");
+      } catch {
+        continue;
+      }
+      let source = null;
+      try {
+        source = await fs.promises.readFile(path.join(dir, SOURCE_FILE), "utf8");
+      } catch {
+        // none: it has no key
+      }
+      try {
+        read[at] = parsedForIndex(dir, folders[at], text, source);
+      } catch (error) {
+        console.warn(`rab: ${path.join(dir, ITEM_FILE)} was not read: ${error.message}`);
+      }
     }
-  }
-  if (stale.length > 0) {
-    differs = true;
-    const read = readItemsForIndex(userId, stale.map((at) => slots[at][0]));
-    stale.forEach((at, nth) => {
-      if (read[nth]) slots[at][1].value = make(slots[at][0], read[nth]);
-    });
-  }
-  const index = new Map();
-  for (const [folder, entry] of slots) if (entry.value) index.set(folder, entry);
-  if (differs || index.size !== kept.size) {
-    writeItemIndex(userId, (function* entries() {
-      for (const [folder, { changed, value }] of index) yield [folder, changed, value];
-    })());
-  }
-  return index;
+  };
+  await Promise.all(Array.from({ length: READERS }, reader));
+  return read;
 }
 
 // Every item an account has. A folder with no item.json in it is not an item
@@ -586,7 +592,7 @@ export function readItemIndex(userId, make, upgrade = null) {
 // one put there by hand without it is taken to be when it was last changed.
 //
 // `indexed` is for an account whose items/ is not held whole (see
-// readItemIndex): its spots and the ones it has deleted are all that is read.
+// readItemIndexFile): its spots and the ones it has deleted are all that is read.
 export function readItems(userId, { indexed = false } = {}) {
   const items = [];
   if (!indexed) {

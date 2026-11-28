@@ -10,6 +10,7 @@ Run these commands from the repository root.
     ./rab user delete <username>         delete an account and everything it has (stop the server first)
 
     ./rab cache rebuild                  read every item's folder again and rewrite the cache the server starts from
+    ./rab cache build                    the same
 
 `cache rebuild` is for after an `item.json` of `_public`'s has been edited in place by hand: the
 server starts from what it wrote down of each item (`data/cache/items/`, see

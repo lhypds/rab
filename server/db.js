@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, itemFolderChanged, readItem, readItemIndex, rebuildItemIndex, spotFolders, writeItemIndex, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, itemFolderChanged, itemFolders, readItem, readItemForIndex, readItemIndexFile, readItemsForIndexSoon, rebuildItemIndex, spotFolders, writeItemIndex, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
 import { carriedPictures } from "./images.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, migrateItemFiles, renumberAccounts } from "./migrate.js";
@@ -419,7 +419,12 @@ class Items {
   // The item whole: read from its folder where it is not held.
   get(id) {
     const held = this.whole.get(id) ?? this.opened.get(id);
-    if (held || !this.light.has(id)) return held;
+    if (held) return held;
+    if (!this.light.has(id)) {
+      // While the folders are still being gone through after a start (see
+      // checkPublicIndex), one not known yet may be there all the same.
+      if (indexChecked || !foundPublicItem(id)) return undefined;
+    }
     let item = null;
     try {
       item = readItem(PUBLIC_ID, id);
@@ -507,7 +512,7 @@ carriedPictures((userId) => {
   })();
 });
 
-// The public items' few lines are written down (see readItemIndex in
+// The public items' few lines are written down (see readItemIndexFile in
 // files.js) so that a start does not read every folder: when each folder was
 // last changed, as it was read; and the ones changed here since, whose time
 // is asked for when the index is next written — a little after the last
@@ -519,6 +524,18 @@ const indexUnwritten = new Set();
 // are still to be written down.
 const keyUnknown = new Set();
 let keysUnwritten = false;
+// A start takes what was written down as it is and answers at once; whether
+// each folder is still as it was then is found out afterwards, a few hundred
+// folders at a time, between answering (checkPublicIndex). Until that is done
+// the index is not `checked`: what it says may be behind the folders — or,
+// with nothing written down, be only as much as has been read so far.
+let indexChecked = false;
+let indexChecking = null;
+// Which load the checking is of: one begun before the last load stops.
+let indexRun = 0;
+// Whether what is held differs from what is written down, for other reasons
+// than an item changed here.
+let indexDiffers = false;
 let indexTimer = null;
 const INDEX_WRITE_AFTER_MS = 30 * 1000;
 // As in files.js: a folder changed this short a while ago is not written down.
@@ -535,8 +552,9 @@ function indexChanged(id) {
 export function writePublicIndex() {
   if (indexTimer) clearTimeout(indexTimer);
   indexTimer = null;
-  if (indexUnwritten.size === 0 && !keysUnwritten) return;
+  if (indexUnwritten.size === 0 && !keysUnwritten && !indexDiffers) return;
   keysUnwritten = false;
+  indexDiffers = false;
   const settled = Date.now() - INDEX_SETTLED_MS;
   for (const id of [...indexUnwritten]) {
     if (!itemsById.light.has(id)) {
@@ -581,36 +599,136 @@ export function rebuildItemCaches() {
   });
 }
 
-// The public items' few lines, read: from what was written down, and from
-// the folders that have changed since.
+// What was written down of one public item, held: its few lines, when its
+// folder was changed as of then, and its key.
+function holdPublicLight(id, changed, value) {
+  const { key, ...light } = value;
+  light.ownerId = PUBLIC_ID;
+  light.region = sameRegion(light.region);
+  if (light.moreRegions) light.moreRegions = light.moreRegions.map(sameRegion);
+  light.category = sameWords(light.category);
+  light.place = sameWords(light.place);
+  if (!(light.images?.length > 0)) light.images = NO_IMAGES;
+  itemsById.light.set(id, light);
+  if (changed == null) indexedAt.delete(id);
+  else indexedAt.set(id, changed);
+  // Its key, in the stead of the one it had.
+  if (key !== undefined) {
+    const had = publicKeyOf.get(id);
+    if (had != null && had !== key && publicKeys.get(had) === id) publicKeys.delete(had);
+    if (key) setPublicKey(key, id);
+    else publicKeyOf.delete(id);
+    keyUnknown.delete(id);
+  } else if (!publicKeyOf.has(id)) {
+    keyUnknown.add(id);
+  }
+  if (light.was) idByOldId.set(light.was, id);
+}
+
+// No longer held, its folder being gone.
+function dropPublicLight(id) {
+  itemsById.light.delete(id);
+  itemsById.opened.delete(id);
+  indexedAt.delete(id);
+  keyUnknown.delete(id);
+  const key = publicKeyOf.get(id);
+  if (key != null && publicKeys.get(key) === id) publicKeys.delete(key);
+  publicKeyOf.delete(id);
+}
+
+// A public item's folder that is there and not known yet — asked for by id
+// before the folders have all been gone through — read and held. False where
+// there is no such folder.
+function foundPublicItem(id) {
+  let read = null;
+  try {
+    read = readItemForIndex(PUBLIC_ID, id);
+  } catch {
+    // not a folder's name, or not to be read
+  }
+  if (!read) return false;
+  holdPublicLight(id, null, readPublicLight(id, read));
+  return true;
+}
+
+// The public items' few lines as they were written down, taken as they are:
+// no folder is looked at here, so that a start answers at once whether the
+// file is there or not. What has changed since is found afterwards (see
+// checkPublicIndex).
 function loadPublicIndex() {
+  indexRun += 1;
+  indexChecked = false;
+  indexChecking = null;
   indexedAt.clear();
   indexUnwritten.clear();
   keyUnknown.clear();
   publicKeys = new Map();
   publicKeyOf = new Map();
-  const index = readItemIndex(PUBLIC_ID, readPublicLight, (item) => {
+  const kept = readItemIndexFile(PUBLIC_ID, (item) => {
     // From the file of before, which held the item and not its key.
     const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
     return value;
   });
-  for (const [id, { changed, value }] of index) {
-    const { key, ...light } = value;
-    light.ownerId = PUBLIC_ID;
-    light.region = sameRegion(light.region);
-    if (light.moreRegions) light.moreRegions = light.moreRegions.map(sameRegion);
-    light.category = sameWords(light.category);
-    light.place = sameWords(light.place);
-    if (!(light.images?.length > 0)) light.images = NO_IMAGES;
-    itemsById.light.set(id, light);
-    indexedAt.set(id, changed);
-    if (key) setPublicKey(key, id);
-    else if (key === undefined) keyUnknown.add(id);
-    if (light.was) idByOldId.set(light.was, id);
-  }
+  if (kept.upgraded) indexDiffers = true;
+  for (const [id, { changed, value }] of kept) holdPublicLight(id, changed, value);
   // The spots' keys are read from their folders, as they are asked for — and
   // those of the items whose key is not known yet.
   publicKeysPending = [...spotFolders(PUBLIC_ID), ...keyUnknown];
+}
+
+// Whether the folders have all been gone through since the last start: until
+// then what is held of the public items may be behind them, or incomplete.
+export const publicIndexReady = () => indexChecked;
+
+// The folders gone through, once after each load, without the server
+// standing still: each folder's time of last change held against what was
+// written down, the ones that differ (or are new) read again, the ones gone
+// let go, and the index written down afresh where anything differed. With
+// nothing written down this is the whole index being built — while the
+// server answers, with as much as there is so far. The promise is of its end.
+export function checkPublicIndex() {
+  if (indexChecked) return Promise.resolve();
+  indexChecking ??= checkIndexFolders(indexRun);
+  return indexChecking;
+}
+
+const CHECK_AT_A_TIME = 400;
+
+async function checkIndexFolders(run) {
+  const folders = itemFolders(PUBLIC_ID);
+  for (let from = 0; from < folders.length; from += CHECK_AT_A_TIME) {
+    const stale = [];
+    for (const folder of folders.slice(from, from + CHECK_AT_A_TIME)) {
+      // One changed here since the start is as this server holds it.
+      if (indexUnwritten.has(folder)) continue;
+      const changed = itemFolderChanged(PUBLIC_ID, folder);
+      if (changed === null) continue;
+      if (itemsById.light.has(folder) && indexedAt.get(folder) === changed) continue;
+      stale.push([folder, changed]);
+    }
+    if (stale.length > 0) {
+      const read = await readItemsForIndexSoon(PUBLIC_ID, stale.map(([folder]) => folder));
+      if (run !== indexRun) return;
+      stale.forEach(([folder, changed], at) => {
+        if (indexUnwritten.has(folder) || itemsById.whole.has(folder)) return;
+        indexDiffers = true;
+        if (read[at]) holdPublicLight(folder, changed, readPublicLight(folder, read[at]));
+        else dropPublicLight(folder);
+      });
+    }
+    // The server answers what has come in before the next few hundred.
+    await new Promise((resolve) => setImmediate(resolve));
+    if (run !== indexRun) return;
+  }
+  const there = new Set(folders);
+  for (const id of [...itemsById.light.keys()]) {
+    if (there.has(id) || indexUnwritten.has(id)) continue;
+    dropPublicLight(id);
+    indexDiffers = true;
+  }
+  publicKeysPending = publicKeysPending.filter((folder) => !keyUnknown.has(folder)).concat([...keyUnknown]);
+  indexChecked = true;
+  if (indexDiffers) writePublicIndex();
 }
 const bookingsById = new Map();
 const messagesByUser = new Map();
@@ -814,6 +932,9 @@ function publicByKey(key) {
 // is left for the next time round.
 export function adoptPublicItems() {
   const adopted = [];
+  // Not while the folders are still being gone through after a start: every
+  // one not known yet would be read here, all at once.
+  if (!indexChecked) return adopted;
   for (const { folder } of allItemFolders(PUBLIC_ID)) {
     if (itemsById.has(folder)) continue;
     let item;
@@ -890,6 +1011,9 @@ export function transaction(work) {
       unsaved.clear();
       unsavedItems.clear();
       load();
+      // What is held of the public items is as it was last written down
+      // again: the folders are gone through once more for what that misses.
+      checkPublicIndex().catch((failed) => console.error(failed));
     }
     throw error;
   }
