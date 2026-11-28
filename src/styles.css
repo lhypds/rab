@@ -338,7 +338,6 @@ a {
 /* "Request", beside it: the same button turned over — white, ruled in ink —
    and with no mark, so padded alike at both ends. */
 .topbar-ask {
-  padding: 0 12px;
   background: var(--paper);
   color: var(--ink);
 }

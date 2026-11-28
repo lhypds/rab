@@ -163,6 +163,10 @@ export default function Header({ back = false, view, onView, query = "", onQuery
             {t("header.have")}
           </button>
           <button type="button" className="topbar-have topbar-ask" onClick={() => need(onQuery ? query : written)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m15.5 15.5 5 5" />
+            </svg>
             {t("header.need")}
           </button>
           <FilterBox slash value={onQuery ? query : written} onChange={onQuery ?? setWritten} placeholder={t("search.placeholder")} />
