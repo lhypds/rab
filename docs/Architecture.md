@@ -51,9 +51,15 @@ the next start. A `db.sqlite` from before the folders is moved into them the fir
 time the server starts, and a copy of it as it was is left at
 `db.sqlite.before-folders`. All of it is ignored by git.
 
-An account with hundreds of items or more is not read a folder at a time at each start:
-what was read is kept in `data/cache/items/<username>.jsonl`, and a folder is read again
-only where it has changed since (its own time of last change, which every write the
-server and the crawlers make moves). An `item.json` edited in place by hand does not move
-it: delete the `.jsonl` file and the next start reads every folder again. And the items'
-one-time migrations (ids, WebP) are done once and noted in `data/.items-migrated`.
+Not everything is held in memory. The public account's items (`_public`: somebody else's
+things, written down by the crawlers by the tens of thousands) are on no map and in no
+list — only the spots they are on are — so the server holds every spot, and every other
+account's items, whole, and of each public item only a few lines: what its spot is placed,
+counted and dated by, and what `rab public push` is told. The item itself is read from its
+folder when its page is opened. Those few lines are kept in
+`data/cache/items/_public.jsonl`, so that a start does not open every folder: a folder is
+read again only where it has changed since (its own time of last change, which every write
+the server and the crawlers make moves). An `item.json` of `_public`'s edited in place by
+hand does not move it: delete the `.jsonl` file and the next start reads every folder
+again. The items' one-time migrations (ids, WebP) are done once and noted in
+`data/.items-migrated`.

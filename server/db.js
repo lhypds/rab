@@ -2,8 +2,9 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
+import { SOURCE_FILE, accountFolders, allItemFolders, isInPlace, itemFolderChanged, readItem, readItemIndex, spotFolders, writeItemIndex, moveItemDir, nameFolders, readAnyItem, readItemSource, readItems, readList, readRequests, removeRequestDir, moveRequestDir, writeRequest, moveSpotDir, moveOldSpots, readOldSpots, readRecord, removeItemDir, removeUserDir, renameNumberedFolders, userFolders, writeItem, writeItemFolder, writeList, writeRecord } from "./files.js";
 import { ADULT_AGE, ageOn } from "../src/utils/categories.js";
+import { carriedPictures } from "./images.js";
 import { moveIntoFolders, moveItemsIntoFolders, renameItemFolders, migrateItemFiles, renumberAccounts } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -345,8 +346,259 @@ export const deleteExpiredSessions = (time) => deleteExpired.run(time);
 // line of a conversation is in the messages.json of each end separately, as
 // that end sees it — `with` the other account, `mine` or not — so deleting a
 // conversation takes it out of one folder and leaves the other's alone.
-const itemsById = new Map();
+//
+// Not every item is held whole. The public account's — somebody else's
+// things, written down by a crawler by the tens of thousands — are on no map
+// and in no list: only the spots they are on are, and an item is read when
+// its page is opened. So of each of those a few lines are held (`light`:
+// what a spot is placed, counted and dated by, and what a sender is told),
+// and the item itself is read from its folder when it is asked for, and
+// let go again once there are too many of them. Everything else — every
+// other account's items, every spot, every deleted item — is held whole.
+const OPENED_MAX = 2000;
+
+// The areas the public items say, each kept once: a few hundred of them are
+// said by tens of thousands of items.
+const regionsKept = new Map();
+function sameRegion(region) {
+  if (!region || typeof region !== "object") return region ?? null;
+  const said = JSON.stringify(region);
+  if (!regionsKept.has(said)) regionsKept.set(said, region);
+  return regionsKept.get(said);
+}
+
+// And the few words said by many of them — what kind of thing it is, the
+// address of the shop it is at — each kept once too.
+const wordsKept = new Map();
+function sameWords(words) {
+  if (typeof words !== "string" || words.length > 200) return words;
+  if (!wordsKept.has(words)) wordsKept.set(words, words);
+  return wordsKept.get(words);
+}
+const NO_IMAGES = Object.freeze([]);
+
+// What is held of a public item that is not held whole.
+function lightOf(item) {
+  const stored = (item.images ?? []).flatMap((image) => [image?.name, image?.thumb]).filter((name) => typeof name === "string");
+  const more = (item.moreRegions ?? []).map(sameRegion).filter(Boolean);
+  return {
+    id: item.id,
+    ownerId: PUBLIC_ID,
+    title: item.title ?? "",
+    category: sameWords(item.category ?? ""),
+    active: item.active,
+    shared: item.shared === true,
+    located: item.located,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    place: sameWords(item.place ?? null),
+    region: sameRegion(item.region),
+    ...(more.length > 0 && { moreRegions: more }),
+    // The first photograph is all a spot ever shows of an item; the names of
+    // them all are what its pictures are found by (see images.js).
+    images: item.images?.length > 0 ? item.images.slice(0, 1) : NO_IMAGES,
+    ...(stored.length > 0 && { stored }),
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    ...(item.was && { was: String(item.was) }),
+  };
+}
+
+class Items {
+  // Held whole, by id.
+  whole = new Map();
+  // The public items read since, by id, the one read longest ago first.
+  opened = new Map();
+  // And what is held of every public item, read or not.
+  light = new Map();
+
+  isLight(item) {
+    return item.ownerId === PUBLIC_ID && !item.spot && !item.deletedAt;
+  }
+
+  // The item whole: read from its folder where it is not held.
+  get(id) {
+    const held = this.whole.get(id) ?? this.opened.get(id);
+    if (held || !this.light.has(id)) return held;
+    let item = null;
+    try {
+      item = readItem(PUBLIC_ID, id);
+    } catch {
+      // Not to be read just now: as good as not there.
+    }
+    if (!item) return undefined;
+    const read = { ...perUnit(item), ownerId: PUBLIC_ID };
+    this.opened.set(id, read);
+    this.trim();
+    return read;
+  }
+
+  // What is held of it without reading anything: the item where it is held
+  // whole, and otherwise the few lines kept of it — enough to place, count
+  // and date the spot it is on, and to say whose it is and what it is called.
+  peek(id) {
+    return this.whole.get(id) ?? this.opened.get(id) ?? this.light.get(id);
+  }
+
+  has(id) {
+    return this.whole.has(id) || this.light.has(id);
+  }
+
+  // Held from here on as what it now is — whole, or as a public item is —
+  // which is also how one that has changed is told of (see changedItem).
+  set(id, item) {
+    if (this.isLight(item)) {
+      this.whole.delete(id);
+      this.opened.delete(id);
+      this.opened.set(id, item);
+      this.light.set(id, lightOf(item));
+      indexChanged(id);
+      this.trim();
+    } else {
+      this.opened.delete(id);
+      if (this.light.delete(id)) indexChanged(id);
+      this.whole.set(id, item);
+    }
+    return this;
+  }
+
+  delete(id) {
+    this.opened.delete(id);
+    if (this.light.delete(id)) indexChanged(id);
+    return this.whole.delete(id);
+  }
+
+  clear() {
+    this.whole.clear();
+    this.opened.clear();
+    this.light.clear();
+  }
+
+  // The ones held whole — every spot among them, and no public item that is
+  // not one. Nothing that goes through these is after the public items.
+  values() {
+    return this.whole.values();
+  }
+
+  [Symbol.iterator]() {
+    return this.whole[Symbol.iterator]();
+  }
+
+  // The ones read longest ago let go — never one that is still to be
+  // written.
+  trim() {
+    let looked = 0;
+    for (const id of this.opened.keys()) {
+      if (this.opened.size <= OPENED_MAX || looked++ > 64) break;
+      if (!unsavedItems.has(id)) this.opened.delete(id);
+    }
+  }
+}
+
+const itemsById = new Items();
 const idByOldId = new Map();
+
+// The public items' pictures are found by what the items say they carry, not
+// by looking into every folder (see images.js).
+carriedPictures((userId) => {
+  if (userId !== PUBLIC_ID) return null;
+  return (function* carried() {
+    for (const [id, light] of itemsById.light) if (light.stored) yield [id, light.stored];
+  })();
+});
+
+// The public items' few lines are written down (see readItemIndex in
+// files.js) so that a start does not read every folder: when each folder was
+// last changed, as it was read; and the ones changed here since, whose time
+// is asked for when the index is next written — a little after the last
+// change, and when the server is stopped.
+const indexedAt = new Map();
+const indexUnwritten = new Set();
+// The items whose key (source.json) has not been read yet — only ever those
+// of an index from before it held the keys — and whether the keys read since
+// are still to be written down.
+const keyUnknown = new Set();
+let keysUnwritten = false;
+let indexTimer = null;
+const INDEX_WRITE_AFTER_MS = 30 * 1000;
+// As in files.js: a folder changed this short a while ago is not written down.
+const INDEX_SETTLED_MS = 6000;
+
+function indexChanged(id) {
+  indexUnwritten.add(id);
+  indexedAt.delete(id);
+  if (indexTimer) clearTimeout(indexTimer);
+  indexTimer = setTimeout(writePublicIndex, INDEX_WRITE_AFTER_MS);
+  indexTimer.unref();
+}
+
+export function writePublicIndex() {
+  if (indexTimer) clearTimeout(indexTimer);
+  indexTimer = null;
+  if (indexUnwritten.size === 0 && !keysUnwritten) return;
+  keysUnwritten = false;
+  const settled = Date.now() - INDEX_SETTLED_MS;
+  for (const id of [...indexUnwritten]) {
+    if (!itemsById.light.has(id)) {
+      indexUnwritten.delete(id);
+      continue;
+    }
+    const changed = itemFolderChanged(PUBLIC_ID, id);
+    // One still being written is left for the next time.
+    if (changed === null || changed >= settled) continue;
+    indexedAt.set(id, changed);
+    indexUnwritten.delete(id);
+  }
+  writeItemIndex(PUBLIC_ID, (function* entries() {
+    for (const [id, light] of itemsById.light) {
+      const { ownerId: _ownerId, ...value } = light;
+      // A key not read yet is left out, and is still to be read next time.
+      yield [id, indexedAt.get(id) ?? null, { ...value, ...(!keyUnknown.has(id) && { key: publicKeyOf?.get(id) ?? null }) }];
+    }
+  })());
+  if (indexUnwritten.size > 0) {
+    indexTimer = setTimeout(writePublicIndex, INDEX_WRITE_AFTER_MS);
+    indexTimer.unref();
+  }
+}
+
+// The public items' few lines, read: from what was written down, and from
+// the folders that have changed since.
+function loadPublicIndex() {
+  indexedAt.clear();
+  indexUnwritten.clear();
+  keyUnknown.clear();
+  publicKeys = new Map();
+  publicKeyOf = new Map();
+  const index = readItemIndex(PUBLIC_ID, (folder) => {
+    const item = readItem(PUBLIC_ID, folder);
+    if (!item) return null;
+    const key = readItemSource(PUBLIC_ID, folder)?.key;
+    const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
+    return { ...value, key: key ? JSON.stringify(key) : null };
+  }, (item) => {
+    // From the file of before, which held the item and not its key.
+    const { ownerId: _ownerId, ...value } = lightOf(perUnit(item));
+    return value;
+  });
+  for (const [id, { changed, value }] of index) {
+    const { key, ...light } = value;
+    light.ownerId = PUBLIC_ID;
+    light.region = sameRegion(light.region);
+    if (light.moreRegions) light.moreRegions = light.moreRegions.map(sameRegion);
+    light.category = sameWords(light.category);
+    light.place = sameWords(light.place);
+    if (!(light.images?.length > 0)) light.images = NO_IMAGES;
+    itemsById.light.set(id, light);
+    indexedAt.set(id, changed);
+    if (key) setPublicKey(key, id);
+    else if (key === undefined) keyUnknown.add(id);
+    if (light.was) idByOldId.set(light.was, id);
+  }
+  // The spots' keys are read from their folders, as they are asked for — and
+  // those of the items whose key is not known yet.
+  publicKeysPending = [...spotFolders(PUBLIC_ID), ...keyUnknown];
+}
 const bookingsById = new Map();
 const messagesByUser = new Map();
 let lastBookingId = 0;
@@ -376,7 +628,10 @@ function load() {
     // An account's spots from when they were stores or pages, in stores/,
     // in pages/ or in one list, moved to spots/.
     moveOldSpots(userId);
-    for (const item of readItems(userId)) {
+    // The public account's items are not read: a few lines of each are.
+    const indexed = userId === PUBLIC_ID;
+    if (indexed) loadPublicIndex();
+    for (const item of readItems(userId, { indexed })) {
       itemsById.set(item.id, { ...perUnit(item), ownerId: userId });
       if (item.was) idByOldId.set(String(item.was), item.id);
       // One deleted from before deleted items were moved to deleted/, still
@@ -484,6 +739,8 @@ let publicKeyOf = null;
 // The folders whose source.json has not been read into the index yet.
 let publicKeysPending = [];
 
+// The items' keys are there from the start, with the few lines held of each
+// (see loadPublicIndex); the spots' are still to be read from their folders.
 function startPublicKeys() {
   if (publicKeys) return;
   publicKeys = new Map();
@@ -515,6 +772,14 @@ function notePublicKey(folder) {
   if (!publicKeys) return;
   const key = readItemSource(PUBLIC_ID, folder)?.key;
   if (key) setPublicKey(JSON.stringify(key), folder);
+  if (keyUnknown.delete(folder)) {
+    keysUnwritten = true;
+    // Written down once the last of them is read.
+    if (keyUnknown.size === 0 && !indexTimer) {
+      indexTimer = setTimeout(writePublicIndex, INDEX_WRITE_AFTER_MS);
+      indexTimer.unref();
+    }
+  }
 }
 
 function setPublicKey(key, folder) {
@@ -525,7 +790,7 @@ function setPublicKey(key, folder) {
 // The public item the crawler knows by `key`, where there still is one.
 function publicByKey(key) {
   const id = publicKeyIndex().get(key);
-  return id && itemsById.get(id)?.ownerId === PUBLIC_ID ? id : null;
+  return id && itemsById.peek(id)?.ownerId === PUBLIC_ID ? id : null;
 }
 
 // The public account's items that were put in its folder while the server was
@@ -566,6 +831,9 @@ function changed(userId, file) {
 
 function changedItem(item, from = null) {
   unsavedItems.set(item.id, from ?? unsavedItems.get(item.id) ?? null);
+  // Held as what it now is: a public item's few lines follow what it says,
+  // and one deleted, or made somebody else's, changes how it is held.
+  itemsById.set(item.id, item);
 }
 
 function save() {
@@ -752,7 +1020,7 @@ function listedItems() {
 function lastChanged(spot) {
   let latest = spot.updatedAt ?? spot.createdAt ?? "";
   for (const id of spot.itemIds ?? []) {
-    const item = itemsById.get(String(id));
+    const item = itemsById.peek(String(id));
     if (!item || item.deletedAt || !item.active || item.spot || item.ownerId !== spot.ownerId) continue;
     const time = item.updatedAt ?? item.createdAt ?? "";
     if (time > latest) latest = time;
@@ -767,7 +1035,9 @@ function lastChanged(spot) {
 // — an account's default spot before anything is added, say.
 function placedSpot(spot) {
   const items = (spot.itemIds ?? [])
-    .map((id) => itemsById.get(String(id)))
+    // What is held of each, without reading it: a public spot's items are
+    // not held whole (see Items).
+    .map((id) => itemsById.peek(String(id)))
     .filter((item) => item && !item.deletedAt && item.active && !item.spot && item.ownerId === spot.ownerId);
   if (items.length === 0) return spot.located || spot.region ? spot : null;
   const placed = { ...spot };
@@ -802,6 +1072,12 @@ function between(longitude, west, east) {
 // drawn at random.
 function liveItem(id) {
   const item = itemsById.get(id) ?? itemsById.get(idByOldId.get(id));
+  return item && !item.deletedAt ? item : null;
+}
+
+// The same, as much of it as is held without reading it (see Items.peek).
+function liveItemHeld(id) {
+  const item = itemsById.peek(id) ?? itemsById.peek(idByOldId.get(id));
   return item && !item.deletedAt ? item : null;
 }
 
@@ -866,7 +1142,10 @@ export function getItemsAt(latitude, longitude, box = null) {
 // An account's items — not its spots, which are items too but listed apart
 // (see getSpots) — newest first.
 export function getItemsByUser(userId, { publicOnly = false } = {}) {
-  const items = [...itemsById.values()].filter((item) => item.ownerId === userId && !item.deletedAt && !item.spot).sort(newestFirst);
+  // The public account's are read from their folders, every one: nothing the
+  // site shows asks for them all (only `rab user _public items` does).
+  const held = userId === PUBLIC_ID ? [...itemsById.light.keys()].map((id) => itemsById.get(id)).filter(Boolean) : [...itemsById.values()];
+  const items = held.filter((item) => item.ownerId === userId && !item.deletedAt && !item.spot).sort(newestFirst);
   if (publicOnly) return items.filter((item) => item.active).map(servedItem);
   const bookings = [...bookingsById.values()];
   return items.map((item) => ({
@@ -874,6 +1153,21 @@ export function getItemsByUser(userId, { publicOnly = false } = {}) {
     // How many people are waiting on an answer about it.
     pending: bookings.filter((booking) => booking.itemId === item.id && booking.status === "pending").length,
   }));
+}
+
+// How many items an account has, its spots apart — without reading any.
+export function countItemsByUser(userId) {
+  if (userId === PUBLIC_ID) return itemsById.light.size;
+  let count = 0;
+  for (const item of itemsById.values()) if (item.ownerId === userId && !item.deletedAt && !item.spot) count += 1;
+  return count;
+}
+
+// Where the public account's items are, each as little as a place is made
+// of (see rememberPublicPlaces in index.js): for the ones not among its
+// places yet to be added when the server starts.
+export function publicItemSpots() {
+  return [...itemsById.light.values()];
 }
 
 // A new item's id: the millisecond it was made, in Unix time, which is also
@@ -1326,8 +1620,8 @@ function servedMessage(line) {
     item: line.itemId
       ? {
           id: line.itemId,
-          title: itemsById.get(line.itemId)?.title ?? null,
-          gone: !itemsById.get(line.itemId) || Boolean(itemsById.get(line.itemId).deletedAt),
+          title: itemsById.peek(line.itemId)?.title ?? null,
+          gone: !itemsById.peek(line.itemId) || Boolean(itemsById.peek(line.itemId).deletedAt),
         }
       : null,
     // And the spot one is about: its name, and `gone` once it is deleted.
@@ -1353,7 +1647,7 @@ function servedMessage(line) {
           status: booking.status,
           slots: booking.slots ?? null,
           itemId: booking.itemId,
-          itemTitle: itemsById.get(booking.itemId)?.title ?? null,
+          itemTitle: itemsById.peek(booking.itemId)?.title ?? null,
         }
       : null,
   };
@@ -1608,14 +1902,14 @@ export function mergePublic({ locations, items }) {
 
   const things = { added: [], replaced: [], skipped: [] };
   for (const { folder, item, source, files } of items) {
-    const held = itemsById.get(folder);
+    const held = itemsById.peek(folder);
     if (held && held.ownerId !== PUBLIC_ID) {
       things.skipped.push(folder);
       continue;
     }
     const key = source?.key ? JSON.stringify(source.key) : null;
     const id = held || !key ? folder : (publicByKey(key) ?? folder);
-    const existing = itemsById.get(id);
+    const existing = itemsById.peek(id);
     const time = now();
     // It keeps when it was last changed where it came saying so, so that a
     // sender can tell later whether what it has is newer than this.
@@ -1647,16 +1941,18 @@ export function heldPublic() {
   // is a file read for every item, each time it is asked.
   publicKeyIndex();
   const keyOf = (id) => (publicKeyOf.has(id) ? JSON.parse(publicKeyOf.get(id)) : null);
-  const items = allItemFolders(PUBLIC_ID)
-    .filter(({ folder }) => itemsById.get(folder)?.ownerId === PUBLIC_ID && !itemsById.get(folder).deletedAt)
-    .map(({ folder: id, spot }) => ({
-      id,
-      spot,
-      key: keyOf(id),
+  // The items from the few lines held of each, the spots from themselves.
+  const items = [];
+  for (const [id, light] of itemsById.light) {
+    if (!itemsById.whole.has(id)) items.push({ id, spot: false, key: keyOf(id), updatedAt: light.updatedAt ?? null });
+  }
+  for (const item of itemsById.values()) {
+    if (item.spot && item.ownerId === PUBLIC_ID && !item.deletedAt) {
       // When it was last changed, for a sender to send its own again where
       // that is newer (rab public push).
-      updatedAt: itemsById.get(id)?.updatedAt ?? null,
-    }));
+      items.push({ id: item.id, spot: true, key: keyOf(item.id), updatedAt: item.updatedAt ?? null });
+    }
+  }
   const locations = getLocations(PUBLIC_ID).map(({ id, address }) => ({ id, address: address ?? null }));
   return { items, locations };
 }
@@ -1664,7 +1960,7 @@ export function heldPublic() {
 // Whether the public account holds an item under this id, not deleted — what
 // heldPublic lists, for one id, without reading every folder.
 export function holdsPublic(id) {
-  const item = itemsById.get(id);
+  const item = itemsById.peek(id);
   return item?.ownerId === PUBLIC_ID && !item.deletedAt;
 }
 
@@ -1673,12 +1969,14 @@ export function holdsPublic(id) {
 // mirror). Bookings made of it stay, as of an item there no longer is; the
 // caller cancels the open ones first. False where it is not _public's.
 export function purgePublicItem(id) {
-  const item = itemsById.get(id);
+  const item = itemsById.peek(id);
   if (!item || item.ownerId !== PUBLIC_ID) return false;
   itemsById.delete(id);
   unsavedItems.delete(id);
   removeItemDir(PUBLIC_ID, id);
-  if (publicKeys) for (const [key, at] of publicKeys) if (at === id) publicKeys.delete(key);
+  // Its key, where the index still says it is this item's.
+  const key = publicKeyOf?.get(id);
+  if (key != null && publicKeys?.get(key) === id) publicKeys.delete(key);
   publicKeyOf?.delete(id);
   return true;
 }
@@ -1835,14 +2133,17 @@ export function spotItems(spot, options) {
 // whose — for thousands of spots at a time, without making each item whole
 // (its rating alone goes through every booking there is).
 export function spotItemKinds(spot, options) {
-  return keptSpotItems(spot, options).map((item) => ({ category: item.category, ownerId: item.ownerId }));
+  return keptSpotItems(spot, options, liveItemHeld).map((item) => ({ category: item.category, ownerId: item.ownerId }));
 }
 
-function keptSpotItems(spot, { publicOnly = false } = {}) {
+// `find` is how each is found: whole (liveItem), which reads a public item
+// from its folder, or as much of it as is held (liveItemHeld), which reads
+// nothing — what the map's count takes, for thousands of spots at a time.
+function keptSpotItems(spot, { publicOnly = false } = {}, find = liveItem) {
   const kept = itemsById.get(spot.id);
   if (!kept?.spot) return [];
   return (kept.itemIds ?? [])
-    .map((id) => liveItem(id))
+    .map((id) => find(id))
     .filter(
       (item) =>
         item && !item.spot && item.ownerId === kept.ownerId && (!publicOnly || item.active),
@@ -1886,7 +2187,7 @@ const BOOKMARKS_FILE = "bookmarks.json";
 export const BOOKMARKS_MAX = 1000;
 
 export function isBookmarked(userId, itemId) {
-  if (itemsById.get(itemId)?.ownerId === userId) return false;
+  if (itemsById.peek(itemId)?.ownerId === userId) return false;
   return readList(userId, BOOKMARKS_FILE).some((each) => each.itemId === itemId);
 }
 

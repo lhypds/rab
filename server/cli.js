@@ -802,7 +802,7 @@ if (first === "list" && words.length === 2) {
   const users = store.listUsers();
   table([
     ["ID", "USERNAME", "ITEMS", "JOINED"],
-    ...users.map((user) => [user.id, user.username, store.getItemsByUser(user.id).length, user.createdAt.slice(0, 10)]),
+    ...users.map((user) => [user.id, user.username, store.countItemsByUser(user.id), user.createdAt.slice(0, 10)]),
   ]);
   console.log(`${users.length} ${users.length === 1 ? "account" : "accounts"}`);
 } else if (first === "delete" || second === "delete") {

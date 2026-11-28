@@ -29,14 +29,30 @@ function note(name, dir) {
   places.get(name).add(dir);
 }
 
+// Told once, by db.js: for an account whose items are too many to look into
+// each folder of (the public account's, tens of thousands), which pictures
+// each item carries, as [folder, names] — and null for any other account.
+// Without it the first picture asked for after a start waited on every one
+// of those folders being read.
+let carried = null;
+export function carriedPictures(lookup) {
+  carried = lookup;
+}
+
 function survey() {
   places = new Map();
   waiting.clear();
   for (const userId of userFolders()) {
     const uploads = uploadsDir(userId);
     waiting.add(uploads);
+    const known = carried?.(userId) ?? null;
+    if (known) {
+      for (const [folder, names] of known) {
+        for (const name of names) if (isStoredName(name)) note(name, itemDir(userId, folder));
+      }
+    }
     const kept = [
-      ...itemFolders(userId).map((folder) => itemDir(userId, folder)),
+      ...(known ? [] : itemFolders(userId).map((folder) => itemDir(userId, folder))),
       ...spotFolders(userId).map((folder) => spotDir(userId, folder)),
       // A deleted item's pictures still show where its bookings are listed.
       ...deletedFolders(userId).map(({ folder, spot }) => deletedItemDir(userId, folder, spot)),

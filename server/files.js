@@ -256,26 +256,30 @@ export function readItem(userId, folder) {
   return { ...item, id: folder, ...(translations && { translations }) };
 }
 
-// An account's items as they were read the last time the server started, in
-// one file under data/cache/items/: reading tens of thousands of item.json
-// files one after another is what a start waits on (minutes, where the disk
-// is slow and nothing of it is in memory yet), and one file is read in a
-// moment. Each line is a folder, when the folder was last changed, and the
-// item read from it then; a folder that says the same time now is not read
-// again. Everything that writes an item — here, and the crawlers — writes a
-// file beside it and moves it into place, which changes the folder's time. An
+// What is kept in memory of each of an account's items where it has too many
+// to hold whole (the public account's: see db.js) — a few lines about each —
+// as it was worked out the last time, in one file under data/cache/items/:
+// reading tens of thousands of item.json files one after another is what a
+// start would wait on (minutes, where the disk is slow and nothing of it is
+// in memory yet), and one file is read in a moment. Each line is a folder,
+// when the folder was last changed, and what was kept of the item read from
+// it then; a folder that says the same time now is not read again.
+// Everything that writes an item — here, and the crawlers — writes a file
+// beside it and moves it into place, which changes the folder's time. An
 // item.json changed in place by hand does not: take the file under
-// data/cache/items/ away (or all of them) and the folders are read again.
-const SNAPSHOT_VERSION = 1;
-// An account with fewer items than this is read from its folders each time.
-const SNAPSHOT_MIN = 500;
+// data/cache/items/ away and every folder is read again.
+const INDEX_VERSION = 2;
 // A folder changed this short a while ago may be changed again within what
-// its clock can tell apart: it is read again the next time round.
-const SNAPSHOT_SETTLED_MS = 5000;
+// its clock can tell apart: it is not written down, and is read again the
+// next time round.
+const INDEX_SETTLED_MS = 5000;
 
-const snapshotFile = (userId) => path.join(dataDir, "cache", "items", `${path.basename(userDir(userId))}.jsonl`);
+const indexFile = (userId) => path.join(dataDir, "cache", "items", `${path.basename(userDir(userId))}.jsonl`);
 
-function readSnapshot(file) {
+// The file from when it held every item whole (version 1) is still read,
+// once: what is kept of each is made from the item it holds (`upgrade`),
+// so that the first start after is not one that reads every folder.
+function readIndexFile(file, upgrade) {
   const kept = new Map();
   let bytes;
   try {
@@ -285,14 +289,25 @@ function readSnapshot(file) {
   }
   try {
     let at = bytes.indexOf(10);
-    if (at === -1 || JSON.parse(bytes.toString("utf8", 0, at)).version !== SNAPSHOT_VERSION) return kept;
+    const version = at === -1 ? null : JSON.parse(bytes.toString("utf8", 0, at)).version;
+    if (version === 1 && upgrade) {
+      for (let from = at + 1; from < bytes.length; from = at + 1) {
+        at = bytes.indexOf(10, from);
+        if (at === -1) break;
+        const [folder, changed, item] = JSON.parse(bytes.toString("utf8", from, at));
+        kept.set(folder, { changed, value: upgrade(item) });
+      }
+      kept.upgraded = true;
+      return kept;
+    }
+    if (version !== INDEX_VERSION) return kept;
     // A line at a time, so that the file is never held twice over as text.
     for (let from = at + 1; from < bytes.length; from = at + 1) {
       at = bytes.indexOf(10, from);
       // A last line without its end is one half written: left out.
       if (at === -1) break;
-      const [folder, changed, item] = JSON.parse(bytes.toString("utf8", from, at));
-      kept.set(folder, { changed, item });
+      const [folder, changed, value] = JSON.parse(bytes.toString("utf8", from, at));
+      kept.set(folder, { changed, value });
     }
   } catch {
     // What could be read of it stands; the rest is read from the folders.
@@ -300,67 +315,73 @@ function readSnapshot(file) {
   return kept;
 }
 
-function writeSnapshot(file, lines) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const partial = `${file}.${process.pid}.tmp`;
-  const out = fs.openSync(partial, "w");
+// When an item's folder in items/ was last changed, or null where there is
+// none.
+export function itemFolderChanged(userId, folder) {
   try {
-    fs.writeSync(out, `${JSON.stringify({ version: SNAPSHOT_VERSION })}\n`);
-    // Written a few hundred lines at a time, not as one text.
-    for (let from = 0; from < lines.length; from += 500) fs.writeSync(out, lines.slice(from, from + 500).join(""));
-  } finally {
-    fs.closeSync(out);
+    return fs.statSync(itemDir(userId, folder)).mtimeMs;
+  } catch {
+    return null;
   }
-  fs.renameSync(partial, file);
 }
 
-// The items in an account's items/, each read from its folder unless the
-// folder is as it was when it was read last (see above).
-function readItemsKept(userId) {
-  const folders = itemFolders(userId);
-  const items = [];
-  if (folders.length < SNAPSHOT_MIN) {
-    for (const folder of folders) {
-      const item = readItem(userId, folder);
-      if (item) items.push(item);
-    }
-    return items;
-  }
-  const file = snapshotFile(userId);
-  const kept = readSnapshot(file);
-  const settled = Date.now() - SNAPSHOT_SETTLED_MS;
-  const lines = [];
-  let same = kept.size;
-  for (const folder of folders) {
-    let changed;
+// The index written: `entries` are [folder, when it was changed, what is
+// kept of it]. Never a reason for the server to stop.
+export function writeItemIndex(userId, entries) {
+  let file;
+  try {
+    file = indexFile(userId);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const partial = `${file}.${process.pid}.tmp`;
+    const out = fs.openSync(partial, "w");
+    const settled = Date.now() - INDEX_SETTLED_MS;
     try {
-      changed = fs.statSync(itemDir(userId, folder)).mtimeMs;
-    } catch {
+      // Written a few hundred lines at a time, not as one text.
+      let lines = [`${JSON.stringify({ version: INDEX_VERSION })}\n`];
+      for (const entry of entries) {
+        if (entry[1] == null || entry[1] >= settled) continue;
+        lines.push(`${JSON.stringify(entry)}\n`);
+        if (lines.length >= 500) {
+          fs.writeSync(out, lines.join(""));
+          lines = [];
+        }
+      }
+      fs.writeSync(out, lines.join(""));
+    } finally {
+      fs.closeSync(out);
+    }
+    fs.renameSync(partial, file);
+  } catch (error) {
+    console.warn(`rab: ${file ?? "the items' index"} was not written: ${error.message}`);
+  }
+}
+
+// What is kept of each item in an account's items/, by folder, as { changed,
+// value }: as it was written down where the folder is as it was then, and
+// from `read(folder)` — which reads the folder, and gives null for one that
+// is no item — where it is not. Written down again where anything differed.
+export function readItemIndex(userId, read, upgrade = null) {
+  const kept = readIndexFile(indexFile(userId), upgrade);
+  const index = new Map();
+  let differs = kept.upgraded === true;
+  for (const folder of itemFolders(userId)) {
+    const changed = itemFolderChanged(userId, folder);
+    if (changed === null) continue;
+    const was = kept.get(folder);
+    if (was && was.changed === changed) {
+      index.set(folder, was);
       continue;
     }
-    const was = kept.get(folder);
-    let item;
-    if (was && was.changed === changed) {
-      item = was.item;
-      same -= 1;
-    } else {
-      item = readItem(userId, folder);
-      same = -1;
-    }
-    if (!item) continue;
-    items.push(item);
-    if (changed < settled) lines.push(`${JSON.stringify([folder, changed, item])}\n`);
+    differs = true;
+    const value = read(folder);
+    if (value) index.set(folder, { changed, value });
   }
-  // Written again only where a folder was read, or one kept is gone. Never
-  // a reason for the server not to start.
-  if (same !== 0) {
-    try {
-      writeSnapshot(file, lines);
-    } catch (error) {
-      console.warn(`rab: ${file} was not written: ${error.message}`);
-    }
+  if (differs || index.size !== kept.size) {
+    writeItemIndex(userId, (function* entries() {
+      for (const [folder, { changed, value }] of index) yield [folder, changed, value];
+    })());
   }
-  return items;
+  return index;
 }
 
 // Every item an account has. A folder with no item.json in it is not an item
@@ -369,8 +390,17 @@ function readItemsKept(userId) {
 // own folder under spots/ rather than items/ (see the spots below). And the
 // ones it has deleted, under deleted/ — each with when it was deleted, which
 // one put there by hand without it is taken to be when it was last changed.
-export function readItems(userId) {
-  const items = readItemsKept(userId);
+//
+// `indexed` is for an account whose items/ is not held whole (see
+// readItemIndex): its spots and the ones it has deleted are all that is read.
+export function readItems(userId, { indexed = false } = {}) {
+  const items = [];
+  if (!indexed) {
+    for (const folder of itemFolders(userId)) {
+      const item = readItem(userId, folder);
+      if (item) items.push(item);
+    }
+  }
   for (const folder of spotFolders(userId)) {
     const spot = readSpot(userId, folder);
     if (spot && isItemSpot(spot)) items.push({ ...spot, spot: true });

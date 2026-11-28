@@ -84,6 +84,8 @@ const {
   transaction,
   updateItem, PUBLIC_ID, PUBLIC_NAME,
   adoptPublicItems,
+  publicItemSpots,
+  writePublicIndex,
   warmPublicKeys,
   getBirthdate,
   isAdult,
@@ -1793,7 +1795,7 @@ const LOCATION_ID_RE = /^[a-z0-9-]{1,40}$/;
 
 // The spots of the public account's items from before they were kept: each
 // one that is not among its places yet is added, when the server starts.
-rememberPublicPlaces(getItemsByUser(PUBLIC_ID).map((item) => ({ ...item, located: item.latitude != null })));
+rememberPublicPlaces(publicItemSpots().map((item) => ({ ...item, located: item.latitude != null })));
 
 // The public account has places too (`shared`): the ones somebody else's
 // things are at — a shop, a hall — kept in its folder like any account's, for
@@ -2424,6 +2426,19 @@ app.use((error, req, res, _next) => {
   console.error(error);
   res.status(500).json({ error: "Server error" });
 });
+
+// Stopped (pm2 stop, Ctrl-C): what is held of the public items is written
+// down first, for the next start not to read again the folders changed since.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => {
+    try {
+      writePublicIndex();
+    } catch (error) {
+      console.error(error);
+    }
+    process.exit(0);
+  });
+}
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`rab listening on:`);
