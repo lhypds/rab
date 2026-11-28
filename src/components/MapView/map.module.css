@@ -220,6 +220,10 @@
 
   /* The area's name stays at the head of the column while the rest goes up
      under it. */
+  .listing .sideHead .categoryFilter {
+    margin: 10px 0 0;
+  }
+
   .listing .sideHead {
     position: sticky;
     top: 0;

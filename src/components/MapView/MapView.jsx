@@ -1804,6 +1804,18 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
               </span>
             )}
           </p>
+          {/* At the head of the column, the box that finds items — by their
+              name and what they say — and with them the themes and the
+              categories under it. The same one as in the top bar. In the head,
+              so that it stays in sight with the name as the column scrolls. */}
+          {listing && (
+            <FilterBox
+              className={styles.categoryFilter}
+              value={query}
+              onChange={onQuery}
+              placeholder={t("search.placeholder")}
+            />
+          )}
         </header>
         {/* The box that narrows the list: in the top bar where there is room
             (see Header), and here on a phone. */}
@@ -1826,17 +1838,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
               emptyLabel={t("item.categoryNoMatch")}
             />
           </div>
-        )}
-        {/* At the head of the column, the box that finds items — by their
-            name and what they say — and with them the themes and the
-            categories under it. The same one as in the top bar. */}
-        {listing && (
-          <FilterBox
-            className={styles.categoryFilter}
-            value={query}
-            onChange={onQuery}
-            placeholder={t("search.placeholder")}
-          />
         )}
         {/* The themes, as rows under their name: the one pressed is the one
             the categories under them are narrowed to. */}
