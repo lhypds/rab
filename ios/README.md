@@ -31,7 +31,7 @@ field at the bottom says otherwise (a dev server on the same network, say
 
 **The items.** One screen: your items as a grid of photographs, four across,
 each with its name small under it — what is still on this phone only first,
-marked with a dot, then what rab has. Over the grid, the categories that have
+then what rab has. Over the grid, the categories that have
 items, in a line: one of them narrows the grid to it. A tile opens the item's
 page.
 
@@ -64,9 +64,13 @@ way to its page on rab (**Open on rab**, **Share the link**).
 
 **An item's page.** Its photograph and what it says about itself. The arrow at
 the top right asks rab for it again (pulling the page down does not).
-**Recognize again**, under the background's button, has it recognized again, from its main photograph and the two after
-it (three at most), and what it says written over — on rab too, where it is
-there. "Add photos" asks where from. "Take a photo" opens the camera again for that
+The background's button and **Recognize again** under it go by the photograph
+the page is turned to: the button removes that one's background, or puts it
+back, and it is recognized again from that one and the first two of the
+others (three at most): what it is
+said to be is written into the fields, and nothing more — **Save** keeps it,
+on this phone and on rab. Save also puts onto rab one that is on this phone
+only; there is no other button for that. "Add photos" asks where from. "Take a photo" opens the camera again for that
 item: each press of the round button is one more photograph, and Done adds
 them to it — after the ones it has, on rab too where the item is there; the
 cross adds none. "Choose photos" adds some the phone has already. Several

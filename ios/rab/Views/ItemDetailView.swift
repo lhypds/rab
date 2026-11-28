@@ -8,7 +8,6 @@ struct ItemDetailView: View {
 
     let itemId: String
 
-    @State private var publishing = false
     @State private var error: String?
     @State private var deleting = false
     /// The box that asks where the item is is up; and its answer is on its
@@ -16,6 +15,18 @@ struct ItemDetailView: View {
     @State private var choosingPlace = false
     /// Another place chosen for it, not saved yet.
     @State private var chosenPlace: PlaceChoice?
+    /// The box that asks which category is up; the one the fields say, which
+    /// it ticks; and the one chosen in it, on its way into the fields.
+    @State private var choosingCategory = false
+    @State private var shownCategory = ""
+    @State private var chosenCategory: String?
+    /// The description is being written in: the button that puts the
+    /// keyboard away is up.
+    @State private var describing = false
+    /// Something written or chosen in the fields is not saved yet.
+    @State private var unsavedFields = false
+    /// What the server has just said it is, not saved yet.
+    @State private var suggested: Suggestion?
     /// The photographs are up large, over the screen.
     @State private var viewing: ViewedPhotos?
     /// Which of the photographs the page is turned to.
@@ -32,27 +43,40 @@ struct ItemDetailView: View {
         }
     }
 
+    /// Which of its photographs the page is turned to. The page shows each
+    /// one's cut-out in its place, where it has one: there are as many pages
+    /// as photographs.
+    private func shownOriginal(of item: SavedItem) -> Int {
+        item.allPhotos.indices.contains(shownPhoto) ? shownPhoto : 0
+    }
+
     /// The colour the photograph the page is turned to stands on, where its
-    /// background has been removed — or, of an item not on rab yet, is to
-    /// be: nil where it is as it was taken.
+    /// background has been removed: nil where it is as it was taken.
     private func shownBackdrop(of item: SavedItem) -> String? {
-        guard let remoteId = item.remoteId else { return shownPhoto == 0 ? item.backdropColor : nil }
-        guard let listing = model.listing(remoteId) else { return nil }
-        // The phone has the photographs as they were taken; rab has the
-        // cut-outs among them too.
-        let originals = listing.originals
-        guard originals.indices.contains(shownPhoto),
-              let at = listing.images?.firstIndex(where: { $0.src == originals[shownPhoto].src }),
-              let cut = listing.cutOut(at: at)
-        else { return nil }
-        return listing.images?[cut].backdrop
+        let index = shownOriginal(of: item)
+        guard let remoteId = item.remoteId else {
+            // Not on rab yet: the cut-outs are the phone's own.
+            guard item.allPhotos.indices.contains(index), item.cut(of: item.allPhotos[index]) != nil else { return nil }
+            return (index == 0 ? item.backdropColor : nil) ?? BackgroundRemover.defaultBackdrop
+        }
+        // On rab: the one in the same place there says.
+        guard let pictures = model.listing(remoteId)?.images, pictures.indices.contains(index) else { return nil }
+        return pictures[index].backdrop
+    }
+
+    /// Removes the background of the photograph the page is turned to, or
+    /// puts it back. What comes of it is in the same place: the page stays
+    /// where it is.
+    private func setBackdrop(_ hex: String?, of item: SavedItem) async throws {
+        try await model.setBackdrop(hex, of: item, photo: shownOriginal(of: item))
     }
 
     @ViewBuilder
     private func content(_ item: SavedItem) -> some View {
         List {
             Section {
-                let photos = item.allPhotos
+                // Each as its cut-out, where its background has been removed.
+                let photos = item.shownPhotos
                 PhotoPager(count: photos.count, shown: $shownPhoto) { index in
                     PhotoView(item: item, file: photos[index], squared: true)
                         // Pressed, it is shown large.
@@ -73,28 +97,23 @@ struct ItemDetailView: View {
             // background, on a colour, or the photograph as it was taken. Of
             // one not on rab yet it is only said, and done as it goes up.
             Section {
-                // Of the photograph the page is turned to. Of an item not on
-                // rab yet only the main one's can be said.
-                if item.remoteId != nil || shownPhoto == 0 {
-                    BackdropRows(backdrop: shownBackdrop(of: item), error: $error) { hex in
-                        try await model.setBackdrop(hex, of: item, photo: shownPhoto)
-                    }
+                // Of the photograph the page is turned to.
+                BackdropRows(backdrop: shownBackdrop(of: item), error: $error) { hex in
+                    try await setBackdrop(hex, of: item)
                 }
                 // The photograph the page is turned to, made the main one:
-                // not offered of the first, which is it.
-                if shownPhoto > 0, item.allPhotos.indices.contains(shownPhoto) {
+                // not offered of the first, which is it, nor of its cut-out.
+                if shownOriginal(of: item) > 0, item.shownPhotos.indices.contains(shownPhoto) {
                     MainPhotoRow(shown: $shownPhoto, error: $error) { index in
-                        let names = model.item(item.id)?.allPhotos ?? []
-                        guard names.indices.contains(index) else { return }
-                        try await model.setMainPhoto(names[index], of: item)
+                        // The photograph itself, where the page is on its cut-out.
+                        guard let now = model.item(item.id), now.shownPhotos.indices.contains(index),
+                              let name = now.original(ofShown: now.shownPhotos[index])
+                        else { return }
+                        try await model.setMainPhoto(name, of: item)
                     }
                 }
                 // Under it, the brain: has it recognized again.
-                RecognizeRow(busy: model.recognizing.contains(item.id)) { recognize(item) }
-            } footer: {
-                if item.remoteId == nil, item.backdropColor != nil {
-                    Text("The background is removed when it goes onto rab.")
-                }
+                RecognizeRow(again: item.isRecognized, busy: model.recognizing.contains(item.id)) { recognize(item) }
             }
 
             // In the language the app is in: what is written here is that language's.
@@ -114,20 +133,19 @@ struct ItemDetailView: View {
                 placeName: model.place(item.locationId)?.name,
                 place: $chosenPlace,
                 choosePlace: { choosingPlace = true },
-                save: { draft in try await model.save(draft, for: item) },
-                savePlace: { place in try await model.setPlace(place, for: item) }
+                category: $chosenCategory,
+                chooseCategory: { shownCategory = $0; choosingCategory = true },
+                describing: $describing,
+                suggestion: $suggested,
+                // Not on rab yet: Save puts it there, as it is.
+                unsent: item.remoteId == nil,
+                save: { draft, recognized in try await model.save(draft, for: item, recognized: recognized) },
+                savePlace: { place in try await model.setPlace(place, for: item) },
+                unsaved: $unsavedFields
             )
 
-            Section {
-                let spots = item.collectedFor.compactMap { model.spot($0)?.title }
-                if !spots.isEmpty {
-                    LabeledContent("Spot", value: spots.joined(separator: ", "))
-                }
-                LabeledContent("Taken", value: item.createdAt.formatted(date: .abbreviated, time: .shortened))
-            }
-
-            Section {
-                if let remoteId = item.remoteId {
+            if let remoteId = item.remoteId {
+                Section {
                     // In the user's items on rab: published from here, or
                     // not — and only a published one has a page to be
                     // opened and passed around.
@@ -140,22 +158,6 @@ struct ItemDetailView: View {
                             Label("Share the link", systemImage: "square.and.arrow.up")
                         }
                     }
-                } else {
-                    Button {
-                        publish(item)
-                    } label: {
-                        HStack {
-                            Label("Add to my items on rab", systemImage: "plus")
-                            Spacer()
-                            if publishing { ProgressView().controlSize(.small) }
-                        }
-                    }
-                    // What has no name yet has nothing to be listed as.
-                    .disabled(publishing || !item.isRecognized || model.recognizing.contains(item.id))
-                }
-            } footer: {
-                if !item.isRecognized {
-                    Text("Not recognized yet. Recognize says what it is, and it then goes onto rab.")
                 }
             }
 
@@ -167,10 +169,6 @@ struct ItemDetailView: View {
 
             Section {
                 Button("Delete", role: .destructive) { deleting = true }
-            } footer: {
-                if item.remoteId != nil {
-                    Text("Deletes it from this phone. On rab it stays until you take it down there.")
-                }
             }
         }
         .listStyle(.insetGrouped)
@@ -183,6 +181,8 @@ struct ItemDetailView: View {
         // pressing anywhere on it that is not a field.
         .scrollDismissesKeyboard(.interactively)
         .dismissesKeyboardOnTap()
+        .hideKeyboardButton(shown: describing)
+        .asksBeforeDiscarding(unsavedFields)
         .navigationTitle(item.isRecognized ? Text(verbatim: item.words(in: model.language).title) : Text("Not recognized yet"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
@@ -190,13 +190,19 @@ struct ItemDetailView: View {
             // Asked for again by the arrow at the top, not by pulling down.
             ToolbarItem(placement: .topBarTrailing) {
                 RefreshButton(scale: 1.3) { await model.loadListings() }
+                    // A little lower than the middle: the arrowhead stands
+                    // up over the ring, and the whole looks high without.
+                    .offset(y: 1.5)
             }
         }
         .fullScreenCover(item: $viewing) { photos in
             // The files' names as they were when it was opened: the row it shows.
             let names = photos.urls.map(\.lastPathComponent)
             PhotoViewer(photos: photos) { index in
-                try await model.removePhoto(names[index], from: item)
+                // The photograph itself, where what is shown is its cut-out:
+                // the two go together.
+                let name = model.item(item.id)?.original(ofShown: names[index]) ?? names[index]
+                try await model.removePhoto(name, from: item)
             }
         }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
@@ -209,10 +215,27 @@ struct ItemDetailView: View {
             // Only chosen: Save keeps it.
             choose: { choosePlace($0, for: item) }
         )
+        // The categories, asked the same way: the row that shows the one it
+        // is in puts this up.
+        .categoryChoice(isPresented: $choosingCategory, current: shownCategory) { chosenCategory = $0 }
         .photoSourceChoice(isPresented: $askingSource, source: $photoSource)
-        .compactDialog(isPresented: $deleting, title: Text("Delete this item?"), confirm: "Delete") {
-            model.delete(item)
-            dismiss()
+        .compactDialog(
+            isPresented: $deleting,
+            title: Text("Delete this item?"),
+            message: item.remoteId == nil ? nil : Text("It is deleted from rab for good, and any open bookings of it are cancelled."),
+            confirm: "Delete"
+        ) {
+            // From rab as well, where it is there: the page closes once it
+            // is gone, and stays with the reason where it could not be.
+            error = nil
+            Task {
+                do {
+                    try await model.remove(item)
+                    dismiss()
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
         }
     }
 
@@ -237,20 +260,9 @@ struct ItemDetailView: View {
         error = nil
         Task {
             do {
-                try await model.recognize(item)
-            } catch {
-                self.error = error.localizedDescription
-            }
-        }
-    }
-
-    private func publish(_ item: SavedItem) {
-        publishing = true
-        error = nil
-        Task {
-            defer { publishing = false }
-            do {
-                try await model.publish(item)
+                // Only shown, in the fields: Save keeps it, and sends it up.
+                // By the photograph the page is turned to first.
+                if let said = try await model.suggestion(for: item, first: shownOriginal(of: item)) { suggested = said }
             } catch {
                 self.error = error.localizedDescription
             }

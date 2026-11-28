@@ -49,6 +49,31 @@ private struct KeyboardDismisser: UIViewRepresentable {
 }
 
 extension View {
+    /// A round button floating over the keyboard, at its right, that puts
+    /// it away: for a field in which return starts a new line. It stands a
+    /// little clear of the keyboard, not against it.
+    func hideKeyboardButton(shown: Bool) -> some View {
+        overlay(alignment: .bottomTrailing) {
+            if shown {
+                Button {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.black)
+                        .frame(width: 40, height: 36)
+                        .background(Color.white, in: Capsule())
+                        .shadow(color: .black.opacity(0.18), radius: 4, y: 1)
+                }
+                .accessibilityLabel("Hide keyboard")
+                .padding(.trailing, 12)
+                .padding(.bottom, 12)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: shown)
+    }
+
     /// The keyboard goes away when the page is pressed anywhere but in a field.
     func dismissesKeyboardOnTap() -> some View {
         background(KeyboardDismisser().frame(width: 0, height: 0))

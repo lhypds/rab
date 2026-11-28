@@ -28,6 +28,12 @@ enum Categories {
         LocalizedStringKey(names[slug] ?? slug)
     }
 
+    /// The same as plain words, in the language the app is in: for what is
+    /// drawn from a string, as the app's own boxes of choices are.
+    static func text(_ slug: String) -> String {
+        Language.text(String.LocalizationValue(names[slug] ?? slug))
+    }
+
     /// What a row says an item is: its category, or just an item where it
     /// has none.
     static func label(_ slug: String?) -> LocalizedStringKey {

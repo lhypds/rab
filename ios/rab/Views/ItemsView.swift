@@ -101,16 +101,16 @@ struct ItemsView: View {
                             .foregroundStyle(.red)
                     }
                     LazyVGrid(columns: ItemGrid.columns, spacing: ItemGrid.gap) {
-                        // What is still on this phone only, marked with a dot.
+                        // What is still on this phone only.
                         ForEach(onPhone.filter { shows($0.category, recognized: $0.isRecognized) }) { item in
-                            ItemTile(name: item.words(in: model.language).title, busy: model.recognizing.contains(item.id), waiting: true, picked: picked?.contains(.saved(item.id))) {
+                            ItemTile(name: item.words(in: model.language).title, busy: model.recognizing.contains(item.id), picked: picked?.contains(.saved(item.id))) {
                                 PhotoView(item: item, maxPixel: 120, fills: true)
                             }
                             .pressed(.saved(item.id), path: $path, picked: $picked)
                         }
                         // What rab has: the user's items as the website lists them.
                         ForEach(listings.filter { shows($0.category, recognized: true) }) { listing in
-                            ItemTile(name: listing.words(in: model.language).title, busy: model.recognizing.contains(listing.id), waiting: false, picked: picked?.contains(.listing(listing.id))) {
+                            ItemTile(name: listing.words(in: model.language).title, busy: model.recognizing.contains(listing.id), picked: picked?.contains(.listing(listing.id))) {
                                 RemotePhoto(path: listing.thumb ?? listing.images?.first?.thumb ?? listing.images?.first?.src, fills: true)
                             }
                             .pressed(.listing(listing.id), path: $path, picked: $picked)
@@ -235,6 +235,10 @@ struct ItemsView: View {
                         // square's full size it looks the largest of them.
                         RefreshButton(scale: BarIcon.side * 0.8 / RefreshIcon.side) { await model.loadListings() }
                             .frame(width: BarIcon.side, height: BarIcon.side)
+                            // A little lower than the middle: the arrowhead
+                            // stands up over the ring, and the whole looks
+                            // high beside the bar's other icons without.
+                            .offset(y: 1.5)
                         // The globe: which language the app is in.
                         Button { choosingLanguage = true } label: {
                             BarIcon(name: "globe")
@@ -406,10 +410,12 @@ struct ItemsView: View {
     private func deletePicked() {
         let taken = takePicked()
         trouble = nil
-        for item in taken.saved { model.delete(item) }
         Task {
             var failed = 0
             var why = ""
+            for item in taken.saved {
+                do { try await model.remove(item) } catch { failed += 1; why = error.localizedDescription }
+            }
             for listing in taken.listings {
                 do { try await model.delete(listing) } catch { failed += 1; why = error.localizedDescription }
             }
@@ -524,12 +530,61 @@ struct PhotoPlaceholder: View {
         Color(white: 0.92)
             .overlay {
                 if loading {
-                    ProgressView().controlSize(.small)
+                    RowSpinner()
                 } else {
                     Image(systemName: "photo")
                         .foregroundStyle(Color(white: 0.6))
                 }
             }
+    }
+}
+
+/// A photograph of an item on rab as it will be once Save is pressed: its
+/// subject cut out, with the bytes of the photograph as it was taken — or,
+/// with none, the photograph as it was taken, put back in a cut-out's place.
+///
+/// Or, with no picture of its own, a cut-out that is to be taken away, its
+/// photograph standing right after it still: `shows` is that photograph's
+/// address, shown in the cut-out's place until then.
+struct PendingPhoto {
+    var image: UIImage? = nil
+    var taken: Data? = nil
+    var shows: String? = nil
+}
+
+/// Asks before a page is left with something on it not saved: while there
+/// is, the bar's way back is the page's own, which asks first.
+private struct AsksBeforeDiscarding: ViewModifier {
+    let unsaved: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var asking = false
+
+    func body(content: Content) -> some View {
+        content
+            .navigationBarBackButtonHidden(unsaved)
+            .toolbar {
+                if unsaved {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            asking = true
+                        } label: {
+                            Image(systemName: "chevron.left").fontWeight(.semibold)
+                        }
+                        .accessibilityLabel("Back")
+                    }
+                }
+            }
+            .compactDialog(isPresented: $asking, title: Text("Discard changes?"), confirm: "Discard") {
+                dismiss()
+            }
+    }
+}
+
+extension View {
+    /// While `unsaved`, going back asks whether what was changed is to be
+    /// thrown away.
+    func asksBeforeDiscarding(_ unsaved: Bool) -> some View {
+        modifier(AsksBeforeDiscarding(unsaved: unsaved))
     }
 }
 
@@ -547,18 +602,23 @@ struct BackdropRows: View {
     let apply: (String?) async throws -> Void
 
     @State private var busy = false
+    /// Why it could not be done, said right under the button: the page's
+    /// own line for what went wrong is at its foot, out of sight from here,
+    /// and a button that only does nothing looks broken.
+    @State private var failure: String?
 
     var body: some View {
         let removed = backdrop != nil
         Button {
             busy = true
             error = nil
+            failure = nil
             Task {
                 defer { busy = false }
                 do {
                     try await apply(removed ? nil : BackgroundRemover.defaultBackdrop)
                 } catch {
-                    self.error = error.localizedDescription
+                    failure = error.localizedDescription
                 }
             }
         } label: {
@@ -569,10 +629,18 @@ struct BackdropRows: View {
                     Label("Remove background", systemImage: "person.and.background.dotted")
                 }
                 Spacer()
-                if busy { ProgressView().controlSize(.small) }
+                if busy { RowSpinner() }
             }
         }
         .disabled(busy)
+        // Another photograph is another matter.
+        .onChange(of: backdrop) { failure = nil }
+
+        if let failure {
+            Text(failure)
+                .font(Compact.small)
+                .foregroundStyle(.red)
+        }
     }
 }
 
@@ -605,7 +673,7 @@ struct MainPhotoRow: View {
             HStack {
                 Label("Set as main photo", systemImage: "star")
                 Spacer()
-                if busy { ProgressView().controlSize(.small) }
+                if busy { RowSpinner() }
             }
         }
         .disabled(busy)
@@ -643,7 +711,7 @@ struct PublishRow: View {
                     Label("Publish", systemImage: "eye")
                 }
                 Spacer()
-                if busy { ProgressView().controlSize(.small) }
+                if busy { RowSpinner() }
             }
         }
         .disabled(busy)
@@ -666,6 +734,22 @@ struct ListingDetailView: View {
     @State private var choosingPlace = false
     /// Another place chosen for it, not saved yet.
     @State private var chosenPlace: PlaceChoice?
+    /// The box that asks which category is up; the one the fields say, which
+    /// it ticks; and the one chosen in it, on its way into the fields.
+    @State private var choosingCategory = false
+    @State private var shownCategory = ""
+    @State private var chosenCategory: String?
+    /// The description is being written in: the button that puts the
+    /// keyboard away is up.
+    @State private var describing = false
+    /// Something written or chosen in the fields is not saved yet.
+    @State private var unsavedFields = false
+    /// The photographs whose background was removed or put back, looked at
+    /// and not kept yet, by their addresses: Save keeps them, and leaving
+    /// the page throws them away.
+    @State private var pendingPhotos: [String: PendingPhoto] = [:]
+    /// What the server has just said it is, not saved yet.
+    @State private var suggested: Suggestion?
     /// The photograph is being fetched to be shared; and, fetched, the file
     /// the share sheet is up for.
     @State private var fetchingPhoto = false
@@ -697,33 +781,79 @@ struct ListingDetailView: View {
     }
 
     /// Whether the photograph at a place in the row can be made the main
-    /// one: any but the first, which is it, and the one the main cut-out was
-    /// made of, which is it too.
+    /// one: any but the first, which is it.
     private func canBeMain(_ index: Int, of listing: Listing) -> Bool {
-        let pictures = listing.images ?? []
-        guard index > 0, pictures.indices.contains(index) else { return false }
-        if index == 1, pictures[0].backdrop != nil, pictures[1].backdrop == nil { return false }
-        return true
+        index > 0 && (listing.images ?? []).indices.contains(index)
     }
 
     /// The colour the photograph the page is turned to stands on, where its
-    /// background has been removed — it is the cut-out, or the photograph a
-    /// cut-out was made of: nil where it has not.
+    /// background is removed — as it will be once saved, where the button
+    /// was pressed just now: nil where it is as it was taken.
     private func shownBackdrop(of listing: Listing) -> String? {
-        guard let at = listing.cutOut(at: shownPhoto) else { return nil }
-        return listing.images?[at].backdrop
+        guard let pictures = listing.images, pictures.indices.contains(shownPhoto) else { return nil }
+        let picture = pictures[shownPhoto]
+        if let pending = pendingPhotos[picture.src] {
+            return pending.taken == nil ? nil : BackgroundRemover.defaultBackdrop
+        }
+        return picture.backdrop
     }
 
     /// Removes the background of the photograph the page is turned to, or
-    /// puts it back. The page stays on that photograph: on its cut-out once
-    /// there is one, which takes its place in the row, and on the photograph
-    /// itself once the cut-out before it is gone.
+    /// puts it back — here, to be looked at: nothing goes to rab until Save
+    /// is pressed. Pressed again, it is as it was, and there is nothing to
+    /// save of it.
     private func setBackdrop(_ hex: String?, of listing: Listing) async throws {
         guard let pictures = model.listing(listing.id)?.images, pictures.indices.contains(shownPhoto) else { return }
-        let index = shownPhoto
-        let wasAfterCut = pictures[index].backdrop == nil && listing.cutOut(at: index) != nil
-        try await model.setBackdrop(hex, ofListing: listing.id, picture: pictures[index].src)
-        if hex == nil, wasAfterCut, shownPhoto == index { shownPhoto = index - 1 }
+        let picture = pictures[shownPhoto]
+        if pendingPhotos[picture.src] != nil {
+            pendingPhotos[picture.src] = nil
+            return
+        }
+        if hex != nil {
+            let made = try await model.cutOutPreview(of: picture.src)
+            pendingPhotos[picture.src] = PendingPhoto(image: made.image, taken: made.taken)
+        } else if let original = model.originalPreview(ofCut: picture.src) {
+            pendingPhotos[picture.src] = PendingPhoto(image: original, taken: nil)
+        } else if let after = model.listing(listing.id)?.originalAfter(cutAt: shownPhoto) {
+            // Not on this phone, but right after it on rab: a cut-out from
+            // when one was put in front of its photograph. It is shown as
+            // that photograph, and taken away when Save is pressed.
+            pendingPhotos[picture.src] = PendingPhoto(shows: after.src)
+        } else {
+            throw APIError(status: 0, code: nil, message: Language.text("The original photo is not on this phone"))
+        }
+    }
+
+    /// One of its photographs as the page shows it: as it will be once
+    /// saved, where its background was removed or put back just now, and
+    /// as rab has it otherwise.
+    @ViewBuilder
+    private func shownPhotograph(_ picture: Listing.Picture) -> some View {
+        if let image = pendingPhotos[picture.src]?.image {
+            SquaredPhoto(image: Image(uiImage: image), ground: pendingPhotos[picture.src]?.taken == nil ? nil : Color.white)
+        } else if let shows = pendingPhotos[picture.src]?.shows {
+            RemotePhoto(path: shows, squared: true)
+        } else {
+            RemotePhoto(path: picture.src, squared: true, backdrop: picture.backdrop)
+        }
+    }
+
+    /// Save: what was looked at is kept on rab.
+    private func savePhotos(of listing: Listing) async throws {
+        var cuts: [String: (image: UIImage, taken: Data)] = [:]
+        var restored: [String] = []
+        var dropped: [String] = []
+        for (src, pending) in pendingPhotos {
+            if let image = pending.image, let taken = pending.taken {
+                cuts[src] = (image, taken)
+            } else if pending.shows != nil {
+                dropped.append(src)
+            } else {
+                restored.append(src)
+            }
+        }
+        try await model.saveBackdrops(ofListing: listing.id, cuts: cuts, restored: restored, dropped: dropped)
+        pendingPhotos = [:]
     }
 
     /// Makes it so: the row as rab has it now, not as it was when the page
@@ -740,7 +870,7 @@ struct ListingDetailView: View {
             if let pictures = listing.images, !pictures.isEmpty {
                 Section {
                     PhotoPager(count: pictures.count, shown: $shownPhoto) { index in
-                        RemotePhoto(path: pictures[index].src, squared: true, backdrop: pictures[index].backdrop)
+                        shownPhotograph(pictures[index])
                             // Pressed, it is shown large.
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -784,7 +914,7 @@ struct ListingDetailView: View {
                         HStack {
                             Label("Share the photo", systemImage: "photo")
                             Spacer()
-                            if fetchingPhoto { ProgressView().controlSize(.small) }
+                            if fetchingPhoto { RowSpinner() }
                         }
                     }
                     .disabled(fetchingPhoto)
@@ -808,8 +938,15 @@ struct ListingDetailView: View {
                 placeName: model.place(of: listing)?.name ?? (listing.located == false ? nil : listing.place),
                 place: $chosenPlace,
                 choosePlace: { choosingPlace = true },
-                save: { draft in try await model.save(draft, for: listing) },
-                savePlace: { place in try await model.setPlace(place, for: listing) }
+                category: $chosenCategory,
+                chooseCategory: { shownCategory = $0; choosingCategory = true },
+                describing: $describing,
+                suggestion: $suggested,
+                save: { draft, recognized in try await model.save(draft, for: listing, recognized: recognized) },
+                savePlace: { place in try await model.setPlace(place, for: listing) },
+                more: !pendingPhotos.isEmpty,
+                saveMore: { try await savePhotos(of: listing) },
+                unsaved: $unsavedFields
             )
 
             // Published, or not: and only a published one has a page to be
@@ -835,7 +972,7 @@ struct ListingDetailView: View {
                     HStack {
                         Text("Delete")
                         Spacer()
-                        if deleting { ProgressView().controlSize(.small) }
+                        if deleting { RowSpinner() }
                     }
                 }
                 .disabled(deleting)
@@ -853,6 +990,8 @@ struct ListingDetailView: View {
         // pressing anywhere on it that is not a field.
         .scrollDismissesKeyboard(.interactively)
         .dismissesKeyboardOnTap()
+        .hideKeyboardButton(shown: describing)
+        .asksBeforeDiscarding(unsavedFields || !pendingPhotos.isEmpty)
         .navigationTitle(Text(verbatim: listing.words(in: model.language).title))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
@@ -860,6 +999,9 @@ struct ListingDetailView: View {
             // Asked for again by the arrow at the top, not by pulling down.
             ToolbarItem(placement: .topBarTrailing) {
                 RefreshButton(scale: 1.3) { await model.loadListings() }
+                    // A little lower than the middle: the arrowhead stands
+                    // up over the ring, and the whole looks high without.
+                    .offset(y: 1.5)
             }
         }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
@@ -872,6 +1014,9 @@ struct ListingDetailView: View {
             // Only chosen: Save keeps it. The one it is at already is no change.
             choose: { choosePlace($0, for: listing) }
         )
+        // The categories, asked the same way: the row that shows the one it
+        // is in puts this up.
+        .categoryChoice(isPresented: $choosingCategory, current: shownCategory) { chosenCategory = $0 }
         .fullScreenCover(item: $viewing) { photos in
             // The addresses as they were when it was opened: the row it shows.
             let sources = (listing.images ?? []).map(\.src)
@@ -901,7 +1046,16 @@ struct ListingDetailView: View {
         error = nil
         Task {
             do {
-                try await model.recognize(listing)
+                // Only shown, in the fields: Save keeps it.
+                // By the photograph the page is turned to first — the one
+                // its cut-out was made of, where it is on a cut-out.
+                let pictures = listing.images ?? []
+                var first: String?
+                if pictures.indices.contains(shownPhoto) {
+                    let cut = pictures[shownPhoto].backdrop != nil && pictures.indices.contains(shownPhoto + 1)
+                    first = pictures[cut ? shownPhoto + 1 : shownPhoto].src
+                }
+                if let said = try await model.suggestion(for: listing, first: first) { suggested = said }
             } catch {
                 self.error = error.localizedDescription
             }
@@ -992,7 +1146,7 @@ struct AddPhotoRows: View {
             HStack {
                 Label("Add photos", systemImage: "photo.badge.plus")
                 Spacer()
-                if adding > 0 { ProgressView().controlSize(.small) }
+                if adding > 0 { RowSpinner() }
             }
         }
         .disabled(adding > 0)
@@ -1063,12 +1217,41 @@ struct ItemEditor: View {
     @Binding var place: PlaceChoice?
     /// Puts the page's box up: a box put up by a row is drawn inside it.
     let choosePlace: () -> Void
-    let save: (ItemDraft) async throws -> Void
+    /// A category chosen in the page's box of them: written into the fields
+    /// here as soon as it is, as one typed would be, and nothing after that.
+    @Binding var category: String?
+    /// Puts that box up, told the category the fields say now: the one it
+    /// ticks.
+    let chooseCategory: (String) -> Void
+    /// Whether the description is the field being written in: the page
+    /// then floats a button over the keyboard that puts it away (see
+    /// `hideKeyboardButton`) — return starts a new line there.
+    @Binding var describing: Bool
+    /// What the server has just said it is, asked by the page's Recognize:
+    /// written into the fields here, and kept — in every language it was
+    /// said in — when Save is pressed. Nothing goes anywhere until then.
+    @Binding var suggestion: Suggestion?
+    /// Whether it is on this phone only: Save then puts it on rab, changed
+    /// here or not.
+    let unsent: Bool
+    let save: (ItemDraft, Suggestion?) async throws -> Void
     let savePlace: (Place?) async throws -> Void
+    /// Whether the page has something else that Save is to keep — a
+    /// photograph whose background was removed, looked at and not kept yet
+    /// — and what keeps it.
+    let more: Bool
+    let saveMore: () async throws -> Void
+    /// Told whether anything written or chosen here is not saved yet: the
+    /// page asks before it is left with that thrown away.
+    @Binding var unsaved: Bool
 
+    @Environment(AppModel.self) private var model
     @State private var draft: ItemDraft
     /// One of the fields is being written in: the keyboard is up.
-    @FocusState private var writing: Bool
+    /// The fields that are written in.
+    private enum Field { case name, what, description }
+
+    @FocusState private var writing: Field?
     @State private var saving = false
     @State private var error: String?
 
@@ -1077,68 +1260,91 @@ struct ItemEditor: View {
         placeName: String?,
         place: Binding<PlaceChoice?>,
         choosePlace: @escaping () -> Void,
-        save: @escaping (ItemDraft) async throws -> Void,
-        savePlace: @escaping (Place?) async throws -> Void
+        category: Binding<String?>,
+        chooseCategory: @escaping (String) -> Void,
+        describing: Binding<Bool>,
+        suggestion: Binding<Suggestion?>,
+        unsent: Bool = false,
+        save: @escaping (ItemDraft, Suggestion?) async throws -> Void,
+        savePlace: @escaping (Place?) async throws -> Void,
+        more: Bool = false,
+        saveMore: @escaping () async throws -> Void = {},
+        unsaved: Binding<Bool>
     ) {
         self.source = source
         self.placeName = placeName
         _place = place
         self.choosePlace = choosePlace
+        _category = category
+        self.chooseCategory = chooseCategory
+        _describing = describing
+        _suggestion = suggestion
+        self.unsent = unsent
         self.save = save
         self.savePlace = savePlace
+        self.more = more
+        self.saveMore = saveMore
+        _unsaved = unsaved
         _draft = State(initialValue: source)
     }
 
     private var written: Bool { draft.tidy != source.tidy }
-    private var changed: Bool { written || place != nil }
-    private var ready: Bool { changed && !saving && !draft.tidy.title.isEmpty }
-
-    /// The object categories, and whatever other one it is in already.
-    private var categories: [String] {
-        Categories.objects.contains(draft.category) || draft.category.isEmpty ? Categories.objects : [draft.category] + Categories.objects
-    }
+    private var changed: Bool { written || place != nil || suggestion != nil }
+    private var ready: Bool { (changed || unsent || more) && !saving && !draft.tidy.title.isEmpty }
 
     var body: some View {
         Section {
             // No grey words inside the fields: each is under what it is.
-            field("Name") {
-                TextField("", text: $draft.title, axis: .vertical)
-                    .lineLimit(1...3)
+            field("Name", .name) {
+                // One line and no more, in the system's own one-line field:
+                // it neither grows onto a second line nor scrolls under the
+                // finger, as a field that may wrap does when held to one —
+                // a name too long for it is followed by the cursor. Its type
+                // is said outright: left to itself this kind of box came
+                // out a little smaller than the two under it when pressed.
+                TextField("", text: $draft.title)
+                    .font(Compact.font)
+                    .submitLabel(.done)
                     .accessibilityLabel("Name")
-                    .focused($writing)
+                    .focused($writing, equals: .name)
+                    // A line break pasted in is taken out as well.
+                    .onChange(of: draft.title) { old, new in
+                        let kept = oneLine(new, was: old)
+                        if kept != draft.title { draft.title = kept }
+                    }
             }
-            field("What is it") {
-                // Made as the two beside it are — a field that may wrap — so
-                // that it is drawn at the same size as they are, written in
-                // or not: a one-line field is another kind of box, and came
-                // out a little smaller when pressed. It is still one line's
-                // worth: a line break typed into it is taken out.
-                TextField("", text: $draft.what, axis: .vertical)
-                    .lineLimit(1...2)
+            field("What is it", .what) {
+                // The same one-line field as the name over it, with the same
+                // keyboard: return is "done" on both, and puts it away.
+                TextField("", text: $draft.what)
+                    .font(Compact.font)
+                    .submitLabel(.done)
                     .accessibilityLabel("What is it")
-                    .focused($writing)
-                    .onChange(of: draft.what) {
-                        var kept = draft.what.replacingOccurrences(of: "\n", with: " ")
+                    .focused($writing, equals: .what)
+                    .onChange(of: draft.what) { old, new in
+                        var kept = oneLine(new, was: old)
                         // The server keeps no more than this.
                         if kept.count > whatMax { kept = String(kept.prefix(whatMax)) }
                         if kept != draft.what { draft.what = kept }
                     }
             }
-            field("Description") {
+            field("Description", .description) {
                 TextField("", text: $draft.description, axis: .vertical)
                     .lineLimit(2...10)
                     .accessibilityLabel("Description")
-                    .focused($writing)
+                    .focused($writing, equals: .description)
+                    // Return starts a new line here, so there is nothing on
+                    // the keyboard that puts it away: the page floats a
+                    // button over it while this is the field written in.
+                    .onChange(of: writing) { _, now in describing = now == .description }
+                    .onDisappear { describing = false }
             }
-            // A menu whose own label is the row: the system's picker writes
-            // what is chosen in its own size, larger than the page's.
-            Menu {
-                Picker("Category", selection: $draft.category) {
-                    Text("None").tag("")
-                    ForEach(categories, id: \.self) { slug in
-                        Text(Categories.name(slug)).tag(slug)
-                    }
-                }
+            // Pressed, the categories are asked in the app's own box in the
+            // middle of the screen, as where it is is — not the system's
+            // menu, which writes what is chosen in its own, larger size.
+            Button {
+                writing = nil
+                chooseCategory(draft.category)
             } label: {
                 HStack(spacing: 4) {
                     Text("Category")
@@ -1168,7 +1374,21 @@ struct ItemEditor: View {
         .textInputAutocapitalization(.sentences)
         .onChange(of: source) { old, new in
             // Only what was not being written over follows.
-            if draft.tidy == old.tidy { draft = new }
+            if draft.tidy == old.tidy, suggestion == nil { draft = new }
+        }
+        .onChange(of: changed, initial: true) { _, now in unsaved = now }
+        .onDisappear { unsaved = false }
+        .onChange(of: category) { _, chosen in
+            // Chosen in the page's box: it is what the fields say now.
+            guard let chosen else { return }
+            draft.category = chosen
+            category = nil
+        }
+        .onChange(of: suggestion) { _, said in
+            // Recognized: what it is said to be is written into the fields,
+            // in the language the app is in, for Save to keep.
+            guard let said else { return }
+            draft = ItemDraft(said.words(in: model.language), category: said.category)
         }
 
         // White on black once there is something to save; grey until then.
@@ -1177,7 +1397,7 @@ struct ItemEditor: View {
                 HStack {
                     Text("Save")
                     Spacer()
-                    if saving { ProgressView().tint(.white) }
+                    if saving { RowSpinner().tint(.white) }
                 }
                 .foregroundStyle(.white)
                 .contentShape(Rectangle())
@@ -1188,7 +1408,22 @@ struct ItemEditor: View {
         }
     }
 
-    private func field(_ label: LocalizedStringKey, @ViewBuilder _ input: () -> some View) -> some View {
+    /// What was written in a field that is one line's worth, without its
+    /// line breaks. Return pressed — a break typed into what was there —
+    /// adds nothing, and puts the keyboard away: the field is done. Breaks
+    /// that came with something pasted become spaces.
+    private func oneLine(_ new: String, was old: String) -> String {
+        guard new.contains("\n") else { return new }
+        if new.replacingOccurrences(of: "\n", with: "") == old {
+            writing = nil
+            return old
+        }
+        return new.replacingOccurrences(of: "\n", with: " ")
+    }
+
+    /// A field under what it is. Pressing what it is — or anywhere else in
+    /// its row — writes in it, as pressing the field itself does.
+    private func field(_ label: LocalizedStringKey, _ which: Field, @ViewBuilder _ input: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(Compact.small)
@@ -1196,20 +1431,34 @@ struct ItemEditor: View {
             input()
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // A moment later: the page puts the keyboard away at any press
+            // that is not in a field (see KeyboardDismiss), this one too,
+            // and the field is to be written in after that, not before.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                writing = which
+            }
+        }
     }
 
     private func commit() {
         guard ready else { return }
-        writing = false
+        writing = nil
         let tidy = draft.tidy
         saving = true
         error = nil
         Task {
             defer { saving = false }
             do {
-                if written {
-                    try await save(tidy)
+                // The photographs first: what the page looked at is kept.
+                if more { try await saveMore() }
+                if written || suggestion != nil || unsent {
+                    try await save(tidy, suggestion)
                     draft = tidy
+                    suggestion = nil
                 }
                 if let chosen = place {
                     try await savePlace(chosen.place)
@@ -1224,6 +1473,36 @@ struct ItemEditor: View {
 
 /// One of the choices of where an item is: one of the account's places, or
 /// nowhere.
+/// One of the categories an item may be put in, as a line in the box that
+/// asks: its slug, or nothing for none.
+struct CategoryChoice: Identifiable {
+    let id: String
+
+    var name: String { id.isEmpty ? Language.text("None") : Categories.text(id) }
+
+    /// None, then the object categories — and whatever other one the item
+    /// is in already, first of them.
+    static func all(with current: String) -> [CategoryChoice] {
+        let known = Categories.objects.contains(current) || current.isEmpty ? Categories.objects : [current] + Categories.objects
+        return [CategoryChoice(id: "")] + known.map { CategoryChoice(id: $0) }
+    }
+}
+
+extension View {
+    /// Asks which category, in the app's own box in the middle of the
+    /// screen: `current` is the one ticked.
+    func categoryChoice(isPresented: Binding<Bool>, current: String, choose: @escaping (String) -> Void) -> some View {
+        compactChoice(
+            isPresented: isPresented,
+            title: Text("Category"),
+            choices: CategoryChoice.all(with: current),
+            name: { $0.name },
+            chosen: { $0.id == current },
+            choose: { choose($0.id) }
+        )
+    }
+}
+
 struct PlaceChoice: Identifiable {
     let place: Place?
     var id: String { place?.id ?? "" }
@@ -1257,7 +1536,7 @@ struct LocationRow: View {
                 }
                 .foregroundStyle(.secondary)
                 if busy {
-                    ProgressView().controlSize(.small)
+                    RowSpinner()
                 } else {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(Compact.small)
@@ -1274,6 +1553,9 @@ struct LocationRow: View {
 /// The row with the brain: has a photographed thing recognized again. A
 /// wheel turns at its end while the server is looking.
 struct RecognizeRow: View {
+    /// Whether it has been recognized before: "Recognize again" then, and
+    /// "Recognize" of one that has not been yet.
+    var again = true
     let busy: Bool
     let action: () -> Void
 
@@ -1281,12 +1563,12 @@ struct RecognizeRow: View {
         Button(action: action) {
             HStack {
                 Label {
-                    Text("Recognize again")
+                    if again { Text("Recognize again") } else { Text("Recognize") }
                 } icon: {
                     BrainIcon()
                 }
                 Spacer()
-                if busy { ProgressView().controlSize(.small) }
+                if busy { RowSpinner() }
             }
         }
         .disabled(busy)

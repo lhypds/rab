@@ -386,12 +386,15 @@ final class AppModel {
     /// changed there where it is there already, and registered there where
     /// it is not and now has a name. What was written is in the language the
     /// app is in: that language's words are changed, and the others stand.
-    func save(_ draft: ItemDraft, for item: SavedItem) async throws {
+    /// `recognized` is what the server said it is, where the page was filled
+    /// in from that (see `suggestion`): its words in every language are then
+    /// the item's, with what stands on the page in the language it is in.
+    func save(_ draft: ItemDraft, for item: SavedItem, recognized: Suggestion? = nil) async throws {
         guard let api else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
         guard var fresh = self.item(item.id) else { return }
-        let written = Words.written(draft.words, in: language, own: fresh.own, translations: fresh.translations)
+        let written = Words.written(draft.words, in: language, own: recognized?.own ?? fresh.own, translations: recognized.map(\.translations) ?? fresh.translations)
         fresh.title = written.own.title
         fresh.what = written.own.what
         fresh.description = written.own.description
@@ -408,11 +411,11 @@ final class AppModel {
 
     /// The same for an item on rab: written over there, and in the phone's
     /// own copy of it where it has one.
-    func save(_ draft: ItemDraft, for listing: Listing) async throws {
+    func save(_ draft: ItemDraft, for listing: Listing, recognized: Suggestion? = nil) async throws {
         guard let api else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        let written = Words.written(draft.words, in: language, own: listing.own, translations: listing.translations)
+        let written = Words.written(draft.words, in: language, own: recognized?.own ?? listing.own, translations: recognized.map(\.translations) ?? listing.translations)
         try await api.updateItem(listing.id, Self.body(written.own, written.translations, category: draft.category))
         if let index = listings?.firstIndex(where: { $0.id == listing.id }) {
             listings?[index].title = written.own.title
@@ -438,23 +441,63 @@ final class AppModel {
 
     // MARK: - recognizing
 
+    /// What rab's server says a photographed thing on this phone is, and
+    /// nothing more: nothing is written anywhere. The item's page asks this,
+    /// shows it, and keeps it when Save is pressed (see `save`). Nil where
+    /// it is being asked already.
+    /// `first` is the photograph it is gone by first — the one the page is
+    /// turned to — by its place among them: the main one, where none is said.
+    func suggestion(for item: SavedItem, first: Int = 0) async throws -> Suggestion? {
+        guard let store else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        guard !recognizing.contains(item.id) else { return nil }
+        recognizing.insert(item.id)
+        defer { recognizing.remove(item.id) }
+        // That photograph, and the first two of the others where it has them.
+        var names = item.allPhotos
+        if names.indices.contains(first) { names.insert(names.remove(at: first), at: 0) }
+        guard let image = UIImage(contentsOfFile: store.photoURL(named: names[0]).path) else { throw BackgroundRemover.Failure.noImage }
+        let more = names.dropFirst().prefix(Self.describedPhotos - 1)
+            .compactMap { UIImage(contentsOfFile: store.photoURL(named: $0).path) }
+        return try await describe([image] + more, object: true)
+    }
+
+    /// The same for an item on rab: its first photographs — the main one and
+    /// the two after it — are fetched and looked at.
+    /// `first` is the address of the photograph it is gone by first.
+    func suggestion(for listing: Listing, first: String? = nil) async throws -> Suggestion? {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        guard !recognizing.contains(listing.id) else { return nil }
+        recognizing.insert(listing.id)
+        defer { recognizing.remove(listing.id) }
+        var pictures = listing.images ?? []
+        if let first, let at = pictures.firstIndex(where: { $0.src == first }) {
+            pictures.insert(pictures.remove(at: at), at: 0)
+        }
+        guard let path = pictures.first?.src,
+              let image = UIImage(data: try await api.imageData(path))
+        else { throw BackgroundRemover.Failure.noImage }
+        // One after the first that cannot be fetched is left out.
+        var images = [image]
+        for picture in pictures.dropFirst().prefix(Self.describedPhotos - 1) {
+            if let data = try? await api.imageData(picture.src), let next = UIImage(data: data) { images.append(next) }
+        }
+        return try await describe(images, object: true)
+    }
+
     /// Says what a photographed thing is — its category among the objects, its
     /// short category, a name and a description, all from rab's server — and
     /// writes that over whatever it said before. It then goes onto rab — onto
     /// the spot it was collected for; one that is there already is changed
     /// there too.
     func recognize(_ item: SavedItem, refreshing: Bool = true) async throws {
-        guard let api, let store else {
+        guard let api else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        guard !recognizing.contains(item.id) else { return }
-        recognizing.insert(item.id)
-        defer { recognizing.remove(item.id) }
-        guard let image = store.loadPhoto(item) else { throw BackgroundRemover.Failure.noImage }
-        // The main photograph, and the two after it where it has them.
-        let more = item.allPhotos.dropFirst().prefix(Self.describedPhotos - 1)
-            .compactMap { UIImage(contentsOfFile: store.photoURL(named: $0).path) }
-        let suggestion = try await describe([image] + more, object: true)
+        guard let suggestion = try await suggestion(for: item) else { return }
         // Deleted while the server was looking at it.
         guard var fresh = self.item(item.id) else { return }
         fresh.category = suggestion.category
@@ -490,29 +533,13 @@ final class AppModel {
         return file
     }
 
-    /// The same for an item on rab: its first photographs — the main one and
-    /// the two after it — are fetched, looked at, and what it says it is
-    /// written over there.
+    /// The same for an item on rab: its first photographs are looked at, and
+    /// what it says it is written over there.
     func recognize(_ listing: Listing) async throws {
         guard let api else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        guard !recognizing.contains(listing.id) else { return }
-        recognizing.insert(listing.id)
-        defer { recognizing.remove(listing.id) }
-        // The photographs as they were taken: a cut-out made of one says
-        // nothing more than the one it was made of. (All of them, where
-        // there are only cut-outs.)
-        let pictures = listing.originals.isEmpty ? listing.images ?? [] : listing.originals
-        guard let path = pictures.first?.src,
-              let image = UIImage(data: try await api.imageData(path))
-        else { throw BackgroundRemover.Failure.noImage }
-        // One after the main one that cannot be fetched is left out.
-        var images = [image]
-        for picture in pictures.dropFirst().prefix(Self.describedPhotos - 1) {
-            if let data = try? await api.imageData(picture.src), let next = UIImage(data: data) { images.append(next) }
-        }
-        let suggestion = try await describe(images, object: true)
+        guard let suggestion = try await suggestion(for: listing) else { return }
         try await api.updateItem(listing.id, Self.recognized(suggestion))
         // The phone's own copy of it, where it has one, says the same.
         for var copy in items where copy.remoteId == listing.id {
@@ -638,6 +665,28 @@ final class AppModel {
         try store?.saveItems(items)
     }
 
+    /// Deletes an item for good: from rab first, where it is there, and then
+    /// the copy this phone keeps. Where rab cannot be reached nothing is
+    /// deleted, so the two never come apart.
+    func remove(_ item: SavedItem) async throws {
+        guard let fresh = self.item(item.id) else { return }
+        if let remoteId = fresh.remoteId {
+            guard let api else {
+                throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+            }
+            do {
+                try await api.deleteItem(remoteId)
+            } catch let error as APIError where error.status == 404 {
+                // Already gone from there, which is what was asked for.
+            }
+            listings?.removeAll { $0.id == remoteId }
+            if let listings { store?.saveListings(listings) }
+        }
+        delete(fresh)
+    }
+
+    /// Only the copy this phone keeps: for what was never on rab, or is
+    /// already gone from it.
     func delete(_ item: SavedItem) {
         store?.deletePhoto(item)
         items.removeAll { $0.id == item.id }
@@ -664,20 +713,30 @@ final class AppModel {
 
         // Every photograph of it, the first first; one added later whose
         // file is gone is left out.
+        // One whose background was removed goes up as its cut-out, in its
+        // place: the photograph it was made of stays on this phone, for
+        // when its background is put back.
         var pictures: [ImageRef] = []
         for name in item.allPhotos {
             guard let image = UIImage(contentsOfFile: store.photoURL(named: name).path) else { continue }
+            let main = name == item.photo
+            let hex = (main ? item.backdropColor : nil) ?? BackgroundRemover.defaultBackdrop
+            // The one made when the button was pressed, as it was shown —
+            // or, the main one's file being gone, made again now. A
+            // photograph nothing stands out of goes up as it is.
+            var cut: PicturesBody.Picture?
+            if let made = item.cut(of: name).flatMap({ UIImage(contentsOfFile: store.photoURL(named: $0).path) }) {
+                cut = try await upload(made, with: api)
+            } else if main, item.backdropColor != nil {
+                cut = try await cutOut(image, on: hex, with: api)
+            }
+            if let cut {
+                pictures.append(ImageRef(name: cut.name, thumb: cut.thumb, width: cut.width ?? 1, height: cut.height ?? 1, backdrop: hex))
+                if let taken = try? Data(contentsOf: store.photoURL(named: name)) { try? store.keepOriginal(taken, ofCut: cut.name) }
+                continue
+            }
             let sent = try await upload(image, with: api)
             pictures.append(ImageRef(name: sent.name, thumb: sent.thumb, width: sent.width ?? 1, height: sent.height ?? 1))
-        }
-        // And before them all the main one's subject cut out of its
-        // background and stood on a colour — white, unless the item says
-        // another or says none. A photograph nothing stands out of goes up
-        // as it is.
-        if let hex = item.backdropColor,
-           let main = UIImage(contentsOfFile: store.photoURL(named: item.photo).path),
-           let cut = try await cutOut(main, on: hex, with: api) {
-            pictures.insert(ImageRef(name: cut.name, thumb: cut.thumb, width: cut.width ?? 1, height: cut.height ?? 1, backdrop: hex), at: 0)
         }
         let body = ItemBody(
             title: item.title,
@@ -722,51 +781,187 @@ final class AppModel {
 
     /// Has one photograph of an item on rab — the one at the address given
     /// — cut out of its background and stood on a colour ("#rrggbb"), or,
-    /// the colour being nil, puts its background back. The cut-out is a
-    /// photograph of its own, standing just before the one it was made of
-    /// (see `Listing.cutOut(at:)`): putting the background back takes it
-    /// away, and the photograph as it was taken is what is left. What the
-    /// item has is asked of the server first.
+    /// the colour being nil, puts its background back. The cut-out takes the
+    /// photograph's place among the item's: there is still one of it. The
+    /// photograph as it was taken is kept on this phone (see
+    /// `UserStore.keepOriginal`), and is what goes back up when its
+    /// background is put back — which only the phone that has it can do.
+    /// What the item has is asked of the server first.
     func setBackdrop(_ hex: String?, ofListing id: String, picture src: String) async throws {
-        guard let api else {
+        guard let api, let store else {
             throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
         }
-        guard let had = try await api.mine().items.first(where: { $0.id == id }),
-              let pictures = had.images,
+        guard let pictures = try await api.mine().items.first(where: { $0.id == id })?.images,
               let index = pictures.firstIndex(where: { $0.src == src })
         else { throw BackgroundRemover.Failure.noImage }
         var kept = pictures.map { PicturesBody.Picture($0) }
-        let cutAt = had.cutOut(at: index)
         if let hex {
             // Cut out already.
-            guard cutAt == nil else { return }
-            guard let image = UIImage(data: try await api.imageData(src)) else { throw BackgroundRemover.Failure.noImage }
+            guard pictures[index].backdrop == nil else { return }
+            let taken = try await takenBytes(of: src, with: api)
+            guard let image = UIImage(data: taken) else { throw BackgroundRemover.Failure.noImage }
             guard let cut = try await cutOut(image, on: hex, with: api) else { throw BackgroundRemover.Failure.noSubject }
-            kept.insert(cut, at: index)
+            // Marked with the cut-out's name too, where the phone has it
+            // already; kept and marked, where it is new to it.
+            if !store.markOriginal(of: Self.storedName(src), alsoAs: cut.name) { try store.keepOriginal(taken, ofCut: cut.name) }
+            kept[index] = cut
         } else {
-            // A cut-out that is all the item has stays: it is not left with none.
-            guard let cutAt, kept.count > 1 else { return }
-            kept.remove(at: cutAt)
+            guard pictures[index].backdrop != nil else { return }
+            let cut = kept[index].name
+            guard let file = store.originalURL(ofCut: cut), let image = UIImage(contentsOfFile: file.path) else {
+                // Not on this phone. A cut-out from when one was put in
+                // front of its photograph, not in its place, has the
+                // photograph right after it still — the same size, and as
+                // it was taken: taking the cut-out away is all there is to
+                // do. Anything else cannot be put back from here.
+                let next = index + 1
+                if pictures.indices.contains(next), pictures[next].backdrop == nil,
+                   let width = pictures[index].width, let height = pictures[index].height,
+                   pictures[next].width == width, pictures[next].height == height {
+                    kept.remove(at: index)
+                    try await api.updateItem(id, PicturesBody(images: kept))
+                    await loadListings()
+                    return
+                }
+                throw APIError(status: 0, code: nil, message: Language.text("The original photo is not on this phone"))
+            }
+            let back = try await upload(image, with: api)
+            kept[index] = back
+            try await api.updateItem(id, PicturesBody(images: kept))
+            // It stays on the phone, marked with the name it has gone back
+            // up under: what the next cut-out is made of.
+            store.markOriginal(of: cut, alsoAs: back.name)
+            await loadListings()
+            return
         }
         try await api.updateItem(id, PicturesBody(images: kept))
         await loadListings()
     }
 
+    /// A photograph of an item on rab as it was taken, to make a cut-out
+    /// of: the one this phone keeps, where it is marked as that one — the
+    /// very bytes, not a copy that has been through rab again — and
+    /// fetched from rab otherwise.
+    private func takenBytes(of src: String, with api: RabAPI) async throws -> Data {
+        if let file = store?.originalURL(ofCut: Self.storedName(src)), let kept = try? Data(contentsOf: file) { return kept }
+        return try await api.imageData(src)
+    }
+
+    /// The name rab keeps a photograph under, from the address it is at.
+    private static func storedName(_ src: String) -> String {
+        src.components(separatedBy: "?")[0].components(separatedBy: "/").last ?? src
+    }
+
+    /// What one of an item on rab's photographs would be with its
+    /// background removed: its subject on white, made here and sent
+    /// nowhere — to be looked at, and kept only when Save is pressed (see
+    /// `saveBackdrops`). With it the photograph as it was taken, which is
+    /// then kept on this phone.
+    func cutOutPreview(of src: String) async throws -> (image: UIImage, taken: Data) {
+        guard let api else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        let taken = try await takenBytes(of: src, with: api)
+        guard let image = UIImage(data: taken) else { throw BackgroundRemover.Failure.noImage }
+        let cut = try await BackgroundRemover.cutOut(image).over(UIColor(hex: BackgroundRemover.defaultBackdrop) ?? .white)
+        return (cut, taken)
+    }
+
+    /// The photograph a cut-out on rab was made of, where this phone has
+    /// it: what the cut-out would be with its background put back.
+    func originalPreview(ofCut src: String) -> UIImage? {
+        store?.originalURL(ofCut: Self.storedName(src)).flatMap { UIImage(contentsOfFile: $0.path) }
+    }
+
+    /// Keeps on rab what was only looked at till now: the cut-outs made of
+    /// some of an item's photographs, each in its photograph's place — by
+    /// the photograph's address, with the photograph as it was taken, which
+    /// stays on this phone — and the backgrounds put back, by the cut-outs'
+    /// addresses. All at once: the item is told its photographs one time.
+    ///
+    /// `dropped` are cut-outs taken away outright, by their addresses: the
+    /// ones whose photograph stands right after them still (see
+    /// `Listing.originalAfter`).
+    func saveBackdrops(ofListing id: String, cuts: [String: (image: UIImage, taken: Data)], restored: [String], dropped: [String] = []) async throws {
+        guard let api, let store else {
+            throw APIError(status: 0, code: "LOGIN_REQUIRED", message: Language.text("Please sign in"))
+        }
+        guard !cuts.isEmpty || !restored.isEmpty || !dropped.isEmpty else { return }
+        guard let pictures = try await api.mine().items.first(where: { $0.id == id })?.images else {
+            throw BackgroundRemover.Failure.noImage
+        }
+        var kept = pictures.map { PicturesBody.Picture($0) }
+        // The photographs gone back up: each stays on the phone, and is
+        // marked with the name it went up under once the item has it.
+        var marks: [(was: String, now: String)] = []
+        for (index, picture) in pictures.enumerated() {
+            if let cut = cuts[picture.src], picture.backdrop == nil {
+                var sent = try await upload(cut.image, with: api)
+                sent.backdrop = BackgroundRemover.defaultBackdrop
+                if !store.markOriginal(of: Self.storedName(picture.src), alsoAs: sent.name) { try store.keepOriginal(cut.taken, ofCut: sent.name) }
+                kept[index] = sent
+            } else if restored.contains(picture.src), picture.backdrop != nil {
+                let name = kept[index].name
+                guard let file = store.originalURL(ofCut: name), let image = UIImage(contentsOfFile: file.path) else {
+                    throw APIError(status: 0, code: nil, message: Language.text("The original photo is not on this phone"))
+                }
+                let back = try await upload(image, with: api)
+                kept[index] = back
+                marks.append((name, back.name))
+            }
+        }
+        // The ones taken away: never the last photograph it has.
+        let away = Set(pictures.filter { dropped.contains($0.src) && $0.backdrop != nil }.map { PicturesBody.Picture($0).name })
+        let left = kept.filter { !away.contains($0.name) }
+        if !left.isEmpty { kept = left }
+        try await api.updateItem(id, PicturesBody(images: kept))
+        for mark in marks { store.markOriginal(of: mark.was, alsoAs: mark.now) }
+        await loadListings()
+    }
+
     /// The same for one of the photographs of an item on this phone, by its
     /// place among them. Of one that is on rab it is done there; of one that
-    /// is not yet it is only said, and only of the main one: it is done when
-    /// the item goes up.
+    /// is not yet the cut-out is made here, and goes up with the item.
     func setBackdrop(_ hex: String?, of item: SavedItem, photo index: Int) async throws {
         guard var fresh = self.item(item.id) else { return }
         if let remoteId = fresh.remoteId {
-            let there = listing(remoteId)?.originals ?? []
+            let there = listing(remoteId)?.images ?? []
             guard there.indices.contains(index) else { throw BackgroundRemover.Failure.noImage }
             try await setBackdrop(hex, ofListing: remoteId, picture: there[index].src)
             return
         }
-        guard index == 0 else { return }
-        fresh.backdrop = hex ?? BackgroundRemover.noBackdrop
-        try update(fresh)
+        guard let store, fresh.allPhotos.indices.contains(index) else { return }
+        let name = fresh.allPhotos[index]
+        guard let hex else {
+            forgetCut(of: &fresh, photo: name)
+            try update(fresh)
+            return
+        }
+        // Made here and now, and kept beside the photograph it is made of:
+        // what the item's page — and, of the main one, its tile — show
+        // from then on.
+        guard let image = UIImage(contentsOfFile: store.photoURL(named: name).path) else { throw BackgroundRemover.Failure.noImage }
+        let cut = try await BackgroundRemover.cutOut(image).over(UIColor(hex: hex) ?? .white)
+        guard let jpeg = cut.jpeg(maxSide: BackgroundRemover.maxSide, quality: 0.9) else {
+            throw BackgroundRemover.Failure.noImage
+        }
+        // Changed, perhaps, while it was being made.
+        guard var now = self.item(item.id), now.allPhotos.contains(name) else { return }
+        forgetCut(of: &now, photo: name)
+        var cuts = now.allCuts
+        cuts[name] = try store.savePhoto(jpeg.data, id: UUID().uuidString.lowercased())
+        if name == now.photo { now.backdrop = hex }
+        now.setCuts(cuts)
+        try update(now)
+    }
+
+    /// Takes away the cut-out an item on this phone has of one of its
+    /// photographs, file and all: the photograph is as it was taken again.
+    private func forgetCut(of item: inout SavedItem, photo name: String) {
+        var cuts = item.allCuts
+        if let cut = cuts[name], let store { try? FileManager.default.removeItem(at: store.photoURL(named: cut)) }
+        cuts[name] = nil
+        item.setCuts(cuts)
     }
 
     // MARK: - more photographs
@@ -825,11 +1020,12 @@ final class AppModel {
         // Which it is on rab, asked before anything is changed here.
         var remote: (id: String, src: String)?
         if let remoteId = fresh.remoteId, let api {
-            // As they were taken: the cut-out rab has of the main one is not
-            // one of the phone's.
-            let there = try await api.mine().items.first { $0.id == remoteId }?.originals ?? []
+            let there = try await api.mine().items.first { $0.id == remoteId }?.images ?? []
             if there.count == names.count { remote = (remoteId, there[index].src) }
         }
+        // Its cut-out goes with it; the others stay with their photographs.
+        forgetCut(of: &fresh, photo: name)
+        let cuts = fresh.allCuts
         names.remove(at: index)
         fresh.photo = names[0]
         fresh.morePhotos = names.count > 1 ? Array(names.dropFirst()) : nil
@@ -837,6 +1033,7 @@ final class AppModel {
             fresh.width = Int(first.size.width * first.scale)
             fresh.height = Int(first.size.height * first.scale)
         }
+        fresh.setCuts(cuts)
         try update(fresh)
         try? FileManager.default.removeItem(at: store.photoURL(named: name))
         if let remote, let api {
@@ -850,20 +1047,7 @@ final class AppModel {
     private func setMainPhoto(_ src: String, ofListing id: String, with api: RabAPI) async throws {
         var had = try await api.mine().items.first { $0.id == id }?.images ?? []
         guard let index = had.firstIndex(where: { $0.src == src }), index > 0 else { return }
-        // A cut-out and the photograph it was made of go together, the
-        // cut-out first: whichever of the two is chosen, both are moved.
-        var from = index
-        var to = index
-        if had[index].backdrop != nil {
-            if had.indices.contains(index + 1), had[index + 1].backdrop == nil { to = index + 1 }
-        } else if had[index - 1].backdrop != nil {
-            from = index - 1
-        }
-        // The main one's own photograph: it is first already.
-        guard from > 0 else { return }
-        let moved = Array(had[from...to])
-        had.removeSubrange(from...to)
-        had.insert(contentsOf: moved, at: 0)
+        had.insert(had.remove(at: index), at: 0)
         try await api.updateItem(id, PicturesBody(images: had.map { PicturesBody.Picture($0) }))
         await loadListings()
     }
@@ -886,11 +1070,11 @@ final class AppModel {
         // Which it is on rab, asked before anything is changed here.
         var remote: (id: String, src: String)?
         if let remoteId = fresh.remoteId, let api {
-            // As they were taken: the cut-out rab has of the main one is not
-            // one of the phone's.
-            let there = try await api.mine().items.first { $0.id == remoteId }?.originals ?? []
+            let there = try await api.mine().items.first { $0.id == remoteId }?.images ?? []
             if there.count == names.count { remote = (remoteId, there[index].src) }
         }
+        // Each cut-out stays with the photograph it was made of.
+        let cuts = fresh.allCuts
         names.insert(names.remove(at: index), at: 0)
         fresh.photo = names[0]
         fresh.morePhotos = Array(names.dropFirst())
@@ -898,6 +1082,7 @@ final class AppModel {
             fresh.width = Int(first.size.width * first.scale)
             fresh.height = Int(first.size.height * first.scale)
         }
+        fresh.setCuts(cuts)
         try update(fresh)
         if let remote, let api {
             try await setMainPhoto(remote.src, ofListing: remote.id, with: api)

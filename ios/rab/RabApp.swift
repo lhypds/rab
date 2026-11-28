@@ -61,6 +61,17 @@ enum Compact {
     static let gap: CGFloat = 8
 }
 
+/// The wheel at the end of a row or a button while what it does is being
+/// done: the small one, in a box lower than a line of the row's type, so
+/// that the row is as tall with it as without.
+struct RowSpinner: View {
+    var body: some View {
+        ProgressView()
+            .controlSize(.small)
+            .frame(width: 16, height: 12)
+    }
+}
+
 /// A button that looks the same pressed as not: nothing fades or moves under
 /// the finger.
 struct StillButtonStyle: ButtonStyle {
@@ -362,9 +373,28 @@ struct PhotoPager<Page: View>: View {
                     page(index).tag(index)
                 }
             }
-            .tabViewStyle(.page)
-            // The dots on a dark ground: the page under them is white.
-            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            // The dots are drawn here, not by the system: its own are white
+            // for the one shown and a paler white for the rest, on grey —
+            // with two photographs there is no telling which is which.
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .overlay(alignment: .bottom) {
+                HStack(spacing: 6) {
+                    ForEach(0..<count, id: \.self) { index in
+                        Circle()
+                            // The one shown in dark grey, the rest in pale.
+                            .fill(Color(white: index == shown ? 0.25 : 0.78))
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                // On a light ground of their own, so that they can be told
+                // over a photograph of any colour.
+                .background(Color.white.opacity(0.85), in: Capsule())
+                .padding(.bottom, 8)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
         }
     }
 }
@@ -709,8 +739,10 @@ struct PhotoView: View {
                 PhotoPlaceholder()
             }
         }
-        .task(id: file ?? item.photo) {
-            guard let url = model.store?.photoURL(named: file ?? item.photo) else { return }
+        // Where no one of them is said: the main one, as its cut-out where
+        // it has one.
+        .task(id: file ?? item.cutPhoto ?? item.photo) {
+            guard let url = model.store?.photoURL(named: file ?? item.cutPhoto ?? item.photo) else { return }
             let pixels = maxPixel * UIScreen.main.scale
             image = await Task.detached(priority: .userInitiated) {
                 guard let loaded = UIImage(contentsOfFile: url.path) else { return nil }

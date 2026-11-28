@@ -142,7 +142,7 @@ struct SignInView: View {
                 HStack {
                     Text(buttonTitle)
                     Spacer()
-                    if busy { ProgressView().tint(.white) }
+                    if busy { RowSpinner().tint(.white) }
                 }
                 .foregroundStyle(.white)
                 .compactRow()

@@ -28,12 +28,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择照片" } }
       }
     },
-    "Add to my items on rab" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab のマイアイテムに登録" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登记到 rab 的我的物品" } }
-      }
-    },
     "Address" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "住所" } },
@@ -80,12 +74,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このアイテムを削除しますか？" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这个物品？" } }
-      }
-    },
-    "Deletes it from this phone. On rab it stays until you take it down there." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この iPhone から削除します。rab 上のものは、rab で取り下げるまで残ります。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只从这台手机上删除。rab 上的那一份要在 rab 里下架才会消失。" } }
       }
     },
     "Email" : {
@@ -745,6 +733,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刷新" } }
       }
     },
+    "Recognize" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認識" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "识别" } }
+      }
+    },
     "Recognize again" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "もう一度認識" } },
@@ -755,12 +749,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "未認識" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别" } }
-      }
-    },
-    "Not recognized yet. Recognize says what it is, and it then goes onto rab." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだ認識されていません。「もう一度認識」で何であるかを判定し、rab に登録されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别。点“重新识别”识别它是什么，然后它会登记到 rab。" } }
       }
     },
     "All" : {
@@ -859,10 +847,28 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "照片中没有找到主体" } }
       }
     },
-    "The background is removed when it goes onto rab." : {
+    "The original photo is not on this phone" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab に追加するときに背景が削除されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到 rab 时会去除背景。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "元の写真はこの iPhone にありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原图不在这台手机上" } }
+      }
+    },
+    "Hide keyboard" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キーボードを閉じる" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起键盘" } }
+      }
+    },
+    "Discard changes?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "変更を破棄しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃修改？" } }
+      }
+    },
+    "Back" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "戻る" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回" } }
       }
     }
   },

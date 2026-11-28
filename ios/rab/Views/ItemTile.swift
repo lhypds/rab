@@ -18,8 +18,6 @@ struct ItemTile<Photo: View>: View {
     let name: String
     /// It is being recognized just now.
     let busy: Bool
-    /// It is on this phone only: rab does not have it yet.
-    let waiting: Bool
     /// Whether it is one of the ones picked, while several are being picked
     /// at once; nil while none are.
     var picked: Bool? = nil
@@ -60,15 +58,6 @@ struct ItemTile<Photo: View>: View {
                         ProgressView().controlSize(.small)
                     }
                     .clipShape(RoundedRectangle(cornerRadius: ItemGrid.corner))
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                // What rab does not have yet says so with a dot.
-                if waiting && !busy {
-                    Circle()
-                        .fill(Color.black)
-                        .frame(width: 6, height: 6)
-                        .padding(5)
                 }
             }
             // While several are being picked: a ring at the top left of each,

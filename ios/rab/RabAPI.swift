@@ -141,20 +141,19 @@ struct Listing: Codable, Identifiable, Hashable {
 }
 
 extension Listing {
-    /// Its photographs as they were taken: all but the cut-outs made of them.
-    var originals: [Picture] { (images ?? []).filter { $0.backdrop == nil } }
-
-    /// Where among its photographs the cut-out of the one at a place is:
-    /// that place itself, where the one there is a cut-out, or the place
-    /// before it, where a cut-out stands there — a cut-out is put just
-    /// before the photograph it was made of. Nil where its background has
-    /// not been removed.
-    func cutOut(at index: Int) -> Int? {
+    /// The photograph a cut-out among its photographs was made of, where it
+    /// stands right after it still: a cut-out from when one was put in
+    /// front of its photograph, not in its place. Told by its being as it
+    /// was taken and the very size of the cut-out.
+    func originalAfter(cutAt index: Int) -> Picture? {
         let pictures = images ?? []
-        guard pictures.indices.contains(index) else { return nil }
-        if pictures[index].backdrop != nil { return index }
-        if index > 0, pictures[index - 1].backdrop != nil { return index - 1 }
-        return nil
+        let next = index + 1
+        guard pictures.indices.contains(index), pictures.indices.contains(next),
+              pictures[index].backdrop != nil, pictures[next].backdrop == nil,
+              let width = pictures[index].width, let height = pictures[index].height,
+              pictures[next].width == width, pictures[next].height == height
+        else { return nil }
+        return pictures[next]
     }
 
     /// Its own words: the language it was first named in.
@@ -166,7 +165,7 @@ extension Listing {
 
 /// What the server made of a photograph (POST /api/describe): the listing's
 /// category, and a name and a description for it.
-struct Suggestion: Decodable {
+struct Suggestion: Decodable, Equatable {
     var category: String
     /// The short category — the sort of thing it is in a word or two — which
     /// is only said of a photograph sent as an object's (see `describe`).
@@ -177,6 +176,15 @@ struct Suggestion: Decodable {
     /// "ja"): only said of a photograph sent as an object's, and missing from
     /// a server from before it said them.
     var translations: [String: Words]?
+
+    /// What it says in a language: that language's words where it was said
+    /// in several, and the ones it has otherwise.
+    func words(in language: Language) -> Words {
+        translations?[language.rawValue] ?? Words(title: title, what: what ?? "", description: description)
+    }
+
+    /// Its own words: the default, which is English.
+    var own: Words { Words(title: title, what: String((what ?? "").prefix(whatMax)), description: description) }
 }
 
 /// One of the account's spots as the server lists it (GET /api/mine): a

@@ -61,13 +61,63 @@ struct SavedItem: Codable, Identifiable, Hashable {
     var translations: [String: Words]? = nil
 
     /// The colour its main photograph's subject is to stand on once it is on
-    /// rab, as "#rrggbb"; "none" where the photograph is to be left as it
-    /// was taken. Nothing said, it is cut out and stood on white.
+    /// rab, as "#rrggbb"; "none" — or nothing said — where the photograph
+    /// is to be left as it was taken: the background is only removed where
+    /// its button was pressed.
     var backdrop: String? = nil
 
     /// The same as what is done: the colour, or nil for none.
     var backdropColor: String? {
-        backdrop == BackgroundRemover.noBackdrop ? nil : backdrop ?? BackgroundRemover.defaultBackdrop
+        backdrop == BackgroundRemover.noBackdrop ? nil : backdrop
+    }
+
+    /// The main photograph with its subject cut out and stood on that
+    /// colour, as a file under photos/: made on the phone when the button
+    /// is pressed, shown at once, and what goes up first when the item does.
+    var cutPhoto: String? = nil
+
+    /// The same of the photographs after the main one: each cut-out's file,
+    /// by the file of the photograph it was made of.
+    var moreCuts: [String: String]? = nil
+
+    /// The cut-out made of one of its photographs, where its background has
+    /// been removed.
+    func cut(of name: String) -> String? { name == photo ? cutPhoto : moreCuts?[name] }
+
+    /// Every cut-out it has, by the file of the photograph it was made of.
+    var allCuts: [String: String] {
+        var all = moreCuts ?? [:]
+        if let cutPhoto { all[photo] = cutPhoto }
+        return all
+    }
+
+    /// Keeps the cut-outs given, of the photographs it has now: the main
+    /// one's as the main one's, whichever photograph that is by now.
+    mutating func setCuts(_ all: [String: String]) {
+        let names = allPhotos
+        cutPhoto = all[photo]
+        let rest = all.filter { $0.key != photo && names.contains($0.key) }
+        moreCuts = rest.isEmpty ? nil : rest
+        if cutPhoto == nil {
+            backdrop = BackgroundRemover.noBackdrop
+        } else if backdropColor == nil {
+            backdrop = BackgroundRemover.defaultBackdrop
+        }
+    }
+
+    /// Every photograph as its page shows them: each one's cut-out in its
+    /// place, where its background has been removed, and the photograph as
+    /// it was taken otherwise. The one it was made of is kept, out of sight,
+    /// for when its background is put back.
+    var shownPhotos: [String] {
+        allPhotos.map { cut(of: $0) ?? $0 }
+    }
+
+    /// The photograph as it was taken that one of those shown is, or was
+    /// made of.
+    func original(ofShown name: String) -> String? {
+        if allPhotos.contains(name) { return name }
+        return allCuts.first { $0.value == name }?.key
     }
 
     /// Its own words: the language it was first named in.
@@ -203,8 +253,49 @@ final class UserStore {
     }
 
     func deletePhoto(_ item: SavedItem) {
-        for name in item.allPhotos {
+        for name in item.allPhotos + Array(item.allCuts.values) {
             try? FileManager.default.removeItem(at: photoURL(named: name))
         }
+    }
+
+    // MARK: - originals
+
+    /// The photographs as they were taken, kept on this phone for good and
+    /// marked: by every name rab keeps one of them under — the cut-out made
+    /// of it, and the photograph itself once it has gone back up in the
+    /// cut-out's place — the file under photos/ that is it. An item on rab
+    /// carries the cut-out where the photograph was; this is where the
+    /// photograph is, whenever its background is to be put back, and what
+    /// the next cut-out is made of. Several names may be one file's.
+    private var originalsFile: URL { folder.appendingPathComponent("originals.json") }
+
+    private func loadOriginals() -> [String: String] { read(originalsFile) ?? [:] }
+
+    /// The photograph as it was taken that what rab keeps under a name is,
+    /// or was made of, where this phone has it.
+    func originalURL(ofCut name: String) -> URL? {
+        guard let file = loadOriginals()[name] else { return nil }
+        let url = photoURL(named: file)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Keeps the bytes of the photograph a cut-out on rab was made of,
+    /// marked with the cut-out's name.
+    func keepOriginal(_ data: Data, ofCut name: String) throws {
+        var all = loadOriginals()
+        all[name] = try savePhoto(data, id: "original-\(UUID().uuidString.lowercased())")
+        try write(all, to: originalsFile)
+    }
+
+    /// Marks the photograph kept under one name with another as well: the
+    /// cut-out just made of it, or itself, gone back up under a new name.
+    /// False where there is none kept under the first.
+    @discardableResult
+    func markOriginal(of name: String, alsoAs other: String) -> Bool {
+        var all = loadOriginals()
+        guard let file = all[name], FileManager.default.fileExists(atPath: photoURL(named: file).path) else { return false }
+        all[other] = file
+        try? write(all, to: originalsFile)
+        return true
     }
 }
