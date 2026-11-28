@@ -33,7 +33,7 @@ Most are things that are owned and lent — a camera, a car, a tent; some are pl
 
 Answer with:
 - category: one of the categories exactly as written above; "other" where none fits. Do not stretch a category to cover something it is not: a pen is "other", not "electronics".
-- title: what a renter would search for — the thing itself, with its make and model where they can be read off it. A few words, no full stop, nothing about renting.
+- title: what a renter would search for. Where the thing is a well-known product, its title is the product's name — "Nintendo Switch", "AirPods Pro", "Dyson V11", "LEGO Millennium Falcon", "Rubik's Cube" — whether the name is written on it or it is recognised by its look; give the exact model or generation only where you are sure of it, and otherwise the name as far as you are ("iPhone", not a guessed "iPhone 15 Pro"). Where it is not a product anybody knows by name, the thing itself ("Wooden folding chair"), with its make where one can be read off it; do not put a product's name on something that only resembles it. A few words, no full stop, nothing about renting.
 - description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photograph shows — no price, no promises, nothing invented.
 
 Write the title and the description in the language you are asked for.`;
@@ -126,11 +126,11 @@ The photograph is of one object. Where several things are in it, it is the one i
 Answer with:
 - category: one of these, exactly as written: ${OBJECT_CATEGORIES.join(", ")}. "other" where none fits. Do not stretch a category to cover something it is not: a pen is "other", not "electronics".
 - en, zh, ja: what it is, said three times — in English, in Simplified Chinese and in Japanese — each with:
-  - what: the short category — the sort of thing it is in one to three words, more exact than the category and with no make or model: "Coffee mug", "Folding chair", "Mirrorless camera", "Cordless drill". Capitalised like a label where the language has capitals, no full stop.
-  - title: what a renter would search for — the thing itself, with its make and model where they can be read off it. A few words, no full stop, nothing about renting.
+  - what: the short category — the sort of thing it is in one to three words, more exact than the category and with no product name, make or model, even where the title is one: "Coffee mug", "Folding chair", "Mirrorless camera", "Cordless drill". Capitalised like a label where the language has capitals, no full stop.
+  - title: what a renter would search for. Where the thing is a well-known product, its title is the product's name — "Nintendo Switch", "AirPods Pro", "Dyson V11", "LEGO Millennium Falcon", "Rubik's Cube" — whether the name is written on it or it is recognised by its look; give the exact model or generation only where you are sure of it, and otherwise the name as far as you are ("iPhone", not a guessed "iPhone 15 Pro"). Where it is not a product anybody knows by name, the thing itself ("Wooden folding chair"), with its make where one can be read off it; do not put a product's name on something that only resembles it. A few words, no full stop, nothing about renting.
   - description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photograph shows — no price, no promises, nothing invented.
 
-The three say the same thing, each as somebody writing in that language would put it — not word for word. A make or model is written as it is on the thing, in every language.`;
+The three say the same thing, each as somebody writing in that language would put it — not word for word. A product's name, a make or a model is written as its maker writes it — as it is on the thing — in every language, not translated; where the product is sold under a name of its own in that language, that name.`;
 
 export const TEXT_LANGUAGES = Object.keys(LANGUAGES);
 
