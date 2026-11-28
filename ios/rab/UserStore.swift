@@ -60,6 +60,16 @@ struct SavedItem: Codable, Identifiable, Hashable {
     /// names a thing in all three at once.
     var translations: [String: Words]? = nil
 
+    /// The colour its main photograph's subject is to stand on once it is on
+    /// rab, as "#rrggbb"; "none" where the photograph is to be left as it
+    /// was taken. Nothing said, it is cut out and stood on white.
+    var backdrop: String? = nil
+
+    /// The same as what is done: the colour, or nil for none.
+    var backdropColor: String? {
+        backdrop == BackgroundRemover.noBackdrop ? nil : backdrop ?? BackgroundRemover.defaultBackdrop
+    }
+
     /// Its own words: the language it was first named in.
     var own: Words { Words(title: title, what: what ?? "", description: description ?? "") }
 

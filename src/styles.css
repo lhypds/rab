@@ -644,9 +644,11 @@ a {
   .mine-nav {
     width: auto;
     flex-direction: row;
+    /* Each in a box of its own, apart from the next, as the tabs under
+       them are (see .tabs): not one bar cut into five. */
+    gap: 6px;
     margin-top: 0;
     border-top: 0;
-    border: 1px solid var(--ink);
     /* Five of them may be wider than a phone: the row is slid along. */
     overflow-x: auto;
   }
@@ -656,7 +658,7 @@ a {
     justify-content: center;
     padding: 6px 8px;
     white-space: nowrap;
-    border-bottom: 0;
+    border: 1px solid var(--ink);
     font-size: 12px;
   }
 

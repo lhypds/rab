@@ -16,6 +16,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
       }
     },
+    "Add photos" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を追加" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "追加照片" } }
+      }
+    },
     "Choose photos" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を選ぶ" } },
@@ -751,10 +757,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别" } }
       }
     },
-    "Not recognized yet. The brain at the top says what it is, and it then goes onto rab." : {
+    "Not recognized yet. Recognize says what it is, and it then goes onto rab." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだ認識されていません。上の脳のボタンで何であるかを判定し、rab に登録されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别。点上方的大脑按钮识别它是什么，然后它会登记到 rab。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだ認識されていません。「もう一度認識」で何であるかを判定し、rab に登録されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未识别。点“重新识别”识别它是什么，然后它会登记到 rab。" } }
       }
     },
     "All" : {
@@ -809,6 +815,54 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab にあるものは rab から完全に削除されます。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在 rab 上的会从 rab 永久删除。" } }
+      }
+    },
+    "Publish" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "公開" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发布" } }
+      }
+    },
+    "Unpublish" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "非公開にする" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消发布" } }
+      }
+    },
+    "Set as main photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メイン写真にする" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设为主图" } }
+      }
+    },
+    "Remove background" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "去除背景" } }
+      }
+    },
+    "Restore background" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を元に戻す" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复背景" } }
+      }
+    },
+    "Restore background" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "背景を元に戻す" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复背景" } }
+      }
+    },
+    "No subject was found in the photo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真に被写体が見つかりません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "照片中没有找到主体" } }
+      }
+    },
+    "The background is removed when it goes onto rab." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "rab に追加するときに背景が削除されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到 rab 时会去除背景。" } }
       }
     }
   },

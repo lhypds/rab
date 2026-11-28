@@ -29,6 +29,8 @@ struct ImageRef: Encodable {
     let thumb: String
     let width: Int
     let height: Int
+    /// The colour its subject stands on, for one that is a cut-out.
+    var backdrop: String? = nil
 }
 
 /// The photographs an item on rab is to carry (PATCH /api/items/:id): all of
@@ -40,6 +42,8 @@ struct PicturesBody: Encodable {
         var thumb: String
         var width: Int?
         var height: Int?
+        /// The colour its subject stands on, for one that is a cut-out.
+        var backdrop: String? = nil
     }
 
     var images: [Picture]
@@ -53,7 +57,8 @@ extension PicturesBody.Picture {
             name: file(picture.src),
             thumb: file(picture.thumb ?? picture.src),
             width: picture.width.map { Int($0) },
-            height: picture.height.map { Int($0) }
+            height: picture.height.map { Int($0) },
+            backdrop: picture.backdrop
         )
     }
 }
@@ -108,6 +113,10 @@ struct Listing: Codable, Identifiable, Hashable {
         var thumb: String?
         var width: Double?
         var height: Double?
+        /// For a picture made of another by cutting its subject out of its
+        /// background: the colour the subject stands on, as "#rrggbb". The
+        /// phone makes one of an item's main photograph and puts it first.
+        var backdrop: String?
     }
 
     var id: String
@@ -132,6 +141,22 @@ struct Listing: Codable, Identifiable, Hashable {
 }
 
 extension Listing {
+    /// Its photographs as they were taken: all but the cut-outs made of them.
+    var originals: [Picture] { (images ?? []).filter { $0.backdrop == nil } }
+
+    /// Where among its photographs the cut-out of the one at a place is:
+    /// that place itself, where the one there is a cut-out, or the place
+    /// before it, where a cut-out stands there — a cut-out is put just
+    /// before the photograph it was made of. Nil where its background has
+    /// not been removed.
+    func cutOut(at index: Int) -> Int? {
+        let pictures = images ?? []
+        guard pictures.indices.contains(index) else { return nil }
+        if pictures[index].backdrop != nil { return index }
+        if index > 0, pictures[index - 1].backdrop != nil { return index - 1 }
+        return nil
+    }
+
     /// Its own words: the language it was first named in.
     var own: Words { Words(title: title, what: what ?? "", description: description ?? "") }
 
@@ -493,9 +518,18 @@ final class RabAPI {
     /// With `object`, the photograph is said to be of an object: the server
     /// then chooses among the object categories only, and says its short
     /// category too.
-    func describe(_ data: Data, language: String, object: Bool = false) async throws -> Suggestion {
+    /// Several photographs of the one thing — its first few, the main one
+    /// first, three at most — go one after another in the one body, with how
+    /// many bytes each is (`sizes`).
+    func describe(_ photos: [Data], language: String, object: Bool = false) async throws -> Suggestion {
         var query = [URLQueryItem(name: "lang", value: language)]
         if object { query.append(URLQueryItem(name: "objects", value: "1")) }
+        // One alone is sent as it always was: a server from before there
+        // could be several reads it so.
+        if photos.count > 1 {
+            query.append(URLQueryItem(name: "sizes", value: photos.map { String($0.count) }.joined(separator: ",")))
+        }
+        let data = photos.reduce(into: Data()) { $0.append($1) }
         let reply = try await send("POST", "api/describe", query: query, body: data, type: "image/jpeg")
         return try JSONDecoder().decode(Suggestion.self, from: reply)
     }
@@ -513,6 +547,12 @@ final class RabAPI {
     /// Says which photographs an item on rab carries, leaving the rest of it.
     func updateItem(_ id: String, _ body: PicturesBody) async throws {
         _ = try await send("PATCH", "api/items/\(id)", body: try JSONEncoder().encode(body), type: "application/json")
+    }
+
+    /// Publishes an item on rab, or takes it back out of sight, leaving the
+    /// rest of it.
+    func updateItem(_ id: String, active: Bool) async throws {
+        _ = try await send("PATCH", "api/items/\(id)", body: try JSONEncoder().encode(["active": active]), type: "application/json")
     }
 
     /// Takes an item off rab for good, with whatever was still open on it.

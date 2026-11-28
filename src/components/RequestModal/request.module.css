@@ -168,3 +168,33 @@
 .whatRow svg {
   stroke-width: 1.2;
 }
+
+/* The brain and what it fills in, joined by a grey dashed line. The fields
+   it writes — the category and the details — are in a dashed frame drawn
+   round them, outside them: an outline, which takes no room, so that nothing
+   in the form is any other size or anywhere else than it was. */
+.aiFrame {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  outline: 1px dashed var(--muted);
+  outline-offset: 6px;
+}
+
+.aiStart {
+  position: relative;
+}
+
+/* From under the middle of the button — the last thing in its row, 36px
+   wide (see .whatRow) — down to the frame's top, 6px over the fields that
+   are 14px under this one. */
+.aiStart::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 18px;
+  height: 8px;
+  border-left: 1px dashed var(--muted);
+  pointer-events: none;
+}

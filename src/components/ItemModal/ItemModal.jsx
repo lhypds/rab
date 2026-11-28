@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { ActionButton, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { addDays, daysBetween, formatDay, formatRange, today, weekdayNames } from "../../utils/days.js";
-import { CURRENCIES, compactPrice, currencyDigits, durationName, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
+import { CURRENCIES, compactPrice, currencyDigits, durationName, forSale, formatPrice, currencySymbol, defaultCurrency, formatCoords, roundPrice, unitName, wholePrice } from "../../utils/format.js";
 import { uploadPhoto } from "../../utils/image.js";
 import PublishAsField from "../PublishAsField/index.js";
 import SpotField from "../SpotField/index.js";
@@ -218,7 +218,8 @@ function startingFieldsAsSaved(item, calendar, lang) {
     depositOn: item?.deposit != null,
     deposit: item?.deposit != null ? String(item.deposit) : "",
     // Whether it is for sale as well, and for how much — in its currency.
-    saleOn: item?.salePrice != null,
+    // The sum may be written on one that is not for sale too.
+    saleOn: item != null && forSale(item),
     // Whether it is lent out — for temporary use — at all: one that is not
     // is only for sale, and has none of what follows about booking it.
     rentOn: item?.rentable !== false,
@@ -963,10 +964,10 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     });
   }
 
-  // The form filled in from the main photograph, as the phone's is the moment
+  // The form filled in from its photographs, as the phone's is the moment
   // a photo is taken (see server/describe.js): its category, a name and a few
-  // lines about it. Only the main photograph is looked at — the first —
-  // however many there are. Asked for by a button, so what it answers is
+  // lines about it. The main photograph is looked at — the first — and the
+  // two after it, however many there are. Asked for by a button, so what it answers is
   // written over whatever those three said before.
   async function generate() {
     const photo = fields.images[0];
@@ -974,11 +975,21 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     setError("");
     setGenerating(true);
     try {
-      const blob = await fetch(photo.src).then((response) => {
-        if (!response.ok) throw new Error("photo");
-        return response.blob();
-      });
-      const listing = await api.describePhoto(blob, lang.slice(0, 2));
+      // The main one has to be read; one after it that cannot be is left out.
+      const read = await Promise.all(
+        fields.images.slice(0, 3).map((each, index) =>
+          fetch(each.src)
+            .then((response) => {
+              if (!response.ok) throw new Error("photo");
+              return response.blob();
+            })
+            .catch((fault) => {
+              if (index === 0) throw fault;
+              return null;
+            }),
+        ),
+      );
+      const listing = await api.describePhoto(read.filter(Boolean), lang.slice(0, 2));
       setFields((current) => ({
         ...current,
         category: listing.category ?? "",
@@ -1222,10 +1233,11 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   // or null.
   const depositSum = priceOf(fields.deposit);
   const deposit = priced && rentable && fields.depositOn && depositSum !== null && depositSum > 0 ? roundPrice(depositSum, fields.currency) : null;
-  // What it is sold for, kept the same way: a sum where it is for sale and
-  // one is written, or null.
+  // What it is sold for, kept the same way: a sum where one is written, or
+  // null — for sale or not. One for sale has to say it (see `fault`).
   const saleSum = priceOf(fields.salePrice);
-  const salePrice = priced && fields.saleOn && saleSum !== null && saleSum > 0 ? roundPrice(saleSum, fields.currency) : null;
+  const salePrice = priced && saleSum !== null && saleSum > 0 ? roundPrice(saleSum, fields.currency) : null;
+  const saleOn = priced && fields.saleOn;
   // What the calendar's single dates say, where it still goes against the
   // rule: a date closed that the rule has, one opened that it leaves out.
   const closed = fields.closed.filter((day) => openByRule({ openDays }, day));
@@ -1247,6 +1259,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
     cancel,
     deposit,
     salePrice,
+    forSale: saleOn,
     rentable,
     contacts,
     followContacts: following,
@@ -1364,6 +1377,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
       cancel,
       deposit,
       salePrice,
+      forSale: saleOn,
       rentable,
       contacts,
       followContacts: following,
@@ -1415,6 +1429,30 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
   }
 
   const busy = saving || uploading > 0;
+
+  // The arrow by the cross: the item is asked of the server again, and the
+  // form starts over from what it says — what a phone changed of it while
+  // the form was open, its photographs above all. What was typed here and
+  // not saved is gone with it.
+  const [refreshing, setRefreshing] = useState(false);
+  async function refresh() {
+    if (!item || busy || refreshing) return;
+    setRefreshing(true);
+    try {
+      const data = await api.getItem(item.id);
+      const fresh = startingFields(data.item, data.calendar, lang);
+      setFields(fresh);
+      setError("");
+      setPricing(null);
+      currencyPicked.current = false;
+      regionPicked.current = Boolean(fresh.region);
+      contactsTouched.current = Boolean(data.item?.contacts?.length);
+    } catch (error) {
+      showToast(error.message, 3000);
+    } finally {
+      setRefreshing(false);
+    }
+  }
   const withIcon = (slug, name) => (
     <span className={styles.category}>
       <CategoryIcon category={slug} />
@@ -1545,6 +1583,28 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
         // The sheet lays its form out to its full height (see .sheet), so the
         // buttons at its foot are at the sheet's foot.
         className={styles.sheet}
+        // Of an item there is already: the arrow that asks for it again, to
+        // the left of the cross.
+        header={
+          editing ? (
+            <button
+              type="button"
+              className={styles.refresh}
+              onClick={refresh}
+              disabled={busy || refreshing}
+              aria-busy={refreshing}
+              aria-label={t("item.refresh")}
+              title={t("item.refresh")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {/* A ring open at the upper right, with an arrowhead where
+                    it ends at the top, going clockwise: the phone's arrow. */}
+                <path d="M20 12a8 8 0 1 1-8-8h2" />
+                <path d="M11.5 1.5 14 4l-2.5 2.5" />
+              </svg>
+            </button>
+          ) : null
+        }
       >
         <form className={styles.form} onSubmit={save} autoComplete="off" data-save>
           <div className={styles.columns}>
@@ -1639,7 +1699,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   the thing is — its category, its name and what is said about
                   it — made out
                   from the main one, with a line saying so. */}
-              <div className="field">
+              <div className={`field ${styles.aiStart}`}>
                 <button
                   type="button"
                   className={`small-button ${styles.start}`}
@@ -1663,15 +1723,80 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 <span className={styles.hint}>{t("item.generateHint")}</span>
               </div>
 
-              <label className="field">
-                <span className="field-label">{t("item.title")}</span>
-                <input
-                  className="text-input"
-                  value={fields.title}
-                  onChange={(event) => set("title", event.target.value)}
-                  maxLength={TITLE_MAX}
-                />
-              </label>
+              {/* What the brain fills in — the name, the category and the
+                  description — in a dashed frame the line from its button
+                  runs to. What it leaves alone comes after the frame. */}
+              <div className={styles.aiFrame}>
+                <label className="field">
+                  <span className="field-label">{t("item.title")}</span>
+                  <input
+                    className="text-input"
+                    value={fields.title}
+                    onChange={(event) => set("title", event.target.value)}
+                    maxLength={TITLE_MAX}
+                  />
+                </label>
+
+                {/* Under them, its category — and beside it the button that
+                    has it chosen from what is written above and the main
+                    photo, as Recognize does from the photo alone. */}
+                <div className="field">
+                  <span className="field-label">{t("item.category")}</span>
+                  <div className={styles.categoryRow}>
+                    <Select
+                      sans
+                      className={styles.categorySelect}
+                      label={t("item.category")}
+                      value={fields.category}
+                      onChange={(value) => set("category", value)}
+                      options={categories}
+                      searchPlaceholder={t("item.categorySearch")}
+                      emptyLabel={t("item.categoryNoMatch")}
+                    />
+                    {/* The brain, as liveboard's Generate button draws it. */}
+                    <ActionButton
+                      tooltip={t("item.classify")}
+                      tooltipRight
+                      onClick={classify}
+                      disabled={classifying || uploading > 0 || (!fields.title.trim() && !fields.what.trim() && !fields.description.trim() && fields.images.length === 0)}
+                      aria-busy={classifying}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+                        <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+                        <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+                        <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+                        <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+                        <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+                        <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+                        <path d="M6 18a4 4 0 0 1-1.967-.516" />
+                        <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+                      </svg>
+                    </ActionButton>
+                  </div>
+                  {/* An item is in one category; a page may hold items of
+                      several, and so may be left in none. */}
+                  {fields.spot && <span className={styles.hint}>{t("item.categorySpotHint")}</span>}
+                </div>
+
+                <label className="field">
+                  <span className="field-label">
+                    {t("item.description")}
+                    <span className="field-count">
+                      {fields.description.length}/{DESCRIPTION_MAX}
+                    </span>
+                  </span>
+                  <TextArea
+                    className="text-area"
+                    value={fields.description}
+                    onChange={(event) => set("description", event.target.value)}
+                    placeholder={t("item.descriptionPlaceholder")}
+                    maxLength={DESCRIPTION_MAX}
+                    rows={5}
+                    minHeight={110}
+                  />
+                </label>
+              </div>
 
               {/* Under its name, a few words for what it is — "Film camera",
                   "Hair salon" — kept apart from the name. */}
@@ -1694,66 +1819,6 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                   <CountInput value={fields.quantity} onChange={(value) => set("quantity", value)} />
                 </label>
               )}
-
-              {/* Under them, its category — and beside it the button that
-                  has it chosen from what is written above and the main
-                  photo, as Recognize does from the photo alone. */}
-              <div className="field">
-                <span className="field-label">{t("item.category")}</span>
-                <div className={styles.categoryRow}>
-                  <Select
-                    sans
-                    className={styles.categorySelect}
-                    label={t("item.category")}
-                    value={fields.category}
-                    onChange={(value) => set("category", value)}
-                    options={categories}
-                    searchPlaceholder={t("item.categorySearch")}
-                    emptyLabel={t("item.categoryNoMatch")}
-                  />
-                  {/* The brain, as liveboard's Generate button draws it. */}
-                  <ActionButton
-                    tooltip={t("item.classify")}
-                    tooltipRight
-                    onClick={classify}
-                    disabled={classifying || uploading > 0 || (!fields.title.trim() && !fields.what.trim() && !fields.description.trim() && fields.images.length === 0)}
-                    aria-busy={classifying}
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-                      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-                      <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
-                      <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
-                      <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
-                      <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
-                      <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
-                      <path d="M6 18a4 4 0 0 1-1.967-.516" />
-                      <path d="M19.967 17.484A4 4 0 0 1 18 18" />
-                    </svg>
-                  </ActionButton>
-                </div>
-                {/* An item is in one category; a page may hold items of
-                    several, and so may be left in none. */}
-                {fields.spot && <span className={styles.hint}>{t("item.categorySpotHint")}</span>}
-              </div>
-
-              <label className="field">
-                <span className="field-label">
-                  {t("item.description")}
-                  <span className="field-count">
-                    {fields.description.length}/{DESCRIPTION_MAX}
-                  </span>
-                </span>
-                <TextArea
-                  className="text-area"
-                  value={fields.description}
-                  onChange={(event) => set("description", event.target.value)}
-                  placeholder={t("item.descriptionPlaceholder")}
-                  maxLength={DESCRIPTION_MAX}
-                  rows={5}
-                  minHeight={110}
-                />
-              </label>
             </div>
 
             {/* The item's sheet has two columns where there is room: what it
@@ -2456,7 +2521,7 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                 </div>
                 {/* The currency is asked for with the rental prices below;
                     with none of those, here. */}
-                {fields.saleOn && !rentable && (
+                {!rentable && (
                   <div className={styles.modeRow}>
                     <span className={styles.everyDay}>{t("item.currency")}</span>
                     <Select
@@ -2471,7 +2536,9 @@ export default function ItemModal({ isOpen, item = null, calendar = null, part =
                     />
                   </div>
                 )}
-                {fields.saleOn && (
+                {/* The sum may be written whether it is for sale or not:
+                    on one that is not, it is kept and not shown on its page. */}
+                {(
                   <div className={styles.modeRow}>
                     <span className={styles.everyDay}>{t("item.salePrice")}</span>
                     <PriceInput

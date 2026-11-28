@@ -25,7 +25,7 @@ const LISTING = {
   additionalProperties: false,
 };
 
-const SYSTEM = `rab is a marketplace where people rent out what they have. Somebody has just photographed something they want to rent out, and you fill in its listing from the photograph.
+const SYSTEM = `rab is a marketplace where people rent out what they have. Somebody has just photographed something they want to rent out, and you fill in its listing from the photograph — or from a few photographs of it.
 
 Every listing has one of these categories: ${CATEGORIES.join(", ")}.
 
@@ -34,7 +34,7 @@ Most are things that are owned and lent — a camera, a car, a tent; some are pl
 Answer with:
 - category: one of the categories exactly as written above; "other" where none fits. Do not stretch a category to cover something it is not: a pen is "other", not "electronics".
 - title: what a renter would search for. Where the thing is a well-known product, its title is the product's name — "Nintendo Switch", "AirPods Pro", "Dyson V11", "LEGO Millennium Falcon", "Rubik's Cube" — whether the name is written on it or it is recognised by its look; give the exact model or generation only where you are sure of it, and otherwise the name as far as you are ("iPhone", not a guessed "iPhone 15 Pro"). Where it is not a product anybody knows by name, the thing itself ("Wooden folding chair"), with its make where one can be read off it; do not put a product's name on something that only resembles it. A few words, no full stop, nothing about renting.
-- description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photograph shows — no price, no promises, nothing invented.
+- description: two or three plain sentences a renter would want: what it is, what can be seen of its condition and what comes with it. Only what the photographs show — no price, no promises, nothing invented.
 
 Write the title and the description in the language you are asked for.`;
 
@@ -51,11 +51,35 @@ const MEDIA_TYPES = [
   ["image/webp", (bytes) => bytes.subarray(8, 12).toString("latin1") === "WEBP"],
 ];
 
-// The listing for a photograph, or null where the model would not give one.
+// The most photographs of one thing that are looked at: its main one — the
+// first — and the two after it.
+export const DESCRIBE_PHOTOS_MAX = 3;
+
+// The photographs as the model is given them, the main one first: the ones
+// of a kind it reads, three at most. None where the main one is not one.
+function pictures(buffers) {
+  const list = (Array.isArray(buffers) ? buffers : [buffers]).slice(0, DESCRIBE_PHOTOS_MAX);
+  const parts = [];
+  for (const [index, buffer] of list.entries()) {
+    const mediaType = MEDIA_TYPES.find(([, matches]) => matches(buffer))?.[0];
+    if (!mediaType) {
+      if (index === 0) return [];
+      continue;
+    }
+    parts.push({ type: "image_url", image_url: { url: `data:${mediaType};base64,${buffer.toString("base64")}` } });
+  }
+  return parts;
+}
+
+// What is said to the model with more than one photograph.
+const SEVERAL = "They are all of the same thing: the first is its main photograph, the others show more of it — another side, a label, what comes with it.";
+
+// The listing for a thing's photographs — one, or its first few, the main
+// one first — or null where the model would not give one.
 // A category that is not one of rab's becomes "other".
-export async function describeImage(buffer, language) {
-  const mediaType = MEDIA_TYPES.find(([, matches]) => matches(buffer))?.[0];
-  if (!mediaType) return null;
+export async function describeImage(buffers, language) {
+  const photos = pictures(buffers);
+  if (photos.length === 0) return null;
   client ??= new OpenAI();
   const completion = await client.chat.completions.create({
     model: modelFor("describePhoto"),
@@ -65,8 +89,14 @@ export async function describeImage(buffer, language) {
       {
         role: "user",
         content: [
-          { type: "text", text: `Fill in the listing for this photograph. Write in ${LANGUAGES[language] ?? LANGUAGES.en}.` },
-          { type: "image_url", image_url: { url: `data:${mediaType};base64,${buffer.toString("base64")}` } },
+          {
+            type: "text",
+            text:
+              photos.length > 1
+                ? `Fill in the listing for these ${photos.length} photographs. ${SEVERAL} Write in ${LANGUAGES[language] ?? LANGUAGES.en}.`
+                : `Fill in the listing for this photograph. Write in ${LANGUAGES[language] ?? LANGUAGES.en}.`,
+          },
+          ...photos,
         ],
       },
     ],
@@ -121,7 +151,7 @@ const OBJECT = {
 
 const SCANNED = `rab is a marketplace where people rent out what they have. Somebody is going through the things they have with their phone's camera, photographing them one by one, and you say what each one is.
 
-The photograph is of one object. Where several things are in it, it is the one in the middle, or the one that fills most of the picture.
+The photograph is of one object. Where several things are in it, it is the one in the middle, or the one that fills most of the picture. There may be a few photographs of the same object: the first is the main one, and the others show more of it.
 
 Answer with:
 - category: one of these, exactly as written: ${OBJECT_CATEGORIES.join(", ")}. "other" where none fits. Do not stretch a category to cover something it is not: a pen is "other", not "electronics".
@@ -139,9 +169,11 @@ export const TEXT_LANGUAGES = Object.keys(LANGUAGES);
 // three languages' words — { en, zh, ja }, each { what, title, description } —
 // and the three beside it are the English: the default, what item.json says
 // (see files.js), whatever language whoever asked is reading in.
-export async function describeObject(buffer) {
-  const mediaType = MEDIA_TYPES.find(([, matches]) => matches(buffer))?.[0];
-  if (!mediaType) return null;
+// Given several photographs — the object's first few, the main one first —
+// all of them are looked at.
+export async function describeObject(buffers) {
+  const photos = pictures(buffers);
+  if (photos.length === 0) return null;
   client ??= new OpenAI();
   const completion = await client.chat.completions.create({
     model: modelFor("describeObject"),
@@ -151,8 +183,8 @@ export async function describeObject(buffer) {
       {
         role: "user",
         content: [
-          { type: "text", text: "Say what this is." },
-          { type: "image_url", image_url: { url: `data:${mediaType};base64,${buffer.toString("base64")}` } },
+          { type: "text", text: photos.length > 1 ? `Say what this is, from these ${photos.length} photographs of it. ${SEVERAL}` : "Say what this is." },
+          ...photos,
         ],
       },
     ],

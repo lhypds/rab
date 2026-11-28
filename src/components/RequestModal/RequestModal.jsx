@@ -255,7 +255,7 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
             the left; where — the map — and how to be reached on the right. */}
         <div className={styles.columns}>
         <div className={styles.column}>
-        <label className="field">
+        <label className={`field ${styles.aiStart}`}>
           <span className="field-label">{t("request.what")}</span>
           {/* Beside it the brain, as the item form's has it: from these words
               the category is chosen and the details written. */}
@@ -283,6 +283,9 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
           </span>
         </label>
 
+        {/* What the brain fills in — the category and the details — in a
+            dashed frame the line from its button runs to. */}
+        <div className={styles.aiFrame}>
         <div className="field">
           <span className="field-label">{t("item.category")}</span>
           <Select
@@ -310,6 +313,7 @@ export default function RequestModal({ isOpen, request: editing = null, title: o
             placeholder={t("request.notePlaceholder")}
           />
         </label>
+        </div>
 
         {/* Photographs of the kind of thing wanted, where one says it better
             than words: the first is the one its pin and its row wear. */}

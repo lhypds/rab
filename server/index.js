@@ -123,7 +123,7 @@ const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDeposit, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
-const { OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest } = await import("./describe.js");
+const { DESCRIBE_PHOTOS_MAX, OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -790,11 +790,16 @@ function parseImages(value) {
     const thumb = String(entry?.thumb ?? "").split("/").pop() || name;
     if (!isStoredName(name) || !isStoredName(thumb)) return null;
     if (!imageFile(name) || !imageFile(thumb)) return null;
+    // A picture made of another by cutting its subject out and standing it
+    // on a plain colour says which colour: "#rrggbb". The phone makes them
+    // (see ios BackgroundRemover), and knows one of its own by this.
+    const backdrop = typeof entry?.backdrop === "string" && /^#[0-9a-f]{6}$/i.test(entry.backdrop) ? entry.backdrop.toLowerCase() : null;
     images.push({
       name,
       thumb,
       width: parseNumber(entry?.width, 1, 20000),
       height: parseNumber(entry?.height, 1, 20000),
+      ...(backdrop && { backdrop }),
     });
   }
   return images;
@@ -913,7 +918,12 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
   // One that is offered neither way — not lent out, not for sale — is only
   // written down: what the phone's scanner registers is, until its owner says
   // otherwise. It need say no area, and no way to reach anybody.
-  const offered = body?.spot === true || body?.rentable !== false || readDeposit(body?.salePrice, String(body?.currency ?? "")) !== null;
+  // What it would be sold for may be written on one that is not for sale:
+  // `forSale` says which it is. A request that does not say — one from
+  // before the two were told apart — is for sale where it says a sum.
+  const salePrice = readDeposit(body?.salePrice, String(body?.currency ?? ""));
+  const forSale = body?.spot !== true && salePrice !== null && body?.forSale !== false;
+  const offered = body?.spot === true || body?.rentable !== false || forSale;
   const region = parseRegion(body?.region);
   if (!region && !regionOptional && offered) {
     return { error: "Say which area it is offered in", code: "REGION_REQUIRED" };
@@ -1005,9 +1015,11 @@ function parseItem(body, { regionOptional = false, sharedMayBeOff = false } = {}
       // is only for sale.
       rentable,
       followContacts,
-      // What it is sold for, where it is for sale as well as for rent, or
+      // What it is sold for — or would be, on one that is not for sale — or
       // null: a sum read as a deposit is.
-      salePrice: readDeposit(body?.salePrice, currency),
+      salePrice,
+      // Whether it is for sale: only where it says for how much.
+      forSale,
       contacts,
       // Whether it is somebody else's rather than the account's own: it is
       // then kept under the public account, which is nobody's, and anybody
@@ -2052,10 +2064,14 @@ app.delete("/api/messages/:username", requireSession, (req, res) => {
 // What a photograph is of, for a form that wants filling in: its category,
 // a name and a description (see describe.js). Asked by the phone as
 // soon as a photo is taken. Nothing is kept: the picture is looked at and gone.
+// A thing with several photographs sends its first few — three at most, the
+// main one first — one after another in the one body, with `sizes` saying
+// how many bytes each is ("sizes=52011,48820,61002"). Without it the body is
+// one photograph.
 app.post(
   "/api/describe",
   requireSession,
-  express.raw({ type: () => true, limit: MAX_IMAGE_BYTES }),
+  express.raw({ type: () => true, limit: MAX_IMAGE_BYTES * DESCRIBE_PHOTOS_MAX }),
   async (req, res) => {
     if (!canDescribe()) {
       return res.status(503).json({ error: "This server has no key to describe photos with", code: "DESCRIBE_UNAVAILABLE" });
@@ -2063,12 +2079,14 @@ app.post(
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
       return res.status(400).json({ error: "The image is empty" });
     }
+    const photos = describedPhotos(req.body, req.query.sizes);
+    if (!photos) return res.status(400).json({ error: "The photos are not the sizes said" });
     try {
       const language = String(req.query.lang ?? "en").slice(0, 2);
       // `objects=1`: the photograph is of an object — the phone's scanner
       // took it — so only the object categories are chosen among, and its
       // short category comes back too, as `what` (see describeObject).
-      const listing = req.query.objects === "1" ? await describeObject(req.body) : await describeImage(req.body, language);
+      const listing = req.query.objects === "1" ? await describeObject(photos) : await describeImage(photos, language);
       if (!listing) return res.status(422).json({ error: "The photo could not be described", code: "DESCRIBE_FAILED" });
       res.json({
         ...listing,
@@ -2081,6 +2099,18 @@ app.post(
     }
   },
 );
+
+// The photographs in a body sent to be described: the whole of it, or the
+// pieces `sizes` cuts it into — three at most, each no bigger than a
+// photograph may be. Null where the sizes do not come to the body.
+function describedPhotos(body, sizes) {
+  if (sizes == null || sizes === "") return body.length <= MAX_IMAGE_BYTES ? [body] : null;
+  const lengths = String(sizes).split(",").map(Number);
+  if (lengths.length > DESCRIBE_PHOTOS_MAX || lengths.some((length) => !Number.isInteger(length) || length <= 0 || length > MAX_IMAGE_BYTES)) return null;
+  if (lengths.reduce((sum, length) => sum + length, 0) !== body.length) return null;
+  let at = 0;
+  return lengths.map((length) => body.subarray(at, (at += length)));
+}
 
 // What went wrong asking the model, said to the form (see describe.js) —
 // most specific first: what the caller can do about it differs.

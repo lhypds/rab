@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ActionButton, Link, Modal, Select, TextArea, showToast } from "../../ui/index.js";
 import { cancelLine } from "../../utils/bookings.js";
 import { addDays, countDays, formatDay, formatRange, today } from "../../utils/days.js";
-import { barePhone, durationName, formatCoords, formatPrice, formatUsername, relativeTime, roundPrice, unitName } from "../../utils/format.js";
+import { barePhone, durationName, forSale, formatCoords, formatPrice, formatUsername, relativeTime, roundPrice, unitName } from "../../utils/format.js";
 import { contactHref } from "../../utils/dialing.js";
 import { MESSAGES_EVENT } from "../Header/Header.jsx";
 import { directionsUrl } from "../../utils/mapbox.js";
@@ -259,10 +259,10 @@ export default function ItemView({
   const lowToday = todayPrices.length > 0 ? Math.min(...todayPrices) : priceToday;
   const highToday = todayPrices.length > 0 ? Math.max(...todayPrices) : priceToday;
   // Only for sale — not lent out at all: what it is sold for is its price.
-  const saleOnly = !item.spot && item.rentable === false && item.salePrice != null;
+  const saleOnly = !item.spot && item.rentable === false && forSale(item);
   // Offered neither way — not lent out, not for sale: only written down (what
   // the phone's scanner registers is, to start with). No price, nothing to ask.
-  const notOffered = !item.spot && item.rentable === false && item.salePrice == null;
+  const notOffered = !item.spot && item.rentable === false && !forSale(item);
   const priceOnRequest = priceToday == null;
   const priceHead =
     highToday === lowToday
@@ -633,7 +633,13 @@ export default function ItemView({
               >
                 {/* The photograph again, filling the frame and blurred: what
                     stands at the sides of one that is not the frame's shape. */}
-                <img className={styles.photoBlur} src={shownPhoto.src} alt="" aria-hidden="true" />
+                {/* One whose subject was cut out and stood on a colour has
+                    that colour there instead: it is its own ground. */}
+                {shownPhoto.backdrop ? (
+                  <span className={styles.photoGround} style={{ background: shownPhoto.backdrop }} aria-hidden="true" />
+                ) : (
+                  <img className={styles.photoBlur} src={shownPhoto.src} alt="" aria-hidden="true" />
+                )}
                 <img
                   className={styles.photoWhole}
                   src={shownPhoto.src}
@@ -647,8 +653,15 @@ export default function ItemView({
                 />
                 {item.images.length > 1 && (
                   <>
-                    <span className={`${styles.photoSide} ${styles.photoBefore}`} aria-hidden="true">‹</span>
-                    <span className={`${styles.photoSide} ${styles.photoAfter}`} aria-hidden="true">›</span>
+                    {/* Each arrow in a box as the app's own buttons are drawn
+                        (see ActionButton): they cannot be buttons, standing
+                        inside one. */}
+                    <span className={`${styles.photoSide} ${styles.photoBefore}`} aria-hidden="true">
+                      <span className={styles.photoArrow}><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" /></svg></span>
+                    </span>
+                    <span className={`${styles.photoSide} ${styles.photoAfter}`} aria-hidden="true">
+                      <span className={styles.photoArrow}><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" /></svg></span>
+                    </span>
                   </>
                 )}
                 {item.images.length > 1 && (
@@ -693,7 +706,7 @@ export default function ItemView({
               </span>
             )}
             {item.deposit != null && <span>{t("item.depositLine", { price: formatPrice(item.deposit, item.currency, lang) })}</span>}
-            {!saleOnly && item.salePrice != null && <span>{t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, lang) })}</span>}
+            {!saleOnly && forSale(item) && <span>{t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, lang) })}</span>}
             {statusTags}
           </p>
           )}
@@ -1204,7 +1217,16 @@ export default function ItemView({
             className={styles.zoomSheet}
           >
             {shownPhoto && (
-              <div className={styles.zoomStage}>
+              // The room at either side of the photograph turns too: pressed
+              // at its left, the one before; at its right, the one after.
+              <div
+                className={`${styles.zoomStage} ${item.images.length > 1 ? styles.zoomTurns : ""}`}
+                onClick={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  const box = event.currentTarget.getBoundingClientRect();
+                  stepPhoto(event.clientX < box.left + box.width / 2 ? -1 : 1);
+                }}
+              >
                 {/* The photograph and its count in a frame the photograph's own
                     size, so the count stands in the photograph's corner. */}
                 <div className={styles.zoomFrame}>
@@ -1219,19 +1241,19 @@ export default function ItemView({
                   <>
                     <button
                       type="button"
-                      className={`${styles.zoomStep} ${styles.zoomBefore}`}
+                      className={`${styles.photoArrow} ${styles.zoomStep} ${styles.zoomBefore}`}
                       onClick={() => stepPhoto(-1)}
                       aria-label={t("item.photoPrevious")}
                     >
-                      ‹
+                      <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" /></svg>
                     </button>
                     <button
                       type="button"
-                      className={`${styles.zoomStep} ${styles.zoomAfter}`}
+                      className={`${styles.photoArrow} ${styles.zoomStep} ${styles.zoomAfter}`}
                       onClick={() => stepPhoto(1)}
                       aria-label={t("item.photoNext")}
                     >
-                      ›
+                      <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" /></svg>
                     </button>
                   </>
                 )}

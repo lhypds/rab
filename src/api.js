@@ -201,13 +201,19 @@ export const reportItem = (id, reason, note) => send("POST", `/api/items/${name(
 // What a photograph is of, as a listing would say it: { category, title,
 // description }, in the language asked for (see server/describe.js). The
 // model takes its time, so this waits longer than most.
-export const describePhoto = (blob, lang) =>
-  request(`/api/describe?lang=${encodeURIComponent(lang)}`, {
+// Given several — a thing's first few photographs, the main one first, three
+// at most — they go one after another in the one body, with how many bytes
+// each is.
+export const describePhoto = (blobs, lang) => {
+  const list = [].concat(blobs).slice(0, 3);
+  const sizes = list.map((blob) => blob.size).join(",");
+  return request(`/api/describe?lang=${encodeURIComponent(lang)}&sizes=${sizes}`, {
     method: "POST",
-    body: blob,
-    headers: { "Content-Type": blob.type || "application/octet-stream" },
+    body: new Blob(list),
+    headers: { "Content-Type": "application/octet-stream" },
     timeoutMs: 90 * 1000,
   });
+};
 // Which category a listing is in, from what it says and its main photo (the
 // address of one this server stored): { category } (see server/describe.js).
 export const classifyItem = ({ title, what, description, image }) =>

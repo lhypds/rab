@@ -116,6 +116,13 @@
   object-fit: contain;
 }
 
+/* In place of the blurred copy, for a photograph that stands on a plain
+   colour of its own: that colour, over the whole frame. */
+.photo .photoGround {
+  position: absolute;
+  inset: 0;
+}
+
 .photo .photoBlur {
   object-fit: cover;
   filter: blur(24px);
@@ -132,18 +139,35 @@
   display: flex;
   align-items: center;
   width: 33.34%;
-  padding: 0 10px;
-  color: var(--paper);
-  font-family: var(--sans);
-  font-size: 32px;
-  line-height: 1;
-  text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  padding: 0 8px;
   cursor: pointer;
-  opacity: 0.7;
 }
 
-.photoSide:hover {
-  opacity: 1;
+/* The arrow itself, drawn as the app's own buttons are (see ActionButton):
+   a hairline drawing in a box of paper with an ink border, the size the
+   tokens say — and as far from the photograph's edge as its count is. */
+.photoArrow {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--action-w);
+  height: var(--action-h);
+  padding: 2px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.photoArrow svg {
+  width: var(--action-icon);
+  height: var(--action-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .photoBefore {
@@ -180,11 +204,7 @@
   }
 
   .photo:hover .photoSide,
-  .photo:focus-visible .photoSide {
-    opacity: 0.7;
-  }
-
-  .photo:hover .photoSide:hover,
+  .photo:focus-visible .photoSide,
   .photo:hover .photoCount,
   .photo:focus-visible .photoCount,
   .zoomStage:hover .photoCount {
@@ -248,6 +268,16 @@ div.zoomSheet {
   width: 100%;
 }
 
+/* With several photographs, the room beside the one shown is pressed for
+   the one before and the one after; the photograph itself is not. */
+.zoomTurns {
+  cursor: pointer;
+}
+
+.zoomTurns .zoomFrame {
+  cursor: default;
+}
+
 /* The frame the photograph stands in: the photograph's own size, in the
    middle of the sheet, so that the count is in the photograph's corner and
    not the sheet's. */
@@ -270,34 +300,21 @@ div.zoomSheet {
   max-height: calc(92dvh - 72px);
 }
 
-/* The one before and the one after: an arrow half way down each side, with
-   nothing behind it — the photograph shows through. White with a shadow, as
-   the arrows on the page's own photograph are, so it reads on light and dark. */
+/* The one before and the one after: an arrow half way down each side, in
+   the same box as the arrows on the page's own photograph (see .photoArrow). */
 .zoomStep {
   position: absolute;
   top: 50%;
-  width: 40px;
-  height: 40px;
-  margin-top: -20px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--paper);
-  font-family: var(--sans);
-  font-size: 32px;
-  line-height: 1;
-  text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  margin-top: calc(var(--action-h) / -2);
   cursor: pointer;
-  opacity: 0.7;
 }
 
 .zoomBefore {
-  left: 0;
+  left: 8px;
 }
 
 .zoomAfter {
-  right: 0;
+  right: 8px;
 }
 
 @media (hover: hover) {
@@ -311,10 +328,6 @@ div.zoomSheet {
 
   .zoomStage:hover .zoomStep,
   .zoomStep:focus-visible {
-    opacity: 0.7;
-  }
-
-  .zoomStage:hover .zoomStep:hover {
     opacity: 1;
   }
 }

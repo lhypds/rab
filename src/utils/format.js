@@ -96,6 +96,13 @@ export function durationName(minutes, t) {
   return minutes % 60 === 0 ? t("calendar.hours", { count: minutes / 60 }) : t("calendar.minutes", { count: minutes });
 }
 
+// Whether an item is for sale. What it would be sold for may be written on
+// one that is not: `forSale` says which. One that does not say is, where it
+// has a sum.
+export function forSale(item) {
+  return item.salePrice != null && item.forSale !== false;
+}
+
 // What an item costs, as one line: a day of it, or one stretch of its pricing unit —
 // today's day and this time of it, where its price is not the same all the time.
 export function priceLine(item, locale, t) {
@@ -104,7 +111,7 @@ export function priceLine(item, locale, t) {
   // A page (a spot) has no price of its own: each item on it has its own.
   if (item.spot) return "";
   // One that is only for sale says what it is sold for.
-  if (item.rentable === false && item.salePrice != null) {
+  if (item.rentable === false && forSale(item)) {
     return t("item.saleLine", { price: formatPrice(item.salePrice, item.currency, locale) });
   }
   // One offered neither way — not lent out, not for sale — has no price.

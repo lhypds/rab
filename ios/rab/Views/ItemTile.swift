@@ -4,9 +4,9 @@ import SwiftUI
 /// close together: there are a great many of them.
 enum ItemGrid {
     /// How round a photograph's corners are.
-    static let corner: CGFloat = 10
+    static let corner: CGFloat = 16
     /// Between two photographs, across and down alike.
-    static let gap: CGFloat = 6
+    static let gap: CGFloat = 8
     /// Four across, always: however wide the phone, not as many as will fit.
     static let columns = Array(repeating: GridItem(.flexible(), spacing: gap, alignment: .top), count: 4)
 }
@@ -47,6 +47,12 @@ struct ItemTile<Photo: View>: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: ItemGrid.corner))
+            // A faint shadow under the card, to lift it off the page a little.
+            .background {
+                RoundedRectangle(cornerRadius: ItemGrid.corner)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.16), radius: 4, y: 2)
+            }
             .overlay {
                 if busy {
                     ZStack {

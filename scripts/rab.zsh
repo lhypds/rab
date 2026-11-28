@@ -220,13 +220,17 @@ def version(runtime):
 
 runtimes = {version(r): v for r, v in json.load(sys.stdin)["devices"].items() if version(r)}
 newest = max(runtimes) if runtimes else None
+simulators = []
 for v in sorted(runtimes, reverse=True):
     for d in runtimes[v]:
         booted = d["state"] == "Booted"
         if booted or (v == newest and d["name"].startswith(("iPhone", "iPad"))):
             note = ", booted" if booted else ""
             name = d["name"]
-            print("simulator", d["udid"], f"{name} simulator (iOS {v[0]}.{v[1]}{note})", sep="\t")
+            simulators.append((not booted, "\t".join(("simulator", d["udid"], f"{name} simulator (iOS {v[0]}.{v[1]}{note})"))))
+# The booted ones first, above the rest: the order is otherwise kept.
+for _, line in sorted(simulators, key=lambda s: s[0]):
+    print(line)
 ' "$json"
     rm -f "$json"
 }

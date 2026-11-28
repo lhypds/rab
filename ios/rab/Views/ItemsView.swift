@@ -218,7 +218,7 @@ struct ItemsView: View {
                                 if model.recognizingAll {
                                     ProgressView().controlSize(.small).frame(width: BarIcon.side, height: BarIcon.side)
                                 } else {
-                                    BarIcon(name: "brain")
+                                    BrainIcon()
                                 }
                                 if !model.waiting.isEmpty {
                                     Text(verbatim: "\(model.waiting.count)")
@@ -229,6 +229,12 @@ struct ItemsView: View {
                         }
                         .disabled(model.recognizingAll || model.waiting.isEmpty)
                         .accessibilityLabel("Recognize all (\(model.waiting.count))")
+                        // The arrow: the items asked for again. In the same
+                        // square as the others, and drawn a little inside it:
+                        // its line is heavier than theirs, and at the
+                        // square's full size it looks the largest of them.
+                        RefreshButton(scale: BarIcon.side * 0.8 / RefreshIcon.side) { await model.loadListings() }
+                            .frame(width: BarIcon.side, height: BarIcon.side)
                         // The globe: which language the app is in.
                         Button { choosingLanguage = true } label: {
                             BarIcon(name: "globe")
@@ -256,7 +262,7 @@ struct ItemsView: View {
                             .monospacedDigit()
                         // The three that do something need something picked;
                         // the way out does not.
-                        Button(action: recognizePicked) { BarIcon(name: "brain", scale: 0.8) }
+                        Button(action: recognizePicked) { BrainIcon(scale: 0.8) }
                             .accessibilityLabel("Recognize again")
                             .disabled(picked.isEmpty)
                             .opacity(picked.isEmpty ? 0.4 : 1)
@@ -454,13 +460,16 @@ struct RemotePhoto: View {
     /// In a square, whole, with itself blurred where it does not reach the
     /// square's sides (see SquaredPhoto).
     var squared = false
+    /// The colour it stands on, for one whose subject was cut out and stood
+    /// on one ("#rrggbb"): the room left in the square is then that colour.
+    var backdrop: String? = nil
 
     var body: some View {
         AsyncImage(url: model.imageURL(path)) { phase in
             switch phase {
             case .success(let image):
                 if squared {
-                    SquaredPhoto(image: image)
+                    SquaredPhoto(image: image, ground: backdrop.flatMap { UIColor(hex: $0) }.map { Color(uiColor: $0) })
                 } else if fills {
                     Color.clear
                         .overlay { image.resizable().scaledToFill() }
@@ -479,19 +488,25 @@ struct RemotePhoto: View {
 
 /// A photograph in a square, all of it: where it is not square itself, the
 /// room left at its sides — or over and under it — is the photograph again,
-/// filling the square and blurred, not a blank.
+/// filling the square and blurred, not a blank. One that stands on a plain
+/// colour of its own has that colour there instead.
 struct SquaredPhoto: View {
     let image: Image
+    var ground: Color? = nil
 
     var body: some View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                // A little larger than the square, so that the blur's faded
-                // rim is outside it.
-                image.resizable().scaledToFill()
-                    .scaleEffect(1.2)
-                    .blur(radius: 24)
+                if let ground {
+                    ground
+                } else {
+                    // A little larger than the square, so that the blur's
+                    // faded rim is outside it.
+                    image.resizable().scaledToFill()
+                        .scaleEffect(1.2)
+                        .blur(radius: 24)
+                }
             }
             .clipped()
             .overlay { image.resizable().scaledToFit() }
@@ -518,6 +533,123 @@ struct PhotoPlaceholder: View {
     }
 }
 
+/// The row that says what the main photograph stands on: "Remove background"
+/// on one that is as it was taken — its subject is then cut out of its
+/// background and stood on white — and "Restore background" on one that has
+/// been, which puts it back. Done at once: the cut-out is made on the phone,
+/// and is the item's main photograph, with the one it was made of after it.
+struct BackdropRows: View {
+    /// The colour the subject stands on, as "#rrggbb"; nil where the
+    /// photograph is as it was taken.
+    let backdrop: String?
+    @Binding var error: String?
+    /// Has it done: the colour, or nil for the photograph as it was taken.
+    let apply: (String?) async throws -> Void
+
+    @State private var busy = false
+
+    var body: some View {
+        let removed = backdrop != nil
+        Button {
+            busy = true
+            error = nil
+            Task {
+                defer { busy = false }
+                do {
+                    try await apply(removed ? nil : BackgroundRemover.defaultBackdrop)
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+        } label: {
+            HStack {
+                if removed {
+                    Label("Restore background", systemImage: "arrow.uturn.backward")
+                } else {
+                    Label("Remove background", systemImage: "person.and.background.dotted")
+                }
+                Spacer()
+                if busy { ProgressView().controlSize(.small) }
+            }
+        }
+        .disabled(busy)
+    }
+}
+
+/// The row that makes the photograph shown the item's main one: its first,
+/// the one its tile shows. Once it is, the photographs turn back to the
+/// first, which it now is.
+struct MainPhotoRow: View {
+    @Binding var shown: Int
+    @Binding var error: String?
+    /// Makes the one at this place in the row the main one.
+    let makeMain: (Int) async throws -> Void
+
+    @State private var busy = false
+
+    var body: some View {
+        Button {
+            let chosen = shown
+            busy = true
+            error = nil
+            Task {
+                defer { busy = false }
+                do {
+                    try await makeMain(chosen)
+                    withAnimation { shown = 0 }
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+        } label: {
+            HStack {
+                Label("Set as main photo", systemImage: "star")
+                Spacer()
+                if busy { ProgressView().controlSize(.small) }
+            }
+        }
+        .disabled(busy)
+    }
+}
+
+/// The row that publishes one of the user's items on rab, or takes it back
+/// out of sight: "Publish" on one that is not, "Unpublish" on one that is.
+struct PublishRow: View {
+    @Environment(AppModel.self) private var model
+
+    let listingId: String
+    @Binding var error: String?
+
+    @State private var busy = false
+
+    var body: some View {
+        let published = model.isPublished(listingId)
+        Button {
+            busy = true
+            error = nil
+            Task {
+                defer { busy = false }
+                do {
+                    try await model.setPublished(!published, listing: listingId)
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+        } label: {
+            HStack {
+                if published {
+                    Label("Unpublish", systemImage: "eye.slash")
+                } else {
+                    Label("Publish", systemImage: "eye")
+                }
+                Spacer()
+                if busy { ProgressView().controlSize(.small) }
+            }
+        }
+        .disabled(busy)
+    }
+}
+
 /// One of the user's items on rab: its photograph, what it says about itself,
 /// and the way to its page.
 struct ListingDetailView: View {
@@ -532,13 +664,29 @@ struct ListingDetailView: View {
     /// The box that asks where the item is is up; and its answer is on its
     /// way to rab.
     @State private var choosingPlace = false
-    @State private var placing = false
+    /// Another place chosen for it, not saved yet.
+    @State private var chosenPlace: PlaceChoice?
     /// The photograph is being fetched to be shared; and, fetched, the file
     /// the share sheet is up for.
     @State private var fetchingPhoto = false
     @State private var sharedPhoto: SharedFile?
+    /// The box that asks where more photographs come from is up; and its answer.
+    @State private var askingSource = false
+    @State private var photoSource: PhotoSource?
     /// The photographs are up large, over the screen.
     @State private var viewing: ViewedPhotos?
+    /// Which of the photographs the page is turned to.
+    @State private var shownPhoto = 0
+
+    /// A place chosen in the box: kept by Save, and no change at all where
+    /// it is the one the item is at already. Nowhere, chosen for one that
+    /// stands by a pin that is none of the places, is a change.
+    private func choosePlace(_ choice: PlaceChoice, for listing: Listing) {
+        let current: String = model.place(of: listing)?.id ?? ""
+        let pinnedElsewhere: Bool = current.isEmpty && listing.located == true
+        let same: Bool = choice.id == current && !pinnedElsewhere
+        chosenPlace = same ? nil : choice
+    }
 
     var body: some View {
         if let listing = model.listing(listingId) {
@@ -548,13 +696,51 @@ struct ListingDetailView: View {
         }
     }
 
+    /// Whether the photograph at a place in the row can be made the main
+    /// one: any but the first, which is it, and the one the main cut-out was
+    /// made of, which is it too.
+    private func canBeMain(_ index: Int, of listing: Listing) -> Bool {
+        let pictures = listing.images ?? []
+        guard index > 0, pictures.indices.contains(index) else { return false }
+        if index == 1, pictures[0].backdrop != nil, pictures[1].backdrop == nil { return false }
+        return true
+    }
+
+    /// The colour the photograph the page is turned to stands on, where its
+    /// background has been removed — it is the cut-out, or the photograph a
+    /// cut-out was made of: nil where it has not.
+    private func shownBackdrop(of listing: Listing) -> String? {
+        guard let at = listing.cutOut(at: shownPhoto) else { return nil }
+        return listing.images?[at].backdrop
+    }
+
+    /// Removes the background of the photograph the page is turned to, or
+    /// puts it back. The page stays on that photograph: on its cut-out once
+    /// there is one, which takes its place in the row, and on the photograph
+    /// itself once the cut-out before it is gone.
+    private func setBackdrop(_ hex: String?, of listing: Listing) async throws {
+        guard let pictures = model.listing(listing.id)?.images, pictures.indices.contains(shownPhoto) else { return }
+        let index = shownPhoto
+        let wasAfterCut = pictures[index].backdrop == nil && listing.cutOut(at: index) != nil
+        try await model.setBackdrop(hex, ofListing: listing.id, picture: pictures[index].src)
+        if hex == nil, wasAfterCut, shownPhoto == index { shownPhoto = index - 1 }
+    }
+
+    /// Makes it so: the row as rab has it now, not as it was when the page
+    /// was opened.
+    private func makeMain(_ index: Int, of listing: Listing) async throws {
+        let sources = (model.listing(listing.id)?.images ?? []).map(\.src)
+        guard sources.indices.contains(index) else { return }
+        try await model.setMainPhoto(sources[index], of: listing)
+    }
+
     @ViewBuilder
     private func content(_ listing: Listing) -> some View {
         List {
             if let pictures = listing.images, !pictures.isEmpty {
                 Section {
-                    PhotoPager(count: pictures.count) { index in
-                        RemotePhoto(path: pictures[index].src, squared: true)
+                    PhotoPager(count: pictures.count, shown: $shownPhoto) { index in
+                        RemotePhoto(path: pictures[index].src, squared: true, backdrop: pictures[index].backdrop)
                             // Pressed, it is shown large.
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -571,52 +757,73 @@ struct ListingDetailView: View {
                 }
             }
 
-            // In the language the app is in: what is written here is that language's.
-            ItemEditor(source: ItemDraft(listing.words(in: model.language), category: listing.category ?? "")) { draft in
-                try await model.save(draft, for: listing)
-            }
-
-            // Where it is: one of the account's places, to be chosen — or
-            // the line by its pin, where it stands at none of them.
-            Section {
-                LocationRow(name: model.place(of: listing)?.name ?? (listing.located == false ? nil : listing.place), busy: placing) {
-                    choosingPlace = true
-                }
-            }
-
-            if let page = model.pageURL(ofListing: listing.id) {
-                Section {
-                    Link(destination: page) {
-                        Label("Open on rab", systemImage: "arrow.up.right.square")
-                    }
-                    ShareLink(item: page) {
-                        Label("Share the link", systemImage: "square.and.arrow.up")
-                    }
-                }
-            }
-
-            // The photograph itself, not a link to it: fetched first, then
-            // handed to the share sheet.
+            // What its main photograph stands on: its subject cut out of its
+            // background, on a colour, or the photograph as it was taken.
             if listing.images?.isEmpty == false {
                 Section {
+                    // Of the photograph the page is turned to.
+                    BackdropRows(backdrop: shownBackdrop(of: listing), error: $error) { hex in
+                        try await setBackdrop(hex, of: listing)
+                    }
+                    // Under it, the brain: has it recognized again. Only a
+                    // photograph can be looked at again.
+                    RecognizeRow(busy: model.recognizing.contains(listing.id)) { recognize(listing) }
+                    // The photograph the page is turned to, made the main
+                    // one: not offered of the first, which is it — nor of
+                    // the one the main cut-out was made of, which is it too.
+                    if canBeMain(shownPhoto, of: listing) {
+                        MainPhotoRow(shown: $shownPhoto, error: $error) { index in
+                            try await makeMain(index, of: listing)
+                        }
+                    }
+                    // And under that, the photograph itself sent on, not a
+                    // link to it: fetched first, then handed to the share sheet.
                     Button {
                         sharePhoto(listing)
                     } label: {
                         HStack {
                             Label("Share the photo", systemImage: "photo")
                             Spacer()
-                            if fetchingPhoto { ProgressView() }
+                            if fetchingPhoto { ProgressView().controlSize(.small) }
                         }
                     }
                     .disabled(fetchingPhoto)
                 }
             }
 
-            // One more photograph of it, and another: taken now, or chosen
-            // from the ones the phone has.
+            // Under those, in a block of its own: one more photograph of it,
+            // and another — taken now, or chosen from the ones the phone has.
             Section {
-                AddPhotoRows(error: $error) { image in
+                AddPhotoRows(asking: $askingSource, source: $photoSource, error: $error) { image in
                     try await model.addPhoto(image, to: listing)
+                }
+            }
+
+            // In the language the app is in: what is written here is that language's.
+            // Where it is, above Save: one of the account's places, to be
+            // chosen — or the line by its pin, where it stands at none of
+            // them. Chosen, it is kept when Save is pressed.
+            ItemEditor(
+                source: ItemDraft(listing.words(in: model.language), category: listing.category ?? ""),
+                placeName: model.place(of: listing)?.name ?? (listing.located == false ? nil : listing.place),
+                place: $chosenPlace,
+                choosePlace: { choosingPlace = true },
+                save: { draft in try await model.save(draft, for: listing) },
+                savePlace: { place in try await model.setPlace(place, for: listing) }
+            )
+
+            // Published, or not: and only a published one has a page to be
+            // opened and passed around — an unpublished one is its owner's
+            // alone to see.
+            Section {
+                PublishRow(listingId: listing.id, error: $error)
+                if listing.active == true, let page = model.pageURL(ofListing: listing.id) {
+                    Link(destination: page) {
+                        Label("Open on rab", systemImage: "arrow.up.right.square")
+                    }
+                    ShareLink(item: page) {
+                        Label("Share the link", systemImage: "square.and.arrow.up")
+                    }
                 }
             }
 
@@ -628,7 +835,7 @@ struct ListingDetailView: View {
                     HStack {
                         Text("Delete")
                         Spacer()
-                        if deleting { ProgressView() }
+                        if deleting { ProgressView().controlSize(.small) }
                     }
                 }
                 .disabled(deleting)
@@ -650,11 +857,9 @@ struct ListingDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            // Only a photograph can be looked at again.
-            if listing.images?.isEmpty == false {
-                ToolbarItem(placement: .topBarTrailing) {
-                    RecognizeButton(busy: model.recognizing.contains(listing.id)) { recognize(listing) }
-                }
+            // Asked for again by the arrow at the top, not by pulling down.
+            ToolbarItem(placement: .topBarTrailing) {
+                RefreshButton(scale: 1.3) { await model.loadListings() }
             }
         }
         // Asked in a dialog in the middle of the screen, not a sheet at its foot.
@@ -663,19 +868,9 @@ struct ListingDetailView: View {
             title: Text("Location"),
             choices: PlaceChoice.all(model.places),
             name: { $0.name },
-            chosen: { $0.id == (model.place(of: listing)?.id ?? "") },
-            choose: { choice in
-                placing = true
-                error = nil
-                Task {
-                    defer { placing = false }
-                    do {
-                        try await model.setPlace(choice.place, for: listing)
-                    } catch {
-                        self.error = error.localizedDescription
-                    }
-                }
-            }
+            chosen: { $0.id == (chosenPlace?.id ?? model.place(of: listing)?.id ?? "") },
+            // Only chosen: Save keeps it. The one it is at already is no change.
+            choose: { choosePlace($0, for: listing) }
         )
         .fullScreenCover(item: $viewing) { photos in
             // The addresses as they were when it was opened: the row it shows.
@@ -685,6 +880,7 @@ struct ListingDetailView: View {
                 try await model.removePhoto(sources[index], from: listing)
             }
         }
+        .photoSourceChoice(isPresented: $askingSource, source: $photoSource)
         .sheet(item: $sharedPhoto) { photo in
             ShareSheet(file: photo.url)
                 .presentationDetents([.medium, .large])
@@ -740,40 +936,75 @@ struct ListingDetailView: View {
     }
 }
 
-/// The rows of an item's page that add photographs to it: the camera, where
-/// the device has one — it stays open, and each press of its button is one
-/// more photograph — and the photographs the phone has already, several at
-/// once. What is chosen is added the moment it is; what is taken, when the
-/// camera's Done is pressed.
+/// The row of an item's page that adds photographs to it. Pressed, it asks
+/// where from: the camera, where the device has one — it stays open, and
+/// each press of its button is one more photograph — or the photographs the
+/// phone has already, several at once. What is chosen is added the moment it
+/// is; what is taken, when the camera's Done is pressed.
+/// Where photographs added to an item are to come from.
+enum PhotoSource: String, Identifiable, CaseIterable {
+    case camera, library
+    var id: String { rawValue }
+    var name: String { Language.text(self == .camera ? "Take a photo" : "Choose photos") }
+}
+
+extension View {
+    /// The box that asks where photographs are to come from, in the middle
+    /// of the screen. It is the page's to put up, not the row's: a box put
+    /// up by a row of a list is drawn inside that row. What is chosen is
+    /// handed to the row through `source` (see AddPhotoRows).
+    func photoSourceChoice(isPresented: Binding<Bool>, source: Binding<PhotoSource?>) -> some View {
+        compactChoice(
+            isPresented: isPresented,
+            title: Text("Add photos"),
+            choices: PhotoSource.allCases,
+            name: { $0.name },
+            chosen: { _ in false },
+            choose: { source.wrappedValue = $0 }
+        )
+    }
+}
+
 struct AddPhotoRows: View {
+    /// The page's box is up (see `photoSourceChoice`), and what was chosen
+    /// in it: taken from here, and put back to nothing, as it is acted on.
+    @Binding var asking: Bool
+    @Binding var source: PhotoSource?
     @Binding var error: String?
     let add: (UIImage) async throws -> Void
 
     @State private var taking = false
+    @State private var choosing = false
     @State private var chosen: [PhotosPickerItem] = []
     /// How many of the chosen are still to be added.
     @State private var adding = 0
 
     var body: some View {
-        // The simulator, and anything else without a camera, has only the library.
-        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            Button {
-                taking = true
-            } label: {
-                Label("Take a photo", systemImage: "camera")
+        Button {
+            // The simulator, and anything else without a camera, has only
+            // the library: there is nothing to ask.
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                asking = true
+            } else {
+                choosing = true
             }
-            .fullScreenCover(isPresented: $taking) {
-                ScannerView(spots: [], keep: add)
-            }
-        }
-        PhotosPicker(selection: $chosen, maxSelectionCount: 10, matching: .images) {
+        } label: {
             HStack {
-                Label("Choose photos", systemImage: "photo.on.rectangle")
+                Label("Add photos", systemImage: "photo.badge.plus")
                 Spacer()
-                if adding > 0 { ProgressView() }
+                if adding > 0 { ProgressView().controlSize(.small) }
             }
         }
         .disabled(adding > 0)
+        .onChange(of: source) { _, chosen in
+            guard let chosen else { return }
+            source = nil
+            if chosen == .camera { taking = true } else { choosing = true }
+        }
+        .fullScreenCover(isPresented: $taking) {
+            ScannerView(spots: [], keep: add)
+        }
+        .photosPicker(isPresented: $choosing, selection: $chosen, maxSelectionCount: 10, matching: .images)
         .onChange(of: chosen) { _, items in
             guard !items.isEmpty else { return }
             chosen = []
@@ -824,7 +1055,16 @@ struct ItemEditor: View {
     /// has recognized it again — the page shows the new, unless something
     /// has been typed here in the meantime.
     let source: ItemDraft
+    /// Where the item is, as it is kept: the name its row shows until
+    /// another is chosen.
+    let placeName: String?
+    /// Another place chosen for it, in the page's box — or nowhere — and not
+    /// saved yet: nil while it is where it was. Save keeps it, with the rest.
+    @Binding var place: PlaceChoice?
+    /// Puts the page's box up: a box put up by a row is drawn inside it.
+    let choosePlace: () -> Void
     let save: (ItemDraft) async throws -> Void
+    let savePlace: (Place?) async throws -> Void
 
     @State private var draft: ItemDraft
     /// One of the fields is being written in: the keyboard is up.
@@ -832,13 +1072,25 @@ struct ItemEditor: View {
     @State private var saving = false
     @State private var error: String?
 
-    init(source: ItemDraft, save: @escaping (ItemDraft) async throws -> Void) {
+    init(
+        source: ItemDraft,
+        placeName: String?,
+        place: Binding<PlaceChoice?>,
+        choosePlace: @escaping () -> Void,
+        save: @escaping (ItemDraft) async throws -> Void,
+        savePlace: @escaping (Place?) async throws -> Void
+    ) {
         self.source = source
+        self.placeName = placeName
+        _place = place
+        self.choosePlace = choosePlace
         self.save = save
+        self.savePlace = savePlace
         _draft = State(initialValue: source)
     }
 
-    private var changed: Bool { draft.tidy != source.tidy }
+    private var written: Bool { draft.tidy != source.tidy }
+    private var changed: Bool { written || place != nil }
     private var ready: Bool { changed && !saving && !draft.tidy.title.isEmpty }
 
     /// The object categories, and whatever other one it is in already.
@@ -907,6 +1159,9 @@ struct ItemEditor: View {
                 .font(Compact.font)
                 .contentShape(Rectangle())
             }
+            // Where it is, last above Save: another place chosen is only
+            // shown here until Save keeps it.
+            LocationRow(name: place.map(\.name) ?? placeName, busy: false, action: choosePlace)
         } footer: {
             if let error { Text(error).foregroundStyle(.red) }
         }
@@ -952,8 +1207,14 @@ struct ItemEditor: View {
         Task {
             defer { saving = false }
             do {
-                try await save(tidy)
-                draft = tidy
+                if written {
+                    try await save(tidy)
+                    draft = tidy
+                }
+                if let chosen = place {
+                    try await savePlace(chosen.place)
+                    place = nil
+                }
             } catch {
                 self.error = error.localizedDescription
             }
@@ -1010,20 +1271,24 @@ struct LocationRow: View {
     }
 }
 
-/// The brain: has a photographed thing recognized again. It turns while the
-/// server is looking.
-struct RecognizeButton: View {
+/// The row with the brain: has a photographed thing recognized again. A
+/// wheel turns at its end while the server is looking.
+struct RecognizeRow: View {
     let busy: Bool
     let action: () -> Void
 
     var body: some View {
-        if busy {
-            ProgressView()
-        } else {
-            Button(action: action) {
-                Image(systemName: "brain")
+        Button(action: action) {
+            HStack {
+                Label {
+                    Text("Recognize again")
+                } icon: {
+                    BrainIcon()
+                }
+                Spacer()
+                if busy { ProgressView().controlSize(.small) }
             }
-            .accessibilityLabel("Recognize again")
         }
+        .disabled(busy)
     }
 }

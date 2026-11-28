@@ -53,19 +53,27 @@ page.
   show the language the app is in (the globe in the bar). The item
   is then registered on rab, on the spot it was collected for.
 - the person shows whose account it is, and signs out.
+- the arrow, last on the right, asks rab for the items again.
 
 **What is registered.** What the thing is and nothing more: no price, not for
 rent and not for sale, no way to reach you, no place and no area, and not
-published. Those are said on the website, by whoever wants the thing offered.
+published. Those are said on the website, by whoever wants the thing offered —
+but for publishing, which the item's page here does too: **Publish** on one
+that is not, **Unpublish** on one that is. Only a published item shows the
+way to its page on rab (**Open on rab**, **Share the link**).
 
-**An item's page.** Its photograph and what it says about itself. The brain at
-the top has that one recognized again, and what it says written over — on rab
-too, where it is there. "Take a photo" opens the camera again for that item:
-each press of the round button is one more photograph, and Done adds them to
-it — after the ones it has, on rab too where the item is there; the cross
-adds none. "Choose photos" adds some the phone has already. Several
+**An item's page.** Its photograph and what it says about itself. The arrow at
+the top right asks rab for it again (pulling the page down does not).
+**Recognize again**, under the background's button, has it recognized again, from its main photograph and the two after
+it (three at most), and what it says written over — on rab too, where it is
+there. "Add photos" asks where from. "Take a photo" opens the camera again for that
+item: each press of the round button is one more photograph, and Done adds
+them to it — after the ones it has, on rab too where the item is there; the
+cross adds none. "Choose photos" adds some the phone has already. Several
 photographs are swiped through side by side, each shown in a square; one
-pressed is shown large, and the bin there takes it off the item.
+pressed is shown large, and the bin there takes it off the item; the star
+there (top right, on any but the first) makes it the item's main photograph —
+the first, the one its tile shows — on rab too where the item is there.
 
 In the camera, Done (top right) keeps what was taken and the cross (top left)
 throws it away again, asked first; the small photograph at the bottom left is

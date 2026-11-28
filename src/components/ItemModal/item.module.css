@@ -153,9 +153,12 @@ div.sheet .form {
 
 /* The photographs, as a wall of small squares that wraps: a hundred of them is
    ten rows, and the first is the one everything else is listed under. */
+/* The photographs in rows of squares; the main one — the first — is two
+   squares wide and two high, the others going round it. */
 .photos {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 64px);
+  grid-auto-rows: 64px;
   gap: 6px;
 }
 
@@ -171,6 +174,10 @@ div.sheet .form {
 }
 
 .photoMain {
+  grid-column: span 2;
+  grid-row: span 2;
+  width: 134px;
+  height: 134px;
   border-color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--ink);
 }
@@ -837,4 +844,78 @@ div.sheet .form {
   align-items: center;
   gap: 6px;
   font-size: 12px;
+}
+
+/* The arrow on the sheet's top bar, to the left of the cross, and drawn as
+   the cross is: no box, the muted ink, darker under the pointer. It goes
+   round while the item is being asked for again. */
+.refresh {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.refresh:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.refresh svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.refresh[aria-busy="true"] svg {
+  animation: refreshTurn 0.8s linear infinite;
+}
+
+@keyframes refreshTurn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The brain's button and what it fills in, joined by a grey dashed line.
+   The fields it writes — the name, the category and the description — are
+   in a dashed frame drawn round them, outside them: an outline, which takes
+   no room, so that nothing in the form is any other size or anywhere else
+   than it was. From the frame's left side the line goes on up to the middle
+   of the button and turns in to it. */
+.aiFrame {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  outline: 1px dashed var(--muted);
+  outline-offset: 6px;
+}
+
+.aiStart {
+  position: relative;
+}
+
+/* From the middle of the button's left side (the button is 26px tall) out to
+   the frame's left side, 6px outside the fields, and down it to the frame's
+   top, 6px over the fields that are 14px under this one. */
+.aiStart::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: -8px;
+  left: -6px;
+  width: 6px;
+  border-top: 1px dashed var(--muted);
+  border-left: 1px dashed var(--muted);
+  pointer-events: none;
 }

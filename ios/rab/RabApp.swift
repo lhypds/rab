@@ -347,15 +347,19 @@ struct RowLabelStyle: LabelStyle {
 /// swiped through, side by side, with the dots that say which is shown.
 struct PhotoPager<Page: View>: View {
     let count: Int
+    /// Which of them is shown, counted from nothing: read by the page they
+    /// are on, which has a button for the one shown, and set by it to turn
+    /// back to the first.
+    @Binding var shown: Int
     @ViewBuilder let page: (Int) -> Page
 
     var body: some View {
         if count <= 1 {
             page(0)
         } else {
-            TabView {
+            TabView(selection: $shown) {
                 ForEach(0..<count, id: \.self) { index in
-                    page(index)
+                    page(index).tag(index)
                 }
             }
             .tabViewStyle(.page)

@@ -1043,6 +1043,8 @@ function servedItem(item) {
     thumb: imageUrl(image.thumb || image.name),
     width: image.width ?? null,
     height: image.height ?? null,
+    // The colour a cut-out subject stands on, for a picture that is one.
+    ...(image.backdrop && { backdrop: image.backdrop }),
   }));
   const located = item.located === true;
   return {
@@ -1099,8 +1101,12 @@ function servedItem(item) {
     cancel: item.cancel ?? { mode: "any" },
     // The deposit asked for on top of the price, in its currency: null for none.
     deposit: item.deposit ?? null,
-    // What it is sold for, where it is for sale as well: null where it is not.
+    // What it is sold for — or would be, where it is not for sale: null
+    // where no sum is written.
     salePrice: item.salePrice ?? null,
+    // Whether it is for sale: one from before this was said apart from the
+    // sum is, where it has a sum.
+    forSale: item.salePrice != null && item.forSale !== false,
     // Whether it is lent out at all: one that is not is only for sale.
     rentable: item.rentable !== false,
     // Whether it is somebody else's, put here by an account that does not
@@ -1339,6 +1345,7 @@ function itemFields(item) {
     cancel: item.cancel ?? { mode: "any" },
     deposit: item.deposit ?? null,
     salePrice: item.salePrice ?? null,
+    forSale: item.salePrice != null && item.forSale !== false,
     // Whether it is lent out at all: one that is not is only for sale.
     rentable: item.rentable !== false,
     // Following its account's contacts, it keeps none of its own.
