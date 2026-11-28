@@ -768,7 +768,10 @@ function spotCategories(spot, items) {
   return [...new Set([spot.category, ...theirs].filter(Boolean))];
 }
 
+// Nothing sent is no number — not the nought that Number() makes of null and
+// of an empty string, which for a place is a spot in the sea off Africa.
 function parseNumber(value, min, max) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 }
