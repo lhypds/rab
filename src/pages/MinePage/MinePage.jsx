@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import SpotList from "../../components/SpotList.jsx";
 import * as api from "../../api.js";
@@ -7,7 +7,7 @@ import { BookingRow, CategoryFilter, CategoryTabs, categoriesOf, Header, ItemRow
 import ItemPreview from "../../components/ItemPreview/index.js";
 import { useListView } from "../../components/ListView.jsx";
 import RequestModal, { RequestView } from "../../components/RequestModal/index.js";
-import { Skeleton, useNavigate, useSearchParams } from "../../ui/index.js";
+import { Modal, Skeleton, showToast, useNavigate, useSearchParams } from "../../ui/index.js";
 
 // What the list of your items can be narrowed to: only what is published, on
 // or off, and one category. "All" is none of that: it is pressed while nothing
@@ -127,6 +127,73 @@ export default function MinePage() {
   const fits = (item) => (!published || item.active) && (!category || item.category === category);
   const items = (data?.items ?? []).filter(fits).sort((a, b) => turn(a) - turn(b));
 
+  // Several of your items picked at once, to be deleted together. A press
+  // held on one picks it; while any is picked a press picks or lets go of
+  // another instead of opening it; and a press with Shift held picks every
+  // one from the last one pressed to this one, whether any was picked or not.
+  // Only the ones the list is showing count: one filtered out is not picked.
+  const [pickedIds, setPickedIds] = useState([]);
+  const anchor = useRef(null);
+  const picked = pickedIds.filter((id) => items.some((item) => item.id === id));
+  const picking = picked.length > 0;
+  const unpick = () => {
+    setPickedIds([]);
+    anchor.current = null;
+  };
+  const hold = (item) => {
+    anchor.current = item.id;
+    setPickedIds([...picked.filter((id) => id !== item.id), item.id]);
+  };
+  const pressItem = (item, event) => {
+    // A press meant for a new tab is still left to go to the page.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.shiftKey) {
+      event.preventDefault();
+      const from = items.findIndex((each) => each.id === anchor.current);
+      const to = items.findIndex((each) => each.id === item.id);
+      const run = from < 0 ? [item.id] : items.slice(Math.min(from, to), Math.max(from, to) + 1).map((each) => each.id);
+      if (from < 0) anchor.current = item.id;
+      setPickedIds([...picked.filter((id) => !run.includes(id)), ...run]);
+      return;
+    }
+    if (!picking) return preview(item, event);
+    event.preventDefault();
+    anchor.current = item.id;
+    setPickedIds(picked.includes(item.id) ? picked.filter((id) => id !== item.id) : [...picked, item.id]);
+  };
+  // Escape lets go of them all — unless a sheet is open, which it closes.
+  const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!picking || deleting || previewId) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") unpick();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picking, deleting, previewId]);
+  // Deleted one after another; where one cannot be, the rest are left, and
+  // the list is asked for again to say which are still there.
+  const deletePicked = async () => {
+    setBusy(true);
+    let gone = 0;
+    try {
+      for (const id of picked) {
+        await api.deleteItem(id);
+        gone += 1;
+      }
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+      setDeleting(false);
+      unpick();
+      if (gone > 0) showToast(t("mine.deletedPicked", { count: gone }), 1800);
+      load();
+    }
+  };
+
   // The five things that are yours, down the left, and the one of them shown
   // on the right. Which one is in the address, so a step back from an item's
   // page lands on the list that was left.
@@ -173,7 +240,22 @@ export default function MinePage() {
                     <h2>{t("mine.items")}</h2>
                     {viewPair}
                   </span>
-                  {data && <span>{items.length}</span>}
+                  {/* With some picked: how many, the way to let go of them,
+                      and the button that deletes them — in place of the
+                      count of the whole list. */}
+                  {picking ? (
+                    <span className="pick-bar">
+                      <span>{t("mine.picked", { count: picked.length })}</span>
+                      <button type="button" className="pick-button" onClick={unpick}>
+                        {t("common.cancel")}
+                      </button>
+                      <button type="button" className="pick-button pick-delete" onClick={() => setDeleting(true)}>
+                        {t("item.delete")}
+                      </button>
+                    </span>
+                  ) : (
+                    data && <span>{items.length}</span>
+                  )}
                 </div>
 
                 {/* What the list below is narrowed to: published or not, and
@@ -192,15 +274,15 @@ export default function MinePage() {
                   (items.length === 0 ? (
                     <p className="empty-state">{t(!category && !published ? "mine.itemsEmpty" : "mine.noneShown")}</p>
                   ) : cards ? (
-                    <ul className="item-cards">
+                    <ul className={picking ? "item-cards picking" : "item-cards"}>
                       {items.map((item) => (
-                        <ItemCard key={item.id} item={item} showPublished onPress={(event) => preview(item, event)} />
+                        <ItemCard key={item.id} item={item} showPublished picked={picked.includes(item.id)} onHold={() => hold(item)} onPress={(event) => pressItem(item, event)} />
                       ))}
                     </ul>
                   ) : (
-                    <ul className="row-list">
+                    <ul className={picking ? "row-list picking" : "row-list"}>
                       {items.map((item) => (
-                        <ItemRow key={item.id} item={item} showPublished onPress={(event) => preview(item, event)} />
+                        <ItemRow key={item.id} item={item} showPublished picked={picked.includes(item.id)} onHold={() => hold(item)} onPress={(event) => pressItem(item, event)} />
                       ))}
                     </ul>
                   ))}
@@ -296,6 +378,18 @@ export default function MinePage() {
         </div>
       </main>
       <MessageModal username={writingTo} onClose={() => setWritingTo(null)} />
+      {/* Asked before the ones picked are deleted, as for one on its page. */}
+      <Modal isOpen={deleting} title={t("item.delete")} onClose={busy ? undefined : () => setDeleting(false)} closeOnOverlay>
+        <p className="modal-text">{t("mine.deletePickedConfirm", { count: picked.length })}</p>
+        <div className="modal-actions">
+          <button type="button" className="outline-button" disabled={busy} onClick={() => setDeleting(false)}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="primary-button danger-button" disabled={busy} onClick={deletePicked}>
+            {t("item.delete")}
+          </button>
+        </div>
+      </Modal>
       {/* An item or a spot opened from its row, on a sheet over the list.
           Whatever was done to it there — changed, published, deleted, let go
           of — the lists are asked for again once the sheet is put away. */}

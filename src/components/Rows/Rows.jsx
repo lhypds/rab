@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../../api.js";
 import { ActionButton, Link, Modal, TextArea, showToast } from "../../ui/index.js";
@@ -11,6 +11,54 @@ import { PIN_PATH } from "../../utils/mapbox.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import ReviewModal from "../ReviewModal/index.js";
 import UserName, { dotted } from "../UserName/index.js";
+
+// A press held still on a row or a card: what picks it, where a list lets
+// several be picked (`onHold`). Half a second without the pointer moving off
+// is a hold; the press that ends it is then not also a press on the link, and
+// the menu a held finger would bring up over a link is not brought up.
+// Nothing at all where there is no `onHold`.
+const HOLD_MS = 500;
+const HOLD_SLACK = 8;
+
+function useHold(onHold) {
+  const held = useRef({ timer: null, x: 0, y: 0, fired: false, touch: false });
+  if (!onHold) return {};
+  const drop = () => {
+    clearTimeout(held.current.timer);
+    held.current.timer = null;
+  };
+  return {
+    onPointerDown: (event) => {
+      if (event.button !== 0) return;
+      drop();
+      held.current.fired = false;
+      held.current.touch = event.pointerType !== "mouse";
+      held.current.x = event.clientX;
+      held.current.y = event.clientY;
+      held.current.timer = setTimeout(() => {
+        held.current.timer = null;
+        held.current.fired = true;
+        onHold();
+      }, HOLD_MS);
+    },
+    onPointerMove: (event) => {
+      if (held.current.timer && Math.hypot(event.clientX - held.current.x, event.clientY - held.current.y) > HOLD_SLACK) drop();
+    },
+    onPointerUp: drop,
+    onPointerCancel: drop,
+    onPointerLeave: drop,
+    // The press a hold ends with is the hold's, not the link's.
+    onClickCapture: (event) => {
+      if (!held.current.fired) return;
+      held.current.fired = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    onContextMenu: (event) => {
+      if (held.current.touch && (held.current.timer || held.current.fired)) event.preventDefault();
+    },
+  };
+}
 
 // One item in a list: its picture, its name, what a day of it costs and where
 // it is. The whole row is the way to its page. In the owner's own list the row
@@ -26,8 +74,12 @@ import UserName, { dotted } from "../UserName/index.js";
 // With `onDrag` the row can be picked up and carried — to a category, in the
 // lists (see MapView): it is told when the carrying starts, with the event,
 // and when it ends, with nothing.
-export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, onDrag, chosen = false, pin = false }) {
+//
+// Where several can be picked at once (the owner's own list), `onHold` is
+// told of a press held on the row, and `picked` marks the row as one of them.
+export function ItemRow({ item, showOwner = false, showPublished = false, onPress, onPoint, onDrag, chosen = false, pin = false, picked = false, onHold }) {
   const { t, i18n } = useTranslation();
+  const hold = useHold(onHold);
   const meta = [
     priceLine(item, i18n.language, t),
     sortLabel(item, t),
@@ -38,7 +90,9 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
   ];
   return (
     <li
-      className={chosen ? "row-item row-chosen" : "row-item"}
+      className={["row-item", chosen && "row-chosen", picked && "row-picked", onHold && "holdable"].filter(Boolean).join(" ")}
+      aria-selected={onHold ? picked : undefined}
+      {...hold}
       onMouseEnter={onPoint && (() => onPoint(true))}
       onMouseLeave={onPoint && (() => onPoint(false))}
       draggable={onDrag ? true : undefined}
@@ -97,12 +151,13 @@ export function ItemRow({ item, showOwner = false, showPublished = false, onPres
 
 // One item as a card in a grid: its photograph over its name and what it
 // costs, the whole card the way to its page. `showPublished` and `onPress` as
-// on a row.
-export function ItemCard({ item, showPublished = false, onPress }) {
+// on a row, and `picked` and `onHold` too.
+export function ItemCard({ item, showPublished = false, onPress, picked = false, onHold }) {
   const { t, i18n } = useTranslation();
   const photo = item.images?.[0]?.thumb ?? item.thumb ?? null;
+  const hold = useHold(onHold);
   return (
-    <li className="item-card">
+    <li className={["item-card", picked && "item-card-picked", onHold && "holdable"].filter(Boolean).join(" ")} aria-selected={onHold ? picked : undefined} {...hold}>
       <Link className="item-card-link" to={itemPath(item)} state={{ back: true }} onClick={onPress}>
         <span className="item-card-photo">
           {photo ? <img src={photo} alt="" loading="lazy" /> : <CategoryIcon category={markOf(item)} />}

@@ -470,7 +470,12 @@
     "itemsEmpty": "You have nothing listed. Press + to publish something.",
     "noneShown": "Nothing here.",
     "items": "Items",
-    "wanted": "Requests"
+    "wanted": "Requests",
+    "picked": "{{count}} selected",
+    "deletePickedConfirm_one": "Delete this item?",
+    "deletePickedConfirm_other": "Delete these {{count}} items?",
+    "deletedPicked_one": "Item deleted",
+    "deletedPicked_other": "{{count}} items deleted"
   },
   "user": {
     "missing": "There is nobody by that name.",

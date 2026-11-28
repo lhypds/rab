@@ -494,10 +494,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
       text: `${t(`category.${slug}`)} ${slug}`,
     })),
   ];
-  // What is typed over the categories, as lists: the ones whose name has
-  // every word of it are the ones left to pick from.
-  const [categoryQuery, setCategoryQuery] = useState("");
-  const categoryWords = categoryQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // And they are set out by how much each has here: the categories with the
   // most offered in this area first, and the ones
   // with nothing after them, in the order they are always in. "All
@@ -557,20 +553,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
         </span>
       ),
     }));
-  const categoriesFound = (
-    categoryWords.length
-      ? categoryOptions.filter((option) => categoryWords.every((word) => option.text.toLowerCase().includes(word)))
-      : categoryOptions
-  )
-    .map((option, index) => ({ option, index }))
-    .sort(
-      (a, b) =>
-        (a.option.value === "" ? -1 : 0) - (b.option.value === "" ? -1 : 0) ||
-        (a.option.value === "other" ? 1 : 0) - (b.option.value === "other" ? 1 : 0) ||
-        (held.get(b.option.value) ?? 0) - (held.get(a.option.value) ?? 0) ||
-        a.index - b.index,
-    )
-    .map(({ option }) => option);
   // As lists, an item's row can be carried onto a category and left there:
   // the item is then of that category. Only by an account that may change the
   // item — its own, somebody else's that was written down (`shared`), or any
@@ -629,16 +611,21 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     }
   };
 
+  // What an item says about itself, as the box reads it: its name, its few
+  // words for what it is, its description, where it is, whose, and its
+  // category.
+  const textOf = (item) =>
+    [item.title, item.what, item.description, item.place, item.owner, item.category && t(`category.${item.category}`, item.category)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
   // An item passes when it is of the category in force and every word typed
   // is somewhere in what it says about itself.
   const passes = (item) => {
     if (category && !categoriesOfItem(item).includes(category)) return false;
     if (!category && !inGroup(item)) return false;
     if (words.length === 0) return true;
-    const text = [item.title, item.description, item.place, item.owner, item.category && t(`category.${item.category}`, item.category)]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+    const text = textOf(item);
     return words.every((word) => text.includes(word));
   };
   const filtering = Boolean(category || group || words.length);
@@ -686,6 +673,36 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     // `passes` and `filtering` are derived afresh each render from these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offered, found, sought, category, group, query, t]);
+  // What is typed in the box — the one at the head of the column, as lists,
+  // and the one in the top bar, which are the same — finds items, and with
+  // them the themes and the categories to pick from: the ones named so, and
+  // the ones an item found is in. "None" and "All categories" stay, being
+  // the way back out of one picked.
+  const named = (text) => words.every((word) => text.toLowerCase().includes(word));
+  const kindsFound = new Set();
+  if (words.length) {
+    for (const item of [...(offered ?? []), ...(found ?? [])]) {
+      if (!named(textOf(item))) continue;
+      for (const kind of categoriesOfItem(item).length ? categoriesOfItem(item) : [item.category]) kindsFound.add(kind);
+    }
+  }
+  const themesFound = words.length
+    ? ["", ...themes.filter((theme) => named(t(`group.${theme}`)) || CATEGORY_GROUPS[theme].some((slug) => kindsFound.has(slug)))]
+    : ["", ...themes];
+  const categoriesFound = (
+    words.length
+      ? categoryOptions.filter((option) => option.value === "" || named(option.text) || kindsFound.has(option.value))
+      : categoryOptions
+  )
+    .map((option, index) => ({ option, index }))
+    .sort(
+      (a, b) =>
+        (a.option.value === "" ? -1 : 0) - (b.option.value === "" ? -1 : 0) ||
+        (a.option.value === "other" ? 1 : 0) - (b.option.value === "other" ? 1 : 0) ||
+        (held.get(b.option.value) ?? 0) - (held.get(a.option.value) ?? 0) ||
+        a.index - b.index,
+    )
+    .map(({ option }) => option);
   // What is listed is also what the bar's "Ask AI" chooses from, when asked
   // to pick one (see seek.js) — while this is the page in front.
   useEffect(() => {
@@ -1810,13 +1827,24 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
             />
           </div>
         )}
+        {/* At the head of the column, the box that finds items — by their
+            name and what they say — and with them the themes and the
+            categories under it. The same one as in the top bar. */}
+        {listing && (
+          <FilterBox
+            className={styles.categoryFilter}
+            value={query}
+            onChange={onQuery}
+            placeholder={t("search.placeholder")}
+          />
+        )}
         {/* The themes, as rows under their name: the one pressed is the one
             the categories under them are narrowed to. */}
         {listing && <h3 className={styles.sideLabel}>{t("group.label")}</h3>}
         {listing && (
           <ul className={styles.groups} aria-label={t("group.label")}>
             {/* At their head, none of them: every category to pick from. */}
-            {["", ...themes].map((theme) => (
+            {themesFound.map((theme) => (
               <li key={theme}>
                 <button
                   type="button"
@@ -1834,15 +1862,6 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
           </ul>
         )}
         {listing && <h3 className={styles.sideLabel}>{t("item.category")}</h3>}
-        {/* Over the categories, the box that finds one among them. */}
-        {listing && (
-          <FilterBox
-            className={styles.categoryFilter}
-            value={categoryQuery}
-            onChange={setCategoryQuery}
-            placeholder={t("item.categorySearch")}
-          />
-        )}
         {/* The categories, as a list of short rows: the
             one pressed is the one the items are narrowed to. */}
         {listing && (

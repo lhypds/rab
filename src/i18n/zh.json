@@ -461,7 +461,10 @@
     "itemsEmpty": "你还没有发布项目。点 + 添加。",
     "noneShown": "这里没有项目。",
     "items": "项目",
-    "wanted": "需求"
+    "wanted": "需求",
+    "picked": "已选 {{count}} 个",
+    "deletePickedConfirm": "删除选中的 {{count}} 个项目？",
+    "deletedPicked": "已删除 {{count}} 个项目"
   },
   "user": {
     "missing": "没有这个用户。",

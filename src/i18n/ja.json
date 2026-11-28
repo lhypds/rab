@@ -461,7 +461,10 @@
     "itemsEmpty": "掲載しているものはありません。+ から追加できます。",
     "noneShown": "該当するアイテムはありません。",
     "items": "アイテム",
-    "wanted": "募集"
+    "wanted": "募集",
+    "picked": "{{count}} 件選択中",
+    "deletePickedConfirm": "選択した {{count}} 件のアイテムを削除しますか？",
+    "deletedPicked": "{{count}} 件のアイテムを削除しました"
   },
   "user": {
     "missing": "そのユーザーは見つかりません。",

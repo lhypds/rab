@@ -204,6 +204,30 @@
   display: none;
 }
 
+/* The column scrolls whole — the search box, the themes and the categories
+   together, under the area's name — where it is taller than the page: not the categories alone in
+   what little the rest leaves them. */
+@media (min-width: 760px) {
+  .listing .side {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .listing .choices {
+    flex: none;
+    overflow-y: visible;
+  }
+
+  /* The area's name stays at the head of the column while the rest goes up
+     under it. */
+  .listing .sideHead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--paper);
+  }
+}
+
 /* The category dropdown, as the map has it in its corner: only on a phone,
    where it stands in for the list of categories. */
 .categoryRow {
@@ -211,8 +235,8 @@
 }
 
 /* The categories under them: a list of rows, shorter than the rows of items
-   are — there are many, and each is a word — scrolled where there are more
-   than the column is tall. */
+   are — there are many, and each is a word. The column they stand in is what
+   scrolls (see above). */
 .choices {
   flex: 1;
   min-height: 0;
@@ -234,8 +258,7 @@
   line-height: 1.2;
 }
 
-/* The themes over them: the same rows, all of them always in sight — the
-   categories are what scrolls. */
+/* The themes over them: the same rows. */
 .groups {
   flex: none;
   margin: 0 0 10px;
