@@ -11,7 +11,8 @@ import RequestModal from "../RequestModal/index.js";
 import TravelModal from "../TravelModal/index.js";
 import * as api from "../../api.js";
 import { homePath } from "../../utils/categories.js";
-import { seek } from "../../utils/seek.js";
+import { priceLine } from "../../utils/format.js";
+import { listedNow, seek } from "../../utils/seek.js";
 import { itemPath } from "../../utils/spots.js";
 
 // The bar on every page. `back` swaps the wordmark for the way back, on the
@@ -31,6 +32,15 @@ export const REQUESTED_EVENT = "rab:requested";
 // Told when the wordmark is pressed: the map goes back to showing what is
 // offered (see MapView).
 export const HOME_EVENT = "rab:home";
+
+// What has been asked of the AI and what it answered, oldest first: asking
+// again goes on from it. Kept outside the bar, which each page puts up anew,
+// for as long as the tab is open; ASK_ROUNDS at most with the question being
+// asked, the oldest let go of first.
+const ASK_ROUNDS = 7;
+// How many of the page's rows are told with a question, to be chosen among.
+const ASK_SEEN = 40;
+let rounds = [];
 
 export default function Header({ back = false, view, onView, query = "", onQuery }) {
   const { t, i18n } = useTranslation();
@@ -101,9 +111,35 @@ export default function Header({ back = false, view, onView, query = "", onQuery
     const controller = new AbortController();
     asking.current = controller;
     setHint({ thinking: true });
+    // Asked, the box is empty again for the next thing — and lets go of what
+    // the list was narrowed to before, the answer being about to say anew.
+    setWritten("");
+    if (onQuery && query) onQuery("");
     try {
-      const answer = await api.ask(question, i18n.language.slice(0, 2), onView ? view : null, { signal: controller.signal });
+      // What the page lists as this is asked, the first rows of it: what the
+      // AI may choose one of ("pick one for me"), each as its row says it.
+      const { items: listed, narrowed } = onView ? listedNow() : { items: [], narrowed: false };
+      const rows = listed.slice(0, ASK_SEEN);
+      const seen = {
+        narrowed,
+        items: rows.map((item) => ({
+          id: String(item.id),
+          title: item.title,
+          what: item.what ?? "",
+          category: item.category ?? "",
+          price: priceLine(item, i18n.language, t),
+          place: item.place ?? item.region?.name ?? "",
+          rating: item.rating?.average ?? item.rating?.stars ?? (typeof item.rating === "number" ? item.rating : 0),
+          count: item.spot ? item.count ?? 0 : 0,
+        })),
+      };
+      const answer = await api.ask(question, i18n.language.slice(0, 2), onView ? view : null, rounds, seen, { signal: controller.signal });
       if (asking.current !== controller) return;
+      // The one chosen, kept with the answer for its button to open.
+      if (answer.action === "open") answer.chosen = rows.find((item) => String(item.id) === answer.item) ?? null;
+      if (answer.action === "open" && !answer.chosen) answer.action = "none";
+      const { chosen: _row, item: _id, ...said } = answer;
+      rounds = [...rounds, { question, ...said }].slice(-(ASK_ROUNDS - 1));
       setHint(answer);
     } catch (error) {
       if (asking.current !== controller) return;
@@ -120,10 +156,11 @@ export default function Header({ back = false, view, onView, query = "", onQuery
   }
   // The step the hint points at, taken — by its own button under the words.
   function follow() {
-    const { action, words, category } = hint;
+    const { action, words, category, chosen } = hint;
     const mine = (go) => (user ? go() : navigate(loginPath()));
     setHint(null);
-    if (action === "search") look(words);
+    if (action === "open") navigate(itemPath(chosen));
+    else if (action === "search") look(words);
     else if (action === "category") navigate(homePath(category));
     else if (action === "add") post();
     else if (action === "request") need(words);

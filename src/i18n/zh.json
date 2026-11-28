@@ -502,6 +502,7 @@
     "busy": "提问太频繁，请稍后再试，或直接搜索。",
     "close": "关闭",
     "do": {
+      "open": "打开“{{words}}”",
       "category": "查看“{{category}}”分类",
       "search": "搜索“{{words}}”",
       "add": "发布出租物品",

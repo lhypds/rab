@@ -511,6 +511,7 @@
     "busy": "Too many questions at once. Try again in a moment, or search for it.",
     "close": "Close",
     "do": {
+      "open": "Open “{{words}}”",
       "category": "Show “{{category}}”",
       "search": "Search “{{words}}”",
       "add": "Put something out for rent",

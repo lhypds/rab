@@ -123,7 +123,7 @@ const { mailConfigured, sendMail } = await import("./mail.js");
 const { MODES, roundPrice, readMinDuration, tooShort, dayBands, dayPrice, listPrice, openByRule, parseHours, parseRates, readDayList, readCancel, readContacts, readDeposit, readDayHours, readInquiryUnit, readOpenDays, readPriceUnit, readUnit, timeQuote } = await import("./rates.js");
 const { lookupRegion } = await import("./region.js");
 const { readPublicZip } = await import("./upload.js");
-const { DESCRIBE_PHOTOS_MAX, OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest, guide } = await import("./describe.js");
+const { DESCRIBE_PHOTOS_MAX, OpenAI, canDescribe, classifyListing, describeImage, describeObject, describeRequest, guide, GUIDE_ROUNDS } = await import("./describe.js");
 
 const port = Number(process.env.PORT) || 3016;
 const isProduction = process.env.NODE_ENV === "production";
@@ -2182,6 +2182,7 @@ app.post("/api/describe-request", requireSession, async (req, res) => {
 // held to a few a minute. Nothing is kept.
 const ASK_MAX = 300;
 const ASKS_A_MINUTE = 8;
+const ASK_SEEN = 40;
 const asked = new Map();
 function mayAsk(who) {
   const now = Date.now();
@@ -2202,14 +2203,46 @@ app.post("/api/ask", async (req, res) => {
   if (!mayAsk(req.user ? `user:${req.user.id}` : `ip:${req.ip}`)) {
     return res.status(429).json({ error: "Too many at once. Try again in a moment", code: "DESCRIBE_BUSY" });
   }
+  // The conversation so far, as the page kept it: what was asked and what was
+  // answered, the last few rounds of it — this question is the last of
+  // GUIDE_ROUNDS at most. Only read, as words said before; nothing in it is
+  // taken as a step.
+  const before = (Array.isArray(req.body?.history) ? req.body.history : [])
+    .slice(-(GUIDE_ROUNDS - 1))
+    .map((round) => ({
+      question: text(round?.question, ASK_MAX),
+      say: text(round?.say, 600),
+      action: text(round?.action, 20),
+      words: text(round?.words, TITLE_MAX),
+      category: text(round?.category, 40),
+      lang: text(round?.lang, 2),
+    }))
+    .filter((round) => round.question && round.say);
+  // What is listed on the asker's page, as the page says it: the first few
+  // rows, each in a line, for one of them to be chosen. They are what the
+  // asker already sees; the one chosen is named back by its id.
+  const seen = (Array.isArray(req.body?.seen) ? req.body.seen : [])
+    .slice(0, ASK_SEEN)
+    .map((item) => ({
+      id: text(item?.id, 80),
+      title: text(item?.title, TITLE_MAX),
+      what: text(item?.what, WHAT_MAX),
+      category: text(item?.category, 40),
+      price: text(item?.price, 60),
+      place: text(item?.place, 120),
+      rating: Number(item?.rating) > 0 ? Math.min(5, Number(item.rating)) : 0,
+      count: Number.isInteger(item?.count) && item.count > 0 ? item.count : 0,
+    }))
+    .filter((item) => item.id && item.title);
   try {
     const answer = await guide(question, String(req.body?.lang ?? "en").slice(0, 2), {
       signedIn: Boolean(req.user),
       adult: !req.user ? null : isAdult(req.user.id) ? "yes" : getBirthdate(req.user.id) ? "no" : null,
       view: ["map", "list"].includes(req.body?.view) ? req.body.view : null,
-    });
+      narrowed: Boolean(req.body?.narrowed),
+    }, before, seen);
     if (!answer) return res.status(422).json({ error: "It could not be answered", code: "DESCRIBE_FAILED" });
-    res.json({ say: answer.say.slice(0, 600), action: answer.action, words: answer.words.slice(0, TITLE_MAX), category: answer.category, lang: answer.lang });
+    res.json({ say: answer.say.slice(0, 600), action: answer.action, words: answer.words.slice(0, TITLE_MAX), category: answer.category, item: answer.item, lang: answer.lang });
   } catch (error) {
     describeFault(error, res, "answering the bar's question");
   }

@@ -313,7 +313,7 @@ export async function describeRequest(title, language) {
 // What the box in the top bar is asked ("Ask AI"): somebody says what they
 // want in their own words, and is told in a line what to do about it here —
 // with the one thing on the page to press for it.
-const GUIDE_ACTIONS = ["search", "category", "add", "request", "mine", "messages", "travel", "account", "list", "map", "none"];
+const GUIDE_ACTIONS = ["open", "search", "category", "add", "request", "mine", "messages", "travel", "account", "list", "map", "none"];
 
 const GUIDED = {
   type: "object",
@@ -322,9 +322,10 @@ const GUIDED = {
     action: { type: "string", enum: GUIDE_ACTIONS },
     words: { type: "string" },
     category: { type: "string", enum: [...CATEGORIES, ""] },
+    item: { type: "integer" },
     lang: { type: "string", enum: Object.keys(LANGUAGES) },
   },
-  required: ["say", "action", "words", "category", "lang"],
+  required: ["say", "action", "words", "category", "item", "lang"],
   additionalProperties: false,
 };
 
@@ -347,9 +348,10 @@ How the site is used:
 - "Account" (the person): your profile, how you are reached, your saved locations, signing out — and for somebody not signed in, where to sign in or make an account (a username and a password).
 - A language switcher: English, Chinese, Japanese.
 
-Somebody has typed into the "Ask AI" box in the top bar. Work out what they want to do and guide them to the one next step on this site. Answer with:
-- say: one or two short, plain sentences telling them what to do next and why that is the way to get what they want — as a friendly guide standing next to them. No greeting, no markdown, no lists. Do not promise that something is available: you cannot see the listings. A button for the action you choose is shown under your words, already labelled: speak of "the button below" rather than naming a control by a label of your own.
+Somebody has typed into the "Ask AI" box in the top bar. What they asked there before, and what you answered, may come first: it is one conversation, so read what they type now in its light ("a cheaper one", "there was none", "and in Osaka?") and do not repeat a step that did not get them what they wanted — where a search found nothing, a request is the next thing to try. Work out what they want to do and guide them to the one next step on this site. Answer with:
+- say: one or two short, plain sentences telling them what to do next and why that is the way to get what they want — as a friendly guide standing next to them. No greeting, no markdown, no lists. Do not promise that something is available unless it is in the list you are shown. A button for the action you choose is shown under your words, already labelled: speak of "the button below" rather than naming a control by a label of your own.
 - action: the one control they should press now:
+  - "open": one listing from the list you are shown of what is on their page right now, each with a number. When they ask you to choose, pick, recommend or decide for them ("pick one for me", "which is best", "the cheapest", "the nearest to the station"), do choose: take the one listing in that list that best fits everything said in this conversation — what it is, its price, its place, its rating — give its number in "item", and say in a sentence which one and why. Choosing is what was asked for: do not answer that they should compare for themselves, and do not send them back to the category or the search they are already looking at. Only ever a listing from the list, by its number; where you are shown no list or an empty one, say that nothing is listed on their page yet and take another step (a search, a category, another place, or a request). Also the step when what they ask for by name is plainly one listing in the list.
   - "search": they are looking for something to rent — the usual answer when they name a thing, place or service they want. Narrow the map to it.
   - "category": what they want is a whole category rather than one named thing ("a place to hold a meeting", "something for camping", anything in the adult category): narrow the home page to that category.
   - "add": they have something to rent out, lend, or earn from.
@@ -362,6 +364,7 @@ Somebody has typed into the "Ask AI" box in the top bar. Work out what they want
   - "none": nothing to press — a question you answer in "say" (how something works here), or something this site does not do; then say so kindly and say what it does do.
 - words: for "search", the one or two words to search for — the thing itself, as a listing would name it, in the site's language you are told (that is the language the listings are read in, whatever language the person typed in), without "rent" or "rental" (e.g. "camera", "自行车", "会議室"). For "request", a short title for what they are looking for. Otherwise empty.
 - category: for "category", the one category, exactly as written above. Otherwise empty.
+- item: for "open", the number of the listing chosen, as the list numbers it. Otherwise 0.
 
 Write "say" in the language the person typed in, where that is English, Chinese or Japanese; where it is another language, or cannot be told (a product's name, a word or two that could be either), in the site's language you are told — the language they read the site in.
 - lang: the language "say" is written in: "en", "zh" or "ja".`;
@@ -370,7 +373,13 @@ Write "say" in the language the person typed in, where that is English, Chinese 
 // is what is known of who asks: whether they are signed in, and which way the
 // page they are on is being read, and whether they are old enough for what
 // only grown-ups are shown ("yes", "no", or not known).
-export async function guide(question, language, about = {}) {
+// `before` is the conversation so far, oldest first: what was asked and what
+// was answered, each time — { question, say, action, words, category, lang }.
+// `seen` is what is listed on the asker's page as they ask, for one of them
+// to be chosen: { id, title, what, category, price, place, rating, count }
+// each. The one chosen comes back as `item`, its id, with its name in `words`.
+export const GUIDE_ROUNDS = 7;
+export async function guide(question, language, about = {}, before = [], seen = []) {
   if (!question) return null;
   client ??= new OpenAI();
   const known = [
@@ -378,12 +387,31 @@ export async function guide(question, language, about = {}) {
     about.adult === "yes" ? "They are confirmed 18 or older." : about.adult === "no" ? "They are under 18." : about.signedIn ? "They have given no date of birth." : "",
     about.view === "list" ? "They are reading the home page as lists." : about.view === "map" ? "They are reading the home page on the map." : "They are on a page other than the home page.",
   ].join(" ");
+  const line = (item, at) =>
+    [
+      `[${at + 1}] ${item.title}`,
+      item.what,
+      item.category && `category: ${item.category}`,
+      item.count ? `a place with ${item.count} listings of its own` : item.price ? `price: ${item.price}` : "",
+      item.place && `at: ${item.place}`,
+      item.rating && `rated ${item.rating} of 5`,
+    ]
+      .filter(Boolean)
+      .join(" — ");
+  const list = seen.length
+    ? `What is listed on their page right now (${about.narrowed ? "already narrowed to what they chose to look at" : "everything near where they are looking"}):\n${seen.map(line).join("\n")}`
+    : "Nothing is listed on their page right now, or they are on a page with no list.";
   const completion = await client.chat.completions.create({
     model: modelFor("guide"),
     response_format: { type: "json_schema", json_schema: { name: "guide", strict: true, schema: GUIDED } },
     messages: [
       { role: "system", content: GUIDE },
-      { role: "user", content: `They typed: ${question}\n\n${known}\n\nThe site's language: ${LANGUAGES[language] ?? LANGUAGES.en}.` },
+      // The rounds before this one, which is the last of GUIDE_ROUNDS at most.
+      ...before.slice(-(GUIDE_ROUNDS - 1)).flatMap((round) => [
+        { role: "user", content: `They typed: ${round.question}` },
+        { role: "assistant", content: JSON.stringify({ say: round.say, action: round.action, words: round.words, category: round.category, lang: round.lang }) },
+      ]),
+      { role: "user", content: `They typed: ${question}\n\n${known}\n\n${list}\n\nThe site's language: ${LANGUAGES[language] ?? LANGUAGES.en}.` },
     ],
   });
   const message = completion.choices[0]?.message;
@@ -396,6 +424,9 @@ export async function guide(question, language, about = {}) {
     const words = String(answer?.words ?? "").trim();
     // A search or a request for nothing is no step at all.
     if ((action === "search" || action === "request") && !words) action = "none";
+    // One chosen is one of those shown, or no step at all.
+    const chosen = action === "open" ? seen[Number(answer?.item) - 1] : null;
+    if (action === "open" && !chosen) action = "none";
     let category = action === "category" && CATEGORIES.includes(answer?.category) ? answer.category : "";
     if (action === "category" && !category) action = "none";
     // A category only grown-ups are shown is not opened for anybody else,
@@ -407,7 +438,7 @@ export async function guide(question, language, about = {}) {
     }
     // The language it was said in, for the button under it to be said in too.
     const lang = LANGUAGES[answer?.lang] ? answer.lang : LANGUAGES[language] ? language : "en";
-    return { say, action, words: action === "search" || action === "request" ? words : "", category, lang };
+    return { say, action, words: chosen ? chosen.title : action === "search" || action === "request" ? words : "", category, item: chosen ? chosen.id : "", lang };
   } catch {
     return null;
   }

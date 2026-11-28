@@ -212,6 +212,8 @@ struct ItemDetailView: View {
             choices: PlaceChoice.all(model.places),
             name: { $0.name },
             chosen: { isShownPlace($0, of: item) },
+            // The places come with the items: asking for those again.
+            refresh: { await model.loadListings() },
             // Only chosen: Save keeps it.
             choose: { choosePlace($0, for: item) }
         )

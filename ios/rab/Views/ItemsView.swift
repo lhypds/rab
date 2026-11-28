@@ -328,6 +328,8 @@ struct ItemsView: View {
                 choices: PlaceChoice.all(model.places),
                 name: { $0.name },
                 chosen: { _ in false },
+                // The places come with the items: asking for those again.
+                refresh: { await model.loadListings() },
                 choose: { placePicked($0.place) }
             )
             .compactDialog(
@@ -1011,6 +1013,8 @@ struct ListingDetailView: View {
             choices: PlaceChoice.all(model.places),
             name: { $0.name },
             chosen: { $0.id == (chosenPlace?.id ?? model.place(of: listing)?.id ?? "") },
+            // The places come with the items: asking for those again.
+            refresh: { await model.loadListings() },
             // Only chosen: Save keeps it. The one it is at already is no change.
             choose: { choosePlace($0, for: listing) }
         )

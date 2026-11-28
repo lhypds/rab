@@ -35,6 +35,7 @@ import ItemModal from "../ItemModal/index.js";
 import { categoriesOf } from "../CategoryFilter/index.js";
 import CategoryIcon from "../CategoryIcon/index.js";
 import FilterBox from "../FilterBox/index.js";
+import { setListed } from "../../utils/seek.js";
 import ItemPreview from "../ItemPreview/index.js";
 import MessageModal from "../MessageModal/index.js";
 import { itemPath } from "../../utils/spots.js";
@@ -685,6 +686,14 @@ export default function MapView({ view = "map", query = "", onQuery, active = tr
     // `passes` and `filtering` are derived afresh each render from these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offered, found, sought, category, group, query, t]);
+  // What is listed is also what the bar's "Ask AI" chooses from, when asked
+  // to pick one (see seek.js) — while this is the page in front.
+  useEffect(() => {
+    if (!active) return undefined;
+    setListed(listed, filtering);
+    return () => setListed([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listed, active]);
   // As lists, the item whose row was picked last — by the keys, the wheel or
   // a first press — which a second press opens. Kept aside rather than in
   // state: picking is done a row to every notch of the wheel, and drawing all

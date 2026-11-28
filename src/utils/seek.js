@@ -19,3 +19,15 @@ export const sought = () => waiting;
 export function forgetSought() {
   waiting = "";
 }
+
+// And the other way: what the home page lists as it stands — the rows of its
+// list, narrowed as they are — for the bar's "Ask AI" to be able to choose
+// one of them when asked to ("pick one for me"). Told by the page that lists
+// (see MapView), read by the bar when something is asked.
+let listed = { items: [], narrowed: false };
+
+export function setListed(items, narrowed = false) {
+  listed = { items: items ?? [], narrowed };
+}
+
+export const listedNow = () => listed;
